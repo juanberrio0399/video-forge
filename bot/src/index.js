@@ -123,32 +123,49 @@ async function handleCallback(cb, env) {
   if (!isOwner(chatId, env)) {
     return tg(env, "answerCallbackQuery", { callback_query_id: cb.id, text: "No autorizado" });
   }
-  // Placeholder de aprobacion (se conecta a publish en Fase 5).
-  if (data.startsWith("publish:")) {
-    await tg(env, "answerCallbackQuery", { callback_query_id: cb.id, text: "Publicando..." });
-    return tg(env, "sendMessage", {
-      chat_id: chatId,
-      text: "✅ Aprobado. (La publicacion a YouTube se conecta en la Fase 5.)",
-    });
+  // Cierra el "relojito" del boton de inmediato.
+  await tg(env, "answerCallbackQuery", { callback_query_id: cb.id });
+
+  switch (data) {
+    case "voz": {
+      const r = await ghDispatch(env, "voice_parallel.yml", {});
+      return ack(env, chatId, r, "Generacion de voz (en paralelo)");
+    }
+    case "render": {
+      const r = await ghDispatch(env, "render.yml", {});
+      return ack(env, chatId, r, "Render en la nube");
+    }
+    case "estado":
+      return sendStatus(env, chatId);
+    case "nuevo":
+      return tg(env, "sendMessage", {
+        chat_id: chatId,
+        text:
+          "🚧 Video completo automatico: en construccion.\n\n" +
+          "Por ahora, paso a paso: 🎙️ Generar voz · 🎬 Renderizar · 📊 Estado.",
+      });
+    case "menu":
+    case "help":
+      return sendMenu(env, chatId);
+    default:
+      if (data.startsWith("publish:"))
+        return tg(env, "sendMessage", { chat_id: chatId, text: "✅ Aprobado. (Publicacion a YouTube en Fase 5.)" });
+      if (data.startsWith("discard:"))
+        return tg(env, "sendMessage", { chat_id: chatId, text: "❌ Descartado." });
+      return;
   }
-  if (data.startsWith("discard:")) {
-    await tg(env, "answerCallbackQuery", { callback_query_id: cb.id, text: "Descartado" });
-    return tg(env, "sendMessage", { chat_id: chatId, text: "❌ Descartado." });
-  }
-  return tg(env, "answerCallbackQuery", { callback_query_id: cb.id });
 }
 
 // ---------- Vistas ----------
 
-// Teclado fijo (como app): botones siempre visibles abajo.
-const MENU_KEYBOARD = {
-  keyboard: [
-    [{ text: "🎙️ Generar voz" }, { text: "🎬 Renderizar" }],
-    [{ text: "📊 Estado" }, { text: "🆕 Nuevo video" }],
-    [{ text: "❓ Ayuda" }],
+// Botones DENTRO del mensaje (inline): siempre visibles, se tocan y listo.
+const MENU_INLINE = {
+  inline_keyboard: [
+    [{ text: "🎙️ Generar voz", callback_data: "voz" }],
+    [{ text: "🎬 Renderizar video", callback_data: "render" }],
+    [{ text: "📊 Estado (que se hace ahora)", callback_data: "estado" }],
+    [{ text: "🆕 Nuevo video (pronto)", callback_data: "nuevo" }],
   ],
-  resize_keyboard: true,
-  is_persistent: true,
 };
 
 async function sendMenu(env, chatId) {
@@ -166,13 +183,13 @@ async function sendMenu(env, chatId) {
   return tg(env, "sendMessage", {
     chat_id: chatId,
     parse_mode: "Markdown",
-    reply_markup: MENU_KEYBOARD,
+    reply_markup: MENU_INLINE,
     text: [
       "*video-forge* 🎬 — centro de control del canal",
       "",
-      "Usa los *botones de abajo* 👇 (o el menu de comandos).",
+      "Toca un boton 👇",
       "",
-      "🎙️ *Generar voz* — narracion con tu voz (~15 min)",
+      "🎙️ *Generar voz* — narracion con tu voz",
       "🎬 *Renderizar* — arma el video en la nube",
       "📊 *Estado* — que se hace AHORA + en que paso va",
       "🆕 *Nuevo video* — completo y solo (en construccion)",
