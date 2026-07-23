@@ -14,16 +14,21 @@ on:
       exaggeration:
         description: "Expresividad (0.4 sobrio - 0.8 dramatico)"
         required: false
-        default: "0.6"
+        default: "0.5"
       cfg:
         description: "Pacing (0.3 natural - 0.6 firme)"
         required: false
         default: "0.3"
+      voice_ref:
+        description: "Audio de referencia para clonar el timbre (vacio = voz por defecto)"
+        required: false
+        default: "assets/voice/ref_juan.mp3"
   push:
     branches: [main]
     paths:
       - "pipeline/tts_chatterbox.py"
       - ".github/workflows/voice_chatterbox.yml"
+      - "assets/voice/**"
 
 permissions:
   contents: read
@@ -34,8 +39,9 @@ jobs:
     timeout-minutes: 45
     env:
       TEXT: ${{ github.event.inputs.text || 'projects/0001-youtube-money/sample.txt' }}
-      CB_EXAGGERATION: ${{ github.event.inputs.exaggeration || '0.6' }}
+      CB_EXAGGERATION: ${{ github.event.inputs.exaggeration || '0.5' }}
       CB_CFG: ${{ github.event.inputs.cfg || '0.3' }}
+      VOICE_REF: ${{ github.event.inputs.voice_ref || 'assets/voice/ref_juan.mp3' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,6 +55,19 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
+
+      - name: Prepare voice reference (clonado)
+        run: |
+          mkdir -p renders
+          if [ -n "$VOICE_REF" ] && [ -f "$VOICE_REF" ]; then
+            ffmpeg -y -i "$VOICE_REF" -ac 1 -ar 24000 \
+              -af "highpass=f=80,loudnorm=I=-20:TP=-2:LRA=11" \
+              renders/voice_ref.wav
+            echo "CB_VOICE_PROMPT=$PWD/renders/voice_ref.wav" >> "$GITHUB_ENV"
+            echo "Referencia de voz lista: $VOICE_REF -> renders/voice_ref.wav"
+          else
+            echo "Sin referencia; se usa la voz por defecto de Chatterbox."
+          fi
 
       - name: Install Chatterbox (CPU torch)
         run: |
