@@ -1,7 +1,7 @@
 # How Much Money Does YouTube Make Every Second?
 
 meta:
-- duracion objetivo: ~8-10 min (habilita mid-roll)
+- duracion objetivo: ~10 min (habilita mid-roll)
 - idioma: English (voz TTS Kokoro)
 - WPM objetivo: ~140  ·  ~1.400 palabras de narracion
 - nicho: datos que explican el mundo
@@ -54,11 +54,16 @@ NARRATION: "For every dollar a video earns in ads, YouTube keeps forty-five cent
 [VIS: el rio de dinero partiendose 45% Google / 55% creadores; contador "$100B -> creators (4 yrs)"]
 [SHORT: "YouTube paid regular people $100,000,000,000 in 4 years"]
 
-## SYNTHESIS — the so-what  (8:10-8:45)
+## CHAPTER 7 — And some got insanely rich  (8:10-9:30)
+NARRATION: "And a few of them didn't just make rent — they got insanely rich. Take the biggest creator on the planet, MrBeast. In 2024 alone, Forbes estimated he earned about eighty-five million dollars. Eighty-five million, in a single year, from YouTube. That's more than most Hollywood A-list actors make in a year. More than the CEOs of companies you've definitely heard of. And he didn't start with a studio — he started as a teenager filming in his hometown. Now, he's the extreme, the very top of the mountain, and most creators make far, far less. But that's the wild part about this machine: the ceiling is basically gone. The same platform that pays a small creator a few dollars can turn another one into someone richer than a movie star. There's no other job on Earth quite like it. The line between 'a person with a camera' and 'a media empire' has never been thinner."
+[VIS: barra de MrBeast $85M vs referencias (actor promedio, CEO); "2024 · Forbes"]
+[SHORT: "The world's top YouTuber made $85,000,000 in one year" = short brutal]
+
+## SYNTHESIS — the so-what  (9:30-10:05)
 NARRATION: "So next time an ad rolls before your video, remember the whole machine behind it. In the five seconds you wait to skip, YouTube made around ten thousand dollars — some went to Google, and a bigger slice went to a creator you've probably never heard of. Ads, subscriptions, a secret cable company, more money than Netflix, and a hundred billion dollars handed back to regular people. That's what's really happening, every second, quietly, while the counter never stops."
 [VIS: vuelve el contador en vivo con "55% -> creators" corriendo al lado]
 
-## CTA + SESSION LOOP  (8:45-9:05)
+## CTA + SESSION LOOP  (10:05-10:25)
 NARRATION: "If those numbers surprised you, subscribe — every week we break down the money hiding behind something you use every day. And next, the obvious question: how much does one single YouTuber actually make from a million views? The answer's not what you'd guess. It's right here — go watch it."
 [VIS: subscribe prompt + end screen apuntando al siguiente video]
 
@@ -68,6 +73,7 @@ NARRATION: "If those numbers surprised you, subscribe — every week we break do
 - YouTube TV >10M subscribers (late 2025) — Cord Cutters News: https://cordcuttersnews.com/youtube-tv-surpasses-10-million-subscribers-solidifying-dominance-in-live-tv-streaming/
 - YouTube TV price $82.99/mo (2025) — CBS News: https://www.cbsnews.com/amp/news/youtube-tv-price-increase-2025/
 - YouTube paid >$100B to creators/artists/media over 4 years — CNBC (Sep 2025): https://www.cnbc.com/2025/09/16/youtube-creators-pay.html
+- MrBeast ~$85M en 2024, el mejor pagado (Forbes Top Creators 2024): https://www.uniladtech.com/social-media/youtube/mrbeast-estimated-85000000-earnings-forbes-2024-creator-810802-20241211
 - Creator ad-revenue split 55% creator / 45% YouTube (long-form) — YouTube Partner Program (confirmar link oficial de soporte antes de publicar).
 - Derivados por segundo/minuto/hora/dia desde $60B/año: ~$1,902/s, ~$114k/min, ~$6.85M/h, ~$164M/dia.
 

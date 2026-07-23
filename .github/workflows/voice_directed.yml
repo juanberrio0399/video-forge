@@ -26,7 +26,7 @@ permissions:
 jobs:
   voice:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     env:
       MAP: ${{ github.event.inputs.map || 'projects/0001-youtube-money/voicemap_sample.json' }}
       SPEED: ${{ github.event.inputs.speed || '1.0' }}
