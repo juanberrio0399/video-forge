@@ -82,6 +82,15 @@ posible = avatar HeyGen (no se usa) y Apify si se abusa (se evita).
 - [ ] **Fase 5 — Auto-publish a YouTube.** OAuth como secrets; publica largo + shorts al dar OK.
 - [ ] **Fase 6 — Fabrica de contenido.** Cola de ideas + recurrencia; soltar contenido poco a poco.
 
+### Como el bot elige el TEMA (data-driven, NO al azar) — pendiente de conectar
+El tema SIEMPRE pasa por la inteligencia de la crew antes de producir:
+- `/ideas` (bot propone): `video-tendencias` (demanda real) + `video-virales` (formatos que pegan)
+  -> devuelve 3-4 temas con demanda comprobada y poca competencia; Juan elige.
+- `/nuevo <tema>` (Juan da el tema): igual pasa por `video-tendencias` -> GO/NO-GO
+  (demanda + saturacion). NO-GO -> el bot sugiere un mejor angulo. Nunca produce a ciegas.
+- Flujo: tema -> tendencias(demanda/saturacion) -> virales(angulo) -> GO -> guion -> voz -> render -> shorts.
+- Skills ya escritas (video-tendencias, video-virales); falta el workflow "produce" + comandos /ideas /nuevo.
+
 ## Crew como skills (8, todas validadas en la web 2025-2026 y escritas)
 
 En `skills/`, cada una con reglas accionables + recursos gratis + errores comunes:
