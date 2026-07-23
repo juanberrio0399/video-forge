@@ -1,0 +1,17 @@
+# Cloudflare Worker = cerebro del bot de Telegram (gratis, siempre encendido).
+# Recibe los mensajes de Telegram (webhook) y dispara GitHub Actions.
+
+name = "video-forge-bot"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# Variables NO secretas (el repo objetivo y que workflow dispara /nuevo).
+[vars]
+GH_REPO = "juanberrio0399/video-forge"
+GH_PRODUCE_WORKFLOW = "render.yml"
+
+# Secretos (NO van aqui; se ponen con `wrangler secret put <NOMBRE>`):
+#   TELEGRAM_BOT_TOKEN        -> token de @BotFather
+#   TELEGRAM_WEBHOOK_SECRET   -> cadena aleatoria (la misma en setWebhook)
+#   OWNER_CHAT_ID             -> tu chat id de Telegram (solo tu puedes mandar)
+#   GH_TOKEN                  -> GitHub PAT fine-grained con Actions: Read/Write

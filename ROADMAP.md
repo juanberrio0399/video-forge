@@ -73,7 +73,10 @@ posible = avatar HeyGen (no se usa) y Apify si se abusa (se evita).
 - [ ] **Fase 2 — Inteligencia de contenido.** last30days (tendencias) +
       claude-video-vision (analizar virales -> patrones que alimentan el guion).
 - [ ] **Fase 3 — Shorts.** ai-youtube-shorts-generator saca 3-5 shorts del largo.
-- [ ] **Fase 4 — Bot de Telegram (Cloudflare Worker).** Pedir, revisar preview, aprobar.
+- [~] **Fase 4 — Bot de Telegram (Cloudflare Worker).** Codigo del bot LISTO en
+      `bot/` (comandos /nuevo /render /voz /estado, seguridad, dispatch a Actions) +
+      `pipeline/notify_telegram.sh` (Actions -> chat). Falta: Juan crea el bot con
+      @BotFather, pone secrets (wrangler) y `wrangler deploy` + setWebhook. Ver `bot/README.md`.
 - [ ] **Fase 5 — Auto-publish a YouTube.** OAuth como secrets; publica largo + shorts al dar OK.
 - [ ] **Fase 6 — Fabrica de contenido.** Cola de ideas + recurrencia; soltar contenido poco a poco.
 
