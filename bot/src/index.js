@@ -150,19 +150,39 @@ function sendMenu(env, chatId) {
   });
 }
 
+function esc(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 async function sendStatus(env, chatId) {
-  const res = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=5`);
+  const res = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=6`);
   if (!res.ok) {
     return tg(env, "sendMessage", { chat_id: chatId, text: `No pude leer el estado (${res.status}).` });
   }
   const data = await res.json();
-  const lines = (data.workflow_runs || []).map((r) => {
-    const icon = r.status === "completed" ? (r.conclusion === "success" ? "✅" : "❌") : "⏳";
-    return `${icon} ${r.name} — ${r.status}${r.conclusion ? "/" + r.conclusion : ""}`;
+  const runs = data.workflow_runs || [];
+  const lines = runs.map((r) => {
+    let icon = "⏳";
+    let estado = "en curso";
+    if (r.status === "completed") {
+      icon = r.conclusion === "success" ? "✅" : (r.conclusion === "cancelled" ? "🚫" : "❌");
+      estado = r.conclusion;
+    } else if (r.status === "queued") {
+      icon = "🕒";
+      estado = "en cola";
+    }
+    // Nombre enlazado a la pagina del run (tocable para ver el progreso en vivo).
+    return `${icon} <a href="${r.html_url}">${esc(r.name)}</a> — ${estado}`;
   });
+  const running = runs.filter((r) => r.status !== "completed").length;
+  const header = running
+    ? `⏳ ${running} en proceso ahora:\n\n`
+    : "Ultimos procesos:\n\n";
   return tg(env, "sendMessage", {
     chat_id: chatId,
-    text: lines.length ? "Ultimos procesos:\n" + lines.join("\n") : "Sin procesos recientes.",
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+    text: lines.length ? header + lines.join("\n") : "Sin procesos recientes.",
   });
 }
 
