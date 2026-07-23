@@ -1,0 +1,51 @@
+name: Deploy bot (Cloudflare)
+
+# Despliega el Worker del bot a Cloudflare desde la nube (sin terminal local),
+# carga sus secretos y registra el webhook de Telegram automaticamente.
+# Requiere estos GitHub Secrets:
+#   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
+#   TELEGRAM_BOT_TOKEN, GH_TOKEN, OWNER_CHAT_ID, TELEGRAM_WEBHOOK_SECRET
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: bot
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Desplegar Worker
+        run: npx --yes wrangler@4 deploy | tee deploy.log
+
+      - name: Cargar secretos del Worker
+        run: |
+          printf '%s' "${{ secrets.TELEGRAM_BOT_TOKEN }}"      | npx --yes wrangler@4 secret put TELEGRAM_BOT_TOKEN
+          printf '%s' "${{ secrets.GH_TOKEN }}"                | npx --yes wrangler@4 secret put GH_TOKEN
+          printf '%s' "${{ secrets.OWNER_CHAT_ID }}"           | npx --yes wrangler@4 secret put OWNER_CHAT_ID
+          printf '%s' "${{ secrets.TELEGRAM_WEBHOOK_SECRET }}" | npx --yes wrangler@4 secret put TELEGRAM_WEBHOOK_SECRET
+
+      - name: Registrar webhook de Telegram
+        run: |
+          URL=$(grep -oE 'https://[a-zA-Z0-9._-]+\.workers\.dev' deploy.log | head -1)
+          if [ -z "$URL" ]; then echo "No pude leer la URL del Worker"; exit 1; fi
+          echo "Worker URL: $URL"
+          RESP=$(curl -s "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/setWebhook" \
+            --data-urlencode "url=${URL}" \
+            --data-urlencode "secret_token=${{ secrets.TELEGRAM_WEBHOOK_SECRET }}")
+          echo "Telegram: $RESP"
+          echo "$RESP" | grep -q '"ok":true' || { echo "setWebhook fallo"; exit 1; }
+          echo "✅ Bot desplegado y webhook activo en $URL"
