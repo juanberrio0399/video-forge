@@ -1,6 +1,7 @@
 node_modules/
 renders/
-_artifact/
+_artifact*/
+_cmp_*.mp3
 .debug/
 .cache/
 *.log
