@@ -44,11 +44,11 @@ jobs:
         run: |
           mkdir -p out
           python pipeline/tts_chatterbox_directed.py "$MAP" "out/part_${{ matrix.chunk }}.wav" ${{ matrix.chunk }} ${NUM_CHUNKS}
-      - name: Subir pedazo
+      - name: Subir pedazo (audio + tiempos)
         uses: actions/upload-artifact@v4
         with:
           name: part-${{ matrix.chunk }}
-          path: out/part_${{ matrix.chunk }}.wav
+          path: out/part_${{ matrix.chunk }}.wav*
           if-no-files-found: error
           retention-days: 1
 
@@ -58,8 +58,16 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      BUCKET: video-forge
+      PROJECT: 0001-youtube-money
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Bajar todos los pedazos
@@ -68,7 +76,7 @@ jobs:
           pattern: part-*
           path: parts
           merge-multiple: true
-      - name: Unir en orden + normalizar -14 LUFS + MP3
+      - name: Unir audio en orden + normalizar -14 LUFS + MP3
         run: |
           mkdir -p renders
           : > list.txt
@@ -83,13 +91,38 @@ jobs:
             -ar 48000 renders/voiceover_dir.wav
           ffmpeg -y -i renders/voiceover_dir.wav -codec:a libmp3lame -q:a 2 renders/voiceover_dir.mp3
           ls -la renders/
-      - name: Subir narracion final
+      - name: Construir mapa de tiempos (timing.json)
+        run: |
+          node -e '
+            const fs = require("fs");
+            const N = parseInt(process.env.NUM_CHUNKS);
+            let beats = [];
+            for (let i = 0; i < N; i++) {
+              const p = `parts/part_${i}.wav.timing.json`;
+              if (fs.existsSync(p)) beats = beats.concat((JSON.parse(fs.readFileSync(p)).beats) || []);
+            }
+            beats.sort((a, b) => a.index - b.index);
+            let t = 0;
+            for (const b of beats) { b.start = Math.round(t*1000)/1000; t += b.dur; b.end = Math.round(t*1000)/1000; }
+            fs.writeFileSync("renders/timing.json", JSON.stringify({ total: Math.round(t*1000)/1000, beats }, null, 2));
+            console.log("timing.json:", beats.length, "beats, total", t.toFixed(1), "s");
+          '
+          cat renders/timing.json | head -20
+      - name: Subir narracion + tiempos (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: voiceover-directed
-          path: renders/voiceover_dir.mp3
+          path: |
+            renders/voiceover_dir.mp3
+            renders/timing.json
           if-no-files-found: error
           retention-days: 14
+      - name: Guardar en R2 (nube persistente)
+        if: ${{ hashFiles('renders/voiceover_dir.mp3') != '' }}
+        run: |
+          npx --yes wrangler@4 r2 object put "$BUCKET/audio/$PROJECT/voiceover.mp3" --file=renders/voiceover_dir.mp3 --remote
+          npx --yes wrangler@4 r2 object put "$BUCKET/audio/$PROJECT/timing.json" --file=renders/timing.json --remote
+          echo "R2: audio/$PROJECT/voiceover.mp3 + timing.json"
       - name: Avisar a Telegram
         if: always()
         env:
@@ -97,7 +130,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
         run: |
           if [ -f renders/voiceover_dir.mp3 ]; then
-            bash pipeline/notify_telegram.sh "🎙️ Narracion lista (tu voz, dirigida)." renders/voiceover_dir.mp3
+            bash pipeline/notify_telegram.sh "🎙️ Narracion lista (tu voz) + guardada en R2." renders/voiceover_dir.mp3
           else
             bash pipeline/notify_telegram.sh "❌ La narracion fallo al unir los pedazos."
           fi
