@@ -73,10 +73,12 @@ posible = avatar HeyGen (no se usa) y Apify si se abusa (se evita).
 - [ ] **Fase 2 — Inteligencia de contenido.** last30days (tendencias) +
       claude-video-vision (analizar virales -> patrones que alimentan el guion).
 - [ ] **Fase 3 — Shorts.** ai-youtube-shorts-generator saca 3-5 shorts del largo.
-- [~] **Fase 4 — Bot de Telegram (Cloudflare Worker).** Codigo del bot LISTO en
-      `bot/` (comandos /nuevo /render /voz /estado, seguridad, dispatch a Actions) +
-      `pipeline/notify_telegram.sh` (Actions -> chat). Falta: Juan crea el bot con
-      @BotFather, pone secrets (wrangler) y `wrangler deploy` + setWebhook. Ver `bot/README.md`.
+- [x] **Fase 4 — Bot de Telegram (Cloudflare Worker).** DESPLEGADO 2026-07-23 en
+      `https://video-forge-bot.tienvo.workers.dev` (webhook activo). Comandos /start
+      /nuevo /render /voz /estado; solo-owner; dispara Actions. Deploy 100% en la nube
+      via `.github/workflows/deploy-bot.yml` (secrets en GitHub: CLOUDFLARE_API_TOKEN,
+      CLOUDFLARE_ACCOUNT_ID, TELEGRAM_BOT_TOKEN, GH_TOKEN, OWNER_CHAT_ID,
+      TELEGRAM_WEBHOOK_SECRET). Redeploy = correr ese workflow. Ver `bot/README.md`.
 - [ ] **Fase 5 — Auto-publish a YouTube.** OAuth como secrets; publica largo + shorts al dar OK.
 - [ ] **Fase 6 — Fabrica de contenido.** Cola de ideas + recurrencia; soltar contenido poco a poco.
 
