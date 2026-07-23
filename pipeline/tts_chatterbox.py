@@ -22,7 +22,8 @@ import numpy as np
 import torch
 import soundfile as sf
 
-GAP = 0.35  # silencio entre parrafos (s)
+GAP = 0.45        # silencio entre parrafos (s)
+SENT_GAP = 0.14   # micro-pausa entre oraciones (s) -> ritmo mas natural, menos "IA"
 
 
 def split_sentences(paragraph: str) -> list[str]:
@@ -86,12 +87,14 @@ def main() -> int:
     model, gen = load_model(lang, device)
     sr = model.sr
     gap = np.zeros(int(GAP * sr), dtype=np.float32)
+    sent_gap = np.zeros(int(SENT_GAP * sr), dtype=np.float32)
 
     parts: list[np.ndarray] = []
     for i, para in enumerate(paragraphs, 1):
         for sent in split_sentences(para):
             wav = gen(sent)  # tensor [1, N]
             parts.append(wav.squeeze(0).cpu().numpy().astype(np.float32))
+            parts.append(sent_gap)
         parts.append(gap)
         print(f"  parrafo {i}/{len(paragraphs)} listo")
 
