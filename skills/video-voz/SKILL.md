@@ -55,8 +55,75 @@ para prototipos rapidos.
 
 Regla: para monetizado usa **YouTube Audio Library + Pixabay (CC0)** -> cero riesgo.
 
+## Direccion de voz por BEAT (que no suene plano / a IA)
+
+El error #1 que delata a un TTS es leer TODO con la misma energia y ritmo. La
+solucion: **cada beat se genera como su propio clip** con su energia, ritmo y
+pausas, y se concatenan con silencios. Flujo:
+**guion -> mapa de voz por beat (JSON) -> un clip Chatterbox por beat -> concatenar
+con silencios -> atempo global de ajuste fino.**
+
+### Mapa por momento (pace / energia / pausa)
+
+| Momento | WPM | Energia (1-5) | Pausa | Tono |
+|---|---|---|---|---|
+| Hook (0-12s) | 160-180 | 5 | corta antes del gancho | rapido, curioso, promesa arriba |
+| Contexto/setup | 140-150 | 3 | fin de frase | conversacional, calido |
+| Dato complejo | 120-140 | 3 | media antes de definir | lento, articulado, autoridad |
+| Numero clave | 130 con freno | 4 | **dramatica ANTES (~500ms)** | enfatiza la cifra, baja al final |
+| Reveal/climax | 150-165 | 5 | silencio antes, energia despues | pico de expresividad |
+| Sintesis | 130-140 | 3 | media entre ideas | reflexivo |
+| CTA | 145-160 | 4 | corta antes del pedido | directo, calido, cierre descendente |
+
+Bandas: general 130-145 WPM, entretenimiento 140-150, alta energia 170+, techo de
+comprension ~190 WPM.
+
+### Traduccion a parametros Chatterbox
+
+Energia -> `exaggeration`: 1=0.30-0.40 · 2=0.40-0.45 · 3(base)=0.45-0.55 ·
+4=0.60-0.68 · 5(pico)=0.70-0.80.
+Pace -> `cfg_weight` (+ atempo global): muy_lento=0.30-0.35 (atempo 0.92-0.95) ·
+lento=0.35-0.45 · medio=0.50 (1.0) · rapido=0.55-0.60 (1.02-1.05) ·
+muy_rapido=0.60-0.65 (1.05-1.08).
+
+Combinaciones clave:
+- **Reveal:** exaggeration ~0.72 + cfg ~0.32 (emotivo pero no atropellado).
+- **Dato complejo:** exaggeration ~0.40 + cfg ~0.33 + atempo 0.94 (lento y claro).
+- **Hook:** exaggeration ~0.70 + cfg ~0.58 (energico y agil).
+- **NUNCA** exaggeration alto Y cfg alto a la vez: se acelera y se traga palabras.
+
+### Reglas de locucion
+
+1. Rapido en el hook (~10-15% mas que el cuerpo), energia 5.
+2. **Pausa dramatica ANTES del numero/reveal, no despues** (~500ms).
+3. Baja el ritmo al explicar lo complejo; subelo en ejemplos/accion.
+4. Sube energia en el reveal (contraste = climax).
+5. Enfatiza SOLO 1-2 palabras clave por frase (jerarquia).
+6. Varia el ritmo cada 20-40s; cierra cada bloque con micro-pregunta abierta.
+7. Entonacion DESCENDENTE al final de afirmaciones (autoridad, no up-talk).
+8. Calidez > hype: entusiasmo genuino, no griteria.
+9. Frases <22 palabras (el TTS respira mal en frases largas). Lee el guion en voz
+   alta: si tropiezas tu, tropieza el TTS.
+
+### Pausas (Chatterbox no soporta SSML break)
+
+- Micro 200-300ms = coma. Media 400-500ms = guion largo (—) o punto y aparte.
+- Dramatica 600-900ms = **partir el clip e insertar silencio** (pausa_antes_ms).
+- Enfasis de palabra: aislar la frase del reveal como su propio clip con
+  exaggeration +0.1, y coma-pausa antes de la palabra clave.
+
+### Formato del mapa de voz (JSON por beat)
+
+`{ text, tipo, exaggeration, cfg, pause_before, pause_after, enfasis[] }` — lo
+consume `pipeline/tts_chatterbox_directed.py`, que genera un clip por beat con sus
+params y concatena con los silencios. Ajuste fino global con `atempo` en el workflow.
+
 ## Recursos
 
+- Config Chatterbox (exaggeration/cfg): https://yocxy2-chatterboxyocxy.mintlify.app/guides/configuration · Extended (chunks/silencios): https://github.com/petermg/Chatterbox-TTS-Extended
+- Voz IA de alta retencion (WPM, pausas): https://narrationbox.com/blog/ai-voices-for-high-retention-youtube-videos-2025
+- Narracion documental (pausa, enfasis, autoridad): https://voicebros.com/en/blog/documentary-narration-techniques
+- Velocidad de habla y persuasion/memoria: https://tctecinnovation.com/blogs/daily-blog/how-your-speaking-speed-affects-what-people-remember
 - Kokoro comparativa: https://localaimaster.com/blog/kokoro-vs-xtts-vs-chatterbox · Piper: https://github.com/rhasspy/piper
 - SSML/menos robotico: https://www.dupdub.com/blog/expressive-tts-ssml-guide · https://voice.ai/hub/tts/how-to-make-text-to-speech-sound-less-robotic/
 - Musica/SFX: https://pixabay.com/music/ · https://freesound.org/ · https://mixkit.co/
