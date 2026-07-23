@@ -1,0 +1,72 @@
+name: Voiceover DIRIGIDA (Chatterbox por beat)
+
+# Genera la voz con DIRECCION por beat: cada momento con su energia, ritmo y pausas
+# (hook energico, pausa antes del numero, reveal arriba). Lee un mapa de voz JSON.
+
+on:
+  workflow_dispatch:
+    inputs:
+      map:
+        description: "Mapa de voz (JSON por beat)"
+        required: false
+        default: "projects/0001-youtube-money/voicemap_sample.json"
+      speed:
+        description: "Ajuste fino global de velocidad (atempo). 1.0 = normal"
+        required: false
+        default: "1.0"
+  push:
+    branches: [main]
+    paths:
+      - "pipeline/tts_chatterbox_directed.py"
+      - ".github/workflows/voice_directed.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  voice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MAP: ${{ github.event.inputs.map || 'projects/0001-youtube-money/voicemap_sample.json' }}
+      SPEED: ${{ github.event.inputs.speed || '1.0' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Chatterbox (CPU torch)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install chatterbox-tts soundfile numpy
+
+      - name: Synthesize (directed)
+        run: |
+          mkdir -p renders
+          python pipeline/tts_chatterbox_directed.py "$MAP" renders/voiceover_dir_raw.wav
+
+      - name: Normalize -14 LUFS + MP3
+        run: |
+          ffmpeg -y -i renders/voiceover_dir_raw.wav \
+            -af "highpass=f=80,atempo=${SPEED},loudnorm=I=-14:TP=-1.5:LRA=11" \
+            -ar 48000 renders/voiceover_dir.wav
+          ffmpeg -y -i renders/voiceover_dir.wav -codec:a libmp3lame -q:a 2 renders/voiceover_dir.mp3
+          ls -la renders/
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: voiceover-directed
+          path: renders/voiceover_dir.mp3
+          if-no-files-found: error
+          retention-days: 14

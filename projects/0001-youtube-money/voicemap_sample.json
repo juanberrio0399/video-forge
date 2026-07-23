@@ -1,0 +1,39 @@
+{
+  "lang": "en",
+  "voice_ref": "assets/voice/ref_juan_es.mp3",
+  "defaults": { "exaggeration": 0.5, "cfg": 0.4, "pause_after": 0.28 },
+  "beats": [
+    {
+      "text": "In the time it takes to read this sentence out loud, YouTube just made about ten thousand dollars.",
+      "tipo": "hook", "exaggeration": 0.7, "cfg": 0.56, "pause_after": 0.35
+    },
+    {
+      "text": "Not this month. Not today. In roughly five seconds.",
+      "tipo": "hook", "exaggeration": 0.64, "cfg": 0.42, "pause_after": 0.55
+    },
+    {
+      "text": "That's around nineteen hundred dollars, every single second, flowing into one website.",
+      "tipo": "dato", "exaggeration": 0.58, "cfg": 0.34, "pause_before": 0.45, "pause_after": 0.45
+    },
+    {
+      "text": "So here's the real question. Where does all that money come from, and who actually ends up with it?",
+      "tipo": "contexto", "exaggeration": 0.54, "cfg": 0.4, "pause_after": 0.3
+    },
+    {
+      "text": "Because the answer is stranger than you'd think.",
+      "tipo": "reveal", "exaggeration": 0.62, "cfg": 0.34, "pause_after": 0.65
+    },
+    {
+      "text": "Today we're going to do something simple. We'll take that per-second number and scale it all the way up.",
+      "tipo": "contexto", "exaggeration": 0.45, "cfg": 0.36, "pause_after": 0.3
+    },
+    {
+      "text": "Per minute. Per hour. Per day. Per year.",
+      "tipo": "dato", "exaggeration": 0.46, "cfg": 0.32, "pause_after": 0.4
+    },
+    {
+      "text": "And at the very end, the twist, because most of this money doesn't actually stay inside Google.",
+      "tipo": "reveal", "exaggeration": 0.6, "cfg": 0.35, "pause_before": 0.25, "pause_after": 0.3
+    }
+  ]
+}
