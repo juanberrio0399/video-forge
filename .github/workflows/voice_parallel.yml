@@ -1,0 +1,103 @@
+name: Voiceover PARALELO (Chatterbox rapido)
+
+# Genera la narracion dirigida MUCHO mas rapido: parte el guion en 6 pedazos que
+# se sintetizan EN PARALELO y luego se unen. ~15 min en vez de +90 min.
+
+on:
+  workflow_dispatch:
+    inputs:
+      map:
+        description: "Mapa de voz (JSON por beat)"
+        required: false
+        default: "projects/0001-youtube-money/voicemap_full.json"
+
+permissions:
+  contents: read
+
+env:
+  NUM_CHUNKS: "6"
+
+jobs:
+  synth:
+    name: Pedazo ${{ matrix.chunk }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        chunk: [0, 1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install Chatterbox (CPU torch)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install chatterbox-tts soundfile numpy
+      - name: Sintetizar pedazo
+        env:
+          MAP: ${{ github.event.inputs.map || 'projects/0001-youtube-money/voicemap_full.json' }}
+        run: |
+          mkdir -p out
+          python pipeline/tts_chatterbox_directed.py "$MAP" "out/part_${{ matrix.chunk }}.wav" ${{ matrix.chunk }} ${NUM_CHUNKS}
+      - name: Subir pedazo
+        uses: actions/upload-artifact@v4
+        with:
+          name: part-${{ matrix.chunk }}
+          path: out/part_${{ matrix.chunk }}.wav
+          if-no-files-found: error
+          retention-days: 1
+
+  combine:
+    name: Unir y publicar
+    needs: synth
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Bajar todos los pedazos
+        uses: actions/download-artifact@v4
+        with:
+          pattern: part-*
+          path: parts
+          merge-multiple: true
+      - name: Unir en orden + normalizar -14 LUFS + MP3
+        run: |
+          mkdir -p renders
+          : > list.txt
+          for i in $(seq 0 $((NUM_CHUNKS-1))); do
+            f="parts/part_${i}.wav"
+            if [ -f "$f" ]; then echo "file '$PWD/$f'" >> list.txt; fi
+          done
+          echo "=== orden de union ==="; cat list.txt
+          ffmpeg -y -f concat -safe 0 -i list.txt -ar 24000 -ac 1 renders/full_raw.wav
+          ffmpeg -y -i renders/full_raw.wav \
+            -af "highpass=f=80,loudnorm=I=-14:TP=-1.5:LRA=11" \
+            -ar 48000 renders/voiceover_dir.wav
+          ffmpeg -y -i renders/voiceover_dir.wav -codec:a libmp3lame -q:a 2 renders/voiceover_dir.mp3
+          ls -la renders/
+      - name: Subir narracion final
+        uses: actions/upload-artifact@v4
+        with:
+          name: voiceover-directed
+          path: renders/voiceover_dir.mp3
+          if-no-files-found: error
+          retention-days: 14
+      - name: Avisar a Telegram
+        if: always()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+        run: |
+          if [ -f renders/voiceover_dir.mp3 ]; then
+            bash pipeline/notify_telegram.sh "🎙️ Narracion lista (tu voz, dirigida)." renders/voiceover_dir.mp3
+          else
+            bash pipeline/notify_telegram.sh "❌ La narracion fallo al unir los pedazos."
+          fi

@@ -95,8 +95,8 @@ async function handleMessage(message, env) {
     }
 
     case "/voz": {
-      const r = await ghDispatch(env, "voice_directed.yml", {});
-      return ack(env, chatId, r, "Generacion de voz");
+      const r = await ghDispatch(env, "voice_parallel.yml", {});
+      return ack(env, chatId, r, "Generacion de voz (rapida, en paralelo)");
     }
 
     case "/estado":
