@@ -67,7 +67,17 @@ async function handleMessage(message, env) {
     });
   }
 
-  const [cmd, ...rest] = text.split(/\s+/);
+  // Botones del menu (reply keyboard) -> comando equivalente.
+  const BTN = {
+    "🎙️ Generar voz": "/voz",
+    "🎬 Renderizar": "/render",
+    "📊 Estado": "/estado",
+    "🆕 Nuevo video": "/nuevo",
+    "❓ Ayuda": "/help",
+    "🏠 Menu": "/start",
+  };
+  const line = BTN[text] || text;
+  const [cmd, ...rest] = line.split(/\s+/);
   const arg = rest.join(" ").trim();
 
   switch ((cmd || "").toLowerCase()) {
@@ -130,23 +140,44 @@ async function handleCallback(cb, env) {
 
 // ---------- Vistas ----------
 
-function sendMenu(env, chatId) {
+// Teclado fijo (como app): botones siempre visibles abajo.
+const MENU_KEYBOARD = {
+  keyboard: [
+    [{ text: "🎙️ Generar voz" }, { text: "🎬 Renderizar" }],
+    [{ text: "📊 Estado" }, { text: "🆕 Nuevo video" }],
+    [{ text: "❓ Ayuda" }],
+  ],
+  resize_keyboard: true,
+  is_persistent: true,
+};
+
+async function sendMenu(env, chatId) {
+  // Registra el menu de comandos nativo de Telegram (el boton "/" y "Menu").
+  await tg(env, "setMyCommands", {
+    commands: [
+      { command: "voz", description: "🎙️ Generar la narracion (tu voz)" },
+      { command: "render", description: "🎬 Renderizar el video" },
+      { command: "estado", description: "📊 Que se esta haciendo ahora" },
+      { command: "nuevo", description: "🆕 Video completo (pronto)" },
+      { command: "start", description: "🏠 Menu" },
+    ],
+  });
+
   return tg(env, "sendMessage", {
     chat_id: chatId,
     parse_mode: "Markdown",
+    reply_markup: MENU_KEYBOARD,
     text: [
       "*video-forge* 🎬 — centro de control del canal",
       "",
-      "*Lo que ya funciona:*",
-      "🎙️ `/voz` — generar la narracion con tu voz (~40 min)",
-      "🎬 `/render` — renderizar el video en la nube",
-      "📊 `/estado` — que se esta haciendo AHORA + en que paso va",
+      "Usa los *botones de abajo* 👇 (o el menu de comandos).",
       "",
-      "*Proximamente:*",
-      "🆕 `/nuevo <tema>` — hacer un video completo solo (en construccion)",
+      "🎙️ *Generar voz* — narracion con tu voz (~15 min)",
+      "🎬 *Renderizar* — arma el video en la nube",
+      "📊 *Estado* — que se hace AHORA + en que paso va",
+      "🆕 *Nuevo video* — completo y solo (en construccion)",
       "",
       "_Todo corre en la nube. Cuando algo termina, te llega aca._",
-      "Escribe /estado para ver el progreso en cualquier momento.",
     ].join("\n"),
   });
 }
