@@ -76,18 +76,16 @@ async function handleMessage(message, env) {
       return sendMenu(env, chatId);
 
     case "/nuevo": {
-      if (!arg) {
-        return tg(env, "sendMessage", {
-          chat_id: chatId,
-          text: "Uso: /nuevo <tema del video>\nEj: /nuevo how much money does Netflix lose on password sharing",
-        });
-      }
-      const r = await ghDispatch(env, env.GH_PRODUCE_WORKFLOW, { topic: arg });
+      // El pipeline completo (tema -> guion -> voz -> render) esta en construccion.
+      // Por ahora dejamos claro que aun no hace el video solo.
       return tg(env, "sendMessage", {
         chat_id: chatId,
-        text: r.ok
-          ? `🎬 Nuevo video en cola:\n"${arg}"\nDispare el pipeline (${env.GH_PRODUCE_WORKFLOW}). Te aviso cuando haya preview.`
-          : `❌ No pude disparar el pipeline (${r.status}). Revisa GH_TOKEN / workflow.`,
+        text:
+          "🚧 /nuevo (video completo automatico) esta en construccion.\n\n" +
+          "Por ahora hacemos los videos paso a paso:\n" +
+          "🎙️ /voz — generar la narracion\n" +
+          "🎬 /render — renderizar el video\n" +
+          "📊 /estado — ver el progreso",
       });
     }
 
@@ -139,13 +137,16 @@ function sendMenu(env, chatId) {
     text: [
       "*video-forge* 🎬 — centro de control del canal",
       "",
-      "`/nuevo <tema>` — pedir un video nuevo",
-      "`/render` — renderizar el video en la nube",
-      "`/voz` — generar la narracion",
-      "`/estado` — ver los ultimos procesos",
-      "`/id` — ver tu chat id",
+      "*Lo que ya funciona:*",
+      "🎙️ `/voz` — generar la narracion con tu voz (~40 min)",
+      "🎬 `/render` — renderizar el video en la nube",
+      "📊 `/estado` — que se esta haciendo AHORA + en que paso va",
       "",
-      "Todo corre en GitHub Actions; los resultados llegan aca.",
+      "*Proximamente:*",
+      "🆕 `/nuevo <tema>` — hacer un video completo solo (en construccion)",
+      "",
+      "_Todo corre en la nube. Cuando algo termina, te llega aca._",
+      "Escribe /estado para ver el progreso en cualquier momento.",
     ].join("\n"),
   });
 }
@@ -154,35 +155,53 @@ function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// Muestra SOLO lo que se esta haciendo ahora (en curso o en cola), con el paso
+// actual y los minutos que lleva. Nada de historial (seria muy largo).
 async function sendStatus(env, chatId) {
-  const res = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=6`);
+  const res = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=20`);
   if (!res.ok) {
     return tg(env, "sendMessage", { chat_id: chatId, text: `No pude leer el estado (${res.status}).` });
   }
-  const data = await res.json();
-  const runs = data.workflow_runs || [];
-  const lines = runs.map((r) => {
-    let icon = "⏳";
-    let estado = "en curso";
-    if (r.status === "completed") {
-      icon = r.conclusion === "success" ? "✅" : (r.conclusion === "cancelled" ? "🚫" : "❌");
-      estado = r.conclusion;
-    } else if (r.status === "queued") {
-      icon = "🕒";
-      estado = "en cola";
+  const active = ((await res.json()).workflow_runs || []).filter((r) => r.status !== "completed");
+
+  if (!active.length) {
+    return tg(env, "sendMessage", {
+      chat_id: chatId,
+      text: "✅ Nada en proceso ahora.\n\nManda /voz o /render para empezar. El resultado llega aca al terminar.",
+    });
+  }
+
+  const blocks = [];
+  for (const r of active) {
+    const mins = r.run_started_at
+      ? Math.max(0, Math.round((Date.now() - Date.parse(r.run_started_at)) / 60000))
+      : 0;
+
+    let paso = r.status === "queued" ? "en cola…" : "iniciando…";
+    const jr = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs/${r.id}/jobs`);
+    if (jr.ok) {
+      const job = ((await jr.json()).jobs || [])[0];
+      const steps = (job && job.steps) || [];
+      const total = steps.length;
+      const done = steps.filter((s) => s.status === "completed").length;
+      const cur = steps.find((s) => s.status === "in_progress");
+      if (cur) paso = `paso ${Math.min(done + 1, total)}/${total}: ${esc(cur.name)}`;
+      else if (total && done === total) paso = "cerrando…";
     }
-    // Nombre enlazado a la pagina del run (tocable para ver el progreso en vivo).
-    return `${icon} <a href="${r.html_url}">${esc(r.name)}</a> — ${estado}`;
-  });
-  const running = runs.filter((r) => r.status !== "completed").length;
-  const header = running
-    ? `⏳ ${running} en proceso ahora:\n\n`
-    : "Ultimos procesos:\n\n";
+
+    blocks.push(
+      `⏳ <a href="${r.html_url}">${esc(r.name)}</a>\n     ${paso} · lleva ${mins} min`
+    );
+  }
+
   return tg(env, "sendMessage", {
     chat_id: chatId,
     parse_mode: "HTML",
     disable_web_page_preview: true,
-    text: lines.length ? header + lines.join("\n") : "Sin procesos recientes.",
+    text:
+      "⏳ <b>En proceso ahora</b>\n\n" +
+      blocks.join("\n\n") +
+      "\n\nToca el nombre para ver el detalle en vivo. Te aviso aca al terminar.",
   });
 }
 
