@@ -26,7 +26,7 @@ on:
       voice_ref:
         description: "Audio de referencia para clonar el timbre (vacio = voz por defecto)"
         required: false
-        default: "assets/voice/ref_juan.mp3"
+        default: "assets/voice/ref_juan_es.mp3"
   push:
     branches: [main]
     paths:
@@ -46,7 +46,7 @@ jobs:
       CB_EXAGGERATION: ${{ github.event.inputs.exaggeration || '0.5' }}
       CB_CFG: ${{ github.event.inputs.cfg || '0.3' }}
       CB_LANG: ${{ github.event.inputs.lang || 'en' }}
-      VOICE_REF: ${{ github.event.inputs.voice_ref || 'assets/voice/ref_juan.mp3' }}
+      VOICE_REF: ${{ github.event.inputs.voice_ref || 'assets/voice/ref_juan_es.mp3' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
