@@ -50,6 +50,20 @@ def main() -> int:
         print("ERROR: mapa sin beats")
         return 1
 
+    # Modo "pedazo": genera solo una rebanada contigua de beats, para correr en
+    # paralelo. Uso: ... <out.wav> <chunk_index> <num_chunks>
+    if len(sys.argv) >= 5:
+        import math
+        ci, nc = int(sys.argv[3]), int(sys.argv[4])
+        size = math.ceil(len(beats) / nc)
+        beats = beats[ci * size:(ci + 1) * size]
+        print(f"CHUNK {ci + 1}/{nc}: {len(beats)} beats de este pedazo")
+        if not beats:
+            # pedazo vacio (menos beats que chunks): escribe un wav de silencio corto.
+            sf.write(out_path, np.zeros(int(0.05 * 24000), dtype=np.float32), 24000)
+            print("pedazo vacio -> silencio")
+            return 0
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Directed: lang={lang} device={device} beats={len(beats)} "
           f"clone={'si' if voice_ref else 'no'}")
