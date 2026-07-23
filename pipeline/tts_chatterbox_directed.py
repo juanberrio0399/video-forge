@@ -52,15 +52,18 @@ def main() -> int:
 
     # Modo "pedazo": genera solo una rebanada contigua de beats, para correr en
     # paralelo. Uso: ... <out.wav> <chunk_index> <num_chunks>
+    chunk_offset = 0
     if len(sys.argv) >= 5:
         import math
         ci, nc = int(sys.argv[3]), int(sys.argv[4])
         size = math.ceil(len(beats) / nc)
+        chunk_offset = ci * size
         beats = beats[ci * size:(ci + 1) * size]
-        print(f"CHUNK {ci + 1}/{nc}: {len(beats)} beats de este pedazo")
+        print(f"CHUNK {ci + 1}/{nc}: {len(beats)} beats de este pedazo (offset {chunk_offset})")
         if not beats:
             # pedazo vacio (menos beats que chunks): escribe un wav de silencio corto.
             sf.write(out_path, np.zeros(int(0.05 * 24000), dtype=np.float32), 24000)
+            json.dump({"sr": 24000, "beats": []}, open(out_path + ".timing.json", "w"))
             print("pedazo vacio -> silencio")
             return 0
 
@@ -98,7 +101,8 @@ def main() -> int:
         return np.zeros(int(max(0.0, sec) * sr), dtype=np.float32)
 
     parts: list[np.ndarray] = []
-    for i, beat in enumerate(beats, 1):
+    timings = []  # duracion (en segundos) de cada beat, para sincronizar el video
+    for i, beat in enumerate(beats):
         text = (beat.get("text") or "").strip()
         if not text:
             continue
@@ -107,20 +111,34 @@ def main() -> int:
         pause_before = float(beat.get("pause_before", 0.0))
         pause_after = float(beat.get("pause_after", defaults.get("pause_after", 0.25)))
 
-        parts.append(silence(pause_before))
+        beat_samples = 0
+
+        pre = silence(pause_before)
+        parts.append(pre); beat_samples += len(pre)
         # una oracion por clip -> el modelo se mantiene estable
         for sent in split_sentences(text):
             wav = gen(sent, exaggeration, cfg)
-            parts.append(wav.squeeze(0).cpu().numpy().astype(np.float32))
-            parts.append(silence(0.12))
-        parts.append(silence(pause_after))
-        print(f"  beat {i}/{len(beats)} [{beat.get('tipo','-')}] "
-              f"ex={exaggeration} cfg={cfg} listo")
+            arr = wav.squeeze(0).cpu().numpy().astype(np.float32)
+            gap = silence(0.12)
+            parts.append(arr); beat_samples += len(arr)
+            parts.append(gap); beat_samples += len(gap)
+        post = silence(pause_after)
+        parts.append(post); beat_samples += len(post)
+
+        timings.append({
+            "index": chunk_offset + i,
+            "tipo": beat.get("tipo", "-"),
+            "text": text,
+            "dur": round(beat_samples / sr, 3),
+        })
+        print(f"  beat {chunk_offset + i} [{beat.get('tipo','-')}] "
+              f"ex={exaggeration} cfg={cfg} -> {beat_samples/sr:.2f}s")
 
     full = np.concatenate(parts)
     sf.write(out_path, full, sr)
+    json.dump({"sr": sr, "beats": timings}, open(out_path + ".timing.json", "w"))
     dur = len(full) / sr
-    print(f"OK: {out_path}  ({dur/60:.2f} min, {dur:.1f} s, sr={sr})")
+    print(f"OK: {out_path}  ({dur/60:.2f} min, {dur:.1f} s, sr={sr}) + timing.json")
     return 0
 
 
