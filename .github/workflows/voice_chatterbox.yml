@@ -23,6 +23,10 @@ on:
         description: "Pacing (0.3 natural - 0.6 firme)"
         required: false
         default: "0.3"
+      speed:
+        description: "Velocidad global (atempo): 0.90 = 10% mas lento, 1.0 = normal"
+        required: false
+        default: "1.0"
       voice_ref:
         description: "Audio de referencia para clonar el timbre (vacio = voz por defecto)"
         required: false
@@ -46,6 +50,7 @@ jobs:
       CB_EXAGGERATION: ${{ github.event.inputs.exaggeration || '0.5' }}
       CB_CFG: ${{ github.event.inputs.cfg || '0.3' }}
       CB_LANG: ${{ github.event.inputs.lang || 'en' }}
+      SPEED: ${{ github.event.inputs.speed || '1.0' }}
       VOICE_REF: ${{ github.event.inputs.voice_ref || 'assets/voice/ref_juan_es.mp3' }}
     steps:
       - name: Checkout
@@ -88,7 +93,7 @@ jobs:
       - name: Normalize -14 LUFS + MP3
         run: |
           ffmpeg -y -i renders/voiceover_cb_raw.wav \
-            -af "highpass=f=80,loudnorm=I=-14:TP=-1.5:LRA=11" \
+            -af "highpass=f=80,atempo=${SPEED},loudnorm=I=-14:TP=-1.5:LRA=11" \
             -ar 48000 renders/voiceover_cb.wav
           ffmpeg -y -i renders/voiceover_cb.wav -codec:a libmp3lame -q:a 2 renders/voiceover_cb.mp3
           ls -la renders/
