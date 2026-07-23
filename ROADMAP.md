@@ -11,14 +11,14 @@ un **bot de Telegram**.
 ## La "crew" de produccion (pipeline)
 
 ```
-1. TENDENCIAS   last30days-skill         ->  de que habla la gente
+1. TENDENCIAS   last30days-skill         ->  de que habla la gente (GO/NO-GO)
 2. VIRALES      claude-video-vision      ->  como lo hacen los que pegan (patrones)
-3. GUIONISTA    (skill nueva)            ->  guion LARGO con ganchos y retencion
-4. DIRECTOR     (skill nueva + HyperFrames) -> storyboard segundo a segundo
-5. PRODUCCION   HyperFrames + Remotion + edge-TTS + Whisper -> video LARGO (nube)
+3. GUIONISTA    skill video-guionista    ->  guion LARGO con ganchos y retencion
+4. DIRECTOR     skill video-director     ->  storyboard segundo a segundo
+5. PRODUCCION   HyperFrames + Remotion + Kokoro-TTS + Whisper -> video LARGO (nube)
 6. SHORTS       ai-youtube-shorts-generator -> 3-5 shorts de los momentos wow
 7. BOT TELEGRAM (Cloudflare Worker)      ->  pedir / revisar / aprobar
-8. PUBLICAR     YouTube Data API         ->  el largo + los shorts
+8. GATE+PUBLICAR video-monetizacion (gate) -> YouTube Data API (largo + shorts)
 ```
 
 ## Arquitectura tecnica
@@ -43,7 +43,7 @@ Tu (Telegram) --"nuevo video sobre X"--> Bot (Cloudflare Worker, gratis, siempre
   determinista, nativo CI. **Columna vertebral.**
 - **Remotion** — React -> video, gratis para creador solo (<=3 personas). **Refuerzo.**
 - **editor-pro-max** — inteligencia de autoria (componentes, plantillas, silencios).
-- **HeyGen avatar** — descartado (de pago). Canal SIN cara, voz edge-TTS.
+- **HeyGen avatar** — descartado (de pago). Canal SIN cara, voz Kokoro-TTS.
 
 ## Herramientas de inteligencia y edicion (nuevas)
 
@@ -68,7 +68,7 @@ posible = avatar HeyGen (no se usa) y Apify si se abusa (se evita).
 - [x] **Fase 0 — Render en la nube.** Repo + composicion de prueba + workflow que
       renderiza el MP4 en GitHub Actions. *Probado 2026-07-23.*
 - [ ] **Fase 1 — Produccion base (el corazon).** Guionista + Director + 2 motores
-      (HyperFrames/Remotion) + voz edge-TTS + subtitulos Whisper -> primer video
+      (HyperFrames/Remotion) + voz Kokoro-TTS + subtitulos Whisper -> primer video
       LARGO real de datos, renderizado en la nube.
 - [ ] **Fase 2 — Inteligencia de contenido.** last30days (tendencias) +
       claude-video-vision (analizar virales -> patrones que alimentan el guion).
@@ -77,13 +77,34 @@ posible = avatar HeyGen (no se usa) y Apify si se abusa (se evita).
 - [ ] **Fase 5 — Auto-publish a YouTube.** OAuth como secrets; publica largo + shorts al dar OK.
 - [ ] **Fase 6 — Fabrica de contenido.** Cola de ideas + recurrencia; soltar contenido poco a poco.
 
-## Roles nuevos como skills (crew)
+## Crew como skills (7, todas validadas en la web 2025-2026 y escritas)
 
-- **video-guionista** — guion largo: gancho en 3s, promesa, estructura de retencion,
-  beats, CTA. Basado en datos reales (moat AI-proof).
-- **video-director** — traduce el guion a storyboard segundo a segundo (que se ve,
-  que se oye, que se anima) que consumen HyperFrames/Remotion + TTS. Usa las skills
-  hyperframes-creative / hyperframes-animation.
+En `skills/`, cada una con reglas accionables + recursos gratis + errores comunes:
+
+- **video-tendencias** — GO/NO-GO de un tema (demanda comprobada + oferta escasa).
+- **video-virales** — packaging (titulo+miniatura de alto CTR) + ingenieria inversa
+  etica de outliers; integra claude-video-vision.
+- **video-guionista** — guion largo con hook 3-15s, open loops anidados, payoff cada
+  60-90s, re-hook cada ~90s, cifras escaladas a lo humano.
+- **video-director** — storyboard segundo a segundo + catalogo de escenas de datos +
+  GSAP seek-safe (determinista) para HyperFrames/Remotion.
+- **video-voz** — TTS por defecto **Kokoro (Apache 2.0)**, respaldo Piper; narracion
+  140-160 WPM; mezcla a -14 LUFS; musica/SFX libres (Pixabay CC0 / YT Audio Library).
+- **video-shorts** — 3-5 shorts del largo, captions karaoke, reframe 9:16; integra
+  ai-youtube-shorts-generator.
+- **video-monetizacion** — PUERTA: requisitos YPP + gate anti-"inauthentic content"
+  (valor original) + disclosure de contenido sintetico + SEO + cadencia.
+
+### Decisiones clave de la investigacion
+
+- **TTS = Kokoro-82M (Apache 2.0), no edge-tts.** edge-tts es zona gris legal
+  (Microsoft no autoriza uso comercial + depende de red); Coqui/XTTS PROHIBIDOS
+  (licencia no comercial). Kokoro corre gratis en CPU en Actions.
+- **El canal SI se puede monetizar** (faceless + IA es bienvenido). El gate no es la
+  IA sino el valor original: datos curados + interpretacion + variacion por video.
+- **Activar siempre el disclosure "synthetic content"** por la voz TTS.
+- **Requisito nuevo: GEMINI_API_KEY gratis** (Google AI Studio) = cerebro para
+  analizar virales y rankear shorts.
 
 ## Notas
 
