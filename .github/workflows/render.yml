@@ -1,0 +1,61 @@
+name: Render video (cloud)
+
+# Fase 0: renderiza la composicion en la nube (sin PC) y publica el MP4 como artifact.
+# Disparo manual desde la pestana Actions, o automatico al tocar la composicion.
+
+on:
+  workflow_dispatch:
+    inputs:
+      quality:
+        description: "Calidad del render (draft | standard | high)"
+        required: false
+        default: "high"
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "compositions/**"
+      - "assets/**"
+      - ".github/workflows/render.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      HF_VERSION: "0.7.68"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install FFmpeg + Chrome runtime libs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+            libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+            libgbm1 libpango-1.0-0 libcairo2 fonts-liberation \
+            libasound2t64 || sudo apt-get install -y libasound2
+
+      - name: Render to MP4
+        run: |
+          npx --yes hyperframes@${HF_VERSION} render \
+            --quality "${{ github.event.inputs.quality || 'high' }}" \
+            --output renders/video-forge.mp4
+
+      - name: Upload MP4 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-forge-mp4
+          path: renders/*.mp4
+          if-no-files-found: error
+          retention-days: 14

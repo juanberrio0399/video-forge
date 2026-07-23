@@ -1,0 +1,13 @@
+# Normaliza a LF en el repo para que los scripts corran bien en Ubuntu (Actions).
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.mp4 binary
+*.mov binary
+*.webm binary
+*.wav binary
+*.mp3 binary
+*.woff2 binary

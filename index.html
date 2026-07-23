@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=JetBrains+Mono:wght@600&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #070b16;
+      }
+      body {
+        font-family: "Inter", system-ui, sans-serif;
+        color: #eaf1ff;
+      }
+      .monospace {
+        font-family: "JetBrains Mono", monospace;
+      }
+      #root {
+        position: relative;
+        background:
+          radial-gradient(1200px 700px at 50% 18%, rgba(34, 211, 238, 0.10), transparent 60%),
+          radial-gradient(900px 600px at 82% 88%, rgba(52, 211, 153, 0.08), transparent 60%),
+          #070b16;
+      }
+      /* subtle grid backdrop */
+      #grid {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+        background-size: 64px 64px;
+      }
+      #eyebrow {
+        position: absolute;
+        top: 300px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 26px;
+        letter-spacing: 10px;
+        font-weight: 600;
+        color: #22d3ee;
+        text-transform: uppercase;
+      }
+      #title {
+        position: absolute;
+        top: 342px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 152px;
+        font-weight: 900;
+        letter-spacing: -3px;
+        background: linear-gradient(90deg, #eaf1ff, #22d3ee 55%, #34d399);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      #subtitle {
+        position: absolute;
+        top: 540px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 34px;
+        font-weight: 400;
+        color: #9fb2d4;
+      }
+      /* bar chart */
+      #chart {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 150px;
+        display: flex;
+        align-items: flex-end;
+        gap: 42px;
+        height: 260px;
+      }
+      .bar {
+        width: 120px;
+        border-radius: 14px 14px 4px 4px;
+        transform-origin: bottom center;
+        background: linear-gradient(180deg, #22d3ee, #2563eb);
+        box-shadow: 0 0 40px rgba(34, 211, 238, 0.25);
+      }
+      .bar.b2 { background: linear-gradient(180deg, #34d399, #059669); }
+      .bar.b3 { background: linear-gradient(180deg, #a78bfa, #6d28d9); }
+      .bar.b4 { background: linear-gradient(180deg, #fbbf24, #d97706); }
+      #counter {
+        position: absolute;
+        top: 470px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 40px;
+        font-weight: 800;
+        color: #34d399;
+      }
+      #stamp {
+        position: absolute;
+        bottom: 64px;
+        right: 84px;
+        font-size: 24px;
+        font-weight: 600;
+        color: #6b7ea3;
+        border: 1px solid rgba(107, 126, 163, 0.35);
+        padding: 10px 20px;
+        border-radius: 999px;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="8"
+      data-fps="30"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div id="grid"></div>
+
+      <div id="eyebrow" class="clip" data-start="0" data-duration="8">
+        canal de datos
+      </div>
+
+      <h1 id="title" class="clip" data-start="0" data-duration="8">VIDEO-FORGE</h1>
+
+      <div id="counter" class="monospace clip" data-start="0" data-duration="8">
+        0% en la nube
+      </div>
+
+      <div id="subtitle" class="clip" data-start="0" data-duration="8">
+        render sin PC · 100% gratis · controlado por Telegram
+      </div>
+
+      <div id="chart" class="clip" data-start="0" data-duration="8">
+        <div class="bar b1" style="height: 60%"></div>
+        <div class="bar b2" style="height: 88%"></div>
+        <div class="bar b3" style="height: 72%"></div>
+        <div class="bar b4" style="height: 100%"></div>
+      </div>
+
+      <div id="stamp" class="clip" data-start="0" data-duration="8">Fase 0 ✓</div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // Intro: eyebrow + title + subtitle
+      tl.from("#eyebrow", { opacity: 0, y: -20, duration: 0.6 }, 0.1);
+      tl.from("#title", { opacity: 0, y: 40, scale: 0.94, duration: 0.9, ease: "power3.out" }, 0.25);
+      tl.from("#subtitle", { opacity: 0, y: 20, duration: 0.7 }, 0.9);
+
+      // Bars grow in sequence (seek-safe: from scaleY 0)
+      tl.from(
+        ".bar",
+        { scaleY: 0, opacity: 0, duration: 0.7, ease: "power2.out", stagger: 0.12 },
+        1.1
+      );
+
+      // Number counter 0 -> 100 (deterministic: tween a proxy, write on update)
+      const c = { v: 0 };
+      tl.to(
+        c,
+        {
+          v: 100,
+          duration: 1.6,
+          ease: "power1.out",
+          onUpdate: () => {
+            document.getElementById("counter").textContent =
+              Math.round(c.v) + "% en la nube";
+          },
+        },
+        1.2
+      );
+
+      // Stamp pops near the end
+      tl.from("#stamp", { opacity: 0, scale: 0.7, duration: 0.5, ease: "back.out(2)" }, 3.0);
+
+      // Gentle outro breathing on the title
+      tl.to("#title", { scale: 1.02, duration: 3.0, ease: "sine.inOut" }, 3.4);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
