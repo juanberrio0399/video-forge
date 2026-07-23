@@ -77,7 +77,7 @@ posible = avatar HeyGen (no se usa) y Apify si se abusa (se evita).
 - [ ] **Fase 5 — Auto-publish a YouTube.** OAuth como secrets; publica largo + shorts al dar OK.
 - [ ] **Fase 6 — Fabrica de contenido.** Cola de ideas + recurrencia; soltar contenido poco a poco.
 
-## Crew como skills (7, todas validadas en la web 2025-2026 y escritas)
+## Crew como skills (8, todas validadas en la web 2025-2026 y escritas)
 
 En `skills/`, cada una con reglas accionables + recursos gratis + errores comunes:
 
@@ -92,6 +92,9 @@ En `skills/`, cada una con reglas accionables + recursos gratis + errores comune
   140-160 WPM; mezcla a -14 LUFS; musica/SFX libres (Pixabay CC0 / YT Audio Library).
 - **video-shorts** — 3-5 shorts del largo, captions karaoke, reframe 9:16; integra
   ai-youtube-shorts-generator.
+- **video-seo** — rankear alto y salir como sugerencia en busqueda de YouTube Y
+  Google (Key Moments por capitulos, transcripcion, AI Overviews, Shorts search);
+  base tomada de `kostja94/marketing-skills` (MIT).
 - **video-monetizacion** — PUERTA: requisitos YPP + gate anti-"inauthentic content"
   (valor original) + disclosure de contenido sintetico + SEO + cadencia.
 
