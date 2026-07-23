@@ -11,6 +11,10 @@ on:
         description: "Archivo de texto a narrar"
         required: false
         default: "projects/0001-youtube-money/sample.txt"
+      lang:
+        description: "Idioma: en, es, pt, fr... (!=en usa modelo multilingue)"
+        required: false
+        default: "en"
       exaggeration:
         description: "Expresividad (0.4 sobrio - 0.8 dramatico)"
         required: false
@@ -41,6 +45,7 @@ jobs:
       TEXT: ${{ github.event.inputs.text || 'projects/0001-youtube-money/sample.txt' }}
       CB_EXAGGERATION: ${{ github.event.inputs.exaggeration || '0.5' }}
       CB_CFG: ${{ github.event.inputs.cfg || '0.3' }}
+      CB_LANG: ${{ github.event.inputs.lang || 'en' }}
       VOICE_REF: ${{ github.event.inputs.voice_ref || 'assets/voice/ref_juan.mp3' }}
     steps:
       - name: Checkout
