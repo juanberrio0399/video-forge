@@ -1,0 +1,53 @@
+name: Guardar en R2 (nube persistente)
+
+# Crea el bucket R2 (si no existe) y guarda la ultima narracion generada, para que
+# quede permanente en la nube (los artifacts de Actions se borran a los 14 dias).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  store:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Crear bucket R2 (si no existe)
+        run: npx --yes wrangler@4 r2 bucket create "$BUCKET" || echo "El bucket ya existe, sigo."
+
+      - name: Bajar la ultima narracion generada
+        run: |
+          RID=$(gh run list --workflow=voice_parallel.yml --status=success -L1 \
+                 --json databaseId -q '.[0].databaseId' -R "${{ github.repository }}")
+          echo "Ultima voz: run $RID"
+          gh run download "$RID" -n voiceover-directed -D dl -R "${{ github.repository }}"
+          ls -la dl/
+
+      - name: Subir la narracion a R2
+        run: |
+          npx --yes wrangler@4 r2 object put \
+            "$BUCKET/audio/0001-youtube-money/voiceover.mp3" \
+            --file="dl/voiceover_dir.mp3" --remote
+          echo "Guardado en R2: $BUCKET/audio/0001-youtube-money/voiceover.mp3"
+
+      - name: Avisar a Telegram
+        if: always()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+        run: bash pipeline/notify_telegram.sh "☁️ Narracion guardada en R2 (nube persistente)."
