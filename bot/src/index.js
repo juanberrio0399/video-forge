@@ -125,11 +125,13 @@ async function handleMessage(message, env) {
     }
 
     case "/render": {
+      if (await busyGuard(env, chatId)) return;
       const r = await ghDispatch(env, "render_video.yml", {});
       return ack(env, chatId, r, "Render del video (voz + subtitulos)");
     }
 
     case "/voz": {
+      if (await busyGuard(env, chatId)) return;
       const r = await ghDispatch(env, "voice_parallel.yml", {});
       return ack(env, chatId, r, "Generacion de voz (rapida, en paralelo)");
     }
@@ -157,10 +159,12 @@ async function handleCallback(cb, env) {
 
   switch (data) {
     case "voz": {
+      if (await busyGuard(env, chatId)) return;
       const r = await ghDispatch(env, "voice_parallel.yml", {});
       return ack(env, chatId, r, "Generacion de voz (en paralelo)");
     }
     case "render": {
+      if (await busyGuard(env, chatId)) return;
       const r = await ghDispatch(env, "render_video.yml", {});
       return ack(env, chatId, r, "Render del video (voz + subtitulos)");
     }
@@ -209,6 +213,7 @@ async function handleCallback(cb, env) {
         });
       }
       if (data.startsWith("regen:")) {
+        if (await busyGuard(env, chatId)) return;
         const r = await ghDispatch(env, "render_video.yml", {});
         return ack(env, chatId, r, "Regenerando el video igual");
       }
@@ -346,8 +351,11 @@ async function sendStatus(env, chatId) {
       else if (total && done === total) paso = "cerrando…";
     }
 
+    const exp = expectedMin(r.name);
+    const pct = r.status === "queued" ? 0 : Math.min(99, Math.round((mins / exp) * 100));
+    const eta = Math.max(0, exp - mins);
     blocks.push(
-      `⏳ <a href="${r.html_url}">${esc(r.name)}</a>\n     ${paso} · lleva ${mins} min`
+      `⏳ <a href="${r.html_url}">${esc(r.name)}</a>\n     ${paso}\n     ${pct}% · faltan ~${eta} min (lleva ${mins})`
     );
   }
 
@@ -373,6 +381,44 @@ function ack(env, chatId, r, label) {
     chat_id: chatId,
     text: r.ok ? `⏳ ${label} disparado. Te aviso al terminar.` : `❌ No pude disparar (${r.status}).`,
   });
+}
+
+// Minutos esperados por tipo de trabajo (para el % y el ETA aproximados).
+function expectedMin(name) {
+  const n = (name || "").toLowerCase();
+  if (n.includes("render")) return 22;   // render del video (hasta 3 intentos)
+  if (n.includes("voiceover") || n.includes("voz")) return 18;
+  if (n.includes("foto")) return 7;
+  return 12;
+}
+
+// Corridas activas (en curso o en cola). null = no pude leer GitHub.
+async function activeRuns(env) {
+  const res = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=20`);
+  if (!res.ok) return null;
+  return ((await res.json()).workflow_runs || []).filter((r) => r.status !== "completed");
+}
+
+function runProgress(r) {
+  const mins = r.run_started_at ? Math.max(0, Math.round((Date.now() - Date.parse(r.run_started_at)) / 60000)) : 0;
+  const exp = expectedMin(r.name);
+  const pct = r.status === "queued" ? 0 : Math.min(99, Math.round((mins / exp) * 100));
+  return { mins, pct, eta: Math.max(0, exp - mins) };
+}
+
+// Si hay algo pesado en proceso, avisa (con % y ETA) y devuelve true (ocupado).
+async function busyGuard(env, chatId) {
+  const act = await activeRuns(env);
+  if (!act || !act.length) return false;
+  const r = act[0];
+  const p = runProgress(r);
+  await tg(env, "sendMessage", {
+    chat_id: chatId,
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+    text: `⏳ Espera: hay algo en proceso.\n<b>${esc(r.name)}</b> — ${p.pct}%${p.eta ? ` · faltan ~${p.eta} min` : ""}\n\nTe aviso aqui al terminar. Toca 📊 Estado para el detalle.`,
+  });
+  return true;
 }
 
 function tg(env, method, payload) {
