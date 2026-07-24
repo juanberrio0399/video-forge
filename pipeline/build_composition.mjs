@@ -93,8 +93,7 @@ broll.forEach((c, i) => {
   const isVideo = /\.(mp4|webm|mov)$/i.test(c.file);
   if (isVideo) {
     brollEls.push(`<video class="broll clip" id="bv${i}" data-start="${f2(c.start)}" data-duration="${f2(dur)}" data-track-index="0" src="${c.file}" muted playsinline></video>`);
-    brollTw.push(`tl.fromTo("#bv${i}",{opacity:0},{opacity:1,duration:0.5,ease:"power1.out"},${f2(c.start)});`);
-    brollTw.push(`tl.fromTo("#bv${i}",{scale:1.06},{scale:1.16,duration:${f2(dur)},ease:"none"},${f2(c.start)});`);
+    brollTw.push(`tl.fromTo("#bv${i}",{opacity:0},{opacity:1,duration:0.6,ease:"power1.out"},${f2(c.start)});`);
   } else {
     // imagen IA con ken burns (zoom + paneo), visibilidad por opacidad en su ventana
     const dx = i % 2 ? -50 : 50;
