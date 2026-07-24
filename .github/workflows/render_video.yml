@@ -51,14 +51,14 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing.json --remote
           ls -la voiceover.mp3 timing.json
 
-      - name: Generar imagenes IA de fondo (Pollinations)
+      - name: Armar fondo tipo pelicula (footage + IA animada)
         run: |
-          node pipeline/fetch_ai_images.mjs timing.json aiimg "$SECONDS_ARG" || echo "imagenes IA opcional fallo; sigo"
-          ls -la aiimg/ 2>/dev/null || true
+          node pipeline/build_background.mjs timing.json bg "$SECONDS_ARG" || echo "fondo opcional fallo; sigo"
+          ls -la bg/*.mp4 2>/dev/null || true
 
       - name: Generar composicion (index.html)
         run: |
-          node pipeline/build_composition.mjs timing.json index.html voiceover.mp3 "$SECONDS_ARG" aiimg/bg.json
+          node pipeline/build_composition.mjs timing.json index.html voiceover.mp3 "$SECONDS_ARG" bg/bg.json
           head -c 500 index.html
 
       - name: Renderizar MP4
