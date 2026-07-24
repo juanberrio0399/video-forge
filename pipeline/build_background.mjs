@@ -11,6 +11,8 @@ import { execSync } from "node:child_process";
 
 const [timingPath, outDir = "bg", maxSecondsArg] = process.argv.slice(2);
 const KEY = process.env.PEXELS_API_KEY || "";
+const PIXABAY = process.env.PIXABAY_API_KEY || "";
+const GEMINI = process.env.GEMINI_API_KEY || "";
 const timing = JSON.parse(fs.readFileSync(timingPath, "utf8"));
 const maxSeconds = maxSecondsArg && parseFloat(maxSecondsArg) > 0 ? parseFloat(maxSecondsArg) : timing.total;
 const total = Math.min(timing.total, maxSeconds);
@@ -74,6 +76,43 @@ async function pexelsLink(kw) {
   } catch {}
   return null;
 }
+async function pixabayLink(kw) {
+  if (!PIXABAY) return null;
+  try {
+    const r = await fetch(`https://pixabay.com/api/videos/?key=${PIXABAY}&q=${encodeURIComponent(kw)}&per_page=12`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    const hits = (j.hits || []).sort(() => Math.random() - 0.5);
+    for (const h of hits) {
+      const v = h.videos || {};
+      const f = v.large || v.medium || v.small;
+      if (f && f.url) return f.url;
+    }
+  } catch {}
+  return null;
+}
+
+// Gemini como "director de fotografia": elige el mejor plano por segmento (1 sola llamada).
+async function geminiPlan(list) {
+  if (!GEMINI) return null;
+  const seg = list.map((s, i) => `${i + 1}) ${s.text}`).join("\n");
+  const prompt = `Eres director de fotografia de un video faceless cinematografico de datos/dinero (YouTube, ingles). Para CADA segmento de narracion da el mejor plano de fondo. Devuelve SOLO un array JSON, un objeto por segmento en el MISMO orden, con: "q" = query corta (2-4 palabras en INGLES) para buscar b-roll de stock relevante y cinematografico, y "ai" = prompt de imagen IA cinematografica de respaldo. Segmentos:\n${seg}`;
+  for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI}`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } }),
+      });
+      if (!r.ok) { console.error(`gemini ${m}: ${r.status}`); continue; }
+      const j = await r.json();
+      let t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
+      const arr = JSON.parse(t);
+      if (Array.isArray(arr) && arr.length) { console.log(`Gemini (${m}) planeo ${arr.length} planos.`); return arr; }
+    } catch (e) { console.error(`gemini ${m}: ${e.message}`); }
+  }
+  return null;
+}
+
 async function dl(url, dest) { const r = await fetch(url); fs.writeFileSync(dest, Buffer.from(await r.arrayBuffer())); }
 async function aiImage(prompt, dest, seed) {
   const style = "cinematic film still, dramatic lighting, teal and gold grade, highly detailed, no text";
@@ -86,13 +125,15 @@ async function makeSeg(i, s, th) {
   // +TD de "cola" para que el plano tenga con que solapar en la transicion.
   const dur = Math.max(1.2, +(s.end - s.start + TD).toFixed(2));
   const out = `${outDir}/seg${String(i).padStart(3, "0")}.mp4`;
-  const link = await pexelsLink(th.kw);
+  let link = await pexelsLink(th.kw);
+  let src = "pexels";
+  if (!link) { link = await pixabayLink(th.kw); if (link) src = "pixabay"; }
   if (link) {
     const raw = `${outDir}/raw${i}.mp4`;
     await dl(link, raw);
     execSync(`ffmpeg -y -stream_loop -1 -i "${raw}" -t ${dur} -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,${VF}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${out}"`, { stdio: "ignore" });
     fs.rmSync(raw, { force: true });
-    return { out, dur, src: "pexels" };
+    return { out, dur, src };
   }
   // fallback: imagen IA animada con zoompan (movimiento real sobre la imagen)
   const img = `${outDir}/img${i}.jpg`;
@@ -104,13 +145,16 @@ async function makeSeg(i, s, th) {
   return { out, dur, src: "ai" };
 }
 
-console.log(`Fondo tipo pelicula: ${segs.length} planos (~${SEG}s c/u) con transiciones...`);
+const plan = await geminiPlan(segs);
+console.log(`Fondo tipo pelicula: ${segs.length} planos (~${SEG}s c/u) con transiciones · director: ${plan ? "Gemini" : "heuristica"}`);
 const parts = [];
 const durs = [];
 let prevKw = null, fillerIdx = 0;
 for (let i = 0; i < segs.length; i++) {
-  // Variedad: si este plano cae en el mismo tema que el anterior, usa un relleno.
-  let th = theme(segs[i].text);
+  // Tema del plano: Gemini si planeo, si no la heuristica. Variedad anti-repeticion.
+  let th = plan && plan[i] && plan[i].q
+    ? { kw: plan[i].q, ai: plan[i].ai || theme(segs[i].text).ai }
+    : theme(segs[i].text);
   if (th.kw === prevKw) { th = FILLERS[fillerIdx++ % FILLERS.length]; }
   prevKw = th.kw;
   try {
