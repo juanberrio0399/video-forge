@@ -17,7 +17,10 @@ const total = Math.min(timing.total, maxSeconds);
 fs.mkdirSync(outDir, { recursive: true });
 
 const SEG = 5.0;
+const TD = 0.6; // duracion de la transicion (solape entre planos)
 const VF = "eq=brightness=-0.16:saturation=0.92";
+// Transiciones profesionales de ffmpeg (se van rotando).
+const TRANS = ["fade", "dissolve", "smoothleft", "smoothup", "wiperight", "circleopen", "slideup", "radial", "diagtl", "fadegrays"];
 
 // Tema de cada plano segun lo que dice la voz (footage y prompt IA).
 function theme(text) {
@@ -71,7 +74,8 @@ async function aiImage(prompt, dest, seed) {
 
 // Genera cada plano como clip de video del largo exacto (con movimiento real).
 async function makeSeg(i, s) {
-  const dur = Math.max(1.2, +(s.end - s.start).toFixed(2));
+  // +TD de "cola" para que el plano tenga con que solapar en la transicion.
+  const dur = Math.max(1.2, +(s.end - s.start + TD).toFixed(2));
   const th = theme(s.text);
   const out = `${outDir}/seg${String(i).padStart(3, "0")}.mp4`;
   const link = await pexelsLink(th.kw);
@@ -80,7 +84,7 @@ async function makeSeg(i, s) {
     await dl(link, raw);
     execSync(`ffmpeg -y -stream_loop -1 -i "${raw}" -t ${dur} -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,${VF}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${out}"`, { stdio: "ignore" });
     fs.rmSync(raw, { force: true });
-    return { out, src: "pexels" };
+    return { out, dur, src: "pexels" };
   }
   // fallback: imagen IA animada con zoompan (movimiento real sobre la imagen)
   const img = `${outDir}/img${i}.jpg`;
@@ -89,15 +93,17 @@ async function makeSeg(i, s) {
   const zin = i % 2 === 0; // alterna zoom in/out
   const z = zin ? "min(zoom+0.0012,1.3)" : "if(lte(zoom,1.0),1.3,max(1.001,zoom-0.0012))";
   execSync(`ffmpeg -y -loop 1 -i "${img}" -t ${dur} -vf "scale=2600:1463,zoompan=z='${z}':d=${frames}:s=1920x1080:fps=30,${VF}" -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${out}"`, { stdio: "ignore" });
-  return { out, src: "ai" };
+  return { out, dur, src: "ai" };
 }
 
-console.log(`Fondo tipo pelicula: ${segs.length} planos (~${SEG}s c/u)...`);
+console.log(`Fondo tipo pelicula: ${segs.length} planos (~${SEG}s c/u) con transiciones...`);
 const parts = [];
+const durs = [];
 for (let i = 0; i < segs.length; i++) {
   try {
     const r = await makeSeg(i, segs[i]);
-    parts.push(r.out);
+    parts.push(path.resolve(r.out).replace(/\\/g, "/"));
+    durs.push(r.dur);
     if (i % 5 === 0) console.log(`  ...plano ${i}/${segs.length} (${r.src})`);
   } catch (e) {
     console.log(`  error plano ${i}: ${e.message}`);
@@ -106,10 +112,26 @@ for (let i = 0; i < segs.length; i++) {
 
 if (!parts.length) { console.log("Sin planos -> sin fondo."); fs.writeFileSync(`${outDir}/bg.json`, "[]"); process.exit(0); }
 
-// Concatena todos los planos en un solo bg.mp4 (cortes rapidos = ritmo pelicula).
-const list = `${outDir}/list.txt`;
-// Rutas ABSOLUTAS: el demuxer concat resuelve relativo al archivo de lista, no al CWD.
-fs.writeFileSync(list, parts.map((p) => `file '${path.resolve(p).replace(/\\/g, "/")}'`).join("\n"));
-execSync(`ffmpeg -y -f concat -safe 0 -i "${list}" -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${outDir}/bg.mp4"`, { stdio: "inherit" });
-fs.writeFileSync(`${outDir}/bg.json`, JSON.stringify([{ start: 0, dur: +total.toFixed(2), file: `${outDir}/bg.mp4` }], null, 2));
-console.log(`bg.mp4 listo: ${parts.length} planos concatenados (${total.toFixed(1)}s).`);
+const bg = `${outDir}/bg.mp4`;
+if (parts.length === 1) {
+  execSync(`ffmpeg -y -i "${parts[0]}" -t ${total.toFixed(2)} -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${bg}"`, { stdio: "inherit" });
+} else {
+  // Cadena de xfade: cada plano se funde con el siguiente con una transicion pro.
+  const inputs = parts.map((p) => `-i "${p}"`).join(" ");
+  let filter = "";
+  let acc = "[0:v]";
+  let accLen = durs[0];
+  for (let i = 1; i < parts.length; i++) {
+    const offset = +(accLen - TD).toFixed(3);
+    const tr = TRANS[(i - 1) % TRANS.length];
+    const outLbl = `v${i}`;
+    filter += `${acc}[${i}:v]xfade=transition=${tr}:duration=${TD}:offset=${offset}[${outLbl}];`;
+    acc = `[${outLbl}]`;
+    accLen = +(accLen + durs[i] - TD).toFixed(3);
+  }
+  filter = filter.replace(/;$/, "");
+  execSync(`ffmpeg -y ${inputs} -filter_complex "${filter}" -map "${acc}" -t ${total.toFixed(2)} -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${bg}"`, { stdio: "inherit" });
+}
+
+fs.writeFileSync(`${outDir}/bg.json`, JSON.stringify([{ start: 0, dur: +total.toFixed(2), file: bg }], null, 2));
+console.log(`bg.mp4 listo: ${parts.length} planos con transiciones (${total.toFixed(1)}s).`);
