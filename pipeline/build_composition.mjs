@@ -1,143 +1,175 @@
-// build_composition.mjs — genera la composicion HyperFrames del video a partir del
-// mapa de tiempos (timing.json). Sincroniza subtitulos + contador + numeros hero
-// con la voz, y pone la narracion como pista de audio.
+// build_composition.mjs — genera la composicion HyperFrames del video (nivel pro):
+// fondo cinematografico, numeros hero gigantes, barras animadas, comparaciones,
+// subtitulos con diseno, y un ticker sutil. Todo sincronizado con timing.json.
 //
-// Uso: node pipeline/build_composition.mjs <timing.json> <out.html> [audioFile] [maxSeconds]
+// Uso: node pipeline/build_composition.mjs <timing.json> <out.html> [audio] [maxSeconds]
 import fs from "node:fs";
 
 const [timingPath, outPath, audioFile = "voiceover.mp3", maxSecondsArg] = process.argv.slice(2);
 const timing = JSON.parse(fs.readFileSync(timingPath, "utf8"));
 const maxSeconds = maxSecondsArg && parseFloat(maxSecondsArg) > 0 ? parseFloat(maxSecondsArg) : timing.total;
-
-// Beats que caben en el limite (para renders de prueba cortos).
-let beats = timing.beats.filter((b) => b.start < maxSeconds);
+const beats = timing.beats.filter((b) => b.start < maxSeconds);
 const total = Math.min(timing.total, maxSeconds);
-const RATE = 1902; // USD por segundo (dato real del video) para el contador vivo.
+const RATE = 1902;
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const f2 = (n) => Number(n).toFixed(2);
 
-// Numeros "hero": si el texto del beat contiene la frase, se hace un pop grande.
-const HEROES = [
-  { m: "sixty billion dollars in a single year", big: "$60,000,000,000", sub: "YouTube revenue · 2025" },
-  { m: "hundred and sixty-four million dollars a day", big: "$164,000,000", sub: "por dia" },
-  { m: "thirty-six billion dollars", big: "$36,400,000,000", sub: "solo en publicidad · 2024" },
-  { m: "ten million subscribers", big: "10,000,000", sub: "YouTube TV · a $83/mes" },
-  { m: "quietly passed netflix", big: "YouTube > Netflix", sub: "2025" },
-  { m: "fifty-five percent", big: "55%", sub: "para los creadores" },
-  { m: "one hundred billion dollars", big: "$100,000,000,000", sub: "pagado a creadores · 4 años" },
-  { m: "eighty-five million dollars", big: "$85,000,000", sub: "MrBeast · 2024 · Forbes" },
+// ---- Escenas hero: se disparan cuando la voz dice cierta frase ----
+// tipo: "num" (numero gigante) | "cmp" (A vs B) | "split" (45/55)
+const SCENES = [
+  { m: "sixty billion dollars in a single year", type: "num", big: "$60B", sub: "YouTube · ingresos 2025", color: "cy" },
+  { m: "hundred and sixty-four million dollars a day", type: "num", big: "$164M", sub: "por DIA", color: "cy" },
+  { m: "six point eight million dollars an hour", type: "num", big: "$6.8M", sub: "por HORA", color: "cy" },
+  { m: "hundred and fourteen thousand dollars a minute", type: "num", big: "$114K", sub: "por MINUTO", color: "cy" },
+  { m: "nineteen hundred dollars a second", type: "num", big: "$1,900", sub: "por SEGUNDO", color: "gr" },
+  { m: "thirty-six billion dollars", type: "num", big: "$36.4B", sub: "solo en PUBLICIDAD · 2024", color: "cy" },
+  { m: "ten million subscribers", type: "num", big: "10,000,000", sub: "YouTube TV · a $83/mes", color: "am" },
+  { m: "quietly passed netflix", type: "cmp", a: "YouTube", av: 100, b: "Netflix", bv: 65, sub: "ingresos totales · 2025" },
+  { m: "fifty-five percent", type: "split", sub: "de la publicidad va al creador" },
+  { m: "one hundred billion dollars", type: "num", big: "$100B", sub: "pagado a creadores · 4 años", color: "gr" },
+  { m: "eighty-five million dollars", type: "num", big: "$85M", sub: "MrBeast · 2024 · Forbes", color: "am" },
 ];
 
-const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const els = [];
+const tw = []; // lineas GSAP
 
-// --- Construir elementos ---
-const captionEls = [];
-const captionTweens = [];
-const heroEls = [];
-const heroTweens = [];
-
+// ---- Subtitulos (lower third con acento) ----
 beats.forEach((b, i) => {
   const end = Math.min(b.end, total);
-  captionEls.push(
-    `<div class="cap" id="cap${i}">${esc(b.text)}</div>`
-  );
-  // fade in al empezar el beat, fade out cerca del final
-  captionTweens.push(`tl.fromTo("#cap${i}",{opacity:0,y:18},{opacity:1,y:0,duration:0.28,ease:"power2.out"},${b.start.toFixed(2)});`);
-  captionTweens.push(`tl.to("#cap${i}",{opacity:0,duration:0.22,ease:"power1.in"},${(end - 0.18).toFixed(2)});`);
+  els.push(`<div class="cap" id="cap${i}"><span class="cap-bar"></span><span class="cap-txt">${esc(b.text)}</span></div>`);
+  tw.push(`tl.fromTo("#cap${i}",{opacity:0,y:26},{opacity:1,y:0,duration:0.32,ease:"power3.out"},${f2(b.start)});`);
+  tw.push(`tl.to("#cap${i}",{opacity:0,y:-10,duration:0.24,ease:"power1.in"},${f2(end - 0.2)});`);
+});
 
-  // hero?
+// ---- Escenas hero ----
+let sid = 0;
+beats.forEach((b) => {
   const low = b.text.toLowerCase();
-  const hero = HEROES.find((h) => low.includes(h.m));
-  if (hero) {
-    const id = `hero${i}`;
-    heroEls.push(
-      `<div class="hero" id="${id}"><div class="hero-big">${esc(hero.big)}</div><div class="hero-sub">${esc(hero.sub)}</div></div>`
-    );
-    const hstart = b.start + 0.15;
-    const hout = Math.min(end - 0.2, hstart + 2.6);
-    heroTweens.push(`tl.fromTo("#${id}",{opacity:0,scale:0.8},{opacity:1,scale:1,duration:0.5,ease:"back.out(1.7)"},${hstart.toFixed(2)});`);
-    heroTweens.push(`tl.to("#${id}",{opacity:0,scale:1.04,duration:0.4,ease:"power1.in"},${hout.toFixed(2)});`);
+  const s = SCENES.find((x) => low.includes(x.m));
+  if (!s) return;
+  const id = `sc${sid++}`;
+  const inT = b.start + 0.12;
+  const outT = Math.min(Math.min(b.end, total) - 0.15, inT + 3.4);
+
+  if (s.type === "num") {
+    els.push(`<div class="scene num c-${s.color}" id="${id}">
+        <div class="num-big">${esc(s.big)}</div>
+        <div class="num-sub">${esc(s.sub)}</div>
+      </div>`);
+    tw.push(`tl.fromTo("#${id} .num-big",{opacity:0,scale:0.7,y:30},{opacity:1,scale:1,y:0,duration:0.6,ease:"back.out(1.6)"},${f2(inT)});`);
+    tw.push(`tl.fromTo("#${id} .num-sub",{opacity:0,y:16},{opacity:1,y:0,duration:0.5,ease:"power3.out"},${f2(inT + 0.18)});`);
+    tw.push(`tl.to("#${id} .num-big",{scale:1.04,duration:${f2(outT - inT)},ease:"sine.inOut"},${f2(inT + 0.6)});`);
+    tw.push(`tl.to("#${id}",{opacity:0,duration:0.35,ease:"power1.in"},${f2(outT)});`);
+  } else if (s.type === "cmp") {
+    els.push(`<div class="scene cmp" id="${id}">
+        <div class="cmp-row"><div class="cmp-name">${esc(s.a)}</div><div class="cmp-track"><div class="cmp-fill f-yt" id="${id}a"></div></div></div>
+        <div class="cmp-row"><div class="cmp-name">${esc(s.b)}</div><div class="cmp-track"><div class="cmp-fill f-nf" id="${id}b"></div></div></div>
+        <div class="cmp-sub">${esc(s.sub)}</div>
+      </div>`);
+    tw.push(`tl.fromTo("#${id}",{opacity:0},{opacity:1,duration:0.4},${f2(inT)});`);
+    tw.push(`tl.fromTo("#${id}b",{width:"0%"},{width:"${s.bv}%",duration:0.9,ease:"power2.out"},${f2(inT + 0.1)});`);
+    tw.push(`tl.fromTo("#${id}a",{width:"0%"},{width:"${s.av}%",duration:1.2,ease:"power3.out"},${f2(inT + 0.5)});`);
+    tw.push(`tl.to("#${id}",{opacity:0,duration:0.35,ease:"power1.in"},${f2(outT + 0.6)});`);
+  } else if (s.type === "split") {
+    els.push(`<div class="scene split" id="${id}">
+        <div class="split-bar"><div class="split-g" id="${id}g"></div><div class="split-c" id="${id}c"></div></div>
+        <div class="split-legend"><span class="lg gr">55% creadores</span><span class="lg mut">45% Google</span></div>
+        <div class="num-sub">${esc(s.sub)}</div>
+      </div>`);
+    tw.push(`tl.fromTo("#${id}",{opacity:0},{opacity:1,duration:0.4},${f2(inT)});`);
+    tw.push(`tl.fromTo("#${id}c",{width:"0%"},{width:"45%",duration:0.7,ease:"power2.out"},${f2(inT + 0.1)});`);
+    tw.push(`tl.fromTo("#${id}g",{width:"0%"},{width:"55%",duration:1.0,ease:"power3.out"},${f2(inT + 0.3)});`);
+    tw.push(`tl.to("#${id}",{opacity:0,duration:0.35,ease:"power1.in"},${f2(outT + 0.6)});`);
   }
 });
 
 const html = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=1920, height=1080" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet" />
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
-    <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #070b16; }
-      body { font-family: "Inter", system-ui, sans-serif; color: #eaf1ff; }
-      .mono { font-family: "JetBrains Mono", monospace; }
-      #root {
-        position: relative; width: 1920px; height: 1080px;
-        background:
-          radial-gradient(1200px 700px at 50% 12%, rgba(34,211,238,0.10), transparent 60%),
-          radial-gradient(900px 600px at 82% 92%, rgba(52,211,153,0.08), transparent 60%),
-          #070b16;
-      }
-      #grid { position: absolute; inset: 0;
-        background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-        background-size: 64px 64px; }
-      /* contador vivo */
-      #counter-wrap { position: absolute; top: 90px; left: 0; right: 0; text-align: center; }
-      #counter-label { font-size: 24px; letter-spacing: 8px; color: #22d3ee; font-weight: 600; text-transform: uppercase; }
-      #counter { font-size: 108px; font-weight: 900; color: #eaf1ff; letter-spacing: -2px; margin-top: 6px; }
-      #counter-sub { font-size: 22px; color: #6b7ea3; margin-top: 4px; }
-      /* numeros hero (centro) */
-      .hero { position: absolute; top: 360px; left: 0; right: 0; text-align: center; opacity: 0; }
-      .hero-big { font-size: 132px; font-weight: 900; letter-spacing: -3px;
-        background: linear-gradient(90deg,#eaf1ff,#22d3ee 55%,#34d399); -webkit-background-clip: text; background-clip: text; color: transparent; }
-      .hero-sub { font-size: 34px; color: #9fb2d4; margin-top: 10px; font-weight: 600; }
-      /* subtitulos */
-      .cap { position: absolute; bottom: 120px; left: 240px; right: 240px; text-align: center;
-        font-size: 46px; font-weight: 800; line-height: 1.25; opacity: 0;
-        text-shadow: 0 4px 24px rgba(0,0,0,0.85); }
-      #brand { position: absolute; bottom: 44px; right: 70px; font-size: 22px; font-weight: 700; color: #6b7ea3; letter-spacing: 1px; }
-    </style>
-  </head>
-  <body>
-    <div id="root" data-composition-id="main" data-start="0" data-duration="${total.toFixed(2)}" data-fps="30" data-width="1920" data-height="1080">
-      <div id="grid"></div>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=1920, height=1080" />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1920px;height:1080px;overflow:hidden;background:#05070f}
+  body{font-family:"Inter",system-ui,sans-serif;color:#eaf1ff}
+  .mono{font-family:"JetBrains Mono",monospace}
+  #root{position:relative;width:1920px;height:1080px;background:#05070f;overflow:hidden}
+  /* fondo cinematografico: blobs de gradiente que se mueven lento */
+  .blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.5}
+  #b1{width:900px;height:900px;left:-160px;top:-200px;background:radial-gradient(circle,#1b8fb0,transparent 65%)}
+  #b2{width:1000px;height:1000px;right:-220px;top:120px;background:radial-gradient(circle,#0e7a53,transparent 65%)}
+  #b3{width:760px;height:760px;left:35%;bottom:-260px;background:radial-gradient(circle,#5b3fb0,transparent 65%)}
+  #grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:70px 70px}
+  #vig{position:absolute;inset:0;background:radial-gradient(120% 120% at 50% 45%,transparent 55%,rgba(0,0,0,.65))}
+  /* ticker sutil arriba a la derecha */
+  #ticker{position:absolute;top:54px;right:70px;text-align:right;padding:14px 22px;border:1px solid rgba(120,160,220,.18);border-radius:16px;background:rgba(10,16,30,.35);backdrop-filter:blur(6px)}
+  #ticker .tl{font-size:15px;letter-spacing:3px;color:#6b86b8;text-transform:uppercase;font-weight:600}
+  #ticker .tv{font-size:40px;font-weight:900;color:#eaf1ff;margin-top:2px}
+  /* numeros hero */
+  .scene{position:absolute;top:300px;left:0;right:0;text-align:center;opacity:0}
+  .num-big{font-size:200px;font-weight:900;letter-spacing:-6px;line-height:1;background:linear-gradient(90deg,#eaf1ff,#22d3ee 60%,#34d399);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 12px 40px rgba(34,211,238,.25))}
+  .c-gr .num-big{background:linear-gradient(90deg,#eaf1ff,#34d399);-webkit-background-clip:text;background-clip:text}
+  .c-am .num-big{background:linear-gradient(90deg,#fde68a,#f59e0b);-webkit-background-clip:text;background-clip:text}
+  .num-sub{font-size:40px;font-weight:800;color:#9fb2d4;margin-top:14px;letter-spacing:1px;text-transform:uppercase}
+  /* comparacion */
+  .cmp{top:340px;padding:0 360px}
+  .cmp-row{display:flex;align-items:center;gap:28px;margin:22px 0}
+  .cmp-name{width:220px;text-align:right;font-size:44px;font-weight:800}
+  .cmp-track{flex:1;height:64px;background:rgba(255,255,255,.06);border-radius:14px;overflow:hidden}
+  .cmp-fill{height:100%;width:0;border-radius:14px}
+  .f-yt{background:linear-gradient(90deg,#22d3ee,#2563eb);box-shadow:0 0 40px rgba(34,211,238,.35)}
+  .f-nf{background:linear-gradient(90deg,#f87171,#b91c1c)}
+  .cmp-sub{text-align:center;font-size:34px;color:#9fb2d4;margin-top:22px;font-weight:600}
+  /* split */
+  .split{top:380px;padding:0 400px}
+  .split-bar{display:flex;height:90px;border-radius:16px;overflow:hidden;background:rgba(255,255,255,.06)}
+  .split-g{width:0;background:linear-gradient(90deg,#34d399,#059669)}
+  .split-c{width:0;background:linear-gradient(90deg,#64748b,#334155)}
+  .split-legend{display:flex;justify-content:center;gap:60px;margin-top:26px;font-size:34px;font-weight:800}
+  .lg.gr{color:#34d399}.lg.mut{color:#7c8aa5}
+  /* subtitulos lower third */
+  .cap{position:absolute;bottom:104px;left:260px;right:260px;display:flex;align-items:center;gap:22px;opacity:0}
+  .cap-bar{width:8px;align-self:stretch;min-height:54px;border-radius:6px;background:linear-gradient(180deg,#22d3ee,#34d399)}
+  .cap-txt{flex:1;text-align:left;font-size:44px;font-weight:800;line-height:1.22;text-shadow:0 4px 28px rgba(0,0,0,.9)}
+  #brand{position:absolute;bottom:46px;left:70px;font-size:22px;font-weight:800;color:#6b7ea3;letter-spacing:2px}
+</style></head>
+<body>
+  <div id="root" data-composition-id="main" data-start="0" data-duration="${f2(total)}" data-fps="30" data-width="1920" data-height="1080">
+    <div class="blob" id="b1"></div><div class="blob" id="b2"></div><div class="blob" id="b3"></div>
+    <div id="grid"></div><div id="vig"></div>
 
-      <audio class="clip" data-start="0" data-duration="${total.toFixed(2)}" data-track-index="9" src="${audioFile}"></audio>
+    <audio class="clip" data-start="0" data-duration="${f2(total)}" data-track-index="9" src="${audioFile}"></audio>
 
-      <div id="counter-wrap">
-        <div id="counter-label">YouTube gana ahora mismo</div>
-        <div id="counter" class="mono">$0</div>
-        <div id="counter-sub">en lo que llevas viendo este video</div>
-      </div>
+    <div id="ticker"><div class="tl">$ ganado en este video</div><div class="tv mono" id="tv">$0</div></div>
 
-      ${heroEls.join("\n      ")}
+    ${els.join("\n    ")}
 
-      ${captionEls.join("\n      ")}
+    <div id="brand">VIDEO-FORGE</div>
+  </div>
 
-      <div id="brand">video-forge</div>
-    </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    const T = ${f2(total)};
 
-    <script>
-      window.__timelines = window.__timelines || {};
-      const tl = gsap.timeline({ paused: true });
+    // fondo: blobs a la deriva (seek-safe, sobre toda la duracion)
+    tl.to("#b1",{x:180,y:120,duration:T,ease:"sine.inOut"},0);
+    tl.to("#b2",{x:-160,y:-90,duration:T,ease:"sine.inOut"},0);
+    tl.to("#b3",{x:120,y:-140,duration:T,ease:"sine.inOut"},0);
 
-      // contador vivo: sube \$${RATE}/segundo, formateado con comas.
-      const money = { v: 0 };
-      const fmt = (n) => "$" + Math.round(n).toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g, ",");
-      tl.to(money, { v: ${(RATE * total).toFixed(0)}, duration: ${total.toFixed(2)}, ease: "none",
-        onUpdate: () => { document.getElementById("counter").textContent = fmt(money.v); } }, 0);
+    // ticker sutil
+    const money={v:0}; const fmt=(n)=>"$"+Math.round(n).toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g,",");
+    tl.to(money,{v:${(RATE * total).toFixed(0)},duration:T,ease:"none",onUpdate:()=>{document.getElementById("tv").textContent=fmt(money.v);}},0);
 
-      ${heroTweens.join("\n      ")}
+    ${tw.join("\n    ")}
 
-      ${captionTweens.join("\n      ")}
-
-      window.__timelines["main"] = tl;
-    </script>
-  </body>
-</html>
+    window.__timelines["main"] = tl;
+  </script>
+</body></html>
 `;
 
 fs.writeFileSync(outPath, html);
-console.log(`Composicion generada: ${outPath}`);
-console.log(`  duracion ${total.toFixed(1)}s (${(total / 60).toFixed(1)} min) · ${beats.length} subtitulos · ${heroEls.length} numeros hero`);
+const nScenes = (html.match(/class="scene/g) || []).length;
+console.log(`Composicion PRO: ${outPath}`);
+console.log(`  ${f2(total)}s (${(total / 60).toFixed(1)} min) · ${beats.length} subtitulos · ${nScenes} escenas hero`);
