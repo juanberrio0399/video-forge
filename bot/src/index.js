@@ -100,8 +100,8 @@ async function handleMessage(message, env) {
     }
 
     case "/render": {
-      const r = await ghDispatch(env, "render.yml", {});
-      return ack(env, chatId, r, "Render en la nube");
+      const r = await ghDispatch(env, "render_video.yml", {});
+      return ack(env, chatId, r, "Render del video (voz + subtitulos)");
     }
 
     case "/voz": {
@@ -132,8 +132,8 @@ async function handleCallback(cb, env) {
       return ack(env, chatId, r, "Generacion de voz (en paralelo)");
     }
     case "render": {
-      const r = await ghDispatch(env, "render.yml", {});
-      return ack(env, chatId, r, "Render en la nube");
+      const r = await ghDispatch(env, "render_video.yml", {});
+      return ack(env, chatId, r, "Render del video (voz + subtitulos)");
     }
     case "estado":
       return sendStatus(env, chatId);
@@ -148,10 +148,25 @@ async function handleCallback(cb, env) {
     case "help":
       return sendMenu(env, chatId);
     default:
-      if (data.startsWith("publish:"))
-        return tg(env, "sendMessage", { chat_id: chatId, text: "✅ Aprobado. (Publicacion a YouTube en Fase 5.)" });
-      if (data.startsWith("discard:"))
-        return tg(env, "sendMessage", { chat_id: chatId, text: "❌ Descartado." });
+      // Botones de aprobacion que traen los resultados (voz/video).
+      if (data.startsWith("approve:")) {
+        return tg(env, "sendMessage", {
+          chat_id: chatId,
+          text: "✅ Aprobado. Siguiente paso: publicar a YouTube (Fase 5, pronto).",
+        });
+      }
+      if (data.startsWith("regen:")) {
+        const r = await ghDispatch(env, "render_video.yml", {});
+        return ack(env, chatId, r, "Regenerando el video igual");
+      }
+      if (data.startsWith("change:")) {
+        return tg(env, "sendMessage", {
+          chat_id: chatId,
+          text:
+            "✏️ ¿Que quieres cambiar? Escribemelo (ej: 'subtitulos mas grandes', " +
+            "'menos numeros', 'otro color') y lo ajusto para la proxima version.",
+        });
+      }
       return;
   }
 }
