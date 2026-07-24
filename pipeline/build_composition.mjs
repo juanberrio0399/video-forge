@@ -167,7 +167,7 @@ const html = `<!doctype html>
     <div class="blob" id="b1"></div><div class="blob" id="b2"></div><div class="blob" id="b3"></div>
     <div id="grid"></div><div id="vig"></div>
 
-    <audio class="clip" data-start="0" data-duration="${f2(total)}" data-track-index="9" src="${audioFile}"></audio>
+    <audio id="voz" class="clip" data-start="0" data-duration="${f2(total)}" data-track-index="9" src="${audioFile}"></audio>
 
     <div id="ticker"><div class="tl">$ ganado en este video</div><div class="tv mono" id="tv">$0</div></div>
 

@@ -6,6 +6,7 @@
 // Uso: node pipeline/build_background.mjs <timing.json> [outDir=bg] [maxSeconds]
 // Env: PEXELS_API_KEY (opcional; sin ella, todo con imagenes IA animadas).
 import fs from "node:fs";
+import path from "node:path";
 import { execSync } from "node:child_process";
 
 const [timingPath, outDir = "bg", maxSecondsArg] = process.argv.slice(2);
@@ -107,7 +108,8 @@ if (!parts.length) { console.log("Sin planos -> sin fondo."); fs.writeFileSync(`
 
 // Concatena todos los planos en un solo bg.mp4 (cortes rapidos = ritmo pelicula).
 const list = `${outDir}/list.txt`;
-fs.writeFileSync(list, parts.map((p) => `file '${p.replace(/\\/g, "/")}'`).join("\n"));
-execSync(`ffmpeg -y -f concat -safe 0 -i "${list}" -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${outDir}/bg.mp4"`, { stdio: "ignore" });
+// Rutas ABSOLUTAS: el demuxer concat resuelve relativo al archivo de lista, no al CWD.
+fs.writeFileSync(list, parts.map((p) => `file '${path.resolve(p).replace(/\\/g, "/")}'`).join("\n"));
+execSync(`ffmpeg -y -f concat -safe 0 -i "${list}" -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${outDir}/bg.mp4"`, { stdio: "inherit" });
 fs.writeFileSync(`${outDir}/bg.json`, JSON.stringify([{ start: 0, dur: +total.toFixed(2), file: `${outDir}/bg.mp4` }], null, 2));
 console.log(`bg.mp4 listo: ${parts.length} planos concatenados (${total.toFixed(1)}s).`);
