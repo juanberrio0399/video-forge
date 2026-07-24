@@ -33,7 +33,7 @@ Evalua BREVE y ACCIONABLE, en ESPAÑOL, con este formato exacto:
 Maximo 110 palabras. Directo, sin relleno.`;
 
 const parts = [{ text: prompt }, ...imgs.map((p) => ({ inline_data: { mime_type: "image/jpeg", data: fs.readFileSync(p).toString("base64") } }))];
-const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+const models = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-flash-latest", "gemini-2.0-flash"];
 
 let out = "";
 for (const m of models) {

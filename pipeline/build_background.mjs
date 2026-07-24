@@ -97,7 +97,7 @@ async function geminiPlan(list) {
   if (!GEMINI) return null;
   const seg = list.map((s, i) => `${i + 1}) ${s.text}`).join("\n");
   const prompt = `Eres director de fotografia de un video faceless cinematografico de datos/dinero (YouTube, ingles). Para CADA segmento de narracion da el mejor plano de fondo. Devuelve SOLO un array JSON, un objeto por segmento en el MISMO orden, con: "q" = query corta (2-4 palabras en INGLES) para buscar b-roll de stock relevante y cinematografico, y "ai" = prompt de imagen IA cinematografica de respaldo. Segmentos:\n${seg}`;
-  for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]) {
+  for (const m of ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-flash-latest", "gemini-2.0-flash"]) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI}`, {
         method: "POST", headers: { "content-type": "application/json" },
@@ -150,12 +150,15 @@ console.log(`Fondo tipo pelicula: ${segs.length} planos (~${SEG}s c/u) con trans
 const parts = [];
 const durs = [];
 let prevKw = null, fillerIdx = 0;
+const kwCount = {};
 for (let i = 0; i < segs.length; i++) {
-  // Tema del plano: Gemini si planeo, si no la heuristica. Variedad anti-repeticion.
+  // Tema del plano: Gemini si planeo, si no la heuristica.
   let th = plan && plan[i] && plan[i].q
     ? { kw: plan[i].q, ai: plan[i].ai || theme(segs[i].text).ai }
     : theme(segs[i].text);
-  if (th.kw === prevKw) { th = FILLERS[fillerIdx++ % FILLERS.length]; }
+  // Variedad: ningun tema dos veces seguidas NI mas de 2 veces en total.
+  if (th.kw === prevKw || (kwCount[th.kw] || 0) >= 2) { th = FILLERS[fillerIdx++ % FILLERS.length]; }
+  kwCount[th.kw] = (kwCount[th.kw] || 0) + 1;
   prevKw = th.kw;
   try {
     const r = await makeSeg(i, segs[i], th);
