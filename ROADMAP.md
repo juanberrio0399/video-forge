@@ -81,6 +81,18 @@ posible = avatar HeyGen (no se usa) y Apify si se abusa (se evita).
       TELEGRAM_WEBHOOK_SECRET). Redeploy = correr ese workflow. Ver `bot/README.md`.
 - [ ] **Fase 5 — Auto-publish a YouTube.** OAuth como secrets; publica largo + shorts al dar OK.
 - [ ] **Fase 6 — Fabrica de contenido.** Cola de ideas + recurrencia; soltar contenido poco a poco.
+- [ ] **Fase 7 — Editor de fotos por el bot.** Mandas una foto + que cambiar -> IA la edita
+      (Gemini/Nano Banana o Cloudflare Workers AI, gratis) -> te la devuelve. Fondo, luz,
+      color, estilo poster, con un prompt.
+- [ ] **Fase 8 — Videos de recetas (TikTok/IG).** Mandas fotos/videos de recetas al bot ->
+      arma un reel 9:16 con movimiento (zoom/paneo), cortes, subtitulos y musica (ffmpeg,
+      gratis). "Animar la foto con IA de verdad" (LTX/WAN) = GPU/pago, pendiente de free-GPU.
+- [ ] **Regla de almacenamiento (Fases 7-8):** guardar el ORIGEN solo mientras el usuario
+      pide cambios; entregar solo el RESULTADO; borrar el origen al terminar (si quiere mas
+      cambios, re-sube). No acumular fuentes, solo resultados. R2 con logica de sesion.
+- [ ] **Investigar GPU gratis automatizable** (Juan lo pidio): Cloudflare Workers AI (free
+      tier, imagen), Modal ($30 con tarjeta), Kaggle/Colab/HF ZeroGPU (frágiles). Si aparece
+      GPU gratis estable + automatizable -> desbloquea LTX-2/WAN/avatar. Ver hallazgos abajo.
 
 ### Como el bot elige el TEMA (data-driven, NO al azar) — pendiente de conectar
 El tema SIEMPRE pasa por la inteligencia de la crew antes de producir:
