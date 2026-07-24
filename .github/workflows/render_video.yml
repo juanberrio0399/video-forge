@@ -53,7 +53,7 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing.json --remote
           ls -la voiceover.mp3 timing.json
 
-      - name: Render con puerta de calidad (auto-mejora: umbral 7.5, hasta 3 intentos)
+      - name: Render con puerta de calidad (auto-mejora, umbral 7.5, hasta 3 intentos)
         env:
           THRESHOLD: "7.5"
           MAX_ATTEMPTS: "3"
