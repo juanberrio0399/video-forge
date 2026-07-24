@@ -9,3 +9,8 @@ _cmp_*.mp3
 Thumbs.db
 .env
 .env.*
+
+# Voz de referencia de Juan = PERSONAL. NUNCA en el repo (menos si es publico).
+# Vive en R2 (privado); los workflows la bajan de ahi. Ver README / voice_parallel.yml.
+assets/voice/*.mp3
+assets/voice/*.wav
