@@ -7,6 +7,7 @@ set -uo pipefail
 
 MSG="${1:-}"
 FILE="${2:-}"
+MARKUP="${3:-}"   # opcional: JSON de inline_keyboard (botones de aprobacion)
 
 if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
   echo "notify_telegram: sin TELEGRAM_BOT_TOKEN/CHAT_ID; salto notificacion."
@@ -14,19 +15,24 @@ if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
 fi
 
 API="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}"
+MK_ARGS=()
+[ -n "$MARKUP" ] && MK_ARGS=(-F "reply_markup=$MARKUP")
 
 if [ -n "$FILE" ] && [ -f "$FILE" ]; then
   case "$FILE" in
     *.mp3|*.wav|*.m4a|*.ogg)
-      curl -sf -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" -F audio=@"$FILE" "$API/sendAudio" >/dev/null ;;
+      curl -sf -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" "${MK_ARGS[@]}" -F audio=@"$FILE" "$API/sendAudio" >/dev/null ;;
     *.mp4|*.mov|*.webm)
-      curl -sf -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" -F video=@"$FILE" "$API/sendVideo" >/dev/null ;;
+      curl -sf -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" "${MK_ARGS[@]}" -F video=@"$FILE" "$API/sendVideo" >/dev/null ;;
     *)
-      curl -sf -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" -F document=@"$FILE" "$API/sendDocument" >/dev/null ;;
+      curl -sf -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" "${MK_ARGS[@]}" -F document=@"$FILE" "$API/sendDocument" >/dev/null ;;
   esac
 else
-  curl -sf --data-urlencode chat_id="$TELEGRAM_CHAT_ID" \
-       --data-urlencode text="$MSG" "$API/sendMessage" >/dev/null
+  if [ -n "$MARKUP" ]; then
+    curl -sf -F chat_id="$TELEGRAM_CHAT_ID" -F text="$MSG" -F "reply_markup=$MARKUP" "$API/sendMessage" >/dev/null
+  else
+    curl -sf --data-urlencode chat_id="$TELEGRAM_CHAT_ID" --data-urlencode text="$MSG" "$API/sendMessage" >/dev/null
+  fi
 fi
 
 echo "notify_telegram: enviado."
