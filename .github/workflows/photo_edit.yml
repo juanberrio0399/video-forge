@@ -1,0 +1,94 @@
+name: Editar FOTO (retoque pro, preserva identidad)
+
+# Fase 7 v2. Lo dispara el bot cuando mandas una foto. Baja el ORIGEN de R2,
+# la retoca SIN cambiar facciones (GFPGAN limpia rostro + Real-ESRGAN textura;
+# rembg para cambiar el fondo) y te la devuelve al chat con botones.
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat_id:
+        description: "Chat de Telegram a donde devolver la foto"
+        required: true
+      mode:
+        description: "retoque | fondo"
+        required: false
+        default: "retoque"
+      prompt:
+        description: "Que cambiar (para fondo, o afinar)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  edit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ github.event.inputs.chat_id }}
+      MODE: ${{ github.event.inputs.mode || 'retoque' }}
+      PROMPT: ${{ github.event.inputs.prompt }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Libs de sistema (OpenCV)
+        run: sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0
+
+      - name: Instalar motor de retoque (CPU)
+        run: |
+          python -m pip install --upgrade pip
+          pip install "numpy<2" torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install "numpy<2" basicsr==1.4.2 facexlib==0.3.0 gfpgan==1.3.8 realesrgan==0.3.0 \
+            rembg==2.0.59 onnxruntime==1.18.1 opencv-python-headless==4.10.0.84 pillow
+          # Arreglo conocido: basicsr importa torchvision.transforms.functional_tensor (removido
+          # en torchvision nuevo). Lo reapuntamos a functional.
+          BASICSR=$(python -c "import basicsr, os; print(os.path.dirname(basicsr.__file__))")
+          sed -i 's/functional_tensor/functional/g' "$BASICSR/data/degradations.py" || true
+
+      - name: Descargar pesos (GFPGAN + Real-ESRGAN)
+        run: |
+          mkdir -p weights
+          curl -sL -o weights/GFPGANv1.4.pth \
+            https://github.com/TencentARC/GFPGAN/releases/download/v1.3.4/GFPGANv1.4.pth
+          curl -sL -o weights/RealESRGAN_x2plus.pth \
+            https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth
+          ls -la weights/
+
+      - name: Bajar la foto ORIGEN de R2
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/edit/${TELEGRAM_CHAT_ID}/source" --file=in.jpg --remote
+          ls -la in.jpg
+
+      - name: Retocar (preserva identidad)
+        run: |
+          python pipeline/photo_edit.py in.jpg out.jpg "$MODE" "$PROMPT"
+          ls -la out.jpg
+
+      - name: Guardar resultado en R2
+        if: ${{ hashFiles('out.jpg') != '' }}
+        run: |
+          npx --yes wrangler@4 r2 object put "$BUCKET/edit/${TELEGRAM_CHAT_ID}/result" --file=out.jpg --remote
+
+      - name: Devolver al chat con botones
+        if: always()
+        run: |
+          if [ -f out.jpg ]; then
+            MK='{"inline_keyboard":[[{"text":"✅ Guardar","callback_data":"edit_save"},{"text":"🔁 Otra vez","callback_data":"edit_again"}],[{"text":"✏️ Otro cambio","callback_data":"edit_change"}]]}'
+            CAP="✨ Foto retocada (misma cara, piel y textura pro). ¿La guardo o hacemos otro cambio?"
+            [ "$MODE" = "fondo" ] && CAP="✨ Fondo cambiado, sin tocar a la persona. ¿La guardo o hacemos otro cambio?"
+            bash pipeline/notify_telegram.sh "$CAP" out.jpg "$MK"
+          else
+            bash pipeline/notify_telegram.sh "❌ No pude retocar la foto. Reintenta o mandala de nuevo."
+          fi
