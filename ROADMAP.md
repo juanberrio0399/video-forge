@@ -87,9 +87,14 @@ posible = avatar HeyGen (no se usa) y Apify si se abusa (se evita).
       GitHub Actions) -> la devuelve con botones ✅ Guardar / 🔁 Otra vez / ✏️ Otro cambio.
       El ORIGEN vive en R2 solo mientras iteras; al Guardar se borra (regla de storage).
       Bindings `[ai]` + `[[r2_buckets]]` en `bot/wrangler.toml`.
-- [ ] **Fase 8 — Videos de recetas (TikTok/IG).** Mandas fotos/videos de recetas al bot ->
-      arma un reel 9:16 con movimiento (zoom/paneo), cortes, subtitulos y musica (ffmpeg,
-      gratis). "Animar la foto con IA de verdad" (LTX/WAN) = GPU/pago, pendiente de free-GPU.
+- [~] **Fase 8 — Videos de recetas (TikTok/IG).** EN CONSTRUCCION.
+      · [x] Registrar voz por audio: mandas una nota de voz al bot -> la guarda como voz
+        seleccionable en R2 privado (`voice/ref_<nombre>.mp3` + `voice/registry.json`).
+        Con permiso de la persona (voz de la esposa de Juan AUTORIZADA 2026-07-24).
+      · [ ] Flujo receta: mandas fotos/clips + la receta en TEXTO LIBRE; Gemini la organiza
+        (titulo/pasos/narracion), Chatterbox la narra con la voz elegida, ffmpeg arma el
+        reel 9:16 (Ken Burns, cortes, subtitulos de pasos, musica libre). Aprobar por el bot.
+      · "Animar la foto con IA de verdad" (LTX/WAN) = GPU/pago, pendiente de free-GPU.
 - [ ] **Regla de almacenamiento (Fases 7-8):** guardar el ORIGEN solo mientras el usuario
       pide cambios; entregar solo el RESULTADO; borrar el origen al terminar (si quiere mas
       cambios, re-sube). No acumular fuentes, solo resultados. R2 con logica de sesion.
