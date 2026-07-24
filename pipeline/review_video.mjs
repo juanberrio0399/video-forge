@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import { execSync } from "node:child_process";
 
-const [video, title = "video del canal de datos", outFile = "review.txt"] = process.argv.slice(2);
+const [video, title = "video del canal de datos", outFile = "review.txt", jsonOut = "review.json"] = process.argv.slice(2);
 const KEY = process.env.GEMINI_API_KEY;
 if (!KEY) { console.log("Sin GEMINI_API_KEY -> sin auto-review."); process.exit(0); }
 if (!fs.existsSync(video)) { console.log("No hay video para revisar."); process.exit(0); }
@@ -30,7 +30,14 @@ Evalua BREVE y ACCIONABLE, en ESPAÑOL, con este formato exacto:
 🎨 Calidad visual: (footage, legibilidad, estilo; 1 frase)
 📈 Para mas vistas/$: (2-3 mejoras concretas, viñetas cortas)
 ⭐ Nota: X/10
-Maximo 110 palabras. Directo, sin relleno.`;
+Maximo 110 palabras. Directo, sin relleno.
+
+Al FINAL, en una linea aparte, agrega EXACTAMENTE (para la auto-mejora del pipeline):
+FIX: {"score": X.X, "fixes": {"brightness": 0.0, "saturation": 0.0, "contrast": 0.0, "pace": "same"}}
+Donde: score = la MISMA nota de arriba (numero). Los "fixes" son ajustes PEQUEÑOS para el
+proximo intento SEGUN lo que ves: brightness/saturation/contrast entre -0.06 y +0.10 (0 = dejar
+igual; sube contraste/saturacion si se ve plano, sube brillo si se ve muy oscuro); pace = "faster"
+si los planos se sienten lentos/largos, si no "same". Devuelve numeros, no texto.`;
 
 const parts = [{ text: prompt }, ...imgs.map((p) => ({ inline_data: { mime_type: "image/jpeg", data: fs.readFileSync(p).toString("base64") } }))];
 const models = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-flash-latest", "gemini-2.0-flash"];
@@ -49,9 +56,33 @@ for (const m of models) {
   } catch (e) { console.error(`${m}: ${e.message}`); }
 }
 
+function parseFix(text) {
+  let score = 0;
+  let fixes = { brightness: 0, saturation: 0, contrast: 0, pace: "same" };
+  const m = text.match(/FIX:\s*(\{[\s\S]*\})/);
+  if (m) {
+    try {
+      const j = JSON.parse(m[1]);
+      if (j.score != null) score = +j.score || 0;
+      if (j.fixes) fixes = { ...fixes, ...j.fixes };
+    } catch {}
+  }
+  if (!score) {
+    const s = text.match(/Nota:\s*([\d.]+)/i);
+    if (s) score = +s[1] || 0;
+  }
+  return { score, fixes };
+}
+
+const EMPTY = { score: 0, fixes: { brightness: 0, saturation: 0, contrast: 0, pace: "same" } };
 if (out) {
-  fs.writeFileSync(outFile, `🔍 Auto-review del video (Gemini)\n\n${out}`);
-  console.log(out);
+  const { score, fixes } = parseFix(out);
+  const human = out.replace(/\n?FIX:\s*\{[\s\S]*\}\s*$/i, "").trim();
+  fs.writeFileSync(outFile, `🔍 Auto-review del video (Gemini)\n\n${human}`);
+  fs.writeFileSync(jsonOut, JSON.stringify({ score, fixes }));
+  console.log(`nota=${score} fixes=${JSON.stringify(fixes)}`);
+  console.log(human);
 } else {
+  fs.writeFileSync(jsonOut, JSON.stringify(EMPTY));
   console.log("Gemini no devolvio review.");
 }
