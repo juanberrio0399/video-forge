@@ -5,8 +5,9 @@
 // Uso: node pipeline/build_composition.mjs <timing.json> <out.html> [audio] [maxSeconds]
 import fs from "node:fs";
 
-const [timingPath, outPath, audioFile = "voiceover.mp3", maxSecondsArg] = process.argv.slice(2);
+const [timingPath, outPath, audioFile = "voiceover.mp3", maxSecondsArg, brollPath] = process.argv.slice(2);
 const timing = JSON.parse(fs.readFileSync(timingPath, "utf8"));
+const broll = brollPath && fs.existsSync(brollPath) ? JSON.parse(fs.readFileSync(brollPath, "utf8")) : [];
 const maxSeconds = maxSecondsArg && parseFloat(maxSecondsArg) > 0 ? parseFloat(maxSecondsArg) : timing.total;
 const beats = timing.beats.filter((b) => b.start < maxSeconds);
 const total = Math.min(timing.total, maxSeconds);
@@ -83,6 +84,18 @@ beats.forEach((b) => {
   }
 });
 
+// ---- Capa de b-roll (footage real de fondo) + ken burns ----
+const brollEls = [];
+const brollTw = [];
+broll.forEach((c, i) => {
+  if (c.start >= total) return;
+  const dur = Math.min(c.dur, total - c.start);
+  brollEls.push(`<video class="broll clip" id="bv${i}" data-start="${f2(c.start)}" data-duration="${f2(dur)}" data-track-index="0" src="${c.file}" muted playsinline></video>`);
+  brollTw.push(`tl.fromTo("#bv${i}",{opacity:0},{opacity:1,duration:0.5,ease:"power1.out"},${f2(c.start)});`);
+  brollTw.push(`tl.fromTo("#bv${i}",{scale:1.06},{scale:1.16,duration:${f2(dur)},ease:"none"},${f2(c.start)});`);
+});
+const hasBroll = brollEls.length > 0;
+
 const html = `<!doctype html>
 <html lang="en"><head>
 <meta charset="UTF-8" /><meta name="viewport" content="width=1920, height=1080" />
@@ -95,8 +108,11 @@ const html = `<!doctype html>
   body{font-family:"Inter",system-ui,sans-serif;color:#eaf1ff}
   .mono{font-family:"JetBrains Mono",monospace}
   #root{position:relative;width:1920px;height:1080px;background:#05070f;overflow:hidden}
+  /* b-roll de fondo (footage real) + capa oscura para legibilidad */
+  .broll{position:absolute;inset:0;width:1920px;height:1080px;object-fit:cover;opacity:0}
+  #dark{position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,7,15,.48),rgba(5,7,15,.74))}
   /* fondo cinematografico: blobs de gradiente que se mueven lento */
-  .blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.5}
+  .blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:${hasBroll ? 0.28 : 0.5}}
   #b1{width:900px;height:900px;left:-160px;top:-200px;background:radial-gradient(circle,#1b8fb0,transparent 65%)}
   #b2{width:1000px;height:1000px;right:-220px;top:120px;background:radial-gradient(circle,#0e7a53,transparent 65%)}
   #b3{width:760px;height:760px;left:35%;bottom:-260px;background:radial-gradient(circle,#5b3fb0,transparent 65%)}
@@ -136,6 +152,8 @@ const html = `<!doctype html>
 </style></head>
 <body>
   <div id="root" data-composition-id="main" data-start="0" data-duration="${f2(total)}" data-fps="30" data-width="1920" data-height="1080">
+    ${brollEls.join("\n    ")}
+    ${hasBroll ? '<div id="dark"></div>' : ""}
     <div class="blob" id="b1"></div><div class="blob" id="b2"></div><div class="blob" id="b3"></div>
     <div id="grid"></div><div id="vig"></div>
 
@@ -161,6 +179,8 @@ const html = `<!doctype html>
     // ticker sutil
     const money={v:0}; const fmt=(n)=>"$"+Math.round(n).toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g,",");
     tl.to(money,{v:${(RATE * total).toFixed(0)},duration:T,ease:"none",onUpdate:()=>{document.getElementById("tv").textContent=fmt(money.v);}},0);
+
+    ${brollTw.join("\n    ")}
 
     ${tw.join("\n    ")}
 
