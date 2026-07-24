@@ -67,9 +67,14 @@ async function handleMessage(message, env) {
     });
   }
 
-  // Fase 7: si manda una FOTO, entra al editor de imagenes (Workers AI, gratis).
+  // Fase 7: si manda una FOTO, entra al editor de imagenes.
   if (Array.isArray(message.photo) && message.photo.length) {
     return handlePhotoEdit(message, env, chatId);
+  }
+
+  // Fase 8: si manda un AUDIO / nota de voz, lo registra como una voz seleccionable.
+  if (message.voice || message.audio) {
+    return handleVoiceRegister(message, env, chatId);
   }
 
   // Botones del menu (reply keyboard) -> comando equivalente.
@@ -84,6 +89,12 @@ async function handleMessage(message, env) {
   const line = BTN[text] || text;
   const [cmd, ...rest] = line.split(/\s+/);
   const arg = rest.join(" ").trim();
+
+  // Fase 8: si esta esperando el NOMBRE de una voz recien enviada, el texto es el nombre.
+  if (cmd && !cmd.startsWith("/") && !(text in BTN) && env.R2) {
+    const vpend = await env.R2.get(`voice/pending/${chatId}.json`);
+    if (vpend) return finalizeVoice(env, chatId, line);
+  }
 
   // Fase 7: si hay una foto en edicion esperando el "que cambiar", el texto es la instruccion.
   if (cmd && !cmd.startsWith("/") && !(text in BTN)) {
@@ -247,7 +258,9 @@ async function sendMenu(env, chatId) {
       "📊 *Estado* — que se hace AHORA + en que paso va",
       "🆕 *Nuevo video* — completo y solo (en construccion)",
       "",
-      "🖼️ *Editar foto* — mandame una foto con un texto de que cambiar (fondo, luz, estilo). La edito gratis al instante.",
+      "🖼️ *Editar foto* — mandame una foto (y opcional 'fondo ...'). Retoque pro sin cambiar tu cara.",
+      "🎤 *Registrar voz* — mandame una nota de voz y le pongo nombre; sirve para narrar (ej: recetas).",
+      "🍳 *Reel de receta* — (pronto) mandame fotos + la receta y armo un reel 9:16 con voz.",
       "",
       "_Todo corre en la nube. Cuando algo termina, te llega aca._",
     ].join("\n"),
@@ -438,4 +451,59 @@ async function tgDownloadFile(env, fileId) {
   const fr = await fetch(`https://api.telegram.org/file/bot${env.TELEGRAM_BOT_TOKEN}/${fp}`);
   if (!fr.ok) return null;
   return new Uint8Array(await fr.arrayBuffer());
+}
+
+// ---------- Fase 8: registrar una voz mandando un audio (para narrar recetas) ----------
+// Mandas una nota de voz / audio -> se guarda como una voz seleccionable en R2 (privado,
+// NUNCA en el repo publico). Chatterbox clona el timbre desde ese audio. Clonar la voz de
+// otra persona real requiere su permiso (la voz de la esposa de Juan quedo AUTORIZADA por
+// el, 2026-07-24). El registro `voice/registry.json` lista las voces disponibles.
+
+function slugifyVoice(s) {
+  return String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24) || "voz";
+}
+
+async function handleVoiceRegister(message, env, chatId) {
+  if (!env.R2) {
+    return tg(env, "sendMessage", { chat_id: chatId, text: "Aun no puedo guardar voces (falta R2)." });
+  }
+  const a = message.voice || message.audio;
+  const bytes = await tgDownloadFile(env, a.file_id);
+  if (!bytes) return tg(env, "sendMessage", { chat_id: chatId, text: "No pude bajar el audio, reintenta." });
+  await env.R2.put(`voice/pending/${chatId}`, bytes, { httpMetadata: { contentType: "audio/ogg" } });
+
+  const caption = (message.caption || "").trim();
+  if (caption) return finalizeVoice(env, chatId, caption);
+
+  await env.R2.put(`voice/pending/${chatId}.json`, JSON.stringify({ awaiting: true }), {
+    httpMetadata: { contentType: "application/json" },
+  });
+  return tg(env, "sendMessage", {
+    chat_id: chatId,
+    text: "🎤 Audio recibido. ¿Como llamo esta voz? Escribeme un nombre corto (ej: \"esposa\", \"yo\").",
+  });
+}
+
+async function finalizeVoice(env, chatId, name) {
+  const slug = slugifyVoice(name);
+  const pend = await env.R2.get(`voice/pending/${chatId}`);
+  if (!pend) {
+    return tg(env, "sendMessage", { chat_id: chatId, text: "No tengo un audio pendiente. Mandame primero la nota de voz." });
+  }
+  const bytes = new Uint8Array(await pend.arrayBuffer());
+  await env.R2.put(`voice/ref_${slug}.mp3`, bytes, { httpMetadata: { contentType: "audio/mpeg" } });
+
+  let reg = {};
+  const r = await env.R2.get("voice/registry.json");
+  if (r) { try { reg = JSON.parse(await r.text()); } catch {} }
+  reg[slug] = { label: name, key: `voice/ref_${slug}.mp3` };
+  await env.R2.put("voice/registry.json", JSON.stringify(reg), { httpMetadata: { contentType: "application/json" } });
+
+  await env.R2.delete(`voice/pending/${chatId}`);
+  await env.R2.delete(`voice/pending/${chatId}.json`);
+  return tg(env, "sendMessage", {
+    chat_id: chatId,
+    text: `✅ Voz guardada como "${slug}". La usare para narrar (ej: los reels de recetas). Manda otra voz cuando quieras.`,
+  });
 }
