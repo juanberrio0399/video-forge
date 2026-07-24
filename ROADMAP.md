@@ -81,9 +81,12 @@ posible = avatar HeyGen (no se usa) y Apify si se abusa (se evita).
       TELEGRAM_WEBHOOK_SECRET). Redeploy = correr ese workflow. Ver `bot/README.md`.
 - [ ] **Fase 5 — Auto-publish a YouTube.** OAuth como secrets; publica largo + shorts al dar OK.
 - [ ] **Fase 6 — Fabrica de contenido.** Cola de ideas + recurrencia; soltar contenido poco a poco.
-- [ ] **Fase 7 — Editor de fotos por el bot.** Mandas una foto + que cambiar -> IA la edita
-      (Gemini/Nano Banana o Cloudflare Workers AI, gratis) -> te la devuelve. Fondo, luz,
-      color, estilo poster, con un prompt.
+- [x] **Fase 7 — Editor de fotos por el bot.** CONSTRUIDA 2026-07-24. Mandas una foto al
+      bot con un pie de foto (que cambiar) -> el Worker la edita con **Cloudflare Workers AI
+      img2img** (`@cf/runwayml/stable-diffusion-v1-5-img2img`, GRATIS, dentro del Worker, sin
+      GitHub Actions) -> la devuelve con botones ✅ Guardar / 🔁 Otra vez / ✏️ Otro cambio.
+      El ORIGEN vive en R2 solo mientras iteras; al Guardar se borra (regla de storage).
+      Bindings `[ai]` + `[[r2_buckets]]` en `bot/wrangler.toml`.
 - [ ] **Fase 8 — Videos de recetas (TikTok/IG).** Mandas fotos/videos de recetas al bot ->
       arma un reel 9:16 con movimiento (zoom/paneo), cortes, subtitulos y musica (ffmpeg,
       gratis). "Animar la foto con IA de verdad" (LTX/WAN) = GPU/pago, pendiente de free-GPU.
