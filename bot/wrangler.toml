@@ -10,6 +10,17 @@ compatibility_date = "2026-01-01"
 GH_REPO = "juanberrio0399/video-forge"
 GH_PRODUCE_WORKFLOW = "render.yml"
 
+# Fase 7: editor de fotos dentro del Worker (gratis).
+# Workers AI = correr img2img (Stable Diffusion) al instante, sin GPU propia.
+[ai]
+binding = "AI"
+
+# R2 = guardar el ORIGEN de la foto solo mientras se itera (se borra al Guardar),
+# y el estado de la sesion de edicion. Mismo bucket que ya usa el pipeline.
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "video-forge"
+
 # Secretos (NO van aqui; se ponen con `wrangler secret put <NOMBRE>`):
 #   TELEGRAM_BOT_TOKEN        -> token de @BotFather
 #   TELEGRAM_WEBHOOK_SECRET   -> cadena aleatoria (la misma en setWebhook)
