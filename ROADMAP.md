@@ -137,7 +137,12 @@ En `skills/`, cada una con reglas accionables + recursos gratis + errores comune
 
 ## Notas
 
-- Repo GitHub `juanberrio0399/video-forge` (privado). Clon de edicion `Documents\video-forge`.
+- Repo GitHub `juanberrio0399/video-forge` (**PUBLICO** desde 2026-07-24, para tener
+  minutos de Actions ilimitados; el repo privado agoto los 2.000 min/mes gratis y todos
+  los workflows fallaban al arranque). Clon de edicion `Documents\video-forge`.
+- **Voz de referencia NO vive en el repo** (es publico): los MP3 de la voz de Juan estan
+  en R2 privado (`video-forge/voice/ref_juan_es.mp3`); `voice_parallel.yml` la baja de ahi.
+  `.gitignore` bloquea `assets/voice/*.mp3`. NUNCA commitear la voz.
 - El computo real es en la nube; el FFmpeg local de Windows esta roto (no importa).
 - Bot de Telegram lo crea Juan con @BotFather; token = secret.
 - GEMINI_API_KEY la crea Juan en Google AI Studio (gratis); va como secret.
