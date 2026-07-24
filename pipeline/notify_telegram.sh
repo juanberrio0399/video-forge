@@ -24,6 +24,8 @@ if [ -n "$FILE" ] && [ -f "$FILE" ]; then
       curl -sf -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" "${MK_ARGS[@]}" -F audio=@"$FILE" "$API/sendAudio" >/dev/null ;;
     *.mp4|*.mov|*.webm)
       curl -sf -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" "${MK_ARGS[@]}" -F video=@"$FILE" "$API/sendVideo" >/dev/null ;;
+    *.jpg|*.jpeg|*.png|*.webp)
+      curl -sf -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" "${MK_ARGS[@]}" -F photo=@"$FILE" "$API/sendPhoto" >/dev/null ;;
     *)
       curl -sf -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" "${MK_ARGS[@]}" -F document=@"$FILE" "$API/sendDocument" >/dev/null ;;
   esac
