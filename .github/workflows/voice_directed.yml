@@ -70,3 +70,15 @@ jobs:
           path: renders/voiceover_dir.mp3
           if-no-files-found: error
           retention-days: 14
+
+      - name: Avisar a Telegram
+        if: always()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+        run: |
+          if [ -f renders/voiceover_dir.mp3 ]; then
+            bash pipeline/notify_telegram.sh "🎙️ Narracion dirigida lista." renders/voiceover_dir.mp3
+          else
+            bash pipeline/notify_telegram.sh "❌ La narracion no se genero (fallo o cancelada)."
+          fi

@@ -14,3 +14,8 @@ Thumbs.db
 # Vive en R2 (privado); los workflows la bajan de ahi. Ver README / voice_parallel.yml.
 assets/voice/*.mp3
 assets/voice/*.wav
+
+# Salidas de prueba locales (nunca van al repo)
+_*/
+_*.mp3
+_*.mp4
