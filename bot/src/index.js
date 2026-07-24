@@ -67,6 +67,11 @@ async function handleMessage(message, env) {
     });
   }
 
+  // Fase 7: si manda una FOTO, entra al editor de imagenes (Workers AI, gratis).
+  if (Array.isArray(message.photo) && message.photo.length) {
+    return handlePhotoEdit(message, env, chatId);
+  }
+
   // Botones del menu (reply keyboard) -> comando equivalente.
   const BTN = {
     "🎙️ Generar voz": "/voz",
@@ -79,6 +84,12 @@ async function handleMessage(message, env) {
   const line = BTN[text] || text;
   const [cmd, ...rest] = line.split(/\s+/);
   const arg = rest.join(" ").trim();
+
+  // Fase 7: si hay una foto en edicion esperando el "que cambiar", el texto es el prompt.
+  if (cmd && !cmd.startsWith("/") && !(text in BTN)) {
+    const st = await getEditState(env, chatId);
+    if (st && st.awaiting) return runEditWithStoredSource(env, chatId, line);
+  }
 
   switch ((cmd || "").toLowerCase()) {
     case "/start":
@@ -147,6 +158,29 @@ async function handleCallback(cb, env) {
     case "menu":
     case "help":
       return sendMenu(env, chatId);
+    // ---- Fase 7: botones del editor de fotos ----
+    case "edit_save": {
+      // Regla de storage: al terminar, borrar el ORIGEN (el resultado ya se entrego).
+      await env.R2.delete(editKey(chatId, "source"));
+      await env.R2.delete(editKey(chatId, "result"));
+      await putEditState(env, chatId, { awaiting: false, lastPrompt: "" });
+      return tg(env, "sendMessage", {
+        chat_id: chatId,
+        text: "✅ Listo. Borre el original (solo te queda el resultado que te mande). Mandame otra foto cuando quieras.",
+      });
+    }
+    case "edit_again": {
+      const st = await getEditState(env, chatId);
+      return runEditWithStoredSource(env, chatId, (st && st.lastPrompt) || "mejora la imagen, mas nitida y profesional");
+    }
+    case "edit_change": {
+      await putEditState(env, chatId, { awaiting: true, lastPrompt: "" });
+      return tg(env, "sendMessage", {
+        chat_id: chatId,
+        text: "✏️ Escribeme el nuevo cambio para la MISMA foto.",
+      });
+    }
+
     default:
       // Botones de aprobacion que traen los resultados (voz/video).
       if (data.startsWith("approve:")) {
@@ -208,6 +242,8 @@ async function sendMenu(env, chatId) {
       "🎬 *Renderizar* — arma el video en la nube",
       "📊 *Estado* — que se hace AHORA + en que paso va",
       "🆕 *Nuevo video* — completo y solo (en construccion)",
+      "",
+      "🖼️ *Editar foto* — mandame una foto con un texto de que cambiar (fondo, luz, estilo). La edito gratis al instante.",
       "",
       "_Todo corre en la nube. Cuando algo termina, te llega aca._",
     ].join("\n"),
@@ -307,4 +343,159 @@ function ghDispatch(env, workflow, inputs) {
     method: "POST",
     body: JSON.stringify({ ref: "main", inputs }),
   });
+}
+
+// ---------- Fase 7: editor de fotos (Cloudflare Workers AI, gratis, dentro del Worker) ----------
+// Mandas una foto (con un texto de que cambiar como pie de foto, o luego) -> la edita
+// con img2img y te la devuelve. El ORIGEN se guarda en R2 SOLO mientras iteras; al
+// dar "Guardar" se borra (regla de storage de Juan). Nada de esto usa GitHub Actions.
+
+const IMG_MODEL = "@cf/runwayml/stable-diffusion-v1-5-img2img";
+
+function editKey(chatId, kind) {
+  return `edit/${chatId}/${kind}`;
+}
+
+async function getEditState(env, chatId) {
+  if (!env.R2) return null;
+  const o = await env.R2.get(editKey(chatId, "state"));
+  if (!o) return null;
+  try { return JSON.parse(await o.text()); } catch { return null; }
+}
+
+function putEditState(env, chatId, st) {
+  return env.R2.put(editKey(chatId, "state"), JSON.stringify(st), {
+    httpMetadata: { contentType: "application/json" },
+  });
+}
+
+async function handlePhotoEdit(message, env, chatId) {
+  if (!env.AI || !env.R2) {
+    return tg(env, "sendMessage", {
+      chat_id: chatId,
+      text: "El editor de fotos aun no esta activo (falta redeploy con Workers AI + R2).",
+    });
+  }
+  const photos = message.photo;
+  const fileId = photos[photos.length - 1].file_id; // el tamaño mas grande
+  const caption = (message.caption || "").trim();
+
+  const bytes = await tgDownloadFile(env, fileId);
+  if (!bytes) {
+    return tg(env, "sendMessage", { chat_id: chatId, text: "No pude bajar la foto, reintenta." });
+  }
+  // Guarda el ORIGEN en R2 (para poder iterar). Se borra al dar Guardar.
+  await env.R2.put(editKey(chatId, "source"), bytes, { httpMetadata: { contentType: "image/jpeg" } });
+
+  if (!caption) {
+    await putEditState(env, chatId, { awaiting: true, lastPrompt: "" });
+    return tg(env, "sendMessage", {
+      chat_id: chatId,
+      text:
+        "🖼️ Foto recibida. Ahora escribeme QUE cambiar. Ejemplos:\n" +
+        "· \"fondo de playa al atardecer\"\n" +
+        "· \"estilo poster de cine, cinematografico\"\n" +
+        "· \"fondo blanco de estudio\"\n\n" +
+        "Tip: funciona mejor en ingles, pero entiende español.",
+    });
+  }
+  return runEdit(env, chatId, caption, bytes);
+}
+
+async function runEditWithStoredSource(env, chatId, prompt) {
+  const obj = env.R2 && (await env.R2.get(editKey(chatId, "source")));
+  if (!obj) {
+    return tg(env, "sendMessage", {
+      chat_id: chatId,
+      text: "No tengo una foto en edicion. Mandame una foto primero.",
+    });
+  }
+  const bytes = new Uint8Array(await obj.arrayBuffer());
+  return runEdit(env, chatId, prompt, bytes);
+}
+
+async function runEdit(env, chatId, prompt, bytes) {
+  await tg(env, "sendChatAction", { chat_id: chatId, action: "upload_photo" });
+  await putEditState(env, chatId, { awaiting: false, lastPrompt: prompt });
+
+  let outBytes;
+  try {
+    const resp = await env.AI.run(IMG_MODEL, {
+      prompt,
+      image_b64: bytesToB64(bytes),
+      strength: 0.65,
+      num_steps: 20,
+      guidance: 7.5,
+    });
+    outBytes = await aiImageToBytes(resp);
+  } catch (e) {
+    console.error("AI edit error", e);
+    return tg(env, "sendMessage", {
+      chat_id: chatId,
+      text: "❌ No pude editar la foto: " + (e && e.message ? e.message : e),
+    });
+  }
+
+  await env.R2.put(editKey(chatId, "result"), outBytes, { httpMetadata: { contentType: "image/png" } });
+  const kb = {
+    inline_keyboard: [
+      [
+        { text: "✅ Guardar", callback_data: "edit_save" },
+        { text: "🔁 Otra vez", callback_data: "edit_again" },
+      ],
+      [{ text: "✏️ Otro cambio", callback_data: "edit_change" }],
+    ],
+  };
+  return sendPhotoBytes(env, chatId, outBytes, `✨ Editada: "${prompt}". ¿La guardo o hacemos otro cambio?`, kb);
+}
+
+// Descarga un archivo de Telegram por file_id -> Uint8Array.
+async function tgDownloadFile(env, fileId) {
+  const r = await tg(env, "getFile", { file_id: fileId });
+  const j = await r.json();
+  const fp = j && j.result && j.result.file_path;
+  if (!fp) return null;
+  const fr = await fetch(`https://api.telegram.org/file/bot${env.TELEGRAM_BOT_TOKEN}/${fp}`);
+  if (!fr.ok) return null;
+  return new Uint8Array(await fr.arrayBuffer());
+}
+
+// Envia una imagen (bytes) al chat con sendPhoto (multipart) + botones.
+function sendPhotoBytes(env, chatId, bytes, caption, kb) {
+  const form = new FormData();
+  form.append("chat_id", String(chatId));
+  if (caption) form.append("caption", caption);
+  if (kb) form.append("reply_markup", JSON.stringify(kb));
+  form.append("photo", new Blob([bytes], { type: "image/png" }), "edit.png");
+  return fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+    method: "POST",
+    body: form,
+  });
+}
+
+// bytes -> base64 (por bloques para no reventar el stack).
+function bytesToB64(bytes) {
+  let bin = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
+}
+
+// La salida de Workers AI puede venir como ReadableStream, Response, o { image: base64 }.
+async function aiImageToBytes(resp) {
+  if (resp instanceof ReadableStream) {
+    return new Uint8Array(await new Response(resp).arrayBuffer());
+  }
+  if (resp && typeof resp.arrayBuffer === "function") {
+    return new Uint8Array(await resp.arrayBuffer());
+  }
+  if (resp && typeof resp.image === "string") {
+    const bin = atob(resp.image);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  throw new Error("respuesta de imagen desconocida");
 }
