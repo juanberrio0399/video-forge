@@ -151,6 +151,10 @@ async function handleCallback(cb, env) {
   // Cierra el "relojito" del boton de inmediato.
   await tg(env, "answerCallbackQuery", { callback_query_id: cb.id });
 
+  // Navegacion de menus/submenus (cambia el mismo mensaje).
+  if (data.startsWith("menu:")) return showMenu(env, cb, data.slice(5));
+  if (data === "voces:list") return listVoices(env, cb);
+
   switch (data) {
     case "voz": {
       const r = await ghDispatch(env, "voice_parallel.yml", {});
@@ -222,48 +226,85 @@ async function handleCallback(cb, env) {
 
 // ---------- Vistas ----------
 
-// Botones DENTRO del mensaje (inline): siempre visibles, se tocan y listo.
-const MENU_INLINE = {
-  inline_keyboard: [
-    [{ text: "🎙️ Generar voz", callback_data: "voz" }],
-    [{ text: "🎬 Renderizar video", callback_data: "render" }],
-    [{ text: "📊 Estado (que se hace ahora)", callback_data: "estado" }],
-    [{ text: "🆕 Nuevo video (pronto)", callback_data: "nuevo" }],
-  ],
+// Menu de dos niveles: inicio (secciones) + un submenu por seccion. Directo y minimo.
+const KB = {
+  home: {
+    inline_keyboard: [
+      [{ text: "🎬 Video", callback_data: "menu:video" }],
+      [{ text: "🖼️ Foto", callback_data: "menu:foto" }, { text: "🎤 Voces", callback_data: "menu:voces" }],
+      [{ text: "🍳 Recetas", callback_data: "menu:recetas" }, { text: "❓ Ayuda", callback_data: "menu:ayuda" }],
+    ],
+  },
+  video: {
+    inline_keyboard: [
+      [{ text: "🎙️ Generar voz", callback_data: "voz" }],
+      [{ text: "🎬 Renderizar", callback_data: "render" }],
+      [{ text: "📊 Estado", callback_data: "estado" }],
+      [{ text: "⬅️ Volver", callback_data: "menu:home" }],
+    ],
+  },
+  foto: { inline_keyboard: [[{ text: "⬅️ Volver", callback_data: "menu:home" }]] },
+  voces: {
+    inline_keyboard: [
+      [{ text: "📋 Ver voces guardadas", callback_data: "voces:list" }],
+      [{ text: "⬅️ Volver", callback_data: "menu:home" }],
+    ],
+  },
+  recetas: { inline_keyboard: [[{ text: "⬅️ Volver", callback_data: "menu:home" }]] },
+  ayuda: { inline_keyboard: [[{ text: "⬅️ Volver", callback_data: "menu:home" }]] },
+};
+
+const TXT = {
+  home: "*video-forge* — centro de control\n\nElige una seccion:",
+  video: "*🎬 Video*\n\n🎙️ Generar voz — narracion del canal, con tu voz.\n🎬 Renderizar — arma el video en la nube.\n📊 Estado — que se esta haciendo ahora.",
+  foto: "*🖼️ Foto*\n\nMandame una foto: limpio la piel y subo la textura, sin cambiar tu cara (~5-7 min).\nPara el fondo, escribe *fondo ...* al enviarla (ej: fondo blanco).",
+  voces: "*🎤 Voces*\n\nMandame una nota de voz y le pongo nombre. Sirve para narrar (tu voz o la de tu esposa).",
+  recetas: "*🍳 Recetas* _(en construccion)_\n\nPronto: mandame fotos + la receta en texto y armo un reel 9:16 con voz.",
+  ayuda: "*❓ Ayuda*\n\n• Foto → te la retoco.\n• Nota de voz → la guardo para narrar.\n• Video → genero voz y render del canal.\n\nTodo corre en la nube; te aviso aqui al terminar.",
 };
 
 async function sendMenu(env, chatId) {
-  // Registra el menu de comandos nativo de Telegram (el boton "/" y "Menu").
   await tg(env, "setMyCommands", {
     commands: [
-      { command: "voz", description: "🎙️ Generar la narracion (tu voz)" },
-      { command: "render", description: "🎬 Renderizar el video" },
-      { command: "estado", description: "📊 Que se esta haciendo ahora" },
-      { command: "nuevo", description: "🆕 Video completo (pronto)" },
       { command: "start", description: "🏠 Menu" },
+      { command: "voz", description: "🎙️ Generar la narracion" },
+      { command: "render", description: "🎬 Renderizar el video" },
+      { command: "estado", description: "📊 Que se hace ahora" },
     ],
   });
-
   return tg(env, "sendMessage", {
     chat_id: chatId,
     parse_mode: "Markdown",
-    reply_markup: MENU_INLINE,
-    text: [
-      "*video-forge* 🎬 — centro de control del canal",
-      "",
-      "Toca un boton 👇",
-      "",
-      "🎙️ *Generar voz* — narracion con tu voz",
-      "🎬 *Renderizar* — arma el video en la nube",
-      "📊 *Estado* — que se hace AHORA + en que paso va",
-      "🆕 *Nuevo video* — completo y solo (en construccion)",
-      "",
-      "🖼️ *Editar foto* — mandame una foto (y opcional 'fondo ...'). Retoque pro sin cambiar tu cara.",
-      "🎤 *Registrar voz* — mandame una nota de voz y le pongo nombre; sirve para narrar (ej: recetas).",
-      "🍳 *Reel de receta* — (pronto) mandame fotos + la receta y armo un reel 9:16 con voz.",
-      "",
-      "_Todo corre en la nube. Cuando algo termina, te llega aca._",
-    ].join("\n"),
+    reply_markup: KB.home,
+    text: TXT.home,
+  });
+}
+
+// Cambia el mensaje actual al submenu pedido (sin abrir un mensaje nuevo).
+function showMenu(env, cb, key) {
+  const k = KB[key] ? key : "home";
+  return tg(env, "editMessageText", {
+    chat_id: cb.message.chat.id,
+    message_id: cb.message.message_id,
+    parse_mode: "Markdown",
+    reply_markup: KB[k],
+    text: TXT[k],
+  });
+}
+
+async function listVoices(env, cb) {
+  let reg = {};
+  if (env.R2) {
+    const r = await env.R2.get("voice/registry.json");
+    if (r) { try { reg = JSON.parse(await r.text()); } catch {} }
+  }
+  const names = Object.values(reg).map((v) => "• " + (v.label || "")).join("\n") || "_(ninguna aun)_";
+  return tg(env, "editMessageText", {
+    chat_id: cb.message.chat.id,
+    message_id: cb.message.message_id,
+    parse_mode: "Markdown",
+    reply_markup: KB.voces,
+    text: "*🎤 Voces guardadas*\n\n" + names + "\n\nMandame una nota de voz para agregar otra.",
   });
 }
 
