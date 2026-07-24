@@ -18,9 +18,16 @@ const maxSeconds = maxSecondsArg && parseFloat(maxSecondsArg) > 0 ? parseFloat(m
 const total = Math.min(timing.total, maxSeconds);
 fs.mkdirSync(outDir, { recursive: true });
 
-const SEG = 5.0;
-const TD = 0.6; // duracion de la transicion (solape entre planos)
-const VF = "eq=brightness=-0.04:saturation=1.02:contrast=1.05"; // menos oscuro, mas punch
+// Palancas de la PUERTA DE CALIDAD (auto-mejora): entre intentos, el auto-review puede
+// pedir mas punch/brillo/saturacion/contraste o cortes mas rapidos, via env FX_*.
+const NUMENV = (v, d) => (v === undefined || v === "" || isNaN(+v) ? d : +v);
+const FX_PACE = (process.env.FX_PACE || "").toLowerCase();
+const SEG = FX_PACE === "faster" ? 3.6 : 5.0;
+const TD = FX_PACE === "faster" ? 0.5 : 0.6; // duracion de la transicion (solape entre planos)
+const _brt = (-0.04 + NUMENV(process.env.FX_BRIGHT, 0)).toFixed(3);
+const _sat = (1.02 + NUMENV(process.env.FX_SAT, 0)).toFixed(3);
+const _ctr = (1.05 + NUMENV(process.env.FX_CONTRAST, 0)).toFixed(3);
+const VF = `eq=brightness=${_brt}:saturation=${_sat}:contrast=${_ctr}`; // menos oscuro, mas punch
 // Temas de relleno para VARIAR cuando dos planos seguidos caerian en el mismo tema.
 const FILLERS = [
   { kw: "money cash counting", ai: "close up of cash money bills, cinematic" },

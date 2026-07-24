@@ -53,20 +53,41 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing.json --remote
           ls -la voiceover.mp3 timing.json
 
-      - name: Armar fondo tipo pelicula (footage + IA animada)
+      - name: Render con puerta de calidad (auto-mejora: umbral 7.5, hasta 3 intentos)
+        env:
+          THRESHOLD: "7.5"
+          MAX_ATTEMPTS: "3"
         run: |
-          node pipeline/build_background.mjs timing.json bg "$SECONDS_ARG" || echo "fondo opcional fallo; sigo"
-          ls -la bg/*.mp4 2>/dev/null || true
-
-      - name: Generar composicion (index.html)
-        run: |
-          node pipeline/build_composition.mjs timing.json index.html voiceover.mp3 "$SECONDS_ARG" bg/bg.json
-          head -c 500 index.html
-
-      - name: Renderizar MP4
-        run: |
-          npx --yes hyperframes@${HF_VERSION} render --quality standard --workers auto -o renders/video.mp4
-          ls -la renders/
+          set -e
+          mkdir -p renders
+          export FX_BRIGHT=0 FX_SAT=0 FX_CONTRAST=0 FX_PACE=same
+          BEST="-1"; BESTATT=0
+          for att in $(seq 1 "$MAX_ATTEMPTS"); do
+            echo "===== Intento $att/$MAX_ATTEMPTS (FX b=$FX_BRIGHT s=$FX_SAT c=$FX_CONTRAST pace=$FX_PACE) ====="
+            node pipeline/build_background.mjs timing.json bg "$SECONDS_ARG" || echo "fondo opcional fallo; sigo"
+            node pipeline/build_composition.mjs timing.json index.html voiceover.mp3 "$SECONDS_ARG" bg/bg.json
+            npx --yes hyperframes@${HF_VERSION} render --quality standard --workers auto -o "renders/try_${att}.mp4"
+            node pipeline/review_video.mjs "renders/try_${att}.mp4" "How much money does YouTube make every second" "review_${att}.txt" "review_${att}.json" || echo "review fallo"
+            SCORE=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('review_${att}.json','utf8')).score||0)}catch(e){console.log(0)}")
+            echo "Nota intento $att: $SCORE"
+            if node -e "process.exit((${SCORE}||0) > (${BEST}) ? 0 : 1)"; then
+              BEST="$SCORE"; BESTATT="$att"
+              cp "renders/try_${att}.mp4" renders/video.mp4
+              cp "review_${att}.txt" review.txt 2>/dev/null || true
+            fi
+            if node -e "process.exit((${SCORE}||0) >= ${THRESHOLD} ? 0 : 1)"; then
+              echo "Paso el umbral ($SCORE >= $THRESHOLD) en el intento $att."
+              break
+            fi
+            if [ "$att" -lt "$MAX_ATTEMPTS" ]; then
+              eval "$(node -e "try{const f=JSON.parse(require('fs').readFileSync('review_${att}.json','utf8')).fixes||{};const cl=(x,a,b)=>Math.max(a,Math.min(b,x));const b=cl((+process.env.FX_BRIGHT||0)+(+f.brightness||0),-0.08,0.12).toFixed(3);const s=cl((+process.env.FX_SAT||0)+(+f.saturation||0),-0.1,0.2).toFixed(3);const c=cl((+process.env.FX_CONTRAST||0)+(+f.contrast||0),-0.05,0.2).toFixed(3);const p=(f.pace==='faster'||process.env.FX_PACE==='faster')?'faster':'same';console.log('export FX_BRIGHT='+b+' FX_SAT='+s+' FX_CONTRAST='+c+' FX_PACE='+p)}catch(e){console.log('export FX_BRIGHT=0 FX_SAT=0 FX_CONTRAST=0 FX_PACE=same')}")"
+              echo "Ajustes aplicados para el proximo intento."
+            fi
+          done
+          echo "BEST_SCORE=$BEST" >> "$GITHUB_ENV"
+          echo "BEST_ATTEMPT=$BESTATT" >> "$GITHUB_ENV"
+          echo "===== Mejor: intento $BESTATT con nota $BEST ====="
+          ls -la renders/video.mp4
 
       - name: Guardar video en R2
         if: ${{ hashFiles('renders/video.mp4') != '' }}
@@ -82,12 +103,6 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Auto-review con Gemini (calidad + vistas + monetizacion)
-        if: ${{ hashFiles('renders/video.mp4') != '' }}
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: node pipeline/review_video.mjs renders/video.mp4 "How much money does YouTube make every second" || echo "auto-review opcional fallo"
-
       - name: Enviar al chat con botones de aprobacion
         if: always()
         env:
@@ -96,7 +111,10 @@ jobs:
         run: |
           if [ -f renders/video.mp4 ]; then
             MK='{"inline_keyboard":[[{"text":"✅ Aprobar","callback_data":"approve:video"},{"text":"🔁 Regenerar","callback_data":"regen:video"}],[{"text":"✏️ Cambiar algo","callback_data":"change:video"}]]}'
-            bash pipeline/notify_telegram.sh "🎬 Video listo. Revisalo y aprueba (o pide cambios)." renders/video.mp4 "$MK"
+            MSG="🎬 Video listo — mejor de ${BEST_ATTEMPT:-1} intento(s), nota ${BEST_SCORE:-?}/10."
+            if node -e "process.exit((${BEST_SCORE:-0}) >= 7.5 ? 0 : 1)"; then MSG="$MSG ✅ Paso el umbral (7.5)."; else MSG="$MSG ⚠️ No llego a 7.5; te mando la mejor version lograda."; fi
+            MSG="$MSG Revisalo y aprueba (o pide cambios)."
+            bash pipeline/notify_telegram.sh "$MSG" renders/video.mp4 "$MK"
             if [ -f review.txt ]; then bash pipeline/notify_telegram.sh "$(cat review.txt)"; fi
           else
             bash pipeline/notify_telegram.sh "❌ El render del video fallo."
