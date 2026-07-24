@@ -120,7 +120,7 @@ const html = `<!doctype html>
   #root{position:relative;width:1920px;height:1080px;background:#05070f;overflow:hidden}
   /* b-roll de fondo (footage real) + capa oscura para legibilidad */
   .broll{position:absolute;inset:0;width:1920px;height:1080px;object-fit:cover;opacity:0}
-  #dark{position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,7,15,.48),rgba(5,7,15,.74))}
+  #dark{position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,7,15,.30),rgba(5,7,15,.40) 55%,rgba(5,7,15,.66))}
   /* fondo cinematografico: blobs de gradiente que se mueven lento */
   .blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:${hasBroll ? 0.28 : 0.5}}
   #b1{width:900px;height:900px;left:-160px;top:-200px;background:radial-gradient(circle,#1b8fb0,transparent 65%)}

@@ -18,7 +18,16 @@ fs.mkdirSync(outDir, { recursive: true });
 
 const SEG = 5.0;
 const TD = 0.6; // duracion de la transicion (solape entre planos)
-const VF = "eq=brightness=-0.16:saturation=0.92";
+const VF = "eq=brightness=-0.04:saturation=1.02:contrast=1.05"; // menos oscuro, mas punch
+// Temas de relleno para VARIAR cuando dos planos seguidos caerian en el mismo tema.
+const FILLERS = [
+  { kw: "money cash counting", ai: "close up of cash money bills, cinematic" },
+  { kw: "city skyline night aerial", ai: "futuristic city skyline at night, neon, aerial" },
+  { kw: "stock market screen data", ai: "glowing stock market data screen, dark" },
+  { kw: "server room data lights", ai: "dark server room with glowing data lights" },
+  { kw: "person working laptop night", ai: "person working on a laptop at night, glow" },
+  { kw: "gold coins wealth", ai: "gold coins and stacks of money, glowing particles" },
+];
 // Transiciones profesionales de ffmpeg (se van rotando).
 const TRANS = ["fade", "dissolve", "smoothleft", "smoothup", "wiperight", "circleopen", "slideup", "radial", "diagtl", "fadegrays"];
 
@@ -73,10 +82,9 @@ async function aiImage(prompt, dest, seed) {
 }
 
 // Genera cada plano como clip de video del largo exacto (con movimiento real).
-async function makeSeg(i, s) {
+async function makeSeg(i, s, th) {
   // +TD de "cola" para que el plano tenga con que solapar en la transicion.
   const dur = Math.max(1.2, +(s.end - s.start + TD).toFixed(2));
-  const th = theme(s.text);
   const out = `${outDir}/seg${String(i).padStart(3, "0")}.mp4`;
   const link = await pexelsLink(th.kw);
   if (link) {
@@ -99,12 +107,17 @@ async function makeSeg(i, s) {
 console.log(`Fondo tipo pelicula: ${segs.length} planos (~${SEG}s c/u) con transiciones...`);
 const parts = [];
 const durs = [];
+let prevKw = null, fillerIdx = 0;
 for (let i = 0; i < segs.length; i++) {
+  // Variedad: si este plano cae en el mismo tema que el anterior, usa un relleno.
+  let th = theme(segs[i].text);
+  if (th.kw === prevKw) { th = FILLERS[fillerIdx++ % FILLERS.length]; }
+  prevKw = th.kw;
   try {
-    const r = await makeSeg(i, segs[i]);
+    const r = await makeSeg(i, segs[i], th);
     parts.push(path.resolve(r.out).replace(/\\/g, "/"));
     durs.push(r.dur);
-    if (i % 5 === 0) console.log(`  ...plano ${i}/${segs.length} (${r.src})`);
+    if (i % 5 === 0) console.log(`  ...plano ${i}/${segs.length} (${r.src}) [${th.kw}]`);
   } catch (e) {
     console.log(`  error plano ${i}: ${e.message}`);
   }
