@@ -28,6 +28,7 @@ jobs:
       CI: "true"
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       SECONDS_ARG: ${{ github.event.inputs.seconds || '45' }}
     steps:
       - uses: actions/checkout@v4
@@ -50,10 +51,15 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing.json --remote
           ls -la voiceover.mp3 timing.json
 
+      - name: Bajar b-roll real (Pexels)
+        run: |
+          node pipeline/fetch_broll.mjs timing.json broll "$SECONDS_ARG" || echo "b-roll opcional fallo; sigo sin footage"
+          ls -la broll/ 2>/dev/null || true
+
       - name: Generar composicion (index.html)
         run: |
-          node pipeline/build_composition.mjs timing.json index.html voiceover.mp3 "$SECONDS_ARG"
-          head -c 400 index.html
+          node pipeline/build_composition.mjs timing.json index.html voiceover.mp3 "$SECONDS_ARG" broll/broll.json
+          head -c 500 index.html
 
       - name: Renderizar MP4
         run: |
