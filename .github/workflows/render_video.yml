@@ -51,14 +51,14 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing.json --remote
           ls -la voiceover.mp3 timing.json
 
-      - name: Bajar b-roll real (Pexels)
+      - name: Generar imagenes IA de fondo (Pollinations)
         run: |
-          node pipeline/fetch_broll.mjs timing.json broll "$SECONDS_ARG" || echo "b-roll opcional fallo; sigo sin footage"
-          ls -la broll/ 2>/dev/null || true
+          node pipeline/fetch_ai_images.mjs timing.json aiimg "$SECONDS_ARG" || echo "imagenes IA opcional fallo; sigo"
+          ls -la aiimg/ 2>/dev/null || true
 
       - name: Generar composicion (index.html)
         run: |
-          node pipeline/build_composition.mjs timing.json index.html voiceover.mp3 "$SECONDS_ARG" broll/broll.json
+          node pipeline/build_composition.mjs timing.json index.html voiceover.mp3 "$SECONDS_ARG" aiimg/bg.json
           head -c 500 index.html
 
       - name: Renderizar MP4
