@@ -386,7 +386,7 @@ function ack(env, chatId, r, label) {
 // Minutos esperados por tipo de trabajo (para el % y el ETA aproximados).
 function expectedMin(name) {
   const n = (name || "").toLowerCase();
-  if (n.includes("render")) return 22;   // render del video (hasta 3 intentos)
+  if (n.includes("render")) return 40;   // render del video completo (hasta 3 intentos)
   if (n.includes("voiceover") || n.includes("voz")) return 18;
   if (n.includes("foto")) return 7;
   return 12;
