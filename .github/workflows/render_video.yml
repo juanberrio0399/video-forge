@@ -96,11 +96,15 @@ jobs:
           echo "===== Mejor: intento $BESTATT con nota $BEST ====="
           if [ -f renders/video.mp4 ]; then ls -la renders/video.mp4; else echo "Sin video final."; fi
 
-      - name: Guardar video en R2
+      - name: Comprimir + guardar video en R2
         if: ${{ hashFiles('renders/video.mp4') != '' }}
         run: |
-          npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/video.mp4" --file=renders/video.mp4 --remote
-          echo "R2: video/$PROJECT/video.mp4"
+          # El render sale muy pesado (~500 MB). Comprimir a CRF 23 lo baja a ~100 MB:
+          # cabe en R2 (limite de wrangler = 300 MB) y sube mucho mas rapido a YouTube.
+          ffmpeg -y -i renders/video.mp4 -c:v libx264 -crf 23 -preset medium -pix_fmt yuv420p -c:a aac -b:a 128k renders/video_r2.mp4
+          ls -la renders/video.mp4 renders/video_r2.mp4
+          npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/video.mp4" --file=renders/video_r2.mp4 --remote
+          echo "R2: video/$PROJECT/video.mp4 (comprimido)"
 
       - name: Subir artifact
         uses: actions/upload-artifact@v4
