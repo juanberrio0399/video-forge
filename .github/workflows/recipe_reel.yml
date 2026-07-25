@@ -1,0 +1,121 @@
+name: Reel de RECETA (9:16, tus tomas + voz + subtitulos)
+
+# Fase 8. Lo dispara el bot cuando terminas de mandar las fotos/videos + el texto de
+# una receta (/receta ... /listo). Baja tus medios de R2 EN ORDEN, planea el guion
+# (Gemini como chef), narra con tu voz (o la de tu esposa) clonada, arma un reel
+# vertical embelleciendo tus tomas y rellenando con b-roll de cocina relacionado, y
+# te lo devuelve al chat. Todo gratis.
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat_id:
+        description: "Chat de Telegram a donde devolver el reel"
+        required: true
+      count:
+        description: "Cuantos medios (fotos/videos) mandaste"
+        required: false
+        default: "0"
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  reel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ github.event.inputs.chat_id }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      CHAT: ${{ github.event.inputs.chat_id }}
+      COUNT: ${{ github.event.inputs.count || '0' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: FFmpeg + fuentes
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation fonts-dejavu-core
+
+      - name: Bajar tus medios de R2 (en orden)
+        run: |
+          mkdir -p media
+          for i in $(seq 0 $((COUNT-1))); do
+            idx=$(printf "%03d" "$i")
+            for ext in jpg jpeg png mp4 mov; do
+              if npx --yes wrangler@4 r2 object get "$BUCKET/recipe/$CHAT/media/${idx}.${ext}" --file="media/${idx}.${ext}" --remote 2>/dev/null; then break; fi
+            done
+          done
+          find media -type f -size 0 -delete || true
+          echo "=== medios ==="; ls -la media/ || true
+
+      - name: Bajar el texto de la receta
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/recipe/$CHAT/text" --file=recipe.txt --remote 2>/dev/null || echo "" > recipe.txt
+          echo "=== receta ==="; cat recipe.txt || true
+
+      - name: Elegir voz (esposa) y bajarla de R2
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/voice/registry.json" --file=registry.json --remote 2>/dev/null || echo "{}" > registry.json
+          SLUG=$(node -e 'const r=JSON.parse(require("fs").readFileSync("registry.json","utf8")||"{}");const k=Object.keys(r);const p=k.find(x=>/espos|wife|mujer/.test(x))||k.find(x=>!/juan|yo/.test(x))||k[0]||"";process.stdout.write(p)')
+          echo "Voz elegida: ${SLUG:-(ninguna)}"
+          if [ -n "$SLUG" ]; then
+            npx --yes wrangler@4 r2 object get "$BUCKET/voice/ref_${SLUG}.mp3" --file=voice_ref.mp3 --remote 2>/dev/null || true
+          fi
+          if [ ! -s voice_ref.mp3 ]; then
+            npx --yes wrangler@4 r2 object get "$BUCKET/voice/ref_juan_es.mp3" --file=voice_ref.mp3 --remote 2>/dev/null || true
+          fi
+          ls -la voice_ref.mp3 2>/dev/null || echo "sin voz de referencia (narrare con voz por defecto)"
+
+      - name: Planear el guion de la receta
+        env:
+          VOICE_REF: voice_ref.mp3
+        run: |
+          [ -s voice_ref.mp3 ] || unset VOICE_REF
+          node pipeline/recipe_plan.mjs recipe.txt "$COUNT" plan.json voicemap.json
+          echo "=== plan ==="; cat plan.json
+
+      - name: Instalar Chatterbox (voz, CPU)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install chatterbox-tts soundfile numpy
+
+      - name: Narrar (voz clonada)
+        run: |
+          python pipeline/tts_chatterbox_directed.py voicemap.json voiceover.wav
+          ls -la voiceover.wav voiceover.wav.timing.json
+
+      - name: Armar el reel 9:16
+        run: |
+          node pipeline/recipe_assemble.mjs plan.json voiceover.wav.timing.json media voiceover.wav reel.mp4
+          ls -la reel.mp4
+
+      - name: Guardar el reel en R2
+        if: ${{ hashFiles('reel.mp4') != '' }}
+        run: |
+          npx --yes wrangler@4 r2 object put "$BUCKET/recipe/$CHAT/reel.mp4" --file=reel.mp4 --remote
+          echo "R2: recipe/$CHAT/reel.mp4"
+
+      - name: Devolver el reel al chat
+        if: always()
+        run: |
+          if [ -f reel.mp4 ]; then
+            TITLE=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("plan.json","utf8")).title||"Receta")}catch(e){process.stdout.write("Receta")}')
+            MK='{"inline_keyboard":[[{"text":"🍳 Otra receta","callback_data":"receta"}]]}'
+            bash pipeline/notify_telegram.sh "🍳 Reel de receta listo: ${TITLE}. Vertical 9:16 para TikTok/IG, con tu voz y los subtitulos de la preparacion." reel.mp4 "$MK"
+          else
+            bash pipeline/notify_telegram.sh "❌ No pude armar el reel de la receta. Reintenta con /receta."
+          fi

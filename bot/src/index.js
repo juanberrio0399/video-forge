@@ -67,6 +67,21 @@ async function handleMessage(message, env) {
     });
   }
 
+  // Fase 8 — MODO RECETA: si esta recolectando una receta, TODO (fotos/videos/texto) entra a
+  // la RECETA (en orden), NO al retoque. Se sale con /listo (arma el reel) o /cancelar.
+  {
+    const rs = await getRecipeState(env, chatId);
+    if (rs && rs.active) {
+      const t = (message.text || "").trim();
+      if (t === "/cancelar") return recipeCancel(env, chatId);
+      if (t === "/listo") return recipeBuild(env, chatId, rs);
+      if (Array.isArray(message.photo) && message.photo.length) return recipeAddMedia(message, env, chatId, rs, "photo");
+      if (message.video) return recipeAddMedia(message, env, chatId, rs, "video");
+      if (t && !t.startsWith("/")) return recipeAddText(env, chatId, rs, t);
+      return tg(env, "sendMessage", { chat_id: chatId, text: "🍳 En modo receta. Manda fotos/videos + el texto. Al terminar: /listo (o /cancelar)." });
+    }
+  }
+
   // Fase 7: si manda una FOTO, entra al editor de imagenes.
   if (Array.isArray(message.photo) && message.photo.length) {
     return handlePhotoEdit(message, env, chatId);
@@ -139,6 +154,13 @@ async function handleMessage(message, env) {
     case "/estado":
       return sendStatus(env, chatId);
 
+    case "/receta":
+      return recipeStart(env, chatId);
+
+    case "/listo":
+      // Solo tiene sentido en modo receta; si llega aca es que no habia receta activa.
+      return tg(env, "sendMessage", { chat_id: chatId, text: "No hay una receta activa. Empieza con /receta." });
+
     default:
       return sendMenu(env, chatId);
   }
@@ -170,6 +192,8 @@ async function handleCallback(cb, env) {
     }
     case "estado":
       return sendStatus(env, chatId);
+    case "receta":
+      return recipeStart(env, chatId);
     case "nuevo":
       return tg(env, "sendMessage", {
         chat_id: chatId,
@@ -211,10 +235,10 @@ async function handleCallback(cb, env) {
     default:
       // Botones de aprobacion que traen los resultados (voz/video).
       if (data.startsWith("approve:")) {
-        return tg(env, "sendMessage", {
-          chat_id: chatId,
-          text: "✅ Aprobado. Siguiente paso: publicar a YouTube (Fase 5, pronto).",
-        });
+        if (await busyGuard(env, chatId)) return;
+        // Publica a YouTube como PRIVADO (para que Juan lo revise antes de hacerlo publico).
+        const r = await ghDispatch(env, "publish_youtube.yml", {});
+        return ack(env, chatId, r, "Publicando en YouTube (privado, para tu revision)");
       }
       if (data.startsWith("regen:")) {
         if (await busyGuard(env, chatId)) return;
@@ -259,7 +283,12 @@ const KB = {
       [{ text: "⬅️ Volver", callback_data: "menu:home" }],
     ],
   },
-  recetas: { inline_keyboard: [[{ text: "⬅️ Volver", callback_data: "menu:home" }]] },
+  recetas: {
+    inline_keyboard: [
+      [{ text: "🍳 Nueva receta", callback_data: "receta" }],
+      [{ text: "⬅️ Volver", callback_data: "menu:home" }],
+    ],
+  },
   ayuda: { inline_keyboard: [[{ text: "⬅️ Volver", callback_data: "menu:home" }]] },
 };
 
@@ -268,7 +297,7 @@ const TXT = {
   video: "*🎬 Video*\n\n🎙️ Generar voz — narracion del canal, con tu voz.\n🎬 Renderizar — arma el video en la nube.\n📊 Estado — que se esta haciendo ahora.",
   foto: "*🖼️ Foto*\n\nMandame una foto: limpio la piel y subo la textura, sin cambiar tu cara (~5-7 min).\nPara el fondo, escribe *fondo ...* al enviarla (ej: fondo blanco).",
   voces: "*🎤 Voces*\n\nMandame una nota de voz y le pongo nombre. Sirve para narrar (tu voz o la de tu esposa).",
-  recetas: "*🍳 Recetas* _(en construccion)_\n\nPronto: mandame fotos + la receta en texto y armo un reel 9:16 con voz.",
+  recetas: "*🍳 Recetas*\n\nMandame las *fotos/videos* de tu receta (en el orden que quieres el reel) + el *texto* de la preparacion. Yo mejoro tus tomas, completo lo que falte con clips/imagenes relacionados, narro con tu voz y pongo los subtitulos de los pasos.\n\nToca *Nueva receta* para empezar.",
   ayuda: "*❓ Ayuda*\n\n• Foto → te la retoco.\n• Nota de voz → la guardo para narrar.\n• Video → genero voz y render del canal.\n\nTodo corre en la nube; te aviso aqui al terminar.",
 };
 
@@ -543,6 +572,71 @@ async function reEditStrength(env, chatId, strength) {
   }
   const st = await getEditState(env, chatId);
   return dispatchEdit(env, chatId, (st && st.mode) || "retoque", (st && st.prompt) || "", strength);
+}
+
+// ---------- Fase 8: RECETA (reel 9:16 con tus fotos/videos + Pexels/IA + voz + subtitulos) ----------
+// En "modo receta" las fotos NO se retocan: se recolectan EN ORDEN para armar el reel.
+function recipeKey(chatId, kind) { return `recipe/${chatId}/${kind}`; }
+
+async function getRecipeState(env, chatId) {
+  if (!env.R2) return null;
+  const o = await env.R2.get(recipeKey(chatId, "state"));
+  if (!o) return null;
+  try { return JSON.parse(await o.text()); } catch { return null; }
+}
+function setRecipeState(env, chatId, s) {
+  return env.R2.put(recipeKey(chatId, "state"), JSON.stringify(s), { httpMetadata: { contentType: "application/json" } });
+}
+
+async function recipeStart(env, chatId) {
+  if (!env.R2) return tg(env, "sendMessage", { chat_id: chatId, text: "Aun no puedo (falta R2)." });
+  await setRecipeState(env, chatId, { active: true, n: 0 });
+  await env.R2.delete(recipeKey(chatId, "text"));
+  return tg(env, "sendMessage", {
+    chat_id: chatId,
+    parse_mode: "Markdown",
+    text: "🍳 *Modo receta activado.*\n\nMándame, en el ORDEN que quieres el reel:\n• las *fotos/videos* de la receta (uno por uno)\n• el *texto* de la receta (ingredientes y pasos, como quieras)\n\nNarro con tu voz registrada. Para lo que falte, agrego clips/imagenes relacionados.\nCuando termines escribe */listo* (o */cancelar*).",
+  });
+}
+
+async function recipeAddMedia(message, env, chatId, rs, kind) {
+  const fileId = kind === "photo" ? message.photo[message.photo.length - 1].file_id : message.video.file_id;
+  const bytes = await tgDownloadFile(env, fileId);
+  if (!bytes) return tg(env, "sendMessage", { chat_id: chatId, text: "No pude bajar ese medio, reintenta." });
+  const idx = String(rs.n).padStart(3, "0");
+  const ext = kind === "video" ? "mp4" : "jpg";
+  await env.R2.put(recipeKey(chatId, `media/${idx}.${ext}`), bytes, {
+    httpMetadata: { contentType: kind === "video" ? "video/mp4" : "image/jpeg" },
+  });
+  rs.n += 1;
+  await setRecipeState(env, chatId, rs);
+  return tg(env, "sendMessage", { chat_id: chatId, text: `📎 ${kind === "video" ? "Video" : "Foto"} recibido (${rs.n}). Sigue mandando o escribe /listo.` });
+}
+
+async function recipeAddText(env, chatId, rs, t) {
+  const prev = await env.R2.get(recipeKey(chatId, "text"));
+  const acc = (prev ? (await prev.text()) + "\n" : "") + t;
+  await env.R2.put(recipeKey(chatId, "text"), acc, { httpMetadata: { contentType: "text/plain; charset=utf-8" } });
+  return tg(env, "sendMessage", { chat_id: chatId, text: "📝 Receta anotada. Sigue mandando o escribe /listo." });
+}
+
+async function recipeCancel(env, chatId) {
+  await setRecipeState(env, chatId, { active: false, n: 0 });
+  return tg(env, "sendMessage", { chat_id: chatId, text: "🍳 Receta cancelada." });
+}
+
+async function recipeBuild(env, chatId, rs) {
+  if (!rs.n) {
+    return tg(env, "sendMessage", { chat_id: chatId, text: "No recibí fotos/videos. Manda al menos uno y luego /listo." });
+  }
+  await setRecipeState(env, chatId, { active: false, n: rs.n });
+  const r = await ghDispatch(env, "recipe_reel.yml", { chat_id: String(chatId), count: String(rs.n) });
+  return tg(env, "sendMessage", {
+    chat_id: chatId,
+    text: r.ok
+      ? `🍳 Armando tu reel de receta (${rs.n} medios + clips relacionados, voz y subtítulos). Tarda unos minutos y te lo mando aca.`
+      : `❌ No pude iniciar el reel (${r.status}).`,
+  });
 }
 
 // Descarga un archivo de Telegram por file_id -> Uint8Array.
