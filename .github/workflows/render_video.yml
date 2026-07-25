@@ -69,7 +69,7 @@ jobs:
             echo "--- hyperframes render (intento $att) ---"
             npx --yes hyperframes@${HF_VERSION} render --quality standard --workers auto -o renders/render.mp4 2>&1 | tail -25 || true
             if [ ! -s renders/render.mp4 ]; then echo "Intento $att: render SIN salida (ver arriba el error). Sigo."; continue; fi
-            node pipeline/review_video.mjs renders/render.mp4 "How much money does YouTube make every second" "review_${att}.txt" "review_${att}.json" || echo "review fallo"
+            node pipeline/review_video.mjs renders/render.mp4 "How much money does YouTube make every second" "review_${att}.txt" "review_${att}.json" "projects/$PROJECT/voicemap_full.json" || echo "review fallo"
             SCORE=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('review_${att}.json','utf8')).score||0)}catch(e){console.log(0)}")
             echo "Nota intento $att: $SCORE"
             if node -e "process.exit((${SCORE:-0}||0) > (${BEST:-0}) ? 0 : 1)"; then
@@ -83,7 +83,8 @@ jobs:
             fi
             if [ "$att" -lt "$MAX_ATTEMPTS" ]; then
               eval "$(node -e "try{const f=JSON.parse(require('fs').readFileSync('review_${att}.json','utf8')).fixes||{};const cl=(x,a,b)=>Math.max(a,Math.min(b,x));const b=cl((+process.env.FX_BRIGHT||0)+(+f.brightness||0),-0.08,0.12).toFixed(3);const s=cl((+process.env.FX_SAT||0)+(+f.saturation||0),-0.1,0.2).toFixed(3);const c=cl((+process.env.FX_CONTRAST||0)+(+f.contrast||0),-0.05,0.2).toFixed(3);const p=(f.pace==='faster'||process.env.FX_PACE==='faster')?'faster':'same';console.log('export FX_BRIGHT='+b+' FX_SAT='+s+' FX_CONTRAST='+c+' FX_PACE='+p)}catch(e){console.log('export FX_BRIGHT=0 FX_SAT=0 FX_CONTRAST=0 FX_PACE=same')}")"
-              echo "Ajustes aplicados para el proximo intento."
+              export FX_FOOTAGE="$(node -e "try{const j=JSON.parse(require('fs').readFileSync('review_${att}.json','utf8'));process.stdout.write(String(j.footage_feedback||'').replace(/[\r\n\"]/g,' '))}catch(e){}")"
+              echo "Ajustes aplicados para el proximo intento. Footage: ${FX_FOOTAGE:-(sin cambios)}"
             fi
           done
           echo "BEST_SCORE=$BEST" >> "$GITHUB_ENV"
