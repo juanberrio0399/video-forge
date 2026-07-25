@@ -141,8 +141,9 @@ async function handleMessage(message, env) {
 
     case "/render": {
       if (await busyGuard(env, chatId)) return;
-      const r = await ghDispatch(env, "render_video.yml", {});
-      return ack(env, chatId, r, "Render del video (voz + subtitulos)");
+      // Por fases: cada tramo de ~3 min pasa su prueba (7.5) y al final se unen.
+      const r = await ghDispatch(env, "render_phased.yml", {});
+      return ack(env, chatId, r, "Render por fases (cada tramo pasa la prueba, luego se unen)");
     }
 
     case "/voz": {
@@ -187,8 +188,8 @@ async function handleCallback(cb, env) {
     }
     case "render": {
       if (await busyGuard(env, chatId)) return;
-      const r = await ghDispatch(env, "render_video.yml", {});
-      return ack(env, chatId, r, "Render del video (voz + subtitulos)");
+      const r = await ghDispatch(env, "render_phased.yml", {});
+      return ack(env, chatId, r, "Render por fases (cada tramo pasa la prueba, luego se unen)");
     }
     case "estado":
       return sendStatus(env, chatId);
@@ -242,8 +243,8 @@ async function handleCallback(cb, env) {
       }
       if (data.startsWith("regen:")) {
         if (await busyGuard(env, chatId)) return;
-        const r = await ghDispatch(env, "render_video.yml", {});
-        return ack(env, chatId, r, "Regenerando el video igual");
+        const r = await ghDispatch(env, "render_phased.yml", {});
+        return ack(env, chatId, r, "Regenerando por fases");
       }
       if (data.startsWith("change:")) {
         return tg(env, "sendMessage", {
@@ -294,7 +295,7 @@ const KB = {
 
 const TXT = {
   home: "*video-forge* — centro de control\n\nElige una seccion:",
-  video: "*🎬 Video*\n\n🎙️ Generar voz — narracion del canal, con tu voz.\n🎬 Renderizar — arma el video en la nube.\n📊 Estado — que se esta haciendo ahora.",
+  video: "*🎬 Video*\n\n🎙️ Generar voz — narracion del canal, con tu voz.\n🎬 Renderizar — arma el video POR FASES (cada tramo de ~3 min pasa la prueba 7.5 y al final se unen).\n📊 Estado — que se esta haciendo ahora.",
   foto: "*🖼️ Foto*\n\nMandame una foto: limpio la piel y subo la textura, sin cambiar tu cara (~5-7 min).\nPara el fondo, escribe *fondo ...* al enviarla (ej: fondo blanco).",
   voces: "*🎤 Voces*\n\nMandame una nota de voz y le pongo nombre. Sirve para narrar (tu voz o la de tu esposa).",
   recetas: "*🍳 Recetas*\n\nMandame las *fotos/videos* de tu receta (en el orden que quieres el reel) + el *texto* de la preparacion. Yo mejoro tus tomas, completo lo que falte con clips/imagenes relacionados, narro con tu voz y pongo los subtitulos de los pasos.\n\nToca *Nueva receta* para empezar.",
@@ -419,7 +420,9 @@ function ack(env, chatId, r, label) {
 // Minutos esperados por tipo de trabajo (para el % y el ETA aproximados).
 function expectedMin(name) {
   const n = (name || "").toLowerCase();
+  if (n.includes("fases") || n.includes("phased")) return 90;  // fases en paralelo, cada una 3 intentos
   if (n.includes("render")) return 40;   // render del video completo (hasta 3 intentos)
+  if (n.includes("receta")) return 25;
   if (n.includes("voiceover") || n.includes("voz")) return 18;
   if (n.includes("foto")) return 7;
   return 12;
