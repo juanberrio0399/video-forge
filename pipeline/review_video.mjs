@@ -17,27 +17,27 @@ let dur = 45;
 try { dur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${video}"`).toString().trim()) || 45; } catch {}
 fs.mkdirSync("_rev_frames", { recursive: true });
 const imgs = [];
-[0.08, 0.35, 0.62, 0.88].forEach((f, i) => {
+[0.05, 0.16, 0.29, 0.42, 0.55, 0.68, 0.82, 0.94].forEach((f, i) => {
   const t = (f * dur).toFixed(1);
   const p = `_rev_frames/r${i}.jpg`;
   try { execSync(`ffmpeg -y -ss ${t} -i "${video}" -frames:v 1 -vf scale=720:-1 -q:v 5 "${p}"`, { stdio: "ignore" }); imgs.push(p); } catch {}
 });
 if (!imgs.length) { console.log("No pude extraer fotogramas."); process.exit(0); }
 
-const prompt = `Eres un AUDITOR experto de videos faceless de YouTube (canal de DATOS/DINERO en ingles; meta: mas VISTAS y MONETIZACION). Te muestro ${imgs.length} fotogramas de un video titulado "${title}".
-Evalua BREVE y ACCIONABLE, en ESPAÑOL, con este formato exacto:
-🎯 Gancho/retencion: (¿engancha? 1 frase)
-🎨 Calidad visual: (footage, legibilidad, estilo; 1 frase)
-📈 Para mas vistas/$: (2-3 mejoras concretas, viñetas cortas)
+const prompt = `Eres un AUDITOR experto de fotogramas de videos faceless de YouTube (canal de DATOS/DINERO en ingles; meta: mas VISTAS y MONETIZACION). Te muestro ${imgs.length} FOTOGRAMAS FIJOS de un video titulado "${title}".
+IMPORTANTE: son imagenes FIJAS. NO evalues animacion, transiciones, ritmo de cortes, musica ni nada de la subida a YouTube (tarjetas, pantalla final, suscribete): NO los ves y NO se cambian en el render. Evalua SOLO lo visible en un frame: iluminacion/brillo, color y contraste, composicion, legibilidad de textos y numeros, y relevancia/variedad/calidad del footage de fondo.
+Da feedback BREVE y ACCIONABLE, en ESPAÑOL, formato exacto:
+🎯 Legibilidad/gancho: (¿el frame comunica y atrae? 1 frase)
+🎨 Calidad visual: (luz, color, footage; 1 frase)
+📈 Mejoras concretas: (2-3 vinetas, SOLO sobre lo que el render cambia: mas/menos luz, mas contraste/saturacion, footage mas relevante o variado, textos mas grandes/legibles. PROHIBIDO sugerir animaciones, musica o cosas de la subida.)
 ⭐ Nota: X/10
-Maximo 110 palabras. Directo, sin relleno.
+Maximo 110 palabras.
 
-Al FINAL, en una linea aparte, agrega EXACTAMENTE (para la auto-mejora del pipeline):
+Al FINAL, en una linea aparte, EXACTAMENTE:
 FIX: {"score": X.X, "fixes": {"brightness": 0.0, "saturation": 0.0, "contrast": 0.0, "pace": "same"}}
-Donde: score = la MISMA nota de arriba (numero). Los "fixes" son ajustes PEQUEÑOS para el
-proximo intento SEGUN lo que ves: brightness/saturation/contrast entre -0.06 y +0.10 (0 = dejar
-igual; sube contraste/saturacion si se ve plano, sube brillo si se ve muy oscuro); pace = "faster"
-si los planos se sienten lentos/largos, si no "same". Devuelve numeros, no texto.`;
+score = la MISMA nota. Los "fixes" son ajustes PEQUEÑOS para el proximo intento SEGUN lo que ves:
+brightness/saturation/contrast entre -0.06 y +0.10 (0 = igual; sube brillo si se ve oscuro, sube
+saturacion/contraste si se ve plano). pace = "same" (no juzgas ritmo desde fotos). Numeros, no texto.`;
 
 const parts = [{ text: prompt }, ...imgs.map((p) => ({ inline_data: { mime_type: "image/jpeg", data: fs.readFileSync(p).toString("base64") } }))];
 const models = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-flash-latest", "gemini-2.0-flash"];
