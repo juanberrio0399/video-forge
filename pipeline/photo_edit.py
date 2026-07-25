@@ -29,8 +29,8 @@ FIDELITY = 0.6
 # Suavidad del retoque (CALIBRABLE desde el bot via PHOTO_STRENGTH). El resultado de
 # GFPGAN se MEZCLA con la foto ORIGINAL: mas bajo = mas natural (conserva la piel real,
 # evita el "look IA/plastico"). Por defecto SUAVE (Juan pidio menos agresivo).
-STRENGTH = os.environ.get("PHOTO_STRENGTH", "suave").lower()
-BLEND = {"suave": 0.35, "medio": 0.55, "fuerte": 0.78}.get(STRENGTH, 0.35)
+STRENGTH = os.environ.get("PHOTO_STRENGTH", "medio").lower()
+BLEND = {"suave": 0.35, "medio": 0.55, "fuerte": 0.78}.get(STRENGTH, 0.55)
 
 
 def load_bgr(path):
@@ -131,6 +131,24 @@ def replace_background(bgr, prompt):
     return comp
 
 
+def beautify(bgr):
+    """Retoque de BELLEZA natural: empareja la piel (menos granos/manchas), LEVANTA las
+    OJERAS (aclara sombras) y da un acabado bonito, sin quedar plastico."""
+    # 1) Suavizado que conserva bordes: piel mas pareja pero con textura (no plastico).
+    smooth = cv2.bilateralFilter(bgr, 9, 55, 55)
+    out = cv2.addWeighted(smooth, 0.5, bgr, 0.5, 0)
+    # 2) Levantar sombras (OJERAS y zonas oscuras) sin quemar las luces: gamma<1 en L.
+    lab = cv2.cvtColor(out, cv2.COLOR_BGR2LAB).astype(np.float32)
+    l, a, b = cv2.split(lab)
+    l = 255.0 * ((l / 255.0) ** 0.82)
+    lab = cv2.merge((np.clip(l, 0, 255), a, b)).astype(np.uint8)
+    out = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+    # 3) Micro-nitidez: devuelve definicion a ojos/cejas tras suavizar.
+    blur = cv2.GaussianBlur(out, (0, 0), 1.2)
+    out = cv2.addWeighted(out, 1.3, blur, -0.3, 0)
+    return out
+
+
 def main():
     bgr = load_bgr(IN)
     if MODE == "fondo":
@@ -144,6 +162,7 @@ def main():
     except Exception as e:
         print("photo_edit: GFPGAN off, uso solo gradacion:", e)
         out = bgr
+    out = beautify(out)     # belleza: empareja piel + quita ojeras + define, natural
     out = pro_grade(out)
     cv2.imwrite(OUT, out, [cv2.IMWRITE_JPEG_QUALITY, 95])
     print("photo_edit: listo ->", OUT)
