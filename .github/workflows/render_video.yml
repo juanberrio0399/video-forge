@@ -23,7 +23,7 @@ env:
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 350
     env:
       CI: "true"
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -59,6 +59,10 @@ jobs:
           MAX_ATTEMPTS: "3"
         run: |
           mkdir -p renders
+          # El video COMPLETO (seconds=0) hace 1 solo intento (renderizar 7 min x3 no cabe
+          # en el tiempo del runner gratis). La prueba corta (45s) si conserva los 3 intentos.
+          [ "${SECONDS_ARG:-45}" = "0" ] && MAX_ATTEMPTS=1
+          echo "Duracion=${SECONDS_ARG} · intentos=${MAX_ATTEMPTS}"
           export FX_BRIGHT=0 FX_SAT=0 FX_CONTRAST=0 FX_PACE=same
           BEST="-1"; BESTATT=0
           for att in $(seq 1 "$MAX_ATTEMPTS"); do
