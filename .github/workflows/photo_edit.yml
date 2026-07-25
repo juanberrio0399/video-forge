@@ -18,6 +18,10 @@ on:
         description: "Que cambiar (para fondo, o afinar)"
         required: false
         default: ""
+      strength:
+        description: "Suavidad del retoque: suave | medio | fuerte"
+        required: false
+        default: "suave"
 
 permissions:
   contents: read
@@ -36,6 +40,7 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ github.event.inputs.chat_id }}
       MODE: ${{ github.event.inputs.mode || 'retoque' }}
       PROMPT: ${{ github.event.inputs.prompt }}
+      PHOTO_STRENGTH: ${{ github.event.inputs.strength || 'suave' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -86,7 +91,7 @@ jobs:
         if: always()
         run: |
           if [ -f out.jpg ]; then
-            MK='{"inline_keyboard":[[{"text":"✅ Guardar","callback_data":"edit_save"},{"text":"🔁 Otra vez","callback_data":"edit_again"}],[{"text":"✏️ Otro cambio","callback_data":"edit_change"}]]}'
+            MK='{"inline_keyboard":[[{"text":"✅ Guardar","callback_data":"edit_save"},{"text":"🔁 Otra vez","callback_data":"edit_again"}],[{"text":"🪶 Mas suave","callback_data":"edit_softer"},{"text":"💪 Mas fuerte","callback_data":"edit_stronger"}],[{"text":"✏️ Otro cambio","callback_data":"edit_change"}]]}'
             CAP="✨ Foto retocada (misma cara, piel y textura pro). ¿La guardo o hacemos otro cambio?"
             [ "$MODE" = "fondo" ] && CAP="✨ Fondo cambiado, sin tocar a la persona. ¿La guardo o hacemos otro cambio?"
             bash pipeline/notify_telegram.sh "$CAP" out.jpg "$MK"
