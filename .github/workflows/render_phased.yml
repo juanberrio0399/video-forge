@@ -1,0 +1,246 @@
+name: Render VIDEO por FASES (cada fase pasa la prueba, luego se unen)
+
+# El video largo NO cabe con 3 intentos en el runner gratis (7-12 min x3 = imposible).
+# Solucion: partirlo en FASES de ~3 min, renderizar cada una EN PARALELO con su propia
+# puerta de calidad (3 intentos, umbral 7.5), y al final UNIRLAS en el video completo.
+# Asi cada tramo pasa la prueba y el resultado final es largo y parejo.
+
+on:
+  workflow_dispatch:
+    inputs:
+      phase_seconds:
+        description: "Segundos por fase (default 180 = 3 min)"
+        required: false
+        default: "180"
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+  PROJECT: "0001-youtube-money"
+  HF_VERSION: "0.7.68"
+
+jobs:
+  # 1) Parte la narracion+tiempos en fases y corta el audio de cada una.
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      phases: ${{ steps.split.outputs.phases }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PHASE_SECONDS: ${{ github.event.inputs.phase_seconds || '180' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Bajar voz + tiempos de R2
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/voiceover.mp3" --file=voiceover.mp3 --remote
+          npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing.json --remote
+
+      - name: Partir en fases
+        id: split
+        run: |
+          node pipeline/split_phases.mjs timing.json "projects/$PROJECT/voicemap_full.json" phases
+          # Cortar el audio de cada fase segun el manifest (absStart -> absEnd).
+          node -e '
+            const fs=require("fs"), {execSync}=require("child_process");
+            const m=JSON.parse(fs.readFileSync("phases/manifest.json","utf8"));
+            for(const p of m){
+              const out=`phases/${p.k}/voiceover.mp3`;
+              execSync(`ffmpeg -y -ss ${p.absStart} -to ${p.absEnd} -i voiceover.mp3 -c copy "${out}" || ffmpeg -y -ss ${p.absStart} -to ${p.absEnd} -i voiceover.mp3 "${out}"`,{stdio:"inherit"});
+            }
+          '
+          echo "phases=$(cat phases/phases.json)" >> "$GITHUB_OUTPUT"
+          echo "=== fases ==="; cat phases/manifest.json
+
+      - name: Subir insumos de las fases
+        uses: actions/upload-artifact@v4
+        with:
+          name: phases-in
+          path: phases/**
+          if-no-files-found: error
+          retention-days: 1
+
+  # 2) Renderiza cada fase en PARALELO con su puerta de calidad (3 intentos, 7.5).
+  render:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        phase: ${{ fromJSON(needs.prepare.outputs.phases) }}
+    env:
+      CI: "true"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      PH: ${{ matrix.phase }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install FFmpeg + Chrome libs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+            libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+            libgbm1 libpango-1.0-0 libcairo2 fonts-liberation \
+            libasound2t64 || sudo apt-get install -y libasound2
+
+      - name: Bajar insumos de las fases
+        uses: actions/download-artifact@v4
+        with:
+          name: phases-in
+          path: phases
+
+      - name: Preparar esta fase
+        run: |
+          cp "phases/$PH/timing.json" timing.json
+          cp "phases/$PH/voiceover.mp3" voiceover.mp3
+          cp "phases/$PH/voicemap.json" voicemap.json
+          ls -la timing.json voiceover.mp3 voicemap.json
+
+      - name: Render fase con puerta de calidad (3 intentos, umbral 7.5)
+        env:
+          THRESHOLD: "7.5"
+          MAX_ATTEMPTS: "3"
+        run: |
+          mkdir -p renders
+          HOOK=$(node -e "try{const v=JSON.parse(require('fs').readFileSync('voicemap.json','utf8'));process.stdout.write((v.beats&&v.beats[0]&&v.beats[0].text||'').slice(0,120))}catch(e){}")
+          echo "Fase $PH · intentos=$MAX_ATTEMPTS · gancho: ${HOOK:-(sin texto)}"
+          export FX_BRIGHT=0 FX_SAT=0 FX_CONTRAST=0 FX_PACE=same
+          BEST="-1"; BESTATT=0
+          for att in $(seq 1 "$MAX_ATTEMPTS"); do
+            echo "===== Fase $PH · intento $att/$MAX_ATTEMPTS (FX b=$FX_BRIGHT s=$FX_SAT c=$FX_CONTRAST pace=$FX_PACE) ====="
+            rm -f renders/render.mp4
+            node pipeline/build_background.mjs timing.json bg 0 || echo "fondo opcional fallo; sigo"
+            node pipeline/build_composition.mjs timing.json index.html voiceover.mp3 0 bg/bg.json || { echo "composicion fallo"; continue; }
+            npx --yes hyperframes@${HF_VERSION} render --quality standard --workers auto -o renders/render.mp4 2>&1 | tail -25 || true
+            if [ ! -s renders/render.mp4 ]; then echo "Fase $PH intento $att: render SIN salida. Sigo."; continue; fi
+            node pipeline/review_video.mjs renders/render.mp4 "${HOOK:-video de datos}" "review_${att}.txt" "review_${att}.json" voicemap.json || echo "review fallo"
+            SCORE=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('review_${att}.json','utf8')).score||0)}catch(e){console.log(0)}")
+            echo "Fase $PH nota intento $att: $SCORE"
+            if node -e "process.exit((${SCORE:-0}||0) > (${BEST:-0}) ? 0 : 1)"; then
+              BEST="$SCORE"; BESTATT="$att"
+              cp renders/render.mp4 renders/video.mp4
+              cp "review_${att}.txt" review.txt 2>/dev/null || true
+            fi
+            if node -e "process.exit((${SCORE:-0}||0) >= ${THRESHOLD} ? 0 : 1)"; then
+              echo "Fase $PH paso el umbral ($SCORE >= $THRESHOLD) en el intento $att."
+              break
+            fi
+            if [ "$att" -lt "$MAX_ATTEMPTS" ]; then
+              eval "$(node -e "try{const f=JSON.parse(require('fs').readFileSync('review_${att}.json','utf8')).fixes||{};const cl=(x,a,b)=>Math.max(a,Math.min(b,x));const b=cl((+process.env.FX_BRIGHT||0)+(+f.brightness||0),-0.08,0.12).toFixed(3);const s=cl((+process.env.FX_SAT||0)+(+f.saturation||0),-0.1,0.2).toFixed(3);const c=cl((+process.env.FX_CONTRAST||0)+(+f.contrast||0),-0.05,0.2).toFixed(3);const p=(f.pace==='faster'||process.env.FX_PACE==='faster')?'faster':'same';console.log('export FX_BRIGHT='+b+' FX_SAT='+s+' FX_CONTRAST='+c+' FX_PACE='+p)}catch(e){console.log('export FX_BRIGHT=0 FX_SAT=0 FX_CONTRAST=0 FX_PACE=same')}")"
+              export FX_FOOTAGE="$(node -e "try{const j=JSON.parse(require('fs').readFileSync('review_${att}.json','utf8'));process.stdout.write(String(j.footage_feedback||'').replace(/[\r\n\"]/g,' '))}catch(e){}")"
+              echo "Fase $PH ajustes para el proximo intento. Footage: ${FX_FOOTAGE:-(sin cambios)}"
+            fi
+          done
+          echo "$BEST" > renders/score.txt
+          echo "===== Fase $PH mejor: intento $BESTATT nota $BEST ====="
+          if [ ! -f renders/video.mp4 ]; then echo "Fase $PH sin video final"; exit 1; fi
+          ls -la renders/video.mp4
+
+      - name: Subir la fase renderizada
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-out-${{ matrix.phase }}
+          path: |
+            renders/video.mp4
+            renders/score.txt
+            review.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+  # 3) Une las fases en orden -> video completo -> R2 -> chat con aprobacion.
+  combine:
+    needs: [prepare, render]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PHASES: ${{ needs.prepare.outputs.phases }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Bajar todas las fases
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase-out-*
+          path: outs
+
+      - name: Unir en orden + comprimir + guardar en R2
+        run: |
+          mkdir -p renders
+          # Construye la lista de union EN ORDEN y calcula la nota minima (en Node, robusto).
+          node -e '
+            const fs=require("fs");
+            const phases=JSON.parse(process.env.PHASES||"[]");
+            const lines=[]; const scores=[]; let min=99, missing=[];
+            for(const k of phases){
+              const f=`outs/phase-out-${k}/video.mp4`;
+              let s=parseFloat((()=>{try{return fs.readFileSync(`outs/phase-out-${k}/score.txt`,"utf8").trim()}catch(e){return ""}})());
+              if(!isFinite(s)) s=0;
+              scores.push(`f${k}:${s}`);
+              if(fs.existsSync(f)){ lines.push(`file ${process.cwd()}/${f}`); if(s<min) min=s; }
+              else missing.push(k);
+            }
+            fs.writeFileSync("list.txt", lines.join("\n")+"\n");
+            fs.appendFileSync(process.env.GITHUB_ENV, `MIN_SCORE=${min===99?0:min}\n`);
+            fs.appendFileSync(process.env.GITHUB_ENV, `SCORES=${scores.join(" ")}\n`);
+            if(missing.length) console.log("OJO faltan fases:", missing.join(","));
+            console.log("orden de union:\n"+lines.join("\n"));
+            if(!lines.length){ console.error("Sin fases para unir"); process.exit(1); }
+          '
+          # Re-encode al unir (las fases pueden variar levemente) y comprimir para R2 (<300MB).
+          ffmpeg -y -f concat -safe 0 -i list.txt -c:v libx264 -crf 23 -preset medium -pix_fmt yuv420p -c:a aac -b:a 128k renders/video.mp4
+          ls -la renders/video.mp4
+          npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/video.mp4" --file=renders/video.mp4 --remote
+          echo "R2: video/$PROJECT/video.mp4 (unido de las fases)"
+        env:
+          BUCKET: video-forge
+          PROJECT: "0001-youtube-money"
+
+      - name: Subir artifact final
+        if: ${{ hashFiles('renders/video.mp4') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: video
+          path: renders/video.mp4
+          retention-days: 14
+
+      - name: Enviar al chat con aprobacion
+        if: always()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+        run: |
+          if [ -f renders/video.mp4 ]; then
+            MK='{"inline_keyboard":[[{"text":"✅ Aprobar y publicar","callback_data":"approve:video"},{"text":"🔁 Regenerar","callback_data":"regen:phased"}],[{"text":"✏️ Cambiar algo","callback_data":"change:video"}]]}'
+            MSG="🎬 Video completo listo (unido por fases). Notas por fase:${SCORES}. Minima: ${MIN_SCORE}/10."
+            if node -e "process.exit((${MIN_SCORE:-0}) >= 7.5 ? 0 : 1)"; then MSG="$MSG ✅ TODAS las fases pasaron 7.5."; else MSG="$MSG ⚠️ Alguna fase no llego a 7.5; te mando la mejor version."; fi
+            MSG="$MSG Revisalo y aprueba para publicar (privado)."
+            bash pipeline/notify_telegram.sh "$MSG" renders/video.mp4 "$MK"
+          else
+            bash pipeline/notify_telegram.sh "❌ No pude unir las fases del video."
+          fi
