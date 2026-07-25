@@ -11,6 +11,7 @@
 #               aplica el mismo retoque de rostro para pulir.
 #
 # Uso: python pipeline/photo_edit.py <entrada> <salida> <modo> "<prompt>"
+import os
 import sys
 import urllib.parse
 import urllib.request
@@ -24,6 +25,12 @@ PROMPT = sys.argv[4] if len(sys.argv) > 4 else ""
 
 # Fidelidad de GFPGAN: mas alto = mas fiel al rostro original (preserva identidad).
 FIDELITY = 0.6
+
+# Suavidad del retoque (CALIBRABLE desde el bot via PHOTO_STRENGTH). El resultado de
+# GFPGAN se MEZCLA con la foto ORIGINAL: mas bajo = mas natural (conserva la piel real,
+# evita el "look IA/plastico"). Por defecto SUAVE (Juan pidio menos agresivo).
+STRENGTH = os.environ.get("PHOTO_STRENGTH", "suave").lower()
+BLEND = {"suave": 0.35, "medio": 0.55, "fuerte": 0.78}.get(STRENGTH, 0.35)
 
 
 def load_bgr(path):
@@ -130,6 +137,10 @@ def main():
         bgr = replace_background(bgr, PROMPT)
     try:
         out = gfpgan_restore(bgr, weight=FIDELITY)
+        # Mezcla con la ORIGINAL (subida al mismo tamano) para un retoque NATURAL, no plastico.
+        orig_up = cv2.resize(bgr, (out.shape[1], out.shape[0]), interpolation=cv2.INTER_LANCZOS4)
+        out = cv2.addWeighted(out, BLEND, orig_up, 1.0 - BLEND, 0)
+        print(f"photo_edit: retoque '{STRENGTH}' (mezcla {int(BLEND*100)}% GFPGAN / {int((1-BLEND)*100)}% original)")
     except Exception as e:
         print("photo_edit: GFPGAN off, uso solo gradacion:", e)
         out = bgr

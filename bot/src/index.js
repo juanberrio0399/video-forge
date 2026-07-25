@@ -195,6 +195,10 @@ async function handleCallback(cb, env) {
     }
     case "edit_again":
       return reDispatchEdit(env, chatId);
+    case "edit_softer":
+      return reEditStrength(env, chatId, "suave");
+    case "edit_stronger":
+      return reEditStrength(env, chatId, "fuerte");
     case "edit_change": {
       const st = await getEditState(env, chatId);
       await putEditState(env, chatId, { awaiting: true, mode: (st && st.mode) || "retoque", prompt: (st && st.prompt) || "" });
@@ -503,30 +507,42 @@ async function handlePhotoEdit(message, env, chatId) {
 }
 
 // Dispara el workflow de retoque con el ORIGEN que ya esta en R2.
-async function dispatchEdit(env, chatId, mode, prompt) {
-  await putEditState(env, chatId, { awaiting: false, mode, prompt });
+async function dispatchEdit(env, chatId, mode, prompt, strength) {
+  strength = strength || "suave"; // por defecto SUAVE (retoque natural, no plastico)
+  await putEditState(env, chatId, { awaiting: false, mode, prompt, strength });
   const r = await ghDispatch(env, "photo_edit.yml", {
     chat_id: String(chatId),
     mode,
     prompt: prompt || "",
+    strength,
   });
   if (!r.ok) {
     return tg(env, "sendMessage", { chat_id: chatId, text: `❌ No pude iniciar el retoque (${r.status}).` });
   }
   const txt = mode === "fondo"
     ? "🖼️ Cambiando el fondo y puliendo, sin tocar tu rostro. Tarda ~5-7 min y te la mando aca."
-    : "🖼️ Retoque pro en proceso (piel mas limpia + textura, MISMA cara). Tarda ~5-7 min y te la mando aca.";
+    : `🖼️ Retoque pro (${strength}) — piel mas limpia + textura, MISMA cara. Tarda ~5-7 min y te la mando aca.`;
   return tg(env, "sendMessage", { chat_id: chatId, text: txt });
 }
 
-// "Otra vez": re-dispara con el mismo origen (sigue en R2) y el ultimo modo/prompt.
+// "Otra vez": re-dispara con el mismo origen (sigue en R2), mismo modo/prompt/fuerza.
 async function reDispatchEdit(env, chatId) {
   const src = env.R2 && (await env.R2.get(editKey(chatId, "source")));
   if (!src) {
     return tg(env, "sendMessage", { chat_id: chatId, text: "No tengo una foto en edicion. Mandame una foto primero." });
   }
   const st = await getEditState(env, chatId);
-  return dispatchEdit(env, chatId, (st && st.mode) || "retoque", (st && st.prompt) || "");
+  return dispatchEdit(env, chatId, (st && st.mode) || "retoque", (st && st.prompt) || "", (st && st.strength) || "suave");
+}
+
+// Calibrar: re-hace la MISMA foto con otra suavidad (suave | medio | fuerte).
+async function reEditStrength(env, chatId, strength) {
+  const src = env.R2 && (await env.R2.get(editKey(chatId, "source")));
+  if (!src) {
+    return tg(env, "sendMessage", { chat_id: chatId, text: "No tengo una foto en edicion. Mandame una foto primero." });
+  }
+  const st = await getEditState(env, chatId);
+  return dispatchEdit(env, chatId, (st && st.mode) || "retoque", (st && st.prompt) || "", strength);
 }
 
 // Descarga un archivo de Telegram por file_id -> Uint8Array.
