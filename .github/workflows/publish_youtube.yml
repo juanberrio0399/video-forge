@@ -1,0 +1,57 @@
+name: Publicar en YouTube (privado, para revisar)
+
+# Baja el video final de R2, genera el paquete SEO con IA (titulo/descripcion/tags),
+# y lo sube a YouTube como PRIVADO (Juan lo revisa y lo hace publico cuando quiera).
+# Requiere los secrets YT_CLIENT_ID / YT_CLIENT_SECRET / YT_REFRESH_TOKEN (OAuth).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+  PROJECT: "0001-youtube-money"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Bajar video + tiempos de R2
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/video.mp4" --file=video.mp4 --remote
+          npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing.json --remote || echo "sin timing (capitulos aproximados)"
+          ls -la video.mp4
+
+      - name: Generar paquete SEO con IA (titulo/descripcion/tags/capitulos/subtitulos)
+        run: node pipeline/publish_package.mjs "projects/$PROJECT/voicemap_full.json" timing.json "How much money does YouTube make every second" publish
+
+      - name: Subir a YouTube (privado)
+        run: node pipeline/youtube_upload.mjs video.mp4 publish/package.json
+
+      - name: Avisar a Telegram
+        if: always()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+        run: |
+          if [ -f publish/youtube_result.txt ]; then
+            bash pipeline/notify_telegram.sh "$(cat publish/youtube_result.txt)"
+            if [ -f publish/summary.txt ]; then bash pipeline/notify_telegram.sh "$(cat publish/summary.txt)"; fi
+          else
+            bash pipeline/notify_telegram.sh "❌ Fallo la subida a YouTube. Revisa los secrets/OAuth."
+          fi
