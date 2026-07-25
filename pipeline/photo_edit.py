@@ -30,7 +30,8 @@ FIDELITY = 0.6
 # GFPGAN se MEZCLA con la foto ORIGINAL: mas bajo = mas natural (conserva la piel real,
 # evita el "look IA/plastico"). Por defecto SUAVE (Juan pidio menos agresivo).
 STRENGTH = os.environ.get("PHOTO_STRENGTH", "medio").lower()
-BLEND = {"suave": 0.35, "medio": 0.55, "fuerte": 0.78}.get(STRENGTH, 0.55)
+BLEND = {"suave": 0.25, "medio": 0.40, "fuerte": 0.60}.get(STRENGTH, 0.40)  # cuanto GFPGAN
+SKIN = {"suave": 0.55, "medio": 0.75, "fuerte": 0.92}.get(STRENGTH, 0.75)   # cuanto retoque de piel
 
 
 def load_bgr(path):
@@ -131,21 +132,52 @@ def replace_background(bgr, prompt):
     return comp
 
 
-def beautify(bgr):
-    """Retoque de BELLEZA natural: empareja la piel (menos granos/manchas), LEVANTA las
-    OJERAS (aclara sombras) y da un acabado bonito, sin quedar plastico."""
-    # 1) Suavizado que conserva bordes: piel mas pareja pero con textura (no plastico).
-    smooth = cv2.bilateralFilter(bgr, 9, 55, 55)
-    out = cv2.addWeighted(smooth, 0.5, bgr, 0.5, 0)
-    # 2) Levantar sombras (OJERAS y zonas oscuras) sin quemar las luces: gamma<1 en L.
-    lab = cv2.cvtColor(out, cv2.COLOR_BGR2LAB).astype(np.float32)
+def auto_correct(bgr):
+    """ANALIZA y corrige luz + color como un fotografo: recupera sombras (contraluz),
+    ajusta brillo (oscura/quemada), corrige dominante de color y sube el color si esta palida."""
+    lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB)
     l, a, b = cv2.split(lab)
-    l = 255.0 * ((l / 255.0) ** 0.82)
-    lab = cv2.merge((np.clip(l, 0, 255), a, b)).astype(np.uint8)
-    out = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
-    # 3) Micro-nitidez: devuelve definicion a ojos/cejas tras suavizar.
-    blur = cv2.GaussianBlur(out, (0, 0), 1.2)
-    out = cv2.addWeighted(out, 1.3, blur, -0.3, 0)
+    meanL = float(l.mean())
+    # Recuperar sombras/altas (contraluz) con contraste local adaptativo.
+    l2 = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(l)
+    # Auto-brillo: si esta oscura aclara, si esta quemada baja un poco (gamma).
+    g = 0.80 if meanL < 110 else (1.12 if meanL > 165 else 0.95)
+    l2 = np.clip(255.0 * ((l2 / 255.0) ** g), 0, 255).astype(np.uint8)
+    # Auto balance de blancos: centrar las medias de a,b hacia 128 (quita dominante).
+    a = np.clip(a.astype(np.float32) - (float(a.mean()) - 128) * 0.6, 0, 255).astype(np.uint8)
+    b = np.clip(b.astype(np.float32) - (float(b.mean()) - 128) * 0.6, 0, 255).astype(np.uint8)
+    out = cv2.cvtColor(cv2.merge((l2, a, b)), cv2.COLOR_LAB2BGR)
+    # Saturacion: si esta palida (poco color), subir mas; si no, un toque.
+    hsv = cv2.cvtColor(out, cv2.COLOR_BGR2HSV).astype(np.float32)
+    mul = 1.28 if float(hsv[..., 1].mean()) < 85 else 1.08
+    hsv[..., 1] = np.clip(hsv[..., 1] * mul, 0, 255)
+    out = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+    print(f"photo_edit: auto-correccion (brillo medio {meanL:.0f}, gamma {g}, sat x{mul})")
+    return out
+
+
+def skin_mask(bgr):
+    """Mascara de la PIEL (para suavizar solo piel; ojos/cejas/pelo/fondo quedan nitidos)."""
+    ycrcb = cv2.cvtColor(bgr, cv2.COLOR_BGR2YCrCb)
+    m = cv2.inRange(ycrcb, np.array([0, 133, 77]), np.array([255, 173, 127]))
+    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    m = cv2.GaussianBlur(m, (0, 0), 7)
+    return (m.astype(np.float32) / 255.0)[..., None]
+
+
+def skin_retouch(bgr, amount=SKIN):
+    """Retoque de piel PRO por SEPARACION DE FRECUENCIAS: empareja tono (quita OJERAS,
+    ARRUGAS, granos, manchas) y CONSERVA la textura (poros) -> natural, no plastico.
+    Solo en la piel (mascara). Cierra con micro-nitidez para ojos/cejas."""
+    low = cv2.GaussianBlur(bgr, (0, 0), 6)                 # tono (baja frecuencia)
+    high = bgr.astype(np.int16) - low.astype(np.int16)      # textura (alta frecuencia)
+    smooth_low = cv2.bilateralFilter(low, 9, 45, 45)        # empareja el tono
+    recon = np.clip(smooth_low.astype(np.int16) + high, 0, 255).astype(np.uint8)
+    m = skin_mask(bgr) * amount
+    out = (recon.astype(np.float32) * m + bgr.astype(np.float32) * (1 - m)).astype(np.uint8)
+    # Micro-nitidez global (define ojos/cejas tras suavizar la piel).
+    blur = cv2.GaussianBlur(out, (0, 0), 1.1)
+    out = cv2.addWeighted(out, 1.25, blur, -0.25, 0)
     return out
 
 
@@ -153,6 +185,7 @@ def main():
     bgr = load_bgr(IN)
     if MODE == "fondo":
         bgr = replace_background(bgr, PROMPT)
+    bgr = auto_correct(bgr)   # analiza y corrige luz/color (oscura, palida, contraluz)
     try:
         out = gfpgan_restore(bgr, weight=FIDELITY)
         # Mezcla con la ORIGINAL (subida al mismo tamano) para un retoque NATURAL, no plastico.
@@ -162,8 +195,7 @@ def main():
     except Exception as e:
         print("photo_edit: GFPGAN off, uso solo gradacion:", e)
         out = bgr
-    out = beautify(out)     # belleza: empareja piel + quita ojeras + define, natural
-    out = pro_grade(out)
+    out = skin_retouch(out)  # ojeras/arrugas/granos por separacion de frecuencias, natural
     cv2.imwrite(OUT, out, [cv2.IMWRITE_JPEG_QUALITY, 95])
     print("photo_edit: listo ->", OUT)
 
