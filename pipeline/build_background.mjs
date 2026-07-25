@@ -24,13 +24,14 @@ const NUMENV = (v, d) => (v === undefined || v === "" || isNaN(+v) ? d : +v);
 const FX_PACE = (process.env.FX_PACE || "").toLowerCase();
 const SEG = FX_PACE === "faster" ? 3.6 : 5.0;
 const TD = FX_PACE === "faster" ? 0.5 : 0.6; // duracion de la transicion (solape entre planos)
-const _brt = (-0.04 + NUMENV(process.env.FX_BRIGHT, 0)).toFixed(3);
+const _brt = (0.04 + NUMENV(process.env.FX_BRIGHT, 0)).toFixed(3);
 const _sat = (1.02 + NUMENV(process.env.FX_SAT, 0)).toFixed(3);
 const _ctr = (1.05 + NUMENV(process.env.FX_CONTRAST, 0)).toFixed(3);
 // Grade cinematografico consistente en TODO plano (footage e imagenes IA): curva
 // filmica de contraste + micro-nitidez + vinneta suave. Sube el "piso" visual de cada
 // fotograma (que es lo que califica el auto-review) sin depender de los ajustes FX.
-const CINE = "curves=preset=medium_contrast,unsharp=3:3:0.35,vignette=PI/5";
+// Sin vinneta (oscurecia y la IA pedia MAS luz). Curva suave + micro-nitidez.
+const CINE = "curves=preset=lighter,unsharp=3:3:0.30";
 const VF = `eq=brightness=${_brt}:saturation=${_sat}:contrast=${_ctr},${CINE}`; // grade + cine
 // Temas de relleno para VARIAR cuando dos planos seguidos caerian en el mismo tema.
 const FILLERS = [
