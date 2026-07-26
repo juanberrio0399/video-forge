@@ -198,8 +198,9 @@ jobs:
             const phases=JSON.parse(process.env.PHASES||"[]");
             const lines=[]; const scores=[]; let min=99, missing=[];
             for(const k of phases){
-              const f=`outs/phase-out-${k}/video.mp4`;
-              let s=parseFloat((()=>{try{return fs.readFileSync(`outs/phase-out-${k}/score.txt`,"utf8").trim()}catch(e){return ""}})());
+              // upload-artifact conserva el prefijo renders/ de las rutas subidas.
+              const f=`outs/phase-out-${k}/renders/video.mp4`;
+              let s=parseFloat((()=>{try{return fs.readFileSync(`outs/phase-out-${k}/renders/score.txt`,"utf8").trim()}catch(e){return ""}})());
               if(!isFinite(s)) s=0;
               scores.push(`f${k}:${s}`);
               if(fs.existsSync(f)){ lines.push(`file ${process.cwd()}/${f}`); if(s<min) min=s; }
