@@ -299,7 +299,7 @@ const TXT = {
   foto: "*🖼️ Foto*\n\nMandame una foto: limpio la piel y subo la textura, sin cambiar tu cara (~5-7 min).\nPara el fondo, escribe *fondo ...* al enviarla (ej: fondo blanco).",
   voces: "*🎤 Voces*\n\nMandame una nota de voz y le pongo nombre. Sirve para narrar (tu voz o la de tu esposa).",
   recetas: "*🍳 Recetas*\n\nMandame las *fotos/videos* de tu receta (en el orden que quieres el reel) + el *texto* de la preparacion. Yo mejoro tus tomas, completo lo que falte con clips/imagenes relacionados, narro con tu voz y pongo los subtitulos de los pasos.\n\nToca *Nueva receta* para empezar.",
-  ayuda: "*❓ Ayuda*\n\n• Foto → te la retoco.\n• Nota de voz → la guardo para narrar.\n• Video → genero voz y render del canal.\n\nTodo corre en la nube; te aviso aqui al terminar.",
+  ayuda: "*❓ Ayuda* — que puedes hacer:\n\n• *Foto* → mandala y te la retoco (piel/luz/color, sin cambiar tu cara).\n• *Nota de voz* → la guardo con nombre para narrar (tu voz o la de tu esposa).\n• *Video* → genero la voz y renderizo el video del canal POR FASES (cada tramo pasa 7.5).\n• *Receta* → /receta, mandas fotos/videos + el texto y armo un reel 9:16 con voz y subtitulos.\n\nTodo corre en la nube; te aviso aqui cuando termine. Solo tu puedes usar el bot.",
 };
 
 async function sendMenu(env, chatId) {
@@ -307,7 +307,8 @@ async function sendMenu(env, chatId) {
     commands: [
       { command: "start", description: "🏠 Menu" },
       { command: "voz", description: "🎙️ Generar la narracion" },
-      { command: "render", description: "🎬 Renderizar el video" },
+      { command: "render", description: "🎬 Renderizar el video (por fases)" },
+      { command: "receta", description: "🍳 Armar un reel de receta" },
       { command: "estado", description: "📊 Que se hace ahora" },
     ],
   });
