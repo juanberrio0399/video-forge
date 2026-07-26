@@ -115,7 +115,7 @@ jobs:
           if [ -f reel.mp4 ]; then
             TITLE=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("plan.json","utf8")).title||"Receta")}catch(e){process.stdout.write("Receta")}')
             MK='{"inline_keyboard":[[{"text":"🍳 Otra receta","callback_data":"receta"}]]}'
-            bash pipeline/notify_telegram.sh "🍳 Reel de receta listo: ${TITLE}. Vertical 9:16 para TikTok/IG, con tu voz y los subtitulos de la preparacion." reel.mp4 "$MK"
+            bash pipeline/notify_telegram.sh "🍳 Resultado: REEL de receta — ${TITLE}. Vertical 9:16 para TikTok/IG, con tu voz y los subtítulos de la preparación. ¿Lo usas o armamos otra?" reel.mp4 "$MK"
           else
             bash pipeline/notify_telegram.sh "❌ No pude armar el reel de la receta. Reintenta con /receta."
           fi
