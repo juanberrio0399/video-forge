@@ -131,9 +131,9 @@ async function handleMessage(message, env) {
       return tg(env, "sendMessage", {
         chat_id: chatId,
         text:
-          "🚧 /nuevo (video completo automatico) esta en construccion.\n\n" +
+          "🚧 /nuevo (video completo automático) está en construcción.\n\n" +
           "Por ahora hacemos los videos paso a paso:\n" +
-          "🎙️ /voz — generar la narracion\n" +
+          "🎙️ /voz — generar la narración\n" +
           "🎬 /render — renderizar el video\n" +
           "📊 /estado — ver el progreso",
       });
@@ -149,7 +149,7 @@ async function handleMessage(message, env) {
     case "/voz": {
       if (await busyGuard(env, chatId)) return;
       const r = await ghDispatch(env, "voice_parallel.yml", {});
-      return ack(env, chatId, r, "Generacion de voz (rapida, en paralelo)");
+      return ack(env, chatId, r, "Generación de voz (rápida, en paralelo)");
     }
 
     case "/estado":
@@ -184,7 +184,7 @@ async function handleCallback(cb, env) {
     case "voz": {
       if (await busyGuard(env, chatId)) return;
       const r = await ghDispatch(env, "voice_parallel.yml", {});
-      return ack(env, chatId, r, "Generacion de voz (en paralelo)");
+      return ack(env, chatId, r, "Generación de voz (en paralelo)");
     }
     case "render": {
       if (await busyGuard(env, chatId)) return;
@@ -199,7 +199,7 @@ async function handleCallback(cb, env) {
       return tg(env, "sendMessage", {
         chat_id: chatId,
         text:
-          "🚧 Video completo automatico: en construccion.\n\n" +
+          "🚧 Video completo automático: en construcción.\n\n" +
           "Por ahora, paso a paso: 🎙️ Generar voz · 🎬 Renderizar · 📊 Estado.",
       });
     case "menu":
@@ -215,7 +215,7 @@ async function handleCallback(cb, env) {
       }
       return tg(env, "sendMessage", {
         chat_id: chatId,
-        text: "✅ Listo. Borre el original (solo te queda el resultado que te mande). Mandame otra foto cuando quieras.",
+        text: "✅ Listo, guardado. Borré el original (solo te queda el resultado que te mandé). Mándame otra foto cuando quieras.",
       });
     }
     case "edit_again":
@@ -229,7 +229,7 @@ async function handleCallback(cb, env) {
       await putEditState(env, chatId, { awaiting: true, mode: (st && st.mode) || "retoque", prompt: (st && st.prompt) || "" });
       return tg(env, "sendMessage", {
         chat_id: chatId,
-        text: "✏️ Escribeme el nuevo cambio para la MISMA foto (ej: 'fondo blanco', 'mas luz', 'piel mas limpia').",
+        text: "✏️ Escríbeme el nuevo cambio para la MISMA foto (ej: 'fondo blanco', 'más luz', 'piel más limpia').",
       });
     }
 
@@ -239,7 +239,7 @@ async function handleCallback(cb, env) {
         if (await busyGuard(env, chatId)) return;
         // Publica a YouTube como PRIVADO (para que Juan lo revise antes de hacerlo publico).
         const r = await ghDispatch(env, "publish_youtube.yml", {});
-        return ack(env, chatId, r, "Publicando en YouTube (privado, para tu revision)");
+        return ack(env, chatId, r, "Publicando en YouTube (privado, para tu revisión)");
       }
       if (data.startsWith("regen:")) {
         if (await busyGuard(env, chatId)) return;
@@ -250,8 +250,8 @@ async function handleCallback(cb, env) {
         return tg(env, "sendMessage", {
           chat_id: chatId,
           text:
-            "✏️ ¿Que quieres cambiar? Escribemelo (ej: 'subtitulos mas grandes', " +
-            "'menos numeros', 'otro color') y lo ajusto para la proxima version.",
+            "✏️ ¿Qué quieres cambiar? Escríbemelo (ej: 'subtítulos más grandes', " +
+            "'menos números', 'otro color') y lo ajusto para la próxima versión.",
         });
       }
       return;
@@ -294,22 +294,22 @@ const KB = {
 };
 
 const TXT = {
-  home: "*video-forge* — centro de control\n\nElige una seccion:",
-  video: "*🎬 Video*\n\n🎙️ Generar voz — narracion del canal, con tu voz.\n🎬 Renderizar — arma el video POR FASES (cada tramo de ~3 min pasa la prueba 7.5 y al final se unen).\n📊 Estado — que se esta haciendo ahora.",
-  foto: "*🖼️ Foto*\n\nMandame una foto: limpio la piel y subo la textura, sin cambiar tu cara (~5-7 min).\nPara el fondo, escribe *fondo ...* al enviarla (ej: fondo blanco).",
-  voces: "*🎤 Voces*\n\nMandame una nota de voz y le pongo nombre. Sirve para narrar (tu voz o la de tu esposa).",
-  recetas: "*🍳 Recetas*\n\nMandame las *fotos/videos* de tu receta (en el orden que quieres el reel) + el *texto* de la preparacion. Yo mejoro tus tomas, completo lo que falte con clips/imagenes relacionados, narro con tu voz y pongo los subtitulos de los pasos.\n\nToca *Nueva receta* para empezar.",
-  ayuda: "*❓ Ayuda* — que puedes hacer:\n\n• *Foto* → mandala y te la retoco (piel/luz/color, sin cambiar tu cara).\n• *Nota de voz* → la guardo con nombre para narrar (tu voz o la de tu esposa).\n• *Video* → genero la voz y renderizo el video del canal POR FASES (cada tramo pasa 7.5).\n• *Receta* → /receta, mandas fotos/videos + el texto y armo un reel 9:16 con voz y subtitulos.\n\nTodo corre en la nube; te aviso aqui cuando termine. Solo tu puedes usar el bot.",
+  home: "*video-forge* — centro de control\n\nElige una sección:",
+  video: "*🎬 Video*\n\n🎙️ Generar voz — narración del canal, con tu voz.\n🎬 Renderizar — arma el video POR FASES (cada tramo de ~3 min pasa la prueba 7.5 y al final se unen).\n📊 Estado — qué se está haciendo ahora.",
+  foto: "*🖼️ Foto*\n\nMándame una foto: limpio la piel y subo la textura, sin cambiar tu cara (~5-7 min).\nPara el fondo, escribe *fondo ...* al enviarla (ej: fondo blanco).",
+  voces: "*🎤 Voces*\n\nMándame una nota de voz y le pongo nombre. Sirve para narrar (tu voz o la de tu esposa).",
+  recetas: "*🍳 Recetas*\n\nMándame las *fotos/videos* de tu receta (en el orden que quieres el reel) + el *texto* de la preparación. Yo mejoro tus tomas, completo lo que falte con clips/imágenes relacionados, narro con tu voz y pongo los subtítulos de los pasos.\n\nToca *Nueva receta* para empezar.",
+  ayuda: "*❓ Ayuda* — qué puedes hacer:\n\n• *Foto* → mándala y te la retoco (piel/luz/color, sin cambiar tu cara).\n• *Nota de voz* → la guardo con nombre para narrar (tu voz o la de tu esposa).\n• *Video* → genero la voz y renderizo el video del canal POR FASES (cada tramo pasa 7.5).\n• *Receta* → /receta, mandas fotos/videos + el texto y armo un reel 9:16 con voz y subtítulos.\n\nTodo corre en la nube; te aviso aquí cuando termine. Solo tú puedes usar el bot.",
 };
 
 async function sendMenu(env, chatId) {
   await tg(env, "setMyCommands", {
     commands: [
-      { command: "start", description: "🏠 Menu" },
-      { command: "voz", description: "🎙️ Generar la narracion" },
+      { command: "start", description: "🏠 Menú" },
+      { command: "voz", description: "🎙️ Generar la narración" },
       { command: "render", description: "🎬 Renderizar el video (por fases)" },
       { command: "receta", description: "🍳 Armar un reel de receta" },
-      { command: "estado", description: "📊 Que se hace ahora" },
+      { command: "estado", description: "📊 Qué se hace ahora" },
     ],
   });
   return tg(env, "sendMessage", {
@@ -344,7 +344,7 @@ async function listVoices(env, cb) {
     message_id: cb.message.message_id,
     parse_mode: "Markdown",
     reply_markup: KB.voces,
-    text: "*🎤 Voces guardadas*\n\n" + names + "\n\nMandame una nota de voz para agregar otra.",
+    text: "*🎤 Voces guardadas*\n\n" + names + "\n\nMándame una nota de voz para agregar otra.",
   });
 }
 
@@ -364,7 +364,7 @@ async function sendStatus(env, chatId) {
   if (!active.length) {
     return tg(env, "sendMessage", {
       chat_id: chatId,
-      text: "✅ Nada en proceso ahora.\n\nManda /voz o /render para empezar. El resultado llega aca al terminar.",
+      text: "✅ Nada en proceso ahora.\n\nManda /voz o /render para empezar. El resultado llega acá al terminar.",
     });
   }
 
@@ -401,7 +401,7 @@ async function sendStatus(env, chatId) {
     text:
       "⏳ <b>En proceso ahora</b>\n\n" +
       blocks.join("\n\n") +
-      "\n\nToca el nombre para ver el detalle en vivo. Te aviso aca al terminar.",
+      "\n\nToca el nombre para ver el detalle en vivo. Te aviso acá al terminar.",
   });
 }
 
@@ -453,7 +453,7 @@ async function busyGuard(env, chatId) {
     chat_id: chatId,
     parse_mode: "HTML",
     disable_web_page_preview: true,
-    text: `⏳ Espera: hay algo en proceso.\n<b>${esc(r.name)}</b> — ${p.pct}%${p.eta ? ` · faltan ~${p.eta} min` : ""}\n\nTe aviso aqui al terminar. Toca 📊 Estado para el detalle.`,
+    text: `⏳ Espera: hay algo en proceso.\n<b>${esc(r.name)}</b> — ${p.pct}%${p.eta ? ` · faltan ~${p.eta} min` : ""}\n\nTe aviso aquí al terminar. Toca 📊 Estado para el detalle.`,
   });
   return true;
 }
@@ -521,7 +521,7 @@ async function handlePhotoEdit(message, env, chatId) {
   if (!env.R2) {
     return tg(env, "sendMessage", {
       chat_id: chatId,
-      text: "El editor de fotos aun no esta activo (falta redeploy con R2).",
+      text: "El editor de fotos aún no está activo (falta redeploy con R2).",
     });
   }
   const photos = message.photo;
@@ -553,8 +553,8 @@ async function dispatchEdit(env, chatId, mode, prompt, strength) {
     return tg(env, "sendMessage", { chat_id: chatId, text: `❌ No pude iniciar el retoque (${r.status}).` });
   }
   const txt = mode === "fondo"
-    ? "🖼️ Cambiando el fondo y puliendo, sin tocar tu rostro. Tarda ~5-7 min y te la mando aca."
-    : `🖼️ Retoque pro (${strength}) — piel mas limpia + textura, MISMA cara. Tarda ~5-7 min y te la mando aca.`;
+    ? "🖼️ Cambiando el fondo y puliendo, sin tocar tu rostro. Tarda ~5-7 min y te la mando acá."
+    : `🖼️ Retoque pro (${strength}) — piel más limpia + textura, MISMA cara. Tarda ~5-7 min y te la mando acá.`;
   return tg(env, "sendMessage", { chat_id: chatId, text: txt });
 }
 
@@ -562,7 +562,7 @@ async function dispatchEdit(env, chatId, mode, prompt, strength) {
 async function reDispatchEdit(env, chatId) {
   const src = env.R2 && (await env.R2.get(editKey(chatId, "source")));
   if (!src) {
-    return tg(env, "sendMessage", { chat_id: chatId, text: "No tengo una foto en edicion. Mandame una foto primero." });
+    return tg(env, "sendMessage", { chat_id: chatId, text: "No tengo una foto en edición. Mándame una foto primero." });
   }
   const st = await getEditState(env, chatId);
   return dispatchEdit(env, chatId, (st && st.mode) || "retoque", (st && st.prompt) || "", (st && st.strength) || "suave");
@@ -572,7 +572,7 @@ async function reDispatchEdit(env, chatId) {
 async function reEditStrength(env, chatId, strength) {
   const src = env.R2 && (await env.R2.get(editKey(chatId, "source")));
   if (!src) {
-    return tg(env, "sendMessage", { chat_id: chatId, text: "No tengo una foto en edicion. Mandame una foto primero." });
+    return tg(env, "sendMessage", { chat_id: chatId, text: "No tengo una foto en edición. Mándame una foto primero." });
   }
   const st = await getEditState(env, chatId);
   return dispatchEdit(env, chatId, (st && st.mode) || "retoque", (st && st.prompt) || "", strength);
@@ -593,13 +593,13 @@ function setRecipeState(env, chatId, s) {
 }
 
 async function recipeStart(env, chatId) {
-  if (!env.R2) return tg(env, "sendMessage", { chat_id: chatId, text: "Aun no puedo (falta R2)." });
+  if (!env.R2) return tg(env, "sendMessage", { chat_id: chatId, text: "Aún no puedo (falta R2)." });
   await setRecipeState(env, chatId, { active: true, n: 0 });
   await env.R2.delete(recipeKey(chatId, "text"));
   return tg(env, "sendMessage", {
     chat_id: chatId,
     parse_mode: "Markdown",
-    text: "🍳 *Modo receta activado.*\n\nMándame, en el ORDEN que quieres el reel:\n• las *fotos/videos* de la receta (uno por uno)\n• el *texto* de la receta (ingredientes y pasos, como quieras)\n\nNarro con tu voz registrada. Para lo que falte, agrego clips/imagenes relacionados.\nCuando termines escribe */listo* (o */cancelar*).",
+    text: "🍳 *Modo receta activado.*\n\nMándame, en el ORDEN que quieres el reel:\n• las *fotos/videos* de la receta (uno por uno)\n• el *texto* de la receta (ingredientes y pasos, como quieras)\n\nNarro con tu voz registrada. Para lo que falte, agrego clips/imágenes relacionados.\nCuando termines escribe */listo* (o */cancelar*).",
   });
 }
 
@@ -614,7 +614,7 @@ async function recipeAddMedia(message, env, chatId, rs, kind) {
   });
   rs.n += 1;
   await setRecipeState(env, chatId, rs);
-  return tg(env, "sendMessage", { chat_id: chatId, text: `📎 ${kind === "video" ? "Video" : "Foto"} recibido (${rs.n}). Sigue mandando o escribe /listo.` });
+  return tg(env, "sendMessage", { chat_id: chatId, text: `📎 ${kind === "video" ? "Video recibido" : "Foto recibida"} (${rs.n}). Sigue mandando o escribe /listo.` });
 }
 
 async function recipeAddText(env, chatId, rs, t) {
@@ -638,7 +638,7 @@ async function recipeBuild(env, chatId, rs) {
   return tg(env, "sendMessage", {
     chat_id: chatId,
     text: r.ok
-      ? `🍳 Armando tu reel de receta (${rs.n} medios + clips relacionados, voz y subtítulos). Tarda unos minutos y te lo mando aca.`
+      ? `🍳 Armando tu reel de receta (${rs.n} medios + clips relacionados, voz y subtítulos). Tarda unos minutos y te lo mando acá.`
       : `❌ No pude iniciar el reel (${r.status}).`,
   });
 }
@@ -667,7 +667,7 @@ function slugifyVoice(s) {
 
 async function handleVoiceRegister(message, env, chatId) {
   if (!env.R2) {
-    return tg(env, "sendMessage", { chat_id: chatId, text: "Aun no puedo guardar voces (falta R2)." });
+    return tg(env, "sendMessage", { chat_id: chatId, text: "Aún no puedo guardar voces (falta R2)." });
   }
   const a = message.voice || message.audio;
   const bytes = await tgDownloadFile(env, a.file_id);
@@ -682,7 +682,7 @@ async function handleVoiceRegister(message, env, chatId) {
   });
   return tg(env, "sendMessage", {
     chat_id: chatId,
-    text: "🎤 Audio recibido. ¿Como llamo esta voz? Escribeme un nombre corto (ej: \"esposa\", \"yo\").",
+    text: "🎤 Audio recibido. ¿Cómo llamo esta voz? Escríbeme un nombre corto (ej: \"esposa\", \"yo\").",
   });
 }
 
@@ -690,7 +690,7 @@ async function finalizeVoice(env, chatId, name) {
   const slug = slugifyVoice(name);
   const pend = await env.R2.get(`voice/pending/${chatId}`);
   if (!pend) {
-    return tg(env, "sendMessage", { chat_id: chatId, text: "No tengo un audio pendiente. Mandame primero la nota de voz." });
+    return tg(env, "sendMessage", { chat_id: chatId, text: "No tengo un audio pendiente. Mándame primero la nota de voz." });
   }
   const bytes = new Uint8Array(await pend.arrayBuffer());
   await env.R2.put(`voice/ref_${slug}.mp3`, bytes, { httpMetadata: { contentType: "audio/mpeg" } });
@@ -705,6 +705,6 @@ async function finalizeVoice(env, chatId, name) {
   await env.R2.delete(`voice/pending/${chatId}.json`);
   return tg(env, "sendMessage", {
     chat_id: chatId,
-    text: `✅ Voz guardada como "${slug}". La usare para narrar (ej: los reels de recetas). Manda otra voz cuando quieras.`,
+    text: `✅ Voz guardada como "${slug}". La usaré para narrar (ej: los reels de recetas). Manda otra voz cuando quieras.`,
   });
 }

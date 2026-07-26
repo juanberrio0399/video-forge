@@ -138,7 +138,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
         run: |
           if [ -f renders/voiceover_dir.mp3 ]; then
-            bash pipeline/notify_telegram.sh "🎙️ Narracion lista (tu voz) + guardada en R2." renders/voiceover_dir.mp3
+            bash pipeline/notify_telegram.sh "🎙️ Resultado: NARRACIÓN lista (tu voz), guardada en R2. Es el paso previo al video. Si suena bien, dale a 🎬 Renderizar." renders/voiceover_dir.mp3
           else
-            bash pipeline/notify_telegram.sh "❌ La narracion fallo al unir los pedazos."
+            bash pipeline/notify_telegram.sh "❌ La narración falló al unir los pedazos. Vuelve a intentar con 🎙️ Generar voz."
           fi
