@@ -12,6 +12,13 @@
 
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+    // Ver el video por link (streaming desde R2). Telegram por bot no deja mandar
+    // archivos >50MB; el video del canal pesa ~250MB, asi que se ve por aqui.
+    if (request.method === "GET" && url.pathname.startsWith("/watch/")) {
+      const key = decodeURIComponent(url.pathname.slice("/watch/".length));
+      return handleWatch(request, env, key);
+    }
     // Health check / raiz (GET): util para probar que el Worker esta vivo.
     if (request.method !== "POST") {
       return new Response("video-forge-bot OK");
@@ -44,6 +51,40 @@ export default {
     return new Response("ok");
   },
 };
+
+// Sirve un video desde R2 por HTTP con soporte de Range (streaming + seek en el
+// navegador). Solo expone los prefijos seguros (video/ y recipe/); NUNCA voice/ ni
+// estados. Asi Juan ve el resultado sin el limite de 50MB de Telegram.
+async function handleWatch(request, env, key) {
+  if (!env.R2) return new Response("sin almacenamiento", { status: 500 });
+  if (!/^(video|recipe)\/[^?]+\.(mp4|mov|webm)$/.test(key)) {
+    return new Response("no permitido", { status: 403 });
+  }
+  const rangeHeader = request.headers.get("Range");
+  let opts = {};
+  const m = rangeHeader && /bytes=(\d+)-(\d*)/.exec(rangeHeader);
+  if (m) {
+    const offset = parseInt(m[1], 10);
+    opts.range = m[2] ? { offset, length: parseInt(m[2], 10) - offset + 1 } : { offset };
+  }
+  const obj = await env.R2.get(key, opts);
+  if (!obj) return new Response("no encontrado", { status: 404 });
+
+  const headers = new Headers();
+  headers.set("Content-Type", (obj.httpMetadata && obj.httpMetadata.contentType) || "video/mp4");
+  headers.set("Accept-Ranges", "bytes");
+  headers.set("Cache-Control", "no-store");
+  const size = obj.size;
+  if (m && obj.range) {
+    const start = obj.range.offset || 0;
+    const len = obj.range.length != null ? obj.range.length : size - start;
+    headers.set("Content-Range", `bytes ${start}-${start + len - 1}/${size}`);
+    headers.set("Content-Length", String(len));
+    return new Response(obj.body, { status: 206, headers });
+  }
+  headers.set("Content-Length", String(size));
+  return new Response(obj.body, { status: 200, headers });
+}
 
 // ---------- Manejo de mensajes ----------
 
