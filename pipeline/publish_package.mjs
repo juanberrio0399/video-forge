@@ -73,7 +73,11 @@ Devuelve SOLO un JSON con un paquete de publicacion OPTIMIZADO para VISTAS y des
  "category": "Education",
  "language": "en"
 }`;
-const pkg = (await gemini(pkgPrompt)) || {};
+// Al REGENERAR, toma en cuenta los comentarios/sugerencias de la vez anterior y hazlo MEJOR y distinto.
+const improve = (process.env.SEO_IMPROVE || "").trim();
+const pkg = (await gemini(improve
+  ? pkgPrompt + `\n\nESTA ES UNA REGENERACION. El auditor pidio mejorar: "${improve}". Corrige eso, haz el TITULO mas fuerte y CLARAMENTE DISTINTO al anterior, y sube el CTR y el SEO.`
+  : pkgPrompt)) || {};
 
 // --- 2) VALIDAR el paquete (auditor de publicacion) ---
 const valPrompt = `Eres un auditor estricto de publicaciones de YouTube (meta: maximas vistas y descubrimiento). Valida este paquete: ${JSON.stringify(pkg)}.
