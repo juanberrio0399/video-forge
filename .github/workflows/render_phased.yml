@@ -81,6 +81,20 @@ jobs:
           echo "matrix_phases=$MP" >> "$GITHUB_OUTPUT"
           echo "=== fases ==="; cat phases/manifest.json; echo "a renderizar: $MP"
 
+      - name: Avisar al chat que ARRANCO
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+          ONLY: ${{ github.event.inputs.only_phases }}
+        run: |
+          N=$(node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync('phases/phases.json','utf8')).length))")
+          MP=$(cat phases/phases.json)
+          if [ -n "$ONLY" ]; then
+            bash pipeline/notify_telegram.sh "🎬 Arranqué a re-renderizar SOLO las fases [$ONLY] del video (las demás se reúsan). Total $N fases. Cada tramo intenta pasar 7.5; te aviso al terminar."
+          else
+            bash pipeline/notify_telegram.sh "🎬 Arranqué el render del video por fases ($N fases de ~3 min). Cada tramo intenta pasar 7.5 y luego se unen. Te aviso al terminar."
+          fi
+
       - name: Subir insumos de las fases
         uses: actions/upload-artifact@v4
         with:

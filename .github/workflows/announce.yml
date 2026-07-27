@@ -1,0 +1,26 @@
+name: Avisar al chat (mensaje del bot)
+
+# Canal para que CUALQUIER accion (incluida la que dispare Claude por fuera del bot)
+# quede anunciada en el chat de Telegram. Uso: dispara con el texto a enviar.
+
+on:
+  workflow_dispatch:
+    inputs:
+      text:
+        description: "Mensaje que el bot manda al chat"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  say:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enviar mensaje
+        run: bash pipeline/notify_telegram.sh "${{ github.event.inputs.text }}"
