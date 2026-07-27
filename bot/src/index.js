@@ -199,6 +199,16 @@ async function handleMessage(message, env) {
     case "/receta":
       return recipeStart(env, chatId);
 
+    case "/panel":
+    case "/canal":
+      return sendPanel(env, chatId);
+
+    case "/reporte": {
+      if (await busyGuard(env, chatId)) return;
+      const r = await ghDispatch(env, "channel_report.yml", {});
+      return ack(env, chatId, r, "Reporte del canal (métricas frescas de YouTube)");
+    }
+
     case "/listo":
       // Solo tiene sentido en modo receta; si llega aca es que no habia receta activa.
       return tg(env, "sendMessage", { chat_id: chatId, text: "No hay una receta activa. Empieza con /receta." });
@@ -236,6 +246,13 @@ async function handleCallback(cb, env) {
       return sendStatus(env, chatId);
     case "receta":
       return recipeStart(env, chatId);
+    case "panel":
+      return sendPanel(env, chatId);
+    case "reporte": {
+      if (await busyGuard(env, chatId)) return;
+      const r = await ghDispatch(env, "channel_report.yml", {});
+      return ack(env, chatId, r, "Reporte del canal (métricas frescas de YouTube)");
+    }
     case "nuevo":
       return tg(env, "sendMessage", {
         chat_id: chatId,
@@ -322,9 +339,16 @@ async function handleCallback(cb, env) {
 const KB = {
   home: {
     inline_keyboard: [
-      [{ text: "🎬 Video", callback_data: "menu:video" }],
+      [{ text: "🎬 Video", callback_data: "menu:video" }, { text: "📊 Canal", callback_data: "menu:canal" }],
       [{ text: "🖼️ Foto", callback_data: "menu:foto" }, { text: "🎤 Voces", callback_data: "menu:voces" }],
       [{ text: "🍳 Recetas", callback_data: "menu:recetas" }, { text: "❓ Ayuda", callback_data: "menu:ayuda" }],
+    ],
+  },
+  canal: {
+    inline_keyboard: [
+      [{ text: "📋 Ver panel (programación)", callback_data: "panel" }],
+      [{ text: "🔄 Reporte fresco (métricas)", callback_data: "reporte" }],
+      [{ text: "⬅️ Volver", callback_data: "menu:home" }],
     ],
   },
   video: {
@@ -353,6 +377,7 @@ const KB = {
 
 const TXT = {
   home: "*video-forge* — centro de control\n\nElige una sección:",
+  canal: "*📊 Canal — dirección*\n\n📋 Panel — programación de próximos videos + monetización (al instante).\n🔄 Reporte — jala las métricas frescas de YouTube (subs, vistas, likes).",
   video: "*🎬 Video*\n\n🎙️ Generar voz — narración del canal, con tu voz.\n🎬 Renderizar — arma el video POR FASES (cada tramo de ~3 min pasa la prueba 7.5 y al final se unen).\n📊 Estado — qué se está haciendo ahora.",
   foto: "*🖼️ Foto*\n\nMándame una foto: limpio la piel y subo la textura, sin cambiar tu cara (~5-7 min).\nPara el fondo, escribe *fondo ...* al enviarla (ej: fondo blanco).",
   voces: "*🎤 Voces*\n\nMándame una nota de voz y le pongo nombre. Sirve para narrar (tu voz o la de tu esposa).",
@@ -367,7 +392,9 @@ async function sendMenu(env, chatId) {
       { command: "voz", description: "🎙️ Generar la narración" },
       { command: "render", description: "🎬 Renderizar el video (por fases)" },
       { command: "receta", description: "🍳 Armar un reel de receta" },
-      { command: "estado", description: "📊 Qué se hace ahora" },
+      { command: "panel", description: "📊 Panel del canal (programación)" },
+      { command: "reporte", description: "🔄 Reporte de métricas del canal" },
+      { command: "estado", description: "⏳ Qué se hace ahora" },
     ],
   });
   return tg(env, "sendMessage", {
@@ -408,6 +435,41 @@ async function listVoices(env, cb) {
 
 function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Panel de direccion: lee el estado del canal (channel/state.json en R2) y muestra
+// la programacion + monetizacion al instante. Para metricas frescas se usa /reporte.
+async function sendPanel(env, chatId) {
+  let st = null;
+  if (env.R2) {
+    const o = await env.R2.get("channel/state.json");
+    if (o) { try { st = JSON.parse(await o.text()); } catch {} }
+  }
+  if (!st) {
+    return tg(env, "sendMessage", {
+      chat_id: chatId,
+      text: "📊 Aún no hay datos del canal. Corre /reporte una vez para inicializarlo (jala métricas de YouTube y guarda el estado).",
+    });
+  }
+  const mon = st.monetization || {};
+  const pub = st.published || [];
+  const up = st.upcoming || [];
+  const L = [];
+  L.push(`<b>📊 Panel — ${esc(st.channel?.name || "The Data Lens")}</b>`);
+  if (st.channel_stats) L.push(`👥 ${st.channel_stats.subs} subs · 👁️ ${st.channel_stats.total_views} vistas · 🎬 ${st.channel_stats.videos} videos`);
+  L.push("");
+  L.push(`<b>Publicados (${pub.length}):</b>`);
+  for (const v of pub.slice(-5)) {
+    const s = v.stats || {};
+    L.push(`• ${esc(v.title || v.video_id)} — ${v.privacy}${v.privacy === "public" ? ` · ${s.views || 0} vistas` : ""}`);
+  }
+  L.push("");
+  L.push(`<b>Programación:</b>`);
+  for (const u of up.slice(0, 6)) L.push(`• #${u.n} · ${u.target_date} — ${esc(u.topic)}`);
+  L.push("");
+  L.push(`<b>Monetización:</b> subs ${mon.subs ?? "?"}/1000 · horas ${mon.watch_hours ?? "?"}/4000 · ${mon.elegible ? "✅ elegible" : "❌ aún no"}`);
+  if (st.updated_at) L.push(`\n<i>Métricas: ${String(st.updated_at).slice(0, 16).replace("T", " ")} UTC · /reporte para refrescar</i>`);
+  return tg(env, "sendMessage", { chat_id: chatId, parse_mode: "HTML", disable_web_page_preview: true, text: L.join("\n") });
 }
 
 // Muestra SOLO lo que se esta haciendo ahora (en curso o en cola), con el paso

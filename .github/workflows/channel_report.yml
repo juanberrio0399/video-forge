@@ -1,0 +1,55 @@
+name: Reporte del canal (seguimiento + programacion)
+
+# Centro de direccion: jala metricas reales (subs, vistas, likes, monetizacion) de cada
+# video publicado, actualiza el estado del canal en R2 y manda el reporte al chat.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Cargar estado del canal (R2, o la semilla del repo la 1a vez)
+        run: |
+          if npx --yes wrangler@4 r2 object get "$BUCKET/channel/state.json" --file=state.json --remote 2>/dev/null; then
+            echo "estado cargado de R2"
+          else
+            echo "primera vez: uso la semilla del repo"
+            cp channel/seed.json state.json
+          fi
+
+      - name: Generar el reporte (metricas + monetizacion)
+        run: node pipeline/channel_report.mjs state.json state_new.json report.txt
+
+      - name: Guardar el estado actualizado en R2
+        run: npx --yes wrangler@4 r2 object put "$BUCKET/channel/state.json" --file=state_new.json --remote
+
+      - name: Enviar el reporte al chat
+        if: always()
+        run: |
+          if [ -f report.txt ]; then
+            bash pipeline/notify_telegram.sh "$(cat report.txt)"
+          else
+            bash pipeline/notify_telegram.sh "❌ No pude armar el reporte del canal (revisa el log)."
+          fi

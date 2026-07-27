@@ -79,6 +79,23 @@ const pkg = (await gemini(improve
   ? pkgPrompt + `\n\nESTA ES UNA REGENERACION. El auditor pidio mejorar: "${improve}". Corrige eso, haz el TITULO mas fuerte y CLARAMENTE DISTINTO al anterior, y sube el CTR y el SEO.`
   : pkgPrompt)) || {};
 
+// --- Bloque de LINKS profesionales, SIEMPRE en la descripcion (canal, suscribir, redes) ---
+// Enlaces internos = mas vistas por sesion y canal mas profesional. Las redes se toman de
+// env (SOCIAL_TIKTOK / SOCIAL_IG) si existen; si no, no se ponen enlaces vacios.
+const CHANNEL_URL = "https://youtube.com/@TheDataLensHQ";
+const SUB_URL = "https://youtube.com/@TheDataLensHQ?sub_confirmation=1";
+const links = [
+  `▶️ Subscribe for more: ${SUB_URL}`,
+  `📺 More videos: ${CHANNEL_URL}/videos`,
+];
+if (process.env.SOCIAL_TIKTOK) links.push(`🎵 TikTok: ${process.env.SOCIAL_TIKTOK}`);
+if (process.env.SOCIAL_IG) links.push(`📸 Instagram: ${process.env.SOCIAL_IG}`);
+const linkBlock = "\n\n— — —\n" + links.join("\n");
+// Anexa los links a la descripcion (sin duplicar el disclosure de voz IA, que ya lo trae).
+if (pkg && typeof pkg.description === "string" && !pkg.description.includes("Subscribe for more")) {
+  pkg.description = pkg.description + linkBlock;
+}
+
 // --- 2) VALIDAR el paquete (auditor de publicacion) ---
 const valPrompt = `Eres un auditor estricto de publicaciones de YouTube (meta: maximas vistas y descubrimiento). Valida este paquete: ${JSON.stringify(pkg)}.
 Devuelve SOLO JSON:

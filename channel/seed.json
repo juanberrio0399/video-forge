@@ -1,0 +1,36 @@
+{
+  "channel": {
+    "name": "The Data Lens",
+    "id": "UC9GknJ4bZpgJc6lMmySoQEw",
+    "handle": "@TheDataLensHQ",
+    "url": "https://youtube.com/@TheDataLensHQ",
+    "subscribe_url": "https://youtube.com/@TheDataLensHQ?sub_confirmation=1"
+  },
+  "cadence": {
+    "goal": "1 video cada 2 dias",
+    "target_per_month": 15
+  },
+  "monetization": {
+    "ypp_requisitos": "1,000 subs + 4,000 horas de reproduccion en 12 meses (o 10M vistas de Shorts en 90 dias)",
+    "estado": "por medir (canal nuevo)"
+  },
+  "published": [
+    {
+      "video_id": "VRqt4sz8N68",
+      "title": "How YouTube Makes $1,900 EVERY Second ($60B Empire)",
+      "published_at": "2026-07-27",
+      "privacy": "private",
+      "ai_score": { "fase0": 8.5, "fase1": 6.8, "fase2": 7.2 },
+      "stats": {}
+    }
+  ],
+  "upcoming": [
+    { "n": 2, "topic": "How much money one YouTuber makes from 1,000,000 views", "why": "Es el gancho que promete el final del video #1 (continuidad = serie).", "target_date": "2026-07-29" },
+    { "n": 3, "topic": "How much money Netflix makes every second", "why": "Mismo formato ganador del #1, marca conocida.", "target_date": "2026-07-31" },
+    { "n": 4, "topic": "Where your $1 actually goes when you buy on Amazon", "why": "Curiosidad alta, dato contraintuitivo.", "target_date": "2026-08-02" },
+    { "n": 5, "topic": "How McDonald's really makes its money (it's not burgers)", "why": "Revelacion (es inmobiliaria), muy compartible.", "target_date": "2026-08-04" },
+    { "n": 6, "topic": "How much money a $1.50 Costco hot dog really costs them", "why": "Dato viral conocido, formato numeros.", "target_date": "2026-08-06" },
+    { "n": 7, "topic": "How Spotify actually pays artists (the shocking math)", "why": "Indignacion + numeros = retencion y comentarios.", "target_date": "2026-08-08" }
+  ],
+  "updated_at": null
+}
