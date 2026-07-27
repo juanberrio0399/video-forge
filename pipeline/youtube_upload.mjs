@@ -80,6 +80,8 @@ if (!res.id) { console.error("Error en la subida:", JSON.stringify(res).slice(0,
 const url = `https://youtu.be/${res.id}`;
 console.log("VIDEO_ID=" + res.id);
 console.log("VIDEO_URL=" + url);
+// Guarda el ID (para actualizar el SEO/metadata luego sin re-subir el video).
+fs.writeFileSync("publish/video_id.txt", res.id);
 fs.writeFileSync(
   "publish/youtube_result.txt",
   `✅ Subido a YouTube (PRIVADO, para tu revision):\n${url}\n\n🏷️ ${snippet.title}\n\nRevisalo y hazlo Publico cuando estes conforme (Studio → Contenido → Visibilidad).`

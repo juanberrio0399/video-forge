@@ -1,0 +1,81 @@
+name: Regenerar SEO del video (aplicar al video ya subido)
+
+# "Regenerar SEO": rehace el paquete (titulo/descripcion/tags/capitulos) tomando en
+# cuenta las sugerencias del auditor, y lo APLICA al video que ya esta en YouTube
+# (videos.update, sin re-subir). Reenvia el SEO al chat con aprobar/regenerar.
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: "ID del video (opcional; si no, se lee de R2)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+  PROJECT: "0001-youtube-money"
+
+jobs:
+  regen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Avisar al chat que ARRANCO
+        run: bash pipeline/notify_telegram.sh "🔁 Regenerando el SEO del video (titulo/descripcion/tags) tomando en cuenta los comentarios de la IA. Te lo muestro en un momento."
+
+      - name: Bajar video_id + paquete previo + tiempos de R2
+        env:
+          IN_VIDEO_ID: ${{ github.event.inputs.video_id }}
+        run: |
+          if [ -n "$IN_VIDEO_ID" ]; then
+            echo "$IN_VIDEO_ID" > video_id.txt
+            npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/video_id.txt" --file=video_id.txt --remote
+          else
+            npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/video_id.txt" --file=video_id.txt --remote
+          fi
+          npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/package.json" --file=prev_package.json --remote || echo "{}" > prev_package.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing.json --remote || echo "sin timing"
+          echo "VIDEO_ID=$(cat video_id.txt)"
+
+      - name: Regenerar el paquete SEO (con las sugerencias previas)
+        run: |
+          # Pasa las sugerencias/problemas del paquete anterior como guia de mejora.
+          SEO_IMPROVE="$(node -e "try{const v=JSON.parse(require('fs').readFileSync('prev_package.json','utf8')).validation||{};process.stdout.write([...(v.problemas||[]),...(v.sugerencias||[])].join('; '))}catch(e){}")"
+          export SEO_IMPROVE
+          echo "Guia de mejora: ${SEO_IMPROVE:-(sin sugerencias previas)}"
+          node pipeline/publish_package.mjs "projects/$PROJECT/voicemap_full.json" timing.json "How much money does YouTube make every second" publish
+
+      - name: Aplicar el nuevo SEO al video (sin re-subir)
+        run: node pipeline/youtube_update.mjs "$(cat video_id.txt)" publish/package.json
+
+      - name: Guardar el paquete nuevo en R2
+        run: npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/package.json" --file=publish/package.json --remote
+
+      - name: Reenviar el SEO al chat con aprobar/regenerar
+        if: always()
+        run: |
+          VID=$(cat video_id.txt 2>/dev/null || echo "")
+          MK='{"inline_keyboard":[[{"text":"✅ Aprobar publicacion","callback_data":"pub_ok"},{"text":"🔁 Regenerar SEO","callback_data":"seo_regen"}]]}'
+          if [ -f publish/summary.txt ]; then
+            bash pipeline/notify_telegram.sh "🔁 SEO regenerado y aplicado al video (https://youtu.be/${VID})."$'\n\n'"$(cat publish/summary.txt)"$'\n\n'"¿Apruebo o regenero otra vez?" "" "$MK"
+          else
+            bash pipeline/notify_telegram.sh "❌ No pude regenerar el SEO. Reintenta."
+          fi

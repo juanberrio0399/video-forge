@@ -274,6 +274,23 @@ async function handleCallback(cb, env) {
       });
     }
 
+    // ---- Puerta del SEO (Parte 1): aprobar la publicacion o regenerar el SEO ----
+    case "seo_regen": {
+      if (await busyGuard(env, chatId)) return;
+      const r = await ghDispatch(env, "seo_regen.yml", {});
+      return ack(env, chatId, r, "Regenerando el SEO (según los comentarios de la IA)");
+    }
+    case "pub_ok": {
+      return tg(env, "sendMessage", {
+        chat_id: chatId,
+        parse_mode: "Markdown",
+        text:
+          "✅ *Publicación aprobada.* El video queda con este SEO en YouTube (privado).\n\n" +
+          "Cuando lo hagas *Público* en Studio, el siguiente paso son los *Shorts*: la IA te dirá cuántos hacer, de qué momentos y qué tan largos, y los apruebas uno por uno.\n\n" +
+          "🎬 Escribe /shorts cuando quieras arrancar con eso.",
+      });
+    }
+
     default:
       // Botones de aprobacion que traen los resultados (voz/video).
       if (data.startsWith("approve:")) {

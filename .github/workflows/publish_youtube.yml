@@ -43,7 +43,13 @@ jobs:
       - name: Subir a YouTube (privado)
         run: node pipeline/youtube_upload.mjs video.mp4 publish/package.json
 
-      - name: Avisar a Telegram
+      - name: Guardar paquete SEO + video_id en R2 (para regenerar el SEO luego)
+        if: ${{ hashFiles('publish/video_id.txt') != '' }}
+        run: |
+          npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/package.json" --file=publish/package.json --remote
+          npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/video_id.txt" --file=publish/video_id.txt --remote
+
+      - name: Avisar a Telegram (SEO para aprobar o regenerar)
         if: always()
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -51,7 +57,11 @@ jobs:
         run: |
           if [ -f publish/youtube_result.txt ]; then
             bash pipeline/notify_telegram.sh "$(cat publish/youtube_result.txt)"
-            if [ -f publish/summary.txt ]; then bash pipeline/notify_telegram.sh "$(cat publish/summary.txt)"; fi
+            # El SEO + los comentarios de la IA salen con botones: aprobar o regenerar.
+            MK='{"inline_keyboard":[[{"text":"✅ Aprobar publicacion","callback_data":"pub_ok"},{"text":"🔁 Regenerar SEO","callback_data":"seo_regen"}]]}'
+            if [ -f publish/summary.txt ]; then
+              bash pipeline/notify_telegram.sh "$(cat publish/summary.txt)"$'\n\n'"¿Apruebo esta publicacion (titulo/descripcion/tags) o regenero el SEO tomando en cuenta los comentarios?" "" "$MK"
+            fi
           else
             bash pipeline/notify_telegram.sh "❌ Fallo la subida a YouTube. Revisa los secrets/OAuth."
           fi
