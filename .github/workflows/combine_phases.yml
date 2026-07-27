@@ -81,16 +81,18 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+          PROJECT: "0001-youtube-money"
         run: |
           if [ -f renders_video.mp4 ]; then
-            MK='{"inline_keyboard":[[{"text":"✅ Aprobar y publicar","callback_data":"approve:video"},{"text":"🔁 Regenerar","callback_data":"regen:phased"}],[{"text":"✏️ Cambiar algo","callback_data":"change:video"}]]}'
+            WATCH="https://video-forge-bot.tienvo.workers.dev/watch/video/$PROJECT/video.mp4"
+            MK='{"inline_keyboard":[[{"text":"▶️ Ver el video","url":"'"$WATCH"'"}],[{"text":"✅ Aprobar y publicar","callback_data":"approve:video"},{"text":"🔁 Regenerar","callback_data":"regen:phased"}],[{"text":"✏️ Cambiar algo","callback_data":"change:video"}]]}'
             MSG="🎬 Resultado: VIDEO completo del canal (unido por fases)."$'\n'"Notas por fase:${SCORES} · mínima ${MIN_SCORE}/10."$'\n\n'
             if node -e "process.exit((${MIN_SCORE:-0}) >= 7.5 ? 0 : 1)"; then
-              MSG="${MSG}✅ Todas las fases pasaron el mínimo (7.5). ¿Lo apruebo y publico (privado) o lo regeneramos?"
+              MSG="${MSG}✅ Todas las fases pasaron el mínimo (7.5). Míralo con ▶️ Ver el video; si te gusta, apruébalo y lo publico (privado)."
             else
-              MSG="${MSG}⚠️ Quedó por debajo del mínimo (7.5). Recomiendo REGENERARLO. Si aun así lo quieres publicar, aprébalo."
+              MSG="${MSG}⚠️ Quedó por debajo del mínimo (7.5). Míralo con ▶️ Ver el video. Recomiendo REGENERARLO, pero si te gusta puedes aprobarlo igual."
             fi
-            bash pipeline/notify_telegram.sh "$MSG" renders_video.mp4 "$MK"
+            bash pipeline/notify_telegram.sh "$MSG" "" "$MK"
           else
             bash pipeline/notify_telegram.sh "❌ No pude unir las fases (rescate). Toca 🔁 Regenerar para rehacer el video."
           fi
