@@ -20,28 +20,28 @@ const f2 = (n) => Number(n).toFixed(2);
 // Cada frase `m` es UNICA a un beat. Densidad alta a proposito: el medio/final se veian
 // flojos con puro b-roll; ahora cada tramo tiene su momento hero encima del footage.
 const SCENES = [
-  { m: "sixty billion dollars in a single year", type: "num", big: "$60B", sub: "YouTube · ingresos 2025", color: "cy" },
-  { m: "hundred and sixty-four million dollars a day", type: "num", big: "$164M", sub: "por DIA", color: "cy" },
-  { m: "six point eight million dollars an hour", type: "num", big: "$6.8M", sub: "por HORA", color: "cy" },
-  { m: "hundred and fourteen thousand dollars a minute", type: "num", big: "$114K", sub: "por MINUTO", color: "cy" },
-  { m: "nineteen hundred dollars a second", type: "num", big: "$1,900", sub: "por SEGUNDO", color: "gr" },
-  { m: "thirty-six billion dollars", type: "num", big: "$36.4B", sub: "solo en PUBLICIDAD · 2024", color: "cy" },
+  { m: "sixty billion dollars in a single year", type: "num", big: "$60B", sub: "YouTube · 2025 revenue", color: "cy" },
+  { m: "hundred and sixty-four million dollars a day", type: "num", big: "$164M", sub: "PER DAY", color: "cy" },
+  { m: "six point eight million dollars an hour", type: "num", big: "$6.8M", sub: "PER HOUR", color: "cy" },
+  { m: "hundred and fourteen thousand dollars a minute", type: "num", big: "$114K", sub: "PER MINUTE", color: "cy" },
+  { m: "nineteen hundred dollars a second", type: "num", big: "$1,900", sub: "PER SECOND", color: "gr" },
+  { m: "thirty-six billion dollars", type: "num", big: "$36.4B", sub: "ADS ONLY · 2024", color: "cy" },
   // --- medio: publicidad Q4, cable / YouTube TV (antes puro b-roll) ---
-  { m: "final three months", type: "num", big: "$10B", sub: "publicidad · un TRIMESTRE (Q4 2024)", color: "cy" },
-  { m: "youtube sells cable", type: "stmt", big: "YouTube vende CABLE", sub: "TV en vivo, por internet" },
-  { m: "ten million subscribers", type: "num", big: "10,000,000", sub: "YouTube TV · a $83/mes", color: "am" },
-  { m: "eight hundred million", type: "num", big: "$800M", sub: "YouTube TV · al MES", color: "am" },
-  { m: "one product alone", type: "num", big: "$10B", sub: "YouTube TV · al ANO", color: "am" },
-  { m: "biggest tv providers", type: "stmt", big: "De los mayores proveedores de TV de EE.UU.", sub: "y casi nadie lo sabe" },
+  { m: "final three months", type: "num", big: "$10B", sub: "ADS · ONE QUARTER (Q4 2024)", color: "cy" },
+  { m: "youtube sells cable", type: "stmt", big: "YouTube sells CABLE", sub: "live TV, over the internet" },
+  { m: "ten million subscribers", type: "num", big: "10,000,000", sub: "YouTube TV · at $83/mo", color: "am" },
+  { m: "eight hundred million", type: "num", big: "$800M", sub: "YouTube TV · PER MONTH", color: "am" },
+  { m: "one product alone", type: "num", big: "$10B", sub: "YouTube TV · PER YEAR", color: "am" },
+  { m: "biggest tv providers", type: "stmt", big: "One of the biggest TV providers in the U.S.", sub: "and almost nobody knows" },
   // --- Netflix, reparto, creadores (final) ---
-  { m: "quietly passed netflix", type: "cmp", a: "YouTube", av: 100, b: "Netflix", bv: 65, sub: "ingresos totales · 2025" },
-  { m: "amateurs out-earned", type: "stmt", big: "Los amateurs le ganaron a los profesionales", sub: "sin una sola camara de YouTube" },
-  { m: "fifty-five percent", type: "split", sub: "de la publicidad va al creador" },
-  { m: "one hundred billion dollars", type: "num", big: "$100B", sub: "pagado a creadores · 4 anos", color: "gr" },
-  { m: "biggest paycheck engine", type: "stmt", big: "La mayor maquina de sueldos de internet", sub: "" },
+  { m: "quietly passed netflix", type: "cmp", a: "YouTube", av: 100, b: "Netflix", bv: 65, sub: "total revenue · 2025" },
+  { m: "amateurs out-earned", type: "stmt", big: "The amateurs out-earned the pros", sub: "without a single YouTube camera" },
+  { m: "fifty-five percent", type: "split", sub: "of ad money goes to the creator" },
+  { m: "one hundred billion dollars", type: "num", big: "$100B", sub: "paid to creators · 4 years", color: "gr" },
+  { m: "biggest paycheck engine", type: "stmt", big: "The internet's biggest paycheck engine", sub: "" },
   { m: "eighty-five million dollars", type: "num", big: "$85M", sub: "MrBeast · 2024 · Forbes", color: "am" },
-  { m: "person with a camera and a media empire", type: "stmt", big: "De una camara a un imperio", sub: "la linea nunca fue tan delgada" },
-  { m: "five seconds you wait", type: "num", big: "$10,000", sub: "en 5 SEGUNDOS", color: "gr" },
+  { m: "person with a camera and a media empire", type: "stmt", big: "From a camera to an empire", sub: "the line has never been thinner" },
+  { m: "five seconds you wait", type: "num", big: "$10,000", sub: "IN 5 SECONDS", color: "gr" },
 ];
 
 const els = [];
@@ -87,7 +87,7 @@ beats.forEach((b) => {
   } else if (s.type === "split") {
     els.push(`<div class="scene split" id="${id}">
         <div class="split-bar"><div class="split-g" id="${id}g"></div><div class="split-c" id="${id}c"></div></div>
-        <div class="split-legend"><span class="lg gr">55% creadores</span><span class="lg mut">45% Google</span></div>
+        <div class="split-legend"><span class="lg gr">55% creators</span><span class="lg mut">45% Google</span></div>
         <div class="num-sub">${esc(s.sub)}</div>
       </div>`);
     tw.push(`tl.fromTo("#${id}",{opacity:0},{opacity:1,duration:0.4},${f2(inT)});`);
@@ -193,11 +193,11 @@ const html = `<!doctype html>
 
     <audio id="voz" class="clip" data-start="0" data-duration="${f2(total)}" data-track-index="9" src="${audioFile}"></audio>
 
-    <div id="ticker"><div class="tl">$ ganado en este video</div><div class="tv mono" id="tv">$0</div></div>
+    <div id="ticker"><div class="tl">$ earned during this video</div><div class="tv mono" id="tv">$0</div></div>
 
     ${els.join("\n    ")}
 
-    <div id="brand">VIDEO-FORGE</div>
+    <div id="brand">The Data Lens</div>
   </div>
 
   <script>
