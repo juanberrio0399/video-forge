@@ -24,7 +24,7 @@ const NUMENV = (v, d) => (v === undefined || v === "" || isNaN(+v) ? d : +v);
 const FX_PACE = (process.env.FX_PACE || "").toLowerCase();
 const SEG = FX_PACE === "faster" ? 3.6 : 5.0;
 const TD = FX_PACE === "faster" ? 0.5 : 0.6; // duracion de la transicion (solape entre planos)
-const _brt = (0.04 + NUMENV(process.env.FX_BRIGHT, 0)).toFixed(3);
+const _brt = (0.07 + NUMENV(process.env.FX_BRIGHT, 0)).toFixed(3);
 const _sat = (1.02 + NUMENV(process.env.FX_SAT, 0)).toFixed(3);
 const _ctr = (1.05 + NUMENV(process.env.FX_CONTRAST, 0)).toFixed(3);
 // Grade cinematografico consistente en TODO plano (footage e imagenes IA): curva
@@ -35,12 +35,12 @@ const CINE = "curves=preset=lighter,unsharp=3:3:0.30";
 const VF = `eq=brightness=${_brt}:saturation=${_sat}:contrast=${_ctr},${CINE}`; // grade + cine
 // Temas de relleno para VARIAR cuando dos planos seguidos caerian en el mismo tema.
 const FILLERS = [
-  { kw: "money cash counting", ai: "close up of cash money bills, cinematic" },
-  { kw: "city skyline night aerial", ai: "futuristic city skyline at night, neon, aerial" },
-  { kw: "stock market screen data", ai: "glowing stock market data screen, dark" },
-  { kw: "server room data lights", ai: "dark server room with glowing data lights" },
-  { kw: "person working laptop night", ai: "person working on a laptop at night, glow" },
-  { kw: "gold coins wealth", ai: "gold coins and stacks of money, glowing particles" },
+  { kw: "money cash counting bright", ai: "close up of cash money bills, bright clean light, cinematic" },
+  { kw: "modern city skyline aerial day", ai: "modern city skyline, blue sky, bright daylight, aerial" },
+  { kw: "stock market screen data bright", ai: "bright stock market data screen, clean white light" },
+  { kw: "modern data center bright", ai: "modern data center, bright clean led light, wide" },
+  { kw: "person working laptop office", ai: "person working on a laptop in a bright modern office, daylight" },
+  { kw: "gold coins wealth bright", ai: "gold coins and stacks of money, bright clean light, glowing particles" },
 ];
 // Transiciones profesionales de ffmpeg (se van rotando).
 const TRANS = ["fade", "dissolve", "smoothleft", "smoothup", "wiperight", "circleopen", "slideup", "radial", "diagtl", "fadegrays"];
@@ -49,16 +49,16 @@ const TRANS = ["fade", "dissolve", "smoothleft", "smoothup", "wiperight", "circl
 function theme(text) {
   const t = text.toLowerCase();
   const has = (...w) => w.some((x) => t.includes(x));
-  if (has("netflix", "hollywood", "movies", "streaming empire")) return { kw: "cinema movie theater", ai: "empty grand cinema movie theater, red seats, projector beam" };
-  if (has("youtube tv", "television", "cable", "channels")) return { kw: "living room television night", ai: "dark cozy living room with a glowing tv at night" };
-  if (has("ads", "advertising", "election", "campaign")) return { kw: "person using smartphone night", ai: "close up of a glowing smartphone showing a video, dark" };
-  if (has("creator", "filming", "camera", "youtuber", "mrbeast", "teenager", "bedroom")) return { kw: "content creator filming camera", ai: "young creator filming in a home studio with ring light, bokeh" };
-  if (has("subscription", "premium", "eighty-three")) return { kw: "streaming app phone", ai: "hand holding phone with glowing subscribe button, cinematic" };
-  if (has("second", "minute", "clock", "time", "counting")) return { kw: "clock time macro", ai: "extreme macro of a watch mechanism and falling coins" };
-  if (has("hundred billion", "rich", "richer", "wealth", "millionaire", "empire", "eighty-five")) return { kw: "stacks of money wealth", ai: "towering stacks of cash and gold coins, glowing particles" };
-  if (has("money", "dollars", "cash", "billion", "million", "revenue", "earn", "sixty")) return { kw: "money cash falling", ai: "flowing river of dollar bills and coins, cinematic macro" };
-  if (has("google", "machine", "internet", "platform", "data")) return { kw: "server room data center", ai: "vast dark server room with glowing data lights" };
-  return { kw: "abstract technology money", ai: "abstract cinematic money and data, glowing particles, dark" };
+  if (has("netflix", "hollywood", "movies", "streaming empire")) return { kw: "modern cinema movie theater bright", ai: "modern cinema movie theater, bright screen, clean light" };
+  if (has("youtube tv", "television", "cable", "channels")) return { kw: "modern living room television day", ai: "bright modern living room with a large tv, big window, daylight" };
+  if (has("ads", "advertising", "election", "campaign")) return { kw: "hand smartphone video app", ai: "close up of a hand holding a smartphone showing a video, bright clean light" };
+  if (has("creator", "filming", "camera", "youtuber", "mrbeast", "teenager", "bedroom")) return { kw: "content creator filming studio bright", ai: "young creator filming in a bright home studio with ring light, clean" };
+  if (has("subscription", "premium", "eighty-three")) return { kw: "streaming app phone bright", ai: "hand holding phone with a subscribe button, bright clean light" };
+  if (has("second", "minute", "clock", "time", "counting")) return { kw: "clock time macro bright", ai: "extreme macro of a watch mechanism and falling coins, bright light" };
+  if (has("hundred billion", "rich", "richer", "wealth", "millionaire", "empire", "eighty-five")) return { kw: "stacks of money wealth bright", ai: "towering stacks of cash and gold coins, bright clean light, glowing particles" };
+  if (has("money", "dollars", "cash", "billion", "million", "revenue", "earn", "sixty")) return { kw: "money cash falling bright", ai: "flowing river of dollar bills and coins, bright clean light, macro" };
+  if (has("google", "machine", "internet", "platform", "data")) return { kw: "modern data center bright", ai: "bright modern data center, clean led light, wide angle" };
+  return { kw: "abstract technology money bright", ai: "abstract money and data, bright clean light, glowing particles" };
 }
 
 const beats = timing.beats.filter((b) => b.start < total);
@@ -112,7 +112,7 @@ async function geminiPlan(list) {
   const fb = (process.env.FX_FOOTAGE || "").trim()
     ? `\n\nEl auditor marco este problema de footage en el intento anterior: "${process.env.FX_FOOTAGE.trim()}". CORRIGELO: busquedas mas especificas y relevantes al tema de cada segmento, mas VARIADAS (no repitas el mismo tipo de plano) y muy cinematograficas.`
     : "";
-  const prompt = `Eres director de fotografia de un video faceless cinematografico de datos/dinero (YouTube, ingles). Para CADA segmento de narracion da el mejor plano de fondo. Devuelve SOLO un array JSON, un objeto por segmento en el MISMO orden, con: "q" = query corta (2-4 palabras en INGLES) para buscar b-roll de stock relevante y cinematografico, y "ai" = prompt de imagen IA cinematografica de respaldo. Segmentos:\n${seg}${fb}`;
+  const prompt = `Eres director de fotografia de un video faceless cinematografico de datos/dinero (YouTube, ingles). Para CADA segmento de narracion da el mejor plano de fondo. Devuelve SOLO un array JSON, un objeto por segmento en el MISMO orden, con: "q" = query corta (2-4 palabras en INGLES) para buscar b-roll de stock MUY RELEVANTE al tema exacto del segmento (no generico), y "ai" = prompt de imagen IA de respaldo. REGLAS CLAVE: los planos deben verse BRILLANTES y bien iluminados (luz clara/dia, NADA de escenas oscuras o de noche; evita "dark", "night"), directamente relacionados con lo que dice ESE segmento, y VARIADOS entre si. Segmentos:\n${seg}${fb}`;
   for (const m of ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-flash-latest", "gemini-2.0-flash"]) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI}`, {
@@ -131,7 +131,7 @@ async function geminiPlan(list) {
 
 async function dl(url, dest) { const r = await fetch(url); fs.writeFileSync(dest, Buffer.from(await r.arrayBuffer())); }
 async function aiImage(prompt, dest, seed) {
-  const style = "cinematic film still, dramatic lighting, teal and gold grade, highly detailed, no text";
+  const style = "cinematic film still, bright clean lighting, soft daylight, teal and gold grade, highly detailed, no text";
   const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ", " + style)}?width=1920&height=1080&nologo=true&model=flux&seed=${seed}`;
   await dl(url, dest);
 }
