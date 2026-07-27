@@ -1,0 +1,40 @@
+name: Verificar canal de un video de YouTube
+
+# Confirma en que canal quedo un video y su privacidad (consulta la API con el
+# refresh token). Avisa el resultado al chat.
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: "ID del video de YouTube a verificar"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verificar
+        run: node pipeline/youtube_verify.mjs "${{ github.event.inputs.video_id }}"
+      - name: Avisar al chat
+        if: always()
+        run: |
+          if [ -f verify_msg.txt ]; then
+            bash pipeline/notify_telegram.sh "$(cat verify_msg.txt)"
+          else
+            bash pipeline/notify_telegram.sh "❌ No pude verificar el video ${{ github.event.inputs.video_id }} (revisa el log)."
+          fi
