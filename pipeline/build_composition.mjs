@@ -16,7 +16,9 @@ const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, 
 const f2 = (n) => Number(n).toFixed(2);
 
 // ---- Escenas hero: se disparan cuando la voz dice cierta frase ----
-// tipo: "num" (numero gigante) | "cmp" (A vs B) | "split" (45/55)
+// tipo: "num" (numero gigante) | "cmp" (A vs B) | "split" (45/55) | "stmt" (frase-impacto)
+// Cada frase `m` es UNICA a un beat. Densidad alta a proposito: el medio/final se veian
+// flojos con puro b-roll; ahora cada tramo tiene su momento hero encima del footage.
 const SCENES = [
   { m: "sixty billion dollars in a single year", type: "num", big: "$60B", sub: "YouTube · ingresos 2025", color: "cy" },
   { m: "hundred and sixty-four million dollars a day", type: "num", big: "$164M", sub: "por DIA", color: "cy" },
@@ -24,11 +26,22 @@ const SCENES = [
   { m: "hundred and fourteen thousand dollars a minute", type: "num", big: "$114K", sub: "por MINUTO", color: "cy" },
   { m: "nineteen hundred dollars a second", type: "num", big: "$1,900", sub: "por SEGUNDO", color: "gr" },
   { m: "thirty-six billion dollars", type: "num", big: "$36.4B", sub: "solo en PUBLICIDAD · 2024", color: "cy" },
+  // --- medio: publicidad Q4, cable / YouTube TV (antes puro b-roll) ---
+  { m: "final three months", type: "num", big: "$10B", sub: "publicidad · un TRIMESTRE (Q4 2024)", color: "cy" },
+  { m: "youtube sells cable", type: "stmt", big: "YouTube vende CABLE", sub: "TV en vivo, por internet" },
   { m: "ten million subscribers", type: "num", big: "10,000,000", sub: "YouTube TV · a $83/mes", color: "am" },
+  { m: "eight hundred million", type: "num", big: "$800M", sub: "YouTube TV · al MES", color: "am" },
+  { m: "one product alone", type: "num", big: "$10B", sub: "YouTube TV · al ANO", color: "am" },
+  { m: "biggest tv providers", type: "stmt", big: "De los mayores proveedores de TV de EE.UU.", sub: "y casi nadie lo sabe" },
+  // --- Netflix, reparto, creadores (final) ---
   { m: "quietly passed netflix", type: "cmp", a: "YouTube", av: 100, b: "Netflix", bv: 65, sub: "ingresos totales · 2025" },
+  { m: "amateurs out-earned", type: "stmt", big: "Los amateurs le ganaron a los profesionales", sub: "sin una sola camara de YouTube" },
   { m: "fifty-five percent", type: "split", sub: "de la publicidad va al creador" },
-  { m: "one hundred billion dollars", type: "num", big: "$100B", sub: "pagado a creadores · 4 años", color: "gr" },
+  { m: "one hundred billion dollars", type: "num", big: "$100B", sub: "pagado a creadores · 4 anos", color: "gr" },
+  { m: "biggest paycheck engine", type: "stmt", big: "La mayor maquina de sueldos de internet", sub: "" },
   { m: "eighty-five million dollars", type: "num", big: "$85M", sub: "MrBeast · 2024 · Forbes", color: "am" },
+  { m: "person with a camera and a media empire", type: "stmt", big: "De una camara a un imperio", sub: "la linea nunca fue tan delgada" },
+  { m: "five seconds you wait", type: "num", big: "$10,000", sub: "en 5 SEGUNDOS", color: "gr" },
 ];
 
 const els = [];
@@ -81,6 +94,14 @@ beats.forEach((b) => {
     tw.push(`tl.fromTo("#${id}c",{width:"0%"},{width:"45%",duration:0.7,ease:"power2.out"},${f2(inT + 0.1)});`);
     tw.push(`tl.fromTo("#${id}g",{width:"0%"},{width:"55%",duration:1.0,ease:"power3.out"},${f2(inT + 0.3)});`);
     tw.push(`tl.to("#${id}",{opacity:0,duration:0.35,ease:"power1.in"},${f2(outT + 0.6)});`);
+  } else if (s.type === "stmt") {
+    els.push(`<div class="scene stmt" id="${id}">
+        <div class="stmt-big">${esc(s.big)}</div>
+        ${s.sub ? `<div class="stmt-sub">${esc(s.sub)}</div>` : ""}
+      </div>`);
+    tw.push(`tl.fromTo("#${id} .stmt-big",{opacity:0,scale:0.9,y:24},{opacity:1,scale:1,y:0,duration:0.55,ease:"back.out(1.4)"},${f2(inT)});`);
+    if (s.sub) tw.push(`tl.fromTo("#${id} .stmt-sub",{opacity:0,y:14},{opacity:1,y:0,duration:0.45,ease:"power3.out"},${f2(inT + 0.2)});`);
+    tw.push(`tl.to("#${id}",{opacity:0,duration:0.35,ease:"power1.in"},${f2(outT)});`);
   }
 });
 
@@ -138,6 +159,9 @@ const html = `<!doctype html>
   .c-gr .num-big{background:linear-gradient(90deg,#eaf1ff,#34d399);-webkit-background-clip:text;background-clip:text}
   .c-am .num-big{background:linear-gradient(90deg,#fde68a,#f59e0b);-webkit-background-clip:text;background-clip:text}
   .num-sub{font-size:40px;font-weight:800;color:#9fb2d4;margin-top:14px;letter-spacing:1px;text-transform:uppercase}
+  .stmt{top:330px;padding:0 220px}
+  .stmt-big{font-size:96px;font-weight:900;line-height:1.06;letter-spacing:-2px;background:linear-gradient(90deg,#eaf1ff,#22d3ee 72%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 10px 34px rgba(34,211,238,.22))}
+  .stmt-sub{font-size:38px;font-weight:700;color:#9fb2d4;margin-top:20px;letter-spacing:.5px}
   /* comparacion */
   .cmp{top:340px;padding:0 360px}
   .cmp-row{display:flex;align-items:center;gap:28px;margin:22px 0}
