@@ -1,18 +1,15 @@
-// build_short.mjs — arma un SHORT profesional NATIVO en vertical 9:16 (1080x1920).
-// NO recicla el video horizontal: construye la composicion vertical con fondo a
-// pantalla completa (b-roll real vertical o animacion limpia de marca), subtitulos
-// GRANDES animados (frase por frase, con resalte), numeros hero gigantes y barra de
-// progreso. Estilo finanzas/datos moderno. Render con HyperFrames.
+// build_short.mjs — SHORT profesional vertical 9:16 estilo "logo audio-reactivo":
+// el logo de The Data Lens PULSA con la voz (amplitud pre-calculada con ffmpeg y
+// horneada como keyframes, porque HyperFrames renderiza con timeline congelada),
+// sobre un fondo de b-roll del tema DESENFOCADO + subtitulos GRANDES bien puestos.
 //
 // Uso: node pipeline/build_short.mjs <beats.json> <out.html> <audio.mp3> <style> [bg_queries]
-//   beats.json = { total, beats:[{text,start,end}] }  (re-baseados a 0)
-//   style = broll | animation | hybrid
-//   bg_queries = lista separada por '|' de queries de b-roll (opcional)
+//   style: logo (default) | broll | animation
 import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
 
-const [beatsPath, outHtml, audioFile = "short.mp3", style = "broll", bgQueriesArg = ""] = process.argv.slice(2);
+const [beatsPath, outHtml, audioFile = "short.mp3", style = "logo", bgQueriesArg = ""] = process.argv.slice(2);
 const PEXELS = process.env.PEXELS_API_KEY || "";
 const data = JSON.parse(fs.readFileSync(beatsPath, "utf8"));
 const beats = data.beats || [];
@@ -20,25 +17,12 @@ const total = data.total || (beats.length ? beats[beats.length - 1].end : 30);
 const W = 1080, H = 1920, FPS = 30;
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const f2 = (n) => Number(n).toFixed(2);
+const isLogo = style === "logo" || style === "animation" ? true : style === "broll" ? false : true;
 
-// Grade "premium" para el b-roll: contraste filmico + un pelin de saturacion + oscurecido
-// leve abajo para que el texto grande se lea siempre.
-const GRADE = "eq=contrast=1.08:saturation=1.1:brightness=0.02,curves=preset=lighter,unsharp=3:3:0.3";
-
-// ---- Numeros hero (mismas cifras que el video largo, en vertical) ----
-const HERO = [
-  { m: "nineteen hundred dollars a second", big: "$1,900", sub: "PER SECOND" },
-  { m: "sixty billion dollars", big: "$60B", sub: "A YEAR" },
-  { m: "hundred and sixty-four million", big: "$164M", sub: "PER DAY" },
-  { m: "six point eight million", big: "$6.8M", sub: "PER HOUR" },
-  { m: "hundred and fourteen thousand", big: "$114K", sub: "PER MINUTE" },
-  { m: "ten million subscribers", big: "10M", sub: "YOUTUBE TV SUBS" },
-  { m: "eight hundred million", big: "$800M", sub: "PER MONTH" },
-  { m: "ten billion dollars a year", big: "$10B", sub: "PER YEAR" },
-  { m: "thirty-six billion", big: "$36B", sub: "ADS · 2024" },
-  { m: "hundred billion", big: "$100B", sub: "PAID TO CREATORS" },
-  { m: "eighty-five million", big: "$85M", sub: "MRBEAST · 2024" },
-];
+// Fondo b-roll: para el estilo logo va MUY desenfocado y oscuro (que resalte el logo/texto).
+const GRADE = isLogo
+  ? "boxblur=24:3,eq=contrast=1.04:saturation=0.85:brightness=-0.08,curves=preset=darker"
+  : "eq=contrast=1.08:saturation=1.1:brightness=0.02,curves=preset=lighter,unsharp=3:3:0.3";
 
 async function dl(url, dest) { const r = await fetch(url); fs.writeFileSync(dest, Buffer.from(await r.arrayBuffer())); }
 async function pexelsPortrait(q) {
@@ -47,7 +31,7 @@ async function pexelsPortrait(q) {
     const r = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&orientation=portrait&size=medium&per_page=12`, { headers: { Authorization: PEXELS } });
     if (!r.ok) return null;
     const j = await r.json();
-    for (const v of (j.videos || []).sort(() => 0.5 - (Date.now() % 2))) {
+    for (const v of (j.videos || [])) {
       const files = (v.video_files || []).filter((f) => f.file_type === "video/mp4" && f.height);
       files.sort((a, b) => b.height - a.height);
       const f = files.find((f) => f.height >= 1280 && f.height <= 1920) || files[0];
@@ -57,16 +41,15 @@ async function pexelsPortrait(q) {
   return null;
 }
 async function aiImage(prompt, dest, seed) {
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ", cinematic vertical, bright clean light, no text")}?width=${W}&height=${H}&nologo=true&model=flux&seed=${seed}`;
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ", cinematic vertical, dark, no text")}?width=${W}&height=${H}&nologo=true&model=flux&seed=${seed}`;
   await dl(url, dest);
 }
 
-// ---- Fondo vertical: b-roll a pantalla completa con cortes rapidos (o animacion) ----
+// ---- Fondo vertical (b-roll con cortes, desenfocado para el logo) ----
 async function buildBg() {
-  if (style === "animation") return null; // fondo animado por CSS, sin video
   const queries = bgQueriesArg ? bgQueriesArg.split("|").map((s) => s.trim()).filter(Boolean)
-    : ["money cash counting bright", "modern city skyline day", "stock market data bright", "person working laptop office", "gold coins wealth bright"];
-  const SEG = 2.6; // cortes rapidos
+    : ["money cash counting", "modern city skyline day", "stock market data screen", "server room data center", "gold coins wealth"];
+  const SEG = isLogo ? 3.2 : 2.6;
   const n = Math.max(1, Math.ceil(total / SEG));
   const parts = [];
   for (let i = 0; i < n; i++) {
@@ -74,8 +57,8 @@ async function buildBg() {
     const out = `short_seg${i}.mp4`;
     const dur = +(Math.min(SEG, total - i * SEG) + 0.3).toFixed(2);
     if (dur <= 0.3) break;
-    let link = await pexelsPortrait(q);
     try {
+      const link = await pexelsPortrait(q);
       if (link) {
         const raw = `short_raw${i}.mp4`;
         await dl(link, raw);
@@ -95,7 +78,7 @@ async function buildBg() {
   if (parts.length === 1) {
     execSync(`ffmpeg -y -i "${parts[0].file}" -t ${f2(total)} -r ${FPS} -c:v libx264 -preset veryfast -pix_fmt yuv420p "${bg}"`, { stdio: "ignore" });
   } else {
-    const TD = 0.3, TR = ["fade", "wiperight", "slideup", "circleopen"];
+    const TD = 0.3, TR = ["fade", "fade", "fadeblack"];
     const inputs = parts.map((p) => `-i "${p.file}"`).join(" ");
     let filter = "", acc = "[0:v]", accLen = parts[0].dur;
     for (let i = 1; i < parts.length; i++) {
@@ -106,70 +89,92 @@ async function buildBg() {
     filter = filter.replace(/;$/, "");
     execSync(`ffmpeg -y ${inputs} -filter_complex "${filter}" -map "${acc}" -t ${f2(total)} -r ${FPS} -c:v libx264 -preset veryfast -pix_fmt yuv420p "${bg}"`, { stdio: "ignore" });
   }
-  // HyperFrames necesita que el clip de video tenga PISTA DE AUDIO (aunque sea silencio);
-  // si no, falla "audio_processing_failed". El audio real se pega despues con ffmpeg.
+  // Pista de audio en silencio (HyperFrames exige audio en el clip de video).
   try {
     execSync(`ffmpeg -y -i "${bg}" -f lavfi -t ${f2(total)} -i anullsrc=r=44100:cl=stereo -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -shortest short_bg_a.mp4`, { stdio: "ignore" });
-    fs.rmSync(bg, { force: true });
-    fs.renameSync("short_bg_a.mp4", bg);
+    fs.rmSync(bg, { force: true }); fs.renameSync("short_bg_a.mp4", bg);
   } catch (e) { console.error("silent audio:", e.message); }
   return bg;
 }
 
-const bgFile = await buildBg();
+// ---- Envolvente de amplitud de la voz (para que el logo PULSE con la voz) ----
+function amplitudeEnvelope() {
+  // RMS por ventana de 0.1s (10 muestras/seg) con ffmpeg astats.
+  try {
+    execSync(`ffmpeg -y -i "${audioFile}" -af "asetnsamples=4410:p=0,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=amp.txt" -f null - `, { stdio: "ignore" });
+    const txt = fs.readFileSync("amp.txt", "utf8");
+    // Captura cada RMS_level (incluye "-inf" en silencios -> amplitud 0, sin desalinear).
+    const lin = [...txt.matchAll(/RMS_level=(\S+)/g)].map((m) => {
+      const db = parseFloat(m[1]);
+      return isFinite(db) ? Math.pow(10, db / 20) : 0;
+    });
+    const max = Math.max(...lin, 1e-6);
+    return lin.map((v) => Math.min(1, v / max));
+  } catch (e) {
+    console.error("amplitude:", e.message);
+    return [];
+  }
+}
 
-// ---- Composicion HTML (HyperFrames, timeline pausada seek-safe) ----
+const bgFile = await buildBg();
+const amp = amplitudeEnvelope();
+
+// ---- Composicion HTML ----
 const els = [], tw = [];
-let sid = 0;
+// Subtitulos grandes (frase por frase, uno a la vez).
 beats.forEach((b, i) => {
   const start = +b.start || 0;
   const end = Math.min(+b.end || start + 2, total);
-  // Subtitulo GRANDE (frase) con pop-in + resalte.
   els.push(`<div class="cap" id="cap${i}"><span class="capt">${esc((b.text || "").trim())}</span></div>`);
-  tw.push(`tl.fromTo("#cap${i}",{opacity:0,scale:0.86,y:40},{opacity:1,scale:1,y:0,duration:0.3,ease:"back.out(1.7)"},${f2(start)});`);
-  tw.push(`tl.to("#cap${i}",{opacity:0,scale:1.04,duration:0.2,ease:"power1.in"},${f2(end - 0.12)});`);
-  // Numero hero si la frase menciona una cifra clave.
-  const low = (b.text || "").toLowerCase();
-  const hero = HERO.find((h) => low.includes(h.m));
-  if (hero) {
-    const id = `h${sid++}`;
-    els.push(`<div class="hero" id="${id}"><div class="hbig">${esc(hero.big)}</div><div class="hsub">${esc(hero.sub)}</div></div>`);
-    const hend = Math.min(end, start + 2.6);
-    tw.push(`tl.fromTo("#${id} .hbig",{opacity:0,scale:0.6,y:20},{opacity:1,scale:1,y:0,duration:0.45,ease:"back.out(2)"},${f2(start + 0.05)});`);
-    tw.push(`tl.fromTo("#${id} .hsub",{opacity:0},{opacity:1,duration:0.3},${f2(start + 0.25)});`);
-    tw.push(`tl.to("#${id}",{opacity:0,duration:0.3},${f2(hend)});`);
-  }
+  tw.push(`tl.set("#cap${i}",{opacity:0},0);`);
+  tw.push(`tl.fromTo("#cap${i}",{opacity:0,y:34,scale:0.94},{opacity:1,y:0,scale:1,duration:0.28,ease:"back.out(1.6)"},${f2(start)});`);
+  tw.push(`tl.to("#cap${i}",{opacity:0,duration:0.18,ease:"power1.in"},${f2(end - 0.16)});`);
 });
-// Barra de progreso.
+// Logo audio-reactivo: escala del logo + glow segun la amplitud (horneado, seek-safe).
+amp.forEach((a, i) => {
+  const t = f2(i * 0.1);
+  tw.push(`tl.to("#logo",{scale:${(1 + a * 0.20).toFixed(3)},duration:0.1,ease:"power1.out"},${t});`);
+  tw.push(`tl.to("#glow",{scale:${(1 + a * 0.55).toFixed(3)},opacity:${(0.12 + a * 0.45).toFixed(2)},duration:0.1,ease:"power1.out"},${t});`);
+});
 tw.push(`tl.fromTo("#prog",{width:"0%"},{width:"100%",duration:${f2(total)},ease:"none"},0);`);
+
+// Logo SVG de The Data Lens (lente/ojo con linea de tendencia + pupila en el pico).
+const LOGO_SVG = `<svg viewBox="0 0 220 220" width="100%" height="100%">
+  <defs><linearGradient id="lg" x1="0" y1="1" x2="1" y2="0">
+    <stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#34d399"/></linearGradient></defs>
+  <path d="M18,110 Q110,42 202,110 Q110,178 18,110 Z" fill="none" stroke="url(#lg)" stroke-width="8"/>
+  <polyline points="58,132 88,116 116,126 146,86 172,74" fill="none" stroke="url(#lg)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="172" cy="74" r="13" fill="url(#lg)"/>
+</svg>`;
 
 const bgLayer = bgFile
   ? `<video id="bg" class="clip" data-start="0" data-duration="${f2(total)}" data-track-index="0" src="${bgFile}"></video><div id="shade"></div>`
-  : `<div id="animbg"></div><div id="grid"></div>`;
+  : `<div id="animbg"></div>`;
 
 const html = `<!doctype html><html><head><meta charset="utf-8"><style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{width:${W}px;height:${H}px;overflow:hidden;background:#05070f;font-family:'Arial Black',Arial,sans-serif;color:#fff}
   #root{position:relative;width:${W}px;height:${H}px;overflow:hidden}
   #bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-  #shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,7,15,.35),rgba(5,7,15,.15) 40%,rgba(5,7,15,.65))}
-  #animbg{position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 20%,#122040,#05070f 70%)}
-  #grid{position:absolute;inset:0;background-image:linear-gradient(rgba(90,140,220,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(90,140,220,.08) 1px,transparent 1px);background-size:64px 64px}
-  #handle{position:absolute;top:70px;left:0;right:0;text-align:center;font-size:40px;font-weight:800;color:#eaf1ff;letter-spacing:1px;text-shadow:0 3px 14px rgba(0,0,0,.6)}
-  .hero{position:absolute;top:640px;left:0;right:0;text-align:center;opacity:0}
-  .hbig{font-size:230px;font-weight:900;letter-spacing:-6px;line-height:1;background:linear-gradient(90deg,#eaf1ff,#22d3ee 60%,#34d399);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 14px 44px rgba(34,211,238,.35))}
-  .hsub{font-size:52px;font-weight:800;color:#9fd6ff;margin-top:10px;letter-spacing:2px}
-  .cap{position:absolute;left:60px;right:60px;bottom:430px;text-align:center;opacity:0}
-  .capt{display:inline;font-size:76px;line-height:1.12;font-weight:900;color:#fff;letter-spacing:-1px;
-        text-shadow:0 4px 18px rgba(0,0,0,.85),0 0 2px rgba(0,0,0,.9);
-        background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,0));
-        box-decoration-break:clone;-webkit-box-decoration-break:clone;padding:6px 14px}
-  #progwrap{position:absolute;bottom:150px;left:80px;right:80px;height:12px;background:rgba(255,255,255,.14);border-radius:8px;overflow:hidden}
+  #shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,7,15,.55),rgba(5,7,15,.35) 45%,rgba(5,7,15,.8))}
+  #animbg{position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 30%,#10203f,#05070f 70%)}
+  #handle{position:absolute;top:90px;left:0;right:0;text-align:center;font-size:44px;font-weight:800;color:#eaf1ff;letter-spacing:1px;text-shadow:0 3px 16px rgba(0,0,0,.7)}
+  #logowrap{position:absolute;top:540px;left:0;right:0;display:flex;justify-content:center}
+  #glow{position:absolute;top:520px;left:50%;transform:translateX(-50%);width:560px;height:560px;border-radius:50%;
+        background:radial-gradient(circle,rgba(34,211,238,.45),rgba(34,211,238,0) 68%);opacity:.12}
+  #logo{width:440px;height:440px;filter:drop-shadow(0 18px 50px rgba(34,211,238,.35));transform-origin:center center}
+  .cap{position:absolute;left:70px;right:70px;bottom:360px;text-align:center;opacity:0}
+  .capt{display:inline;font-size:82px;line-height:1.14;font-weight:900;color:#fff;letter-spacing:-1px;
+        text-shadow:0 4px 20px rgba(0,0,0,.9),0 0 3px rgba(0,0,0,.95);
+        box-decoration-break:clone;-webkit-box-decoration-break:clone;padding:4px 10px}
+  #progwrap{position:absolute;bottom:150px;left:90px;right:90px;height:12px;background:rgba(255,255,255,.14);border-radius:8px;overflow:hidden}
   #prog{height:100%;width:0;background:linear-gradient(90deg,#22d3ee,#34d399);border-radius:8px}
 </style></head><body>
   <div id="root" data-composition-id="main" data-start="0" data-duration="${f2(total)}" data-fps="${FPS}" data-width="${W}" data-height="${H}">
     ${bgLayer}
     <div id="handle">@TheDataLensHQ</div>
+    <div id="glow"></div>
+    <div id="logowrap"><div id="logo">${LOGO_SVG}</div></div>
     ${els.join("\n    ")}
     <div id="progwrap"><div id="prog"></div></div>
   </div>
@@ -183,4 +188,4 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>
 </body></html>`;
 
 fs.writeFileSync(outHtml, html);
-console.log(`Short vertical listo: ${outHtml} (estilo ${style}, ${beats.length} frases, ${f2(total)}s, bg=${bgFile ? "b-roll" : "animacion"})`);
+console.log(`Short LOGO listo: ${outHtml} (${beats.length} frases, ${f2(total)}s, ${amp.length} muestras de amplitud, bg=${bgFile ? "b-roll" : "animacion"})`);
