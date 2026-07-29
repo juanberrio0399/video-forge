@@ -38,6 +38,8 @@ jobs:
             echo "primera vez: uso la semilla del repo"
             cp channel/seed.json state.json
           fi
+          # Plan de shorts (para contar cuantos hay subidos/publicos), si existe.
+          npx --yes wrangler@4 r2 object get "$BUCKET/shorts/0001-youtube-money/plan.json" --file=shorts_plan.json --remote 2>/dev/null || echo "sin shorts aun"
 
       - name: Generar el reporte (metricas + monetizacion)
         run: node pipeline/channel_report.mjs state.json state_new.json report.txt
