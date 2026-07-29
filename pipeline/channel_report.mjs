@@ -70,6 +70,25 @@ state.monetization.subs_pct = subsPct;
 state.monetization.hours_pct = hoursPct;
 state.monetization.elegible = subs >= 1000 && watchHours != null && watchHours >= 4000;
 
+// Conteo de Shorts (del plan en R2, si el workflow lo bajo a shorts_plan.json).
+let shortsInfo = { total: 0, uploaded: 0, public: 0 };
+try {
+  if (fs.existsSync("shorts_plan.json")) {
+    const sp = JSON.parse(fs.readFileSync("shorts_plan.json", "utf8"));
+    const arr = sp.shorts || [];
+    shortsInfo.total = arr.length;
+    const withId = arr.filter((x) => x.video_id);
+    shortsInfo.uploaded = withId.length;
+    // Verifica privacidad de cada short subido.
+    for (const s of withId) {
+      const rr = await api(`https://www.googleapis.com/youtube/v3/videos?part=status&id=${s.video_id}`);
+      const st = (rr.json.items || [])[0];
+      if (st && st.status?.privacyStatus === "public") shortsInfo.public++;
+    }
+  }
+} catch {}
+state.shorts = shortsInfo;
+
 state.channel_stats = { subs, total_views: totalViews, videos: vids };
 state.updated_at = new Date().toISOString();
 fs.writeFileSync(outStatePath, JSON.stringify(state, null, 2));
@@ -89,6 +108,8 @@ for (const v of state.published || []) {
   const s = v.stats || {};
   L.push(`• ${v.title || v.video_id} — ${v.privacy}${v.privacy === "public" ? ` · ${s.views || 0} vistas, ${s.likes || 0} likes, ${s.comments || 0} coment.` : " (sin vistas publicas hasta hacerlo Publico)"}`);
 }
+L.push(``);
+L.push(`🎬 Shorts: ${shortsInfo.uploaded} subidos (${shortsInfo.public} públicos)`);
 L.push(``);
 L.push(`*Monetizacion (YPP):*`);
 L.push(`• Subs: ${subs}/1,000 (${subsPct}%)`);
