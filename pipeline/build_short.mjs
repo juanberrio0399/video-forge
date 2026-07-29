@@ -121,14 +121,27 @@ const amp = amplitudeEnvelope();
 
 // ---- Composicion HTML ----
 const els = [], tw = [];
-// Subtitulos grandes (frase por frase, uno a la vez).
-beats.forEach((b, i) => {
+// Subtitulos en TROZOS CORTOS (3-4 palabras), UNO a la vez y sin encimarse:
+// cada trozo se PRENDE en su ventana y se APAGA (tl.set duro) antes del siguiente.
+let ck = 0;
+beats.forEach((b) => {
   const start = +b.start || 0;
   const end = Math.min(+b.end || start + 2, total);
-  els.push(`<div class="cap" id="cap${i}"><span class="capt">${esc((b.text || "").trim())}</span></div>`);
-  tw.push(`tl.set("#cap${i}",{opacity:0},0);`);
-  tw.push(`tl.fromTo("#cap${i}",{opacity:0,y:34,scale:0.94},{opacity:1,y:0,scale:1,duration:0.28,ease:"back.out(1.6)"},${f2(start)});`);
-  tw.push(`tl.to("#cap${i}",{opacity:0,duration:0.18,ease:"power1.in"},${f2(end - 0.16)});`);
+  const words = (b.text || "").trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return;
+  const PER = 4;
+  const chunks = [];
+  for (let w = 0; w < words.length; w += PER) chunks.push(words.slice(w, w + PER).join(" "));
+  const dur = Math.max(0.35, (end - start) / chunks.length);
+  chunks.forEach((txt, ci) => {
+    const cs = start + ci * dur;
+    const ce = Math.min(end, start + (ci + 1) * dur);
+    const id = `ck${ck++}`;
+    els.push(`<div class="cap" id="${id}"><span class="capt">${esc(txt)}</span></div>`);
+    tw.push(`tl.set("#${id}",{opacity:0},0);`);
+    tw.push(`tl.fromTo("#${id}",{opacity:0,scale:0.84,y:22},{opacity:1,scale:1,y:0,duration:${Math.min(0.16, dur * 0.4).toFixed(2)},ease:"back.out(2)"},${cs.toFixed(2)});`);
+    tw.push(`tl.set("#${id}",{opacity:0},${ce.toFixed(2)});`);  // apagado duro = nunca dos a la vez
+  });
 });
 // Logo audio-reactivo: escala del logo + glow segun la amplitud (horneado, seek-safe).
 amp.forEach((a, i) => {
@@ -163,10 +176,9 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>
   #glow{position:absolute;top:520px;left:50%;transform:translateX(-50%);width:560px;height:560px;border-radius:50%;
         background:radial-gradient(circle,rgba(34,211,238,.45),rgba(34,211,238,0) 68%);opacity:.12}
   #logo{width:440px;height:440px;filter:drop-shadow(0 18px 50px rgba(34,211,238,.35));transform-origin:center center}
-  .cap{position:absolute;left:70px;right:70px;bottom:360px;text-align:center;opacity:0}
-  .capt{display:inline;font-size:82px;line-height:1.14;font-weight:900;color:#fff;letter-spacing:-1px;
-        text-shadow:0 4px 20px rgba(0,0,0,.9),0 0 3px rgba(0,0,0,.95);
-        box-decoration-break:clone;-webkit-box-decoration-break:clone;padding:4px 10px}
+  .cap{position:absolute;left:80px;right:80px;top:1120px;height:520px;display:flex;align-items:center;justify-content:center;text-align:center;opacity:0}
+  .capt{font-size:96px;line-height:1.1;font-weight:900;color:#fff;letter-spacing:-1px;
+        text-shadow:0 5px 24px rgba(0,0,0,.92),0 0 3px rgba(0,0,0,.95)}
   #progwrap{position:absolute;bottom:150px;left:90px;right:90px;height:12px;background:rgba(255,255,255,.14);border-radius:8px;overflow:hidden}
   #prog{height:100%;width:0;background:linear-gradient(90deg,#22d3ee,#34d399);border-radius:8px}
 </style></head><body>
