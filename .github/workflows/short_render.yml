@@ -71,12 +71,13 @@ jobs:
             const beats=(timing.beats||[]).filter(b=>b.end>A+0.05 && b.start<B-0.05)
               .map(b=>({text:b.text, start:+(Math.max(A,b.start)-A).toFixed(3), end:+(Math.min(B,b.end)-A).toFixed(3)}));
             fs.writeFileSync("beats.json", JSON.stringify({total:+(B-A).toFixed(3), beats}, null, 2));
-            fs.writeFileSync("seg.txt", A+" "+B+"\n");
-            console.log("Short "+process.env.IDX+": "+A+"-"+B+"s, "+beats.length+" frases");
+            fs.writeFileSync("seg.txt", A+" "+(B-A).toFixed(3)+"\n");
+            console.log("Short "+process.env.IDX+": "+A+"-"+B+"s ("+(B-A).toFixed(1)+"s), "+beats.length+" frases");
           '
-          IFS=' ' read -r A B < seg.txt || true
-          echo "segmento: $A -> $B"
-          ffmpeg -y -ss "$A" -to "$B" -i voiceover.mp3 short.mp3
+          IFS=' ' read -r A DUR < seg.txt || true
+          echo "segmento: inicio $A · duracion $DUR"
+          ffmpeg -y -ss "$A" -i voiceover.mp3 -t "$DUR" -c:a libmp3lame -b:a 192k -ar 44100 -ac 2 short.mp3
+          ffprobe -v error -show_entries format=duration -of default=nk=1:nw=1 short.mp3 || true
           ls -la beats.json short.mp3
 
       - name: Construir la composicion vertical + render
