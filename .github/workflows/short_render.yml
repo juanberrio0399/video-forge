@@ -85,8 +85,10 @@ jobs:
           node pipeline/build_short.mjs beats.json index.html short.mp3 "$STYLE"
           npx --yes hyperframes@${HF_VERSION} render --quality standard --workers auto -o short_silent.mp4 2>&1 | tail -20
           echo "=== resolucion del render (mudo) ==="; ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 short_silent.mp4 || true
-          # El audio se pega DESPUES con ffmpeg (HyperFrames rechazaba el audio embebido).
-          ffmpeg -y -i short_silent.mp4 -i short.mp3 -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 160k -shortest -movflags +faststart short.mp4
+          # QUEMAR subtitulos (.ass, uno a la vez) + pegar el audio, en una sola pasada.
+          # (HyperFrames no ocultaba bien el texto al seek; libass si -> a prueba de balas.)
+          ls -la captions.ass && head -20 captions.ass || echo "sin captions.ass"
+          ffmpeg -y -i short_silent.mp4 -i short.mp3 -filter_complex "[0:v]subtitles=captions.ass[v]" -map "[v]" -map 1:a:0 -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest -movflags +faststart short.mp4
           echo "=== resolucion final ==="; ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 short.mp4 || true
           ls -la short.mp4
 
