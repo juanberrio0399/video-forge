@@ -106,6 +106,13 @@ async function buildBg() {
     filter = filter.replace(/;$/, "");
     execSync(`ffmpeg -y ${inputs} -filter_complex "${filter}" -map "${acc}" -t ${f2(total)} -r ${FPS} -c:v libx264 -preset veryfast -pix_fmt yuv420p "${bg}"`, { stdio: "ignore" });
   }
+  // HyperFrames necesita que el clip de video tenga PISTA DE AUDIO (aunque sea silencio);
+  // si no, falla "audio_processing_failed". El audio real se pega despues con ffmpeg.
+  try {
+    execSync(`ffmpeg -y -i "${bg}" -f lavfi -t ${f2(total)} -i anullsrc=r=44100:cl=stereo -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -shortest short_bg_a.mp4`, { stdio: "ignore" });
+    fs.rmSync(bg, { force: true });
+    fs.renameSync("short_bg_a.mp4", bg);
+  } catch (e) { console.error("silent audio:", e.message); }
   return bg;
 }
 
