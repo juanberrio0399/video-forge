@@ -71,11 +71,12 @@ jobs:
             const beats=(timing.beats||[]).filter(b=>b.end>A+0.05 && b.start<B-0.05)
               .map(b=>({text:b.text, start:+(Math.max(A,b.start)-A).toFixed(3), end:+(Math.min(B,b.end)-A).toFixed(3)}));
             fs.writeFileSync("beats.json", JSON.stringify({total:+(B-A).toFixed(3), beats}, null, 2));
-            fs.writeFileSync("seg.txt", A+" "+B);
+            fs.writeFileSync("seg.txt", A+" "+B+"\n");
             console.log("Short "+process.env.IDX+": "+A+"-"+B+"s, "+beats.length+" frases");
           '
-          read A B < seg.txt
-          ffmpeg -y -ss "$A" -to "$B" -i voiceover.mp3 -c copy short.mp3 || ffmpeg -y -ss "$A" -to "$B" -i voiceover.mp3 short.mp3
+          IFS=' ' read -r A B < seg.txt || true
+          echo "segmento: $A -> $B"
+          ffmpeg -y -ss "$A" -to "$B" -i voiceover.mp3 short.mp3
           ls -la beats.json short.mp3
 
       - name: Construir la composicion vertical + render
