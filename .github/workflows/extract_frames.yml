@@ -1,0 +1,44 @@
+name: Extraer frames de un video (para inspeccionar)
+
+on:
+  workflow_dispatch:
+    inputs:
+      key:
+        description: "Ruta en R2 del video (ej: video/shorts_test/short.mp4)"
+        required: true
+        default: "video/shorts_test/short.mp4"
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  frames:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Bajar el video de R2
+        run: npx --yes wrangler@4 r2 object get "$BUCKET/${{ github.event.inputs.key }}" --file=v.mp4 --remote
+      - name: Extraer frames
+        run: |
+          mkdir -p frames
+          DUR=$(ffprobe -v error -show_entries format=duration -of default=nk=1:nw=1 v.mp4)
+          echo "duracion=$DUR"
+          for t in 1 5 12 20 30; do
+            ffmpeg -y -ss $t -i v.mp4 -frames:v 1 -q:v 3 "frames/f_${t}s.jpg" 2>/dev/null || true
+          done
+          ls -la frames/
+      - name: Subir frames
+        uses: actions/upload-artifact@v4
+        with:
+          name: short_frames
+          path: frames/**
+          if-no-files-found: error
+          retention-days: 3
