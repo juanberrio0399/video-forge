@@ -165,7 +165,6 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     <div id="handle">@TheDataLensHQ</div>
     ${els.join("\n    ")}
     <div id="progwrap"><div id="prog"></div></div>
-    <audio id="voz" class="clip" data-start="0" data-duration="${f2(total)}" data-track-index="9" src="${audioFile}"></audio>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
   <script>
