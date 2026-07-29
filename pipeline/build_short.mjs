@@ -137,10 +137,13 @@ beats.forEach((b) => {
     const cs = start + ci * dur;
     const ce = Math.min(end, start + (ci + 1) * dur);
     const id = `ck${ck++}`;
+    const fadeIn = Math.min(0.14, dur * 0.35);
+    const fadeOut = Math.min(0.12, dur * 0.3);
     els.push(`<div class="cap" id="${id}"><span class="capt">${esc(txt)}</span></div>`);
-    tw.push(`tl.set("#${id}",{opacity:0},0);`);
-    tw.push(`tl.fromTo("#${id}",{opacity:0,scale:0.84,y:22},{opacity:1,scale:1,y:0,duration:${Math.min(0.16, dur * 0.4).toFixed(2)},ease:"back.out(2)"},${cs.toFixed(2)});`);
-    tw.push(`tl.set("#${id}",{opacity:0},${ce.toFixed(2)});`);  // apagado duro = nunca dos a la vez
+    // MISMO patron que el video largo (que si oculta bien al saltar frames): fromTo entra,
+    // to sale. NADA de tl.set (HyperFrames no lo re-oculta al seek -> se quedaban todos).
+    tw.push(`tl.fromTo("#${id}",{opacity:0,scale:0.84,y:22},{opacity:1,scale:1,y:0,duration:${fadeIn.toFixed(2)},ease:"back.out(2)"},${cs.toFixed(2)});`);
+    tw.push(`tl.to("#${id}",{opacity:0,duration:${fadeOut.toFixed(2)},ease:"power1.in"},${(ce - fadeOut).toFixed(2)});`);
   });
 });
 // Logo audio-reactivo: escala del logo + glow segun la amplitud (horneado, seek-safe).
