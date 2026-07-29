@@ -80,10 +80,13 @@ jobs:
           ffprobe -v error -show_entries format=duration -of default=nk=1:nw=1 short.mp3 || true
           ls -la beats.json short.mp3
 
-      - name: Construir la composicion vertical + render
+      - name: Construir la composicion vertical + render (mudo) + pegar audio
         run: |
           node pipeline/build_short.mjs beats.json index.html short.mp3 "$STYLE"
-          npx --yes hyperframes@${HF_VERSION} render --quality standard --workers auto -o short.mp4 2>&1 | tail -20
+          npx --yes hyperframes@${HF_VERSION} render --quality standard --workers auto -o short_silent.mp4 2>&1 | tail -20
+          ls -la short_silent.mp4
+          # El audio se pega DESPUES con ffmpeg (HyperFrames rechazaba el audio embebido).
+          ffmpeg -y -i short_silent.mp4 -i short.mp3 -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 160k -shortest -movflags +faststart short.mp4
           ls -la short.mp4
 
       - name: Enviar el short al chat
