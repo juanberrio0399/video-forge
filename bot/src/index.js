@@ -340,6 +340,14 @@ async function handleCallback(cb, env) {
         const r = await ghDispatch(env, "render_phased.yml", {});
         return ack(env, chatId, r, "Regenerando por fases");
       }
+      if (data.startsWith("short_pub:")) {
+        const vid = data.slice("short_pub:".length);
+        const r = await ghDispatch(env, "set_privacy.yml", { video_id: vid, privacy: "public" });
+        return ack(env, chatId, r, `Publicando el short (${vid})`);
+      }
+      if (data.startsWith("short_keep:")) {
+        return tg(env, "sendMessage", { chat_id: chatId, text: "⏸️ Listo, ese short queda privado. Puedes publicarlo después." });
+      }
       if (data.startsWith("short_ok:") || data.startsWith("short_no:")) {
         const n = parseInt(data.split(":")[1], 10);
         const approved = data.startsWith("short_ok:");
