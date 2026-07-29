@@ -340,6 +340,14 @@ async function handleCallback(cb, env) {
         const r = await ghDispatch(env, "render_phased.yml", {});
         return ack(env, chatId, r, "Regenerando por fases");
       }
+      if (data === "short_style_ok") {
+        return tg(env, "sendMessage", { chat_id: chatId, text: "👍 Perfecto, con ese estilo. Dime cuando quieras y genero los 3 shorts así, nativos en vertical." });
+      }
+      if (data === "short_style_next") {
+        if (await busyGuard(env, chatId)) return;
+        const r = await ghDispatch(env, "short_render.yml", { short_index: "0", style: "animation" });
+        return ack(env, chatId, r, "Probando el short con estilo animación limpia");
+      }
       if (data.startsWith("short_pub:")) {
         const vid = data.slice("short_pub:".length);
         const r = await ghDispatch(env, "set_privacy.yml", { video_id: vid, privacy: "public" });
