@@ -1,0 +1,95 @@
+name: Short PRO vertical (prueba de 1)
+
+# Renderiza UN short NATIVO en vertical 9:16 (no recicla el video horizontal): fondo
+# a pantalla completa + subtitulos grandes + numeros hero. Lo manda al chat para revisar.
+
+on:
+  workflow_dispatch:
+    inputs:
+      short_index:
+        description: "Cual short del plan (0,1,2...)"
+        required: false
+        default: "0"
+      style:
+        description: "broll | animation | hybrid"
+        required: false
+        default: "broll"
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+  PROJECT: "0001-youtube-money"
+  HF_VERSION: "0.7.68"
+
+jobs:
+  short:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CI: "true"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      IDX: ${{ github.event.inputs.short_index || '0' }}
+      STYLE: ${{ github.event.inputs.style || 'broll' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: FFmpeg + libs de Chrome
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+            libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+            libgbm1 libpango-1.0-0 libcairo2 fonts-liberation \
+            libasound2t64 || sudo apt-get install -y libasound2
+
+      - name: Avisar arranque
+        run: bash pipeline/notify_telegram.sh "🎬 Renderizando un Short PRO de prueba (vertical nativo, estilo ${STYLE}). Te lo mando para que lo veas."
+
+      - name: Bajar voz + tiempos + plan de shorts
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/voiceover.mp3" --file=voiceover.mp3 --remote
+          npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing.json --remote
+          npx --yes wrangler@4 r2 object get "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote
+
+      - name: Preparar el segmento del short (beats + audio)
+        run: |
+          node -e '
+            const fs=require("fs");
+            const plan=JSON.parse(fs.readFileSync("plan.json","utf8"));
+            const timing=JSON.parse(fs.readFileSync("timing.json","utf8"));
+            const s=plan.shorts[+process.env.IDX];
+            if(!s){ console.error("No existe el short "+process.env.IDX); process.exit(1); }
+            const A=s.start, B=s.end;
+            const beats=(timing.beats||[]).filter(b=>b.end>A+0.05 && b.start<B-0.05)
+              .map(b=>({text:b.text, start:+(Math.max(A,b.start)-A).toFixed(3), end:+(Math.min(B,b.end)-A).toFixed(3)}));
+            fs.writeFileSync("beats.json", JSON.stringify({total:+(B-A).toFixed(3), beats}, null, 2));
+            fs.writeFileSync("seg.txt", A+" "+B);
+            console.log("Short "+process.env.IDX+": "+A+"-"+B+"s, "+beats.length+" frases");
+          '
+          read A B < seg.txt
+          ffmpeg -y -ss "$A" -to "$B" -i voiceover.mp3 -c copy short.mp3 || ffmpeg -y -ss "$A" -to "$B" -i voiceover.mp3 short.mp3
+          ls -la beats.json short.mp3
+
+      - name: Construir la composicion vertical + render
+        run: |
+          node pipeline/build_short.mjs beats.json index.html short.mp3 "$STYLE"
+          npx --yes hyperframes@${HF_VERSION} render --quality standard --workers auto -o short.mp4 2>&1 | tail -20
+          ls -la short.mp4
+
+      - name: Enviar el short al chat
+        if: always()
+        run: |
+          if [ -s short.mp4 ]; then
+            MK='{"inline_keyboard":[[{"text":"👍 Así me gusta","callback_data":"short_style_ok"},{"text":"🔁 Otro estilo","callback_data":"short_style_next"}]]}'
+            bash pipeline/notify_telegram.sh "🎬 Short PRO de prueba (vertical nativo, estilo ${STYLE}). ¿Así te gusta el formato o probamos otro estilo?" short.mp4 "$MK"
+          else
+            bash pipeline/notify_telegram.sh "❌ No pude renderizar el short de prueba (revisa el log)."
+          fi
