@@ -88,14 +88,19 @@ for (const s of approved) {
     const desc = [s.caption || s.hook || s.title, "", (s.hashtags || []).join(" "), "#Shorts", "", `▶️ ${HANDLE}`].join("\n");
     const id = await uploadShort(token, out, `${s.title} #Shorts`, desc);
     s.video_id = id; s.uploaded_at = new Date().toISOString();
-    done.push({ n: s.n, title: s.title, url: `https://youtu.be/${id}` });
+    done.push({ n: s.n, title: s.title, video_id: id, url: `https://youtu.be/${id}` });
     console.log(`Short #${s.n + 1} subido: https://youtu.be/${id}`);
   } catch (e) {
     console.error(`Short #${s.n + 1} fallo: ${e.message}`);
   }
 }
 fs.writeFileSync(outPlan, JSON.stringify(plan, null, 2));
-fs.writeFileSync("shorts_result.txt", done.length
-  ? `✅ ${done.length} Short(s) subido(s) a YouTube (PRIVADOS):\n` + done.map((d) => `• ${d.title}\n  ${d.url}`).join("\n") + `\n\nRevisalos y hazlos Publicos cuando quieras.`
-  : `⚠️ No se genero ningun Short (¿ninguno aprobado, o ya estaban subidos?).`);
+// Manda CADA short aprobado que YA esta subido (los nuevos + los de antes), con su link.
+const uploaded = (plan.shorts || [])
+  .filter((s) => s.approved && s.video_id)
+  .map((s) => ({ n: s.n, title: s.title, video_id: s.video_id, url: `https://youtu.be/${s.video_id}` }));
+fs.writeFileSync("shorts_uploaded.json", JSON.stringify(uploaded, null, 2));
+fs.writeFileSync("shorts_result.txt", uploaded.length
+  ? `✅ ${uploaded.length} Short(s) listo(s) como PRIVADOS${done.length ? ` (${done.length} nuevo(s))` : ""}. Te mando cada uno con su link para revisarlo y aprobarlo (publicar).`
+  : `⚠️ No hay Shorts para mostrar (¿ninguno aprobado?).`);
 console.log("---\n" + fs.readFileSync("shorts_result.txt", "utf8"));

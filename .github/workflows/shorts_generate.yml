@@ -1,7 +1,8 @@
 name: Shorts — generar y subir los aprobados
 
 # Genera los Shorts que Juan aprobo (9:16, con titulo y handle) y los sube a YouTube
-# como PRIVADOS. Lee el plan de R2 (con los aprobados) y el video final.
+# como PRIVADOS. Lee el plan de R2 (con los aprobados) y el video final. Luego manda
+# cada short al chat con su link + boton Publicar (Juan aprueba uno por uno).
 
 on:
   workflow_dispatch:
@@ -34,7 +35,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation fonts-dejavu-core
 
       - name: Avisar arranque
-        run: bash pipeline/notify_telegram.sh "🎬 Generando los Shorts aprobados (9:16) y subiéndolos. Te mando los links al terminar."
+        run: bash pipeline/notify_telegram.sh "🎬 Generando los Shorts aprobados (9:16). Cuando esten, te mando cada uno con su link para revisarlo y aprobarlo."
 
       - name: Bajar plan (aprobados) + video de R2
         run: |
@@ -49,11 +50,20 @@ jobs:
         if: always()
         run: npx --yes wrangler@4 r2 object put "$BUCKET/shorts/$PROJECT/plan.json" --file=plan_new.json --remote || true
 
-      - name: Avisar resultado
+      - name: Enviar cada short con su link + boton Publicar
         if: always()
         run: |
-          if [ -f shorts_result.txt ]; then
-            bash pipeline/notify_telegram.sh "$(cat shorts_result.txt)"
-          else
-            bash pipeline/notify_telegram.sh "❌ Falló la generación de Shorts."
+          if [ -f shorts_result.txt ]; then bash pipeline/notify_telegram.sh "$(cat shorts_result.txt)"; fi
+          if [ -f shorts_uploaded.json ]; then
+            COUNT=$(node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync('shorts_uploaded.json','utf8')).length))")
+            i=0
+            while [ "$i" -lt "$COUNT" ]; do
+              MSG=$(IDX=$i node -e 'const d=JSON.parse(require("fs").readFileSync("shorts_uploaded.json","utf8"))[+process.env.IDX];process.stdout.write("🎬 Short #"+(d.n+1)+": "+d.title+"\n▶️ Mira el short (privado): "+d.url+"\n\n¿Lo apruebo y lo dejo PUBLICO?")')
+              MK=$(IDX=$i node -e 'const d=JSON.parse(require("fs").readFileSync("shorts_uploaded.json","utf8"))[+process.env.IDX];process.stdout.write(JSON.stringify({inline_keyboard:[[{text:"▶️ Ver el short",url:d.url}],[{text:"✅ Publicar",callback_data:"short_pub:"+d.video_id},{text:"⏸️ Dejar privado",callback_data:"short_keep:"+d.video_id}]]}))')
+              bash pipeline/notify_telegram.sh "$MSG" "" "$MK"
+              i=$((i+1))
+            done
+          fi
+          if [ ! -f shorts_result.txt ] && [ ! -f shorts_uploaded.json ]; then
+            bash pipeline/notify_telegram.sh "❌ Fallo la generacion de Shorts."
           fi
