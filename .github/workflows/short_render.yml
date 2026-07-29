@@ -84,10 +84,15 @@ jobs:
         run: |
           node pipeline/build_short.mjs beats.json index.html short.mp3 "$STYLE"
           npx --yes hyperframes@${HF_VERSION} render --quality standard --workers auto -o short_silent.mp4 2>&1 | tail -20
-          ls -la short_silent.mp4
+          echo "=== resolucion del render (mudo) ==="; ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 short_silent.mp4 || true
           # El audio se pega DESPUES con ffmpeg (HyperFrames rechazaba el audio embebido).
           ffmpeg -y -i short_silent.mp4 -i short.mp3 -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 160k -shortest -movflags +faststart short.mp4
+          echo "=== resolucion final ==="; ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 short.mp4 || true
           ls -la short.mp4
+
+      - name: Guardar el short en R2 (para inspeccionarlo)
+        if: ${{ hashFiles('short.mp4') != '' }}
+        run: npx --yes wrangler@4 r2 object put "$BUCKET/video/shorts_test/short.mp4" --file=short.mp4 --remote
 
       - name: Enviar el short al chat
         if: always()
