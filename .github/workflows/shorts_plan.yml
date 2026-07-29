@@ -1,0 +1,61 @@
+name: Shorts — analisis IA (sugiere cuantos y cuales)
+
+# La IA analiza el video y sugiere los Shorts (cuantos, momentos, largo, hashtags).
+# Manda cada short al chat con botones Aprobar/Saltar. Juan aprueba uno por uno.
+# No genera nada aqui: solo propone el plan (se guarda en R2).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+  PROJECT: "0001-youtube-money"
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Avisar arranque
+        run: bash pipeline/notify_telegram.sh "🎬 Analizando el video para sugerir Shorts (cuántos, de qué momentos y qué tan largos). Ya te muestro las propuestas."
+
+      - name: Bajar tiempos de R2
+        run: npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing.json --remote || echo "sin timing"
+
+      - name: Analizar y proponer los shorts
+        run: node pipeline/shorts_plan.mjs "projects/$PROJECT/voicemap_full.json" timing.json plan.json
+
+      - name: Guardar el plan en R2
+        run: npx --yes wrangler@4 r2 object put "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote
+
+      - name: Enviar cada short al chat con Aprobar/Saltar
+        run: |
+          REASON=$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('plan.json','utf8')).reasoning||'')")
+          N=$(node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync('plan.json','utf8')).shorts.length))")
+          bash pipeline/notify_telegram.sh "🎬 Propuesta de Shorts — la IA sugiere $N. $REASON"$'\n\n'"Te muestro uno por uno; aprueba los que quieras."
+          COUNT=$(node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync('plan.json','utf8')).shorts.length))")
+          for i in $(seq 0 $((COUNT-1))); do
+            MSG=$(PLAN_I=$i node -e '
+              const p=JSON.parse(require("fs").readFileSync("plan.json","utf8"));
+              const s=p.shorts[+process.env.PLAN_I];
+              const mmss=(x)=>`${String(Math.floor(x/60)).padStart(2,"0")}:${String(x%60).padStart(2,"0")}`;
+              process.stdout.write(`🎬 Short #${s.n+1}: ${s.title}\n⏱️ ${mmss(s.start)}–${mmss(s.end)} (${s.dur}s)\n🪝 ${s.hook}\n#️⃣ ${(s.hashtags||[]).join(" ")}\n📝 ${s.caption}`);
+            ')
+            MK=$(node -e "process.stdout.write(JSON.stringify({inline_keyboard:[[{text:'✅ Aprobar short '+($i+1),callback_data:'short_ok:$i'},{text:'❌ Saltar',callback_data:'short_no:$i'}]]}))")
+            bash pipeline/notify_telegram.sh "$MSG" "" "$MK"
+          done
+          bash pipeline/notify_telegram.sh "Cuando apruebes los que quieras, dime /generarshorts y los armo (9:16, con subtítulos) y los subo."

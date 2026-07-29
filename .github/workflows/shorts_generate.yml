@@ -1,0 +1,59 @@
+name: Shorts — generar y subir los aprobados
+
+# Genera los Shorts que Juan aprobo (9:16, con titulo y handle) y los sube a YouTube
+# como PRIVADOS. Lee el plan de R2 (con los aprobados) y el video final.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+  PROJECT: "0001-youtube-money"
+
+jobs:
+  gen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: FFmpeg + fuentes
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation fonts-dejavu-core
+
+      - name: Avisar arranque
+        run: bash pipeline/notify_telegram.sh "🎬 Generando los Shorts aprobados (9:16) y subiéndolos. Te mando los links al terminar."
+
+      - name: Bajar plan (aprobados) + video de R2
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote
+          npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/video.mp4" --file=video.mp4 --remote
+          ls -la plan.json video.mp4
+
+      - name: Generar y subir los shorts aprobados
+        run: node pipeline/shorts_generate.mjs plan.json video.mp4 plan_new.json
+
+      - name: Guardar el plan actualizado en R2
+        if: always()
+        run: npx --yes wrangler@4 r2 object put "$BUCKET/shorts/$PROJECT/plan.json" --file=plan_new.json --remote || true
+
+      - name: Avisar resultado
+        if: always()
+        run: |
+          if [ -f shorts_result.txt ]; then
+            bash pipeline/notify_telegram.sh "$(cat shorts_result.txt)"
+          else
+            bash pipeline/notify_telegram.sh "❌ Falló la generación de Shorts."
+          fi

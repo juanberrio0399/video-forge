@@ -209,6 +209,20 @@ async function handleMessage(message, env) {
       return ack(env, chatId, r, "Reporte del canal (métricas frescas de YouTube)");
     }
 
+    case "/shorts": {
+      if (await busyGuard(env, chatId)) return;
+      const r = await ghDispatch(env, "shorts_plan.yml", {});
+      return ack(env, chatId, r, "Análisis de Shorts (la IA sugiere cuántos y cuáles)");
+    }
+
+    case "/generarshorts": {
+      if (await busyGuard(env, chatId)) return;
+      const napp = await countApprovedShorts(env);
+      if (!napp) return tg(env, "sendMessage", { chat_id: chatId, text: "No hay shorts aprobados aún. Corre /shorts, aprueba los que quieras y luego /generarshorts." });
+      const r = await ghDispatch(env, "shorts_generate.yml", {});
+      return ack(env, chatId, r, `Generando ${napp} short(s) aprobado(s)`);
+    }
+
     case "/listo":
       // Solo tiene sentido en modo receta; si llega aca es que no habia receta activa.
       return tg(env, "sendMessage", { chat_id: chatId, text: "No hay una receta activa. Empieza con /receta." });
@@ -252,6 +266,11 @@ async function handleCallback(cb, env) {
       if (await busyGuard(env, chatId)) return;
       const r = await ghDispatch(env, "channel_report.yml", {});
       return ack(env, chatId, r, "Reporte del canal (métricas frescas de YouTube)");
+    }
+    case "shorts_plan": {
+      if (await busyGuard(env, chatId)) return;
+      const r = await ghDispatch(env, "shorts_plan.yml", {});
+      return ack(env, chatId, r, "Análisis de Shorts (la IA sugiere cuántos y cuáles)");
     }
     case "nuevo":
       return tg(env, "sendMessage", {
@@ -321,6 +340,17 @@ async function handleCallback(cb, env) {
         const r = await ghDispatch(env, "render_phased.yml", {});
         return ack(env, chatId, r, "Regenerando por fases");
       }
+      if (data.startsWith("short_ok:") || data.startsWith("short_no:")) {
+        const n = parseInt(data.split(":")[1], 10);
+        const approved = data.startsWith("short_ok:");
+        const ok = await markShort(env, n, approved);
+        return tg(env, "sendMessage", {
+          chat_id: chatId,
+          text: ok
+            ? (approved ? `✅ Short #${n + 1} aprobado. Cuando termines, /generarshorts para armarlos.` : `❌ Short #${n + 1} saltado.`)
+            : "No pude actualizar el short (¿corriste /shorts primero?).",
+        });
+      }
       if (data.startsWith("change:")) {
         return tg(env, "sendMessage", {
           chat_id: chatId,
@@ -348,6 +378,7 @@ const KB = {
     inline_keyboard: [
       [{ text: "📋 Ver panel (programación)", callback_data: "panel" }],
       [{ text: "🔄 Reporte fresco (métricas)", callback_data: "reporte" }],
+      [{ text: "🎬 Sugerir Shorts (IA)", callback_data: "shorts_plan" }],
       [{ text: "⬅️ Volver", callback_data: "menu:home" }],
     ],
   },
@@ -394,6 +425,7 @@ async function sendMenu(env, chatId) {
       { command: "receta", description: "🍳 Armar un reel de receta" },
       { command: "panel", description: "📊 Panel del canal (programación)" },
       { command: "reporte", description: "🔄 Reporte de métricas del canal" },
+      { command: "shorts", description: "🎬 Sugerir Shorts del último video" },
       { command: "estado", description: "⏳ Qué se hace ahora" },
     ],
   });
@@ -435,6 +467,33 @@ async function listVoices(env, cb) {
 
 function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// ---- Shorts: aprobar/saltar cada short propuesto (actualiza el plan en R2) ----
+const SHORTS_KEY = "shorts/0001-youtube-money/plan.json";
+
+async function markShort(env, n, approved) {
+  if (!env.R2) return false;
+  const o = await env.R2.get(SHORTS_KEY);
+  if (!o) return false;
+  let plan;
+  try { plan = JSON.parse(await o.text()); } catch { return false; }
+  const s = (plan.shorts || []).find((x) => x.n === n);
+  if (!s) return false;
+  s.approved = approved;
+  s.skipped = !approved;
+  await env.R2.put(SHORTS_KEY, JSON.stringify(plan), { httpMetadata: { contentType: "application/json" } });
+  return true;
+}
+
+async function countApprovedShorts(env) {
+  if (!env.R2) return 0;
+  const o = await env.R2.get(SHORTS_KEY);
+  if (!o) return 0;
+  try {
+    const plan = JSON.parse(await o.text());
+    return (plan.shorts || []).filter((x) => x.approved && !x.video_id).length;
+  } catch { return 0; }
 }
 
 // Panel de direccion: lee el estado del canal (channel/state.json en R2) y muestra
