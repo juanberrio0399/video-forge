@@ -121,9 +121,14 @@ const amp = amplitudeEnvelope();
 
 // ---- Composicion HTML ----
 const els = [], tw = [];
-// Subtitulos en TROZOS CORTOS (3-4 palabras), UNO a la vez y sin encimarse:
-// cada trozo se PRENDE en su ventana y se APAGA (tl.set duro) antes del siguiente.
-let ck = 0;
+// SUBTITULOS -> se generan como .ass y se QUEMAN con ffmpeg despues del render.
+// (GSAP no ocultaba bien el texto al saltar de frame en HyperFrames -> se encimaban
+// todos. ffmpeg/libass muestra exactamente UNO a la vez por su timing: a prueba de balas.)
+function assTime(s) {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return `${h}:${String(m).padStart(2, "0")}:${sec.toFixed(2).padStart(5, "0")}`;
+}
+const dia = [];
 beats.forEach((b) => {
   const start = +b.start || 0;
   const end = Math.min(+b.end || start + 2, total);
@@ -136,16 +141,26 @@ beats.forEach((b) => {
   chunks.forEach((txt, ci) => {
     const cs = start + ci * dur;
     const ce = Math.min(end, start + (ci + 1) * dur);
-    const id = `ck${ck++}`;
-    const fadeIn = Math.min(0.14, dur * 0.35);
-    const fadeOut = Math.min(0.12, dur * 0.3);
-    els.push(`<div class="cap" id="${id}"><span class="capt">${esc(txt)}</span></div>`);
-    // MISMO patron que el video largo (que si oculta bien al saltar frames): fromTo entra,
-    // to sale. NADA de tl.set (HyperFrames no lo re-oculta al seek -> se quedaban todos).
-    tw.push(`tl.fromTo("#${id}",{opacity:0,scale:0.84,y:22},{opacity:1,scale:1,y:0,duration:${fadeIn.toFixed(2)},ease:"back.out(2)"},${cs.toFixed(2)});`);
-    tw.push(`tl.to("#${id}",{opacity:0,duration:${fadeOut.toFixed(2)},ease:"power1.in"},${(ce - fadeOut).toFixed(2)});`);
+    dia.push(`Dialogue: 0,${assTime(cs)},${assTime(ce)},Def,,0,0,0,,${txt.replace(/[\r\n]+/g, " ")}`);
   });
 });
+// Estilo: grande, blanco, borde negro grueso, negrita, centrado abajo (bajo el logo).
+const ass = `[Script Info]
+ScriptType: v4.00+
+PlayResX: ${W}
+PlayResY: ${H}
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Def,Liberation Sans,96,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,7,4,2,90,90,360,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+${dia.join("\n")}
+`;
+fs.writeFileSync("captions.ass", ass);
+console.log(`captions.ass: ${dia.length} trozos`);
 // Logo audio-reactivo: escala del logo + glow segun la amplitud (horneado, seek-safe).
 amp.forEach((a, i) => {
   const t = f2(i * 0.1);
