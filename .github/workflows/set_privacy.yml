@@ -1,0 +1,61 @@
+name: Cambiar privacidad de un video (publicar / ocultar)
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: "ID del video"
+        required: true
+        default: "VRqt4sz8N68"
+      privacy:
+        description: "public | private | unlisted"
+        required: false
+        default: "public"
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  setpriv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Cambiar privacidad
+        run: node pipeline/youtube_privacy.mjs "${{ github.event.inputs.video_id }}" "${{ github.event.inputs.privacy }}"
+
+      - name: Actualizar el estado del canal en R2
+        if: ${{ github.event.inputs.privacy == 'public' }}
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/state.json" --file=state.json --remote 2>/dev/null || cp channel/seed.json state.json
+          node -e '
+            const fs=require("fs"); const s=JSON.parse(fs.readFileSync("state.json","utf8"));
+            const v=(s.published||[]).find(x=>x.video_id==="${{ github.event.inputs.video_id }}");
+            if(v){ v.privacy="public"; }
+            fs.writeFileSync("state.json", JSON.stringify(s,null,2));
+          '
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/state.json" --file=state.json --remote
+
+      - name: Avisar al chat
+        if: always()
+        run: |
+          if [ -f privacy_result.txt ]; then
+            bash pipeline/notify_telegram.sh "$(cat privacy_result.txt)"$'\n\n'"El canal ya empieza a sumar vistas y horas. Corre /reporte en un rato para ver la tracción."
+          else
+            bash pipeline/notify_telegram.sh "❌ No pude cambiar la privacidad del video."
+          fi
