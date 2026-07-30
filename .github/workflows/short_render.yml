@@ -93,7 +93,7 @@ jobs:
           VOICE: ${{ github.event.inputs.voice || 'Charon' }}
         run: |
           # Texto del short (de beats.json) -> narracion nueva con voz de locutor.
-          node -e 'const b=JSON.parse(require("fs").readFileSync("beats.json","utf8"));require("fs").writeFileSync("text.txt",(b.beats||[]).map(x=>(x.text||"").trim()).filter(Boolean).join(" "))'
+          node -e 'const b=JSON.parse(require("fs").readFileSync("beats.json","utf8"));require("fs").writeFileSync("text.txt",(b.beats||[]).filter(x=>((+x.end||0)-(+x.start||0))>=0.4).map(x=>(x.text||"").trim()).filter(Boolean).join(" "))'
           echo "Texto:"; cat text.txt
           if node pipeline/gemini_tts.mjs text.txt tts.mp3 "$VOICE"; then
             mv tts.mp3 short.mp3
