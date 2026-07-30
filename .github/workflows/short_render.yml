@@ -18,6 +18,10 @@ on:
         description: "Voz de locutor Gemini TTS (Charon, Rasalgethi, Iapetus, Alnilam, Orus)"
         required: false
         default: "Charon"
+      music_vibe:
+        description: "Musica de fondo: cinematic | tension | electronic | none"
+        required: false
+        default: "cinematic"
 
 permissions:
   contents: read
@@ -110,15 +114,28 @@ jobs:
           python pipeline/whisper_words.py short.mp3 words.json || echo "whisper fallo; sigo sin karaoke"
           head -c 400 words.json 2>/dev/null || echo "sin words.json"
 
-      - name: Construir la composicion vertical + render (mudo) + pegar audio
+      - name: Bajar musica de fondo (por vibe)
+        env:
+          VIBE: ${{ github.event.inputs.music_vibe || 'cinematic' }}
+        run: |
+          if [ "$VIBE" != "none" ]; then
+            npx --yes wrangler@4 r2 object get "$BUCKET/music/$VIBE.mp3" --file=music.mp3 --remote 2>/dev/null && echo "musica: $VIBE" || echo "sin musica ($VIBE)"
+          fi
+
+      - name: Construir la composicion vertical + render (mudo) + pegar audio + musica
         run: |
           node pipeline/build_short.mjs beats.json index.html short.mp3 "$STYLE"
           npx --yes hyperframes@${HF_VERSION} render --quality standard --workers auto -o short_silent.mp4 2>&1 | tail -20
           echo "=== resolucion del render (mudo) ==="; ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 short_silent.mp4 || true
-          # QUEMAR subtitulos (.ass, uno a la vez) + pegar el audio, en una sola pasada.
-          # (HyperFrames no ocultaba bien el texto al seek; libass si -> a prueba de balas.)
-          ls -la captions.ass && head -20 captions.ass || echo "sin captions.ass"
-          ffmpeg -y -i short_silent.mp4 -i short.mp3 -filter_complex "[0:v]subtitles=captions.ass[v]" -map "[v]" -map 1:a:0 -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest -movflags +faststart short.mp4
+          # QUEMAR subtitulos (.ass) + voz + MUSICA de fondo ducked (voz al frente).
+          if [ -s music.mp3 ]; then
+            echo "mezclando musica de fondo (ducked)"
+            ffmpeg -y -i short_silent.mp4 -i short.mp3 -stream_loop -1 -i music.mp3 \
+              -filter_complex "[0:v]subtitles=captions.ass[v];[2:a]volume=0.12,afade=t=in:st=0:d=0.6[m];[1:a]volume=1.0[voz];[voz][m]amix=inputs=2:duration=first:dropout_transition=0[a]" \
+              -map "[v]" -map "[a]" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest -movflags +faststart short.mp4
+          else
+            ffmpeg -y -i short_silent.mp4 -i short.mp3 -filter_complex "[0:v]subtitles=captions.ass[v]" -map "[v]" -map 1:a:0 -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest -movflags +faststart short.mp4
+          fi
           echo "=== resolucion final ==="; ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 short.mp4 || true
           ls -la short.mp4
 
