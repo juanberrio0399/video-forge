@@ -129,26 +129,46 @@ function assTime(s) {
   return `${h}:${String(m).padStart(2, "0")}:${sec.toFixed(2).padStart(5, "0")}`;
 }
 const dia = [];
-beats.forEach((b) => {
-  const start = +b.start || 0;
-  const end = Math.min(+b.end || start + 2, total);
-  const span = end - start;
-  if (span < 0.4) return; // fragmento espurio del borde (cola del beat vecino) -> lo salto
-  const words = (b.text || "").trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return;
-  // Cuantos trozos caben con cada uno >= ~0.45s (legible). Reparto PAREJO dentro de [start,end].
-  const maxChunks = Math.max(1, Math.floor(span / 0.45));
-  const nChunks = Math.min(Math.ceil(words.length / 4), maxChunks);
-  const per = Math.ceil(words.length / nChunks);
-  const chunks = [];
-  for (let w = 0; w < words.length; w += per) chunks.push(words.slice(w, w + per).join(" "));
-  const dur = span / chunks.length; // sin piso: cs < ce siempre, ultimo ce = end
-  chunks.forEach((txt, ci) => {
-    const cs = start + ci * dur;
-    const ce = start + (ci + 1) * dur;
-    dia.push(`Dialogue: 0,${assTime(cs)},${assTime(ce)},Def,,0,0,0,,${txt.replace(/[\r\n]+/g, " ")}`);
+const asc = (s) => String(s).replace(/[{}\\]/g, "").replace(/[\r\n]+/g, " ");
+const HI = "&HEED322&"; // cyan de marca (BGR) para la palabra activa
+const WH = "&HFFFFFF&"; // blanco base
+
+if (fs.existsSync("words.json")) {
+  // KARAOKE palabra por palabra (timestamps reales de Whisper). Resalta la palabra que
+  // se esta diciendo; el resto en blanco. Lineas de ~4 palabras.
+  const words = JSON.parse(fs.readFileSync("words.json", "utf8")).filter((w) => w && w.word);
+  const LINE = 4;
+  for (let i = 0; i < words.length; i += LINE) {
+    const line = words.slice(i, i + LINE);
+    for (let j = 0; j < line.length; j++) {
+      const segStart = +line[j].start;
+      const segEnd = j < line.length - 1 ? +line[j + 1].start : +line[j].end;
+      if (!(segEnd > segStart)) continue;
+      const text = line.map((w, k) => (k === j ? `{\\c${HI}}${asc(w.word)}{\\c${WH}}` : asc(w.word))).join(" ");
+      dia.push(`Dialogue: 0,${assTime(segStart)},${assTime(segEnd)},Def,,0,0,0,,{\\c${WH}}${text}`);
+    }
+  }
+  console.log(`karaoke: ${words.length} palabras`);
+} else {
+  // Fallback: trozos de 3-4 palabras (sin timestamps por palabra).
+  beats.forEach((b) => {
+    const start = +b.start || 0;
+    const end = Math.min(+b.end || start + 2, total);
+    const span = end - start;
+    if (span < 0.4) return;
+    const words = (b.text || "").trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return;
+    const maxChunks = Math.max(1, Math.floor(span / 0.45));
+    const nChunks = Math.min(Math.ceil(words.length / 4), maxChunks);
+    const per = Math.ceil(words.length / nChunks);
+    const chunks = [];
+    for (let w = 0; w < words.length; w += per) chunks.push(words.slice(w, w + per).join(" "));
+    const dur = span / chunks.length;
+    chunks.forEach((txt, ci) => {
+      dia.push(`Dialogue: 0,${assTime(start + ci * dur)},${assTime(start + (ci + 1) * dur)},Def,,0,0,0,,${asc(txt)}`);
+    });
   });
-});
+}
 // Estilo: grande, blanco, borde negro grueso, negrita, centrado abajo (bajo el logo).
 const ass = `[Script Info]
 ScriptType: v4.00+
