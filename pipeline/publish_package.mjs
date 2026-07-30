@@ -39,22 +39,28 @@ function srtTime(s) {
 const srt = beats.filter((b) => b.text).map((b, i) => `${i + 1}\n${srtTime(b.start)} --> ${srtTime(b.end)}\n${b.text}\n`).join("\n");
 fs.writeFileSync(`${outDir}/captions.srt`, srt);
 
-// --- Gemini helper (mismo patron que review_video) ---
-const MODELS = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-flash-latest", "gemini-2.0-flash"];
+// --- Gemini helper: modelos REALES + reintento con backoff en 429/503 ---
+// (el SEO corre justo despues de la voz/shorts, que agotan la cuota gratis: hay que esperar)
+const MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"];
+const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
 async function gemini(prompt) {
   if (!KEY) return null;
-  for (const m of MODELS) {
-    try {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${KEY}`, {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } }),
-      });
-      if (!r.ok) { console.error(`gemini ${m}: ${r.status}`); continue; }
-      const j = await r.json();
-      const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
-      return JSON.parse(t);
-    } catch (e) { console.error(`gemini ${m}: ${e.message}`); }
+  for (let round = 0; round < 3; round++) {
+    for (const m of MODELS) {
+      try {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${KEY}`, {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } }),
+        });
+        if (r.status === 429 || r.status === 503) { console.error(`gemini ${m}: ${r.status} (espero y reintento)`); await sleep(15000); continue; }
+        if (!r.ok) { console.error(`gemini ${m}: ${r.status}`); continue; }
+        const j = await r.json();
+        const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
+        return JSON.parse(t);
+      } catch (e) { console.error(`gemini ${m}: ${e.message}`); }
+    }
   }
+  console.error("Gemini no respondio tras varios reintentos.");
   return null;
 }
 
@@ -84,6 +90,11 @@ const pkg = (await gemini(improve
 // env (SOCIAL_TIKTOK / SOCIAL_IG) si existen; si no, no se ponen enlaces vacios.
 const CHANNEL_URL = "https://youtube.com/@TheDataLensHQ";
 const SUB_URL = "https://youtube.com/@TheDataLensHQ?sub_confirmation=1";
+// Respaldo: si la IA no respondio, NO dejar un paquete vacio (titulo "-"). Usar el tema real.
+if (!pkg.title) pkg.title = topic;
+if (!pkg.description) pkg.description = `${topic}\n\nThe numbers behind how this really works — explained with data.\n\nThis video uses an AI-generated voice.`;
+if (!pkg.tags || !pkg.tags.length) pkg.tags = ["data", "money", "youtube", "finance", "business", "explained"];
+if (!pkg.hashtags || !pkg.hashtags.length) pkg.hashtags = ["#data", "#money", "#youtube"];
 const links = [
   `▶️ Subscribe for more: ${SUB_URL}`,
   `📺 More videos: ${CHANNEL_URL}/videos`,

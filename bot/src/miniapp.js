@@ -56,6 +56,11 @@ export const APP_HTML = `<!doctype html>
   .chip.on{background:var(--cy);color:#04121a;border-color:var(--cy);font-weight:700}
   .live{display:inline-block;width:9px;height:9px;border-radius:50%;background:#34d399;margin-right:2px;animation:pulse 1.4s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.55)}70%{box-shadow:0 0 0 8px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
+  .ytcard{border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;background:var(--card);margin:6px 0 10px}
+  .ytthumb{aspect-ratio:16/9;background:linear-gradient(135deg,#0e7490,#1e293b);display:flex;align-items:center;justify-content:center}
+  .ytbig{font-weight:900;font-size:26px;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.6);text-align:center;padding:0 14px;letter-spacing:.5px;line-height:1.1}
+  .yttitle{font-weight:700;font-size:14px;line-height:1.3;margin-bottom:2px}
+  .score{font-size:30px;font-weight:800;line-height:1}
 </style></head>
 <body>
 <header><h1>The Data Lens</h1><div class="sub" id="hd">Centro de control</div></header>
@@ -116,6 +121,38 @@ export const APP_HTML = `<!doctype html>
     }).join("");
   }
 
+  function scoreColor(s){ return s>=7.5?"#34d399":(s>=6?"#f59e0b":"#f87171"); }
+  function productionHtml(){
+    var p=ST.production||{}, q=p.quality, seo=p.seo;
+    if(!q && !seo) return "";
+    var h='<h2>🎬 Video en producción</h2>';
+    if(q){
+      var ms=q.min_score||0;
+      var ph=(q.phases||[]).map(function(f){
+        return '<div style="flex:1;text-align:center"><div class="bar" style="height:8px"><i style="width:'+Math.round((f.score/10)*100)+'%;background:'+scoreColor(f.score)+'"></i></div><div class="muted" style="font-size:10px;margin-top:3px">'+esc(f.phase)+'·'+f.score+'</div></div>';
+      }).join("");
+      h+='<div class="card"><div style="display:flex;align-items:center;gap:12px">'
+        +'<div class="score" style="color:'+scoreColor(ms)+'">'+ms+'<span style="font-size:13px;color:var(--hint)">/10</span></div>'
+        +'<div><div style="font-weight:700">Calificación IA del video</div><div class="muted" style="font-size:12px">'+(q.passed?"✅ Pasó el mínimo (7.5)":"⚠️ Bajo 7.5 — conviene regenerar")+'</div></div></div>'
+        +(ph?'<div style="display:flex;gap:8px;margin-top:12px">'+ph+'</div>':'')+'</div>';
+    }
+    if(seo){
+      var val=seo.validation||{};
+      h+='<div class="card"><div style="font-weight:700;margin-bottom:8px">📦 SEO para publicar'+(val.nota_global!=null?' · <span style="color:'+scoreColor(val.nota_global)+'">'+val.nota_global+'/10</span>':'')+'</div>'
+        +'<div class="muted" style="font-size:11px">TÍTULO</div><div style="font-weight:600;margin-bottom:8px">'+esc(seo.title||"—")+'</div>'
+        +'<div class="muted" style="font-size:11px">DESCRIPCIÓN</div><div style="font-size:13px;white-space:pre-wrap;max-height:130px;overflow:auto;margin-bottom:8px">'+esc((seo.description||"—").slice(0,600))+'</div>'
+        +'<div class="muted" style="font-size:11px">TAGS</div><div style="margin-bottom:4px">'+((seo.tags||[]).map(function(t){return '<span class="chip" style="font-size:11px">'+esc(t)+'</span>';}).join(" ")||"—")+'</div>'
+        +((val.problemas&&val.problemas.length)?'<div class="muted" style="font-size:12px;color:var(--am);margin-top:6px">⚠️ '+esc(val.problemas.join("; "))+'</div>':'')
+        +'</div>';
+      h+='<div class="muted" style="font-size:11px;margin:2px 2px 0">Vista previa (cómo se vería):</div>'
+        +'<div class="ytcard"><div class="ytthumb"><span class="ytbig">'+esc(seo.thumbnail_text||"THE DATA LENS")+'</span></div>'
+        +'<div style="padding:9px"><div class="yttitle">'+esc(seo.title||"—")+'</div><div class="muted" style="font-size:12px">The Data Lens · '+(p.video_id?"privado":"—")+'</div></div></div>';
+    }
+    if(p.watch_url){ h+='<a class="btn" href="'+esc(location.origin+p.watch_url)+'" target="_blank">▶️ Ver el video</a>'; }
+    h+='<div class="muted" style="font-size:12px;margin:2px 2px 12px">Para aprobar o regenerar (SEO / video) usa los botones del chat. ✅</div>';
+    return h;
+  }
+
   function render(){
     var ch = ST.channel||{}, cs = ST.channel_stats||{}, mon = ST.monetization||{};
     var pub = ST.published||[], up = ST.upcoming||[], sh = (ST.shorts_list||[]);
@@ -161,6 +198,7 @@ export const APP_HTML = `<!doctype html>
     el("s-plan").innerHTML=
       problemsHtml()
       +'<h2>⚡ En proceso ahora</h2>'+statusHtml()
+      +productionHtml()
       +(next
         ? '<h2>Siguiente video</h2><div class="card"><div style="font-weight:800;font-size:16px">#'+(next.n||"")+' · '+esc(next.topic||"")+'</div>'
           +'<div class="muted" style="margin:6px 0 12px">'+esc(next.why||"")+' · '+esc(next.target_date||"")+'</div>'
