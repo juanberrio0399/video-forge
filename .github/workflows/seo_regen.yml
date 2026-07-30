@@ -11,6 +11,10 @@ on:
         description: "ID del video (opcional; si no, se lee de R2)"
         required: false
         default: ""
+      notes:
+        description: "Comentarios de Juan para mejorar el SEO (opcional)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -59,8 +63,10 @@ jobs:
 
       - name: Regenerar el paquete SEO (con las sugerencias previas)
         run: |
-          # Pasa las sugerencias/problemas del paquete anterior como guia de mejora.
+          # Pasa las sugerencias/problemas del paquete anterior + los comentarios de Juan.
           SEO_IMPROVE="$(node -e "try{const v=JSON.parse(require('fs').readFileSync('prev_package.json','utf8')).validation||{};process.stdout.write([...(v.problemas||[]),...(v.sugerencias||[])].join('; '))}catch(e){}")"
+          NOTES="${{ github.event.inputs.notes }}"
+          if [ -n "$NOTES" ]; then SEO_IMPROVE="Comentarios de Juan (PRIORIDAD): $NOTES. $SEO_IMPROVE"; fi
           export SEO_IMPROVE
           echo "Guia de mejora: ${SEO_IMPROVE:-(sin sugerencias previas)}"
           # Tema real del video, sacado del guion activo.
