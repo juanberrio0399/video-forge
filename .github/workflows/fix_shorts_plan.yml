@@ -31,4 +31,5 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
-        run: bash pipeline/notify_telegram.sh "✅ Plan de shorts corregido: ahora apunta a los 3 shorts PÚBLICOS reales. Abre la app → Shorts y ya deben salir 🟢 públicos con sus vistas."
+        run: |
+          bash pipeline/notify_telegram.sh "✅ Plan de shorts corregido. Ahora apunta a los 3 shorts PÚBLICOS reales. Abre la app y entra a Shorts: ya deben salir 🟢 públicos con sus vistas."
