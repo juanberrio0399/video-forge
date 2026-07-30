@@ -18,15 +18,21 @@ jobs:
     steps:
       - name: Volcar los JSON clave de R2
         run: |
-          echo "===== plan.json (shorts) ====="
-          npx --yes wrangler@4 r2 object get "$BUCKET/shorts/$PROJECT/plan.json" --file=- --remote 2>/dev/null || echo "(no existe)"
-          echo ""; echo "===== package.json (SEO) ====="
-          npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/package.json" --file=- --remote 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const p=JSON.parse(s);console.log("title:",p.title);console.log("validation.nota:",(p.validation||{}).nota_global)}catch(e){console.log("(no parse)")}})' || echo "(no existe)"
-          echo ""; echo "===== video_id.txt ====="
-          npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/video_id.txt" --file=- --remote 2>/dev/null || echo "(no existe)"
-          echo ""; echo "===== produced.json ====="
-          npx --yes wrangler@4 r2 object get "$BUCKET/channel/produced.json" --file=- --remote 2>/dev/null || echo "(no existe)"
-          echo ""; echo "===== seo_approved.json ====="
-          npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/seo_approved.json" --file=- --remote 2>/dev/null || echo "(no existe)"
-          echo ""; echo "===== inventory_cache.json (largos/shorts) ====="
-          npx --yes wrangler@4 r2 object get "$BUCKET/channel/inventory_cache.json" --file=- --remote 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const i=JSON.parse(s);console.log("longs:",(i.longs||[]).map(v=>v.video_id+"/"+v.privacy).join(", "));console.log("shorts:",(i.shorts||[]).map(v=>v.video_id+"/"+v.privacy).join(", "));console.log("at:",i.at)}catch(e){console.log("(no parse)")}})' || echo "(no existe)"
+          g(){ npx --yes wrangler@4 r2 object get "$BUCKET/$1" --file="$2" --remote 2>/dev/null && echo "ok" || echo "(no existe)"; }
+          g "shorts/$PROJECT/plan.json" plan.json
+          g "video/$PROJECT/package.json" package.json
+          g "video/$PROJECT/video_id.txt" vid.txt
+          g "channel/produced.json" produced.json
+          g "video/$PROJECT/seo_approved.json" seoapp.json
+          g "channel/inventory_cache.json" inv.json
+          node -e '
+            const fs=require("fs"); const rd=(p)=>{try{return JSON.parse(fs.readFileSync(p,"utf8"))}catch(e){return null}};
+            const plan=rd("plan.json");
+            console.log("===== PLAN.json =====");
+            console.log("for_video_id:", plan&&plan.for_video_id);
+            (plan&&plan.shorts||[]).forEach(s=>console.log(`  n=${s.n} approved=${s.approved} skipped=${s.skipped} video_id=${s.video_id||"-"} | ${s.title}`));
+            const pkg=rd("package.json"); console.log("===== PACKAGE.json ====="); console.log("  title:", pkg&&pkg.title, "| nota:", pkg&&pkg.validation&&pkg.validation.nota_global);
+            console.log("===== video_id.txt =====", fs.existsSync("vid.txt")?fs.readFileSync("vid.txt","utf8").trim():"-");
+            const seo=rd("seoapp.json"); console.log("===== seo_approved ====="); console.log("  approved:", seo&&seo.approved, "| title:", seo&&seo.title);
+            const inv=rd("inv.json"); console.log("===== INVENTORY ====="); if(inv){console.log("  longs:",(inv.longs||[]).map(v=>v.video_id+"/"+v.privacy).join(", "));console.log("  shorts:",(inv.shorts||[]).map(v=>v.video_id+"/"+v.privacy).join(", "));}
+          '
