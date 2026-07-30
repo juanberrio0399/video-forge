@@ -1,0 +1,48 @@
+name: Verificar Analytics (tiempo reproducido) y refrescar cache
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      BUCKET: video-forge
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Probar la Analytics API con el token nuevo
+        run: |
+          node -e '
+            (async()=>{
+              const tr=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:process.env.YT_CLIENT_ID,client_secret:process.env.YT_CLIENT_SECRET,refresh_token:process.env.YT_REFRESH_TOKEN,grant_type:"refresh_token"})});
+              const tj=await tr.json();
+              if(!tj.access_token){console.log("MSG=❌ El token no sirve: "+JSON.stringify(tj).slice(0,150));require("fs").writeFileSync("msg.txt","❌ El refresh token nuevo no funcionó. Repite el Playground.");return;}
+              const today=new Date().toISOString().slice(0,10);
+              const a=await fetch(`https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=2020-01-01&endDate=${today}&metrics=estimatedMinutesWatched&dimensions=video&sort=-estimatedMinutesWatched&maxResults=10`,{headers:{Authorization:"Bearer "+tj.access_token}});
+              if(!a.ok){const t=await a.text();console.log("ANALYTICS FAIL",a.status,t.slice(0,200));require("fs").writeFileSync("msg.txt","⚠️ Analytics respondió "+a.status+". Puede que el scope aún no aplique o el canal no tenga datos todavía. Detalle: "+t.slice(0,150));return;}
+              const aj=await a.json();
+              const rows=aj.rows||[]; const total=rows.reduce((s,r)=>s+(r[1]||0),0);
+              console.log("OK filas:",rows.length,"total min:",total);
+              require("fs").writeFileSync("msg.txt","✅ Analytics FUNCIONA. Minutos vistos totales (top 10 videos): "+Math.round(total)+" min. Abre la app → Videos, la columna \"Min vist.\" ya se llena.");
+            })().catch(e=>{console.error(e);require("fs").writeFileSync("msg.txt","❌ Error probando Analytics: "+e.message);});
+          '
+      - name: Bustear el cache del inventario (para refrescar ya)
+        run: npx --yes wrangler@4 r2 object delete "$BUCKET/channel/inventory_cache.json" --remote 2>/dev/null || echo "sin cache previo"
+      - name: Avisar resultado al chat
+        if: always()
+        run: |
+          if [ -f msg.txt ]; then bash pipeline/notify_telegram.sh "$(cat msg.txt)"; fi
