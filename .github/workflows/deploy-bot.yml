@@ -29,18 +29,33 @@ jobs:
           node-version: "22"
 
       - name: Desplegar Worker
-        run: npx --yes wrangler@4 deploy | tee deploy.log
+        run: |
+          for i in 1 2 3; do
+            npx --yes wrangler@4 deploy | tee deploy.log && break
+            echo "deploy reintento $i (hipo de Cloudflare)"; sleep 12
+          done
+          grep -qE 'https://[a-zA-Z0-9._-]+\.workers\.dev' deploy.log
 
       - name: Cargar secretos del Worker
+        env:
+          S_TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          S_GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          S_OWNER_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+          S_TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+          S_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          S_YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          S_YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          S_YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
         run: |
-          printf '%s' "${{ secrets.TELEGRAM_BOT_TOKEN }}"      | npx --yes wrangler@4 secret put TELEGRAM_BOT_TOKEN
-          printf '%s' "${{ secrets.GH_TOKEN }}"                | npx --yes wrangler@4 secret put GH_TOKEN
-          printf '%s' "${{ secrets.OWNER_CHAT_ID }}"           | npx --yes wrangler@4 secret put OWNER_CHAT_ID
-          printf '%s' "${{ secrets.TELEGRAM_WEBHOOK_SECRET }}" | npx --yes wrangler@4 secret put TELEGRAM_WEBHOOK_SECRET
-          printf '%s' "${{ secrets.GEMINI_API_KEY }}"          | npx --yes wrangler@4 secret put GEMINI_API_KEY
-          printf '%s' "${{ secrets.YT_CLIENT_ID }}"            | npx --yes wrangler@4 secret put YT_CLIENT_ID
-          printf '%s' "${{ secrets.YT_CLIENT_SECRET }}"        | npx --yes wrangler@4 secret put YT_CLIENT_SECRET
-          printf '%s' "${{ secrets.YT_REFRESH_TOKEN }}"        | npx --yes wrangler@4 secret put YT_REFRESH_TOKEN
+          put(){ for i in 1 2 3; do printf '%s' "$2" | npx --yes wrangler@4 secret put "$1" && return 0; echo "reintento $1 ($i)"; sleep 10; done; echo "no pude poner $1"; return 1; }
+          put TELEGRAM_BOT_TOKEN "$S_TELEGRAM_BOT_TOKEN"
+          put GH_TOKEN "$S_GH_TOKEN"
+          put OWNER_CHAT_ID "$S_OWNER_CHAT_ID"
+          put TELEGRAM_WEBHOOK_SECRET "$S_TELEGRAM_WEBHOOK_SECRET"
+          put GEMINI_API_KEY "$S_GEMINI_API_KEY"
+          put YT_CLIENT_ID "$S_YT_CLIENT_ID"
+          put YT_CLIENT_SECRET "$S_YT_CLIENT_SECRET"
+          put YT_REFRESH_TOKEN "$S_YT_REFRESH_TOKEN"
 
       - name: Registrar webhook de Telegram
         run: |
