@@ -1020,6 +1020,7 @@ function ack(env, chatId, r, label) {
 function expectedMin(name) {
   const n = (name || "").toLowerCase();
   if (n.includes("fases") || n.includes("phased")) return 90;  // fases en paralelo, cada una 3 intentos
+  if (n.includes("shorts")) return (n.includes("final") || n.includes("subir")) ? 25 : 4;  // generar shorts vs analizar
   if (n.includes("render")) return 40;   // render del video completo (hasta 3 intentos)
   if (n.includes("receta")) return 25;
   if (n.includes("voiceover") || n.includes("voz")) return 18;
