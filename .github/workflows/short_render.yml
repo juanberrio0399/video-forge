@@ -101,6 +101,21 @@ jobs:
           echo "=== resolucion final ==="; ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 short.mp4 || true
           ls -la short.mp4
 
+      - name: Frames de verificacion (del short.mp4 EXACTO de este render)
+        if: ${{ hashFiles('short.mp4') != '' }}
+        run: |
+          for t in 2.0 5.6 7.0 9.0 14.0; do
+            ffmpeg -y -i short.mp4 -ss $t -frames:v 1 -q:v 3 "chk_${t}.jpg" 2>/dev/null || true
+          done
+          ls -la chk_*.jpg
+      - name: Subir frames de verificacion
+        if: ${{ hashFiles('chk_2.0.jpg') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: short_check
+          path: chk_*.jpg
+          retention-days: 3
+
       - name: Guardar el short en R2 (para inspeccionarlo)
         if: ${{ hashFiles('short.mp4') != '' }}
         run: npx --yes wrangler@4 r2 object put "$BUCKET/video/shorts_test/short.mp4" --file=short.mp4 --remote
