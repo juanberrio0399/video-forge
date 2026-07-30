@@ -1,0 +1,173 @@
+name: Shorts FINALES (formato pro - voz karaoke logo musica) y subir
+
+# Genera los shorts APROBADOS del plan con el formato final (nativo vertical: logo
+# audio-reactivo + karaoke palabra x palabra + voz de locutor Gemini TTS + musica de
+# fondo con ducking; la IA elige el vibe por tema) y los sube a YouTube como PRIVADOS.
+
+on:
+  workflow_dispatch:
+    inputs:
+      voice:
+        description: "Voz de locutor (Charon, Rasalgethi, Iapetus, Alnilam, Orus)"
+        required: false
+        default: "Charon"
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+  PROJECT: "0001-youtube-money"
+  HF_VERSION: "0.7.68"
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    outputs:
+      approved: ${{ steps.list.outputs.approved }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Leer aprobados del plan
+        id: list
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote
+          APP=$(node -e 'const p=JSON.parse(require("fs").readFileSync("plan.json","utf8"));process.stdout.write(JSON.stringify((p.shorts||[]).filter(s=>s.approved).map(s=>s.n)))')
+          echo "approved=$APP" >> "$GITHUB_OUTPUT"
+          echo "aprobados: $APP"
+          bash pipeline/notify_telegram.sh "🎬 Generando los shorts FINALES aprobados ($APP) con el formato pro (voz+karaoke+logo+musica). Te mando cada uno para revisar y publicar."
+
+  make:
+    needs: prepare
+    if: ${{ needs.prepare.outputs.approved != '[]' && needs.prepare.outputs.approved != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        idx: ${{ fromJSON(needs.prepare.outputs.approved) }}
+    env:
+      CI: "true"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      IDX: ${{ matrix.idx }}
+      VOICE: ${{ github.event.inputs.voice || 'Charon' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: FFmpeg + libs de Chrome + fuentes
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-liberation fonts-dejavu-core \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+            libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+            libgbm1 libpango-1.0-0 libcairo2 libasound2t64 || sudo apt-get install -y libasound2
+
+      - name: Bajar tiempos + plan
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing.json --remote
+          npx --yes wrangler@4 r2 object get "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote
+
+      - name: Preparar segmento (beats + texto)
+        run: |
+          node -e '
+            const fs=require("fs");
+            const plan=JSON.parse(fs.readFileSync("plan.json","utf8"));
+            const timing=JSON.parse(fs.readFileSync("timing.json","utf8"));
+            const s=plan.shorts[+process.env.IDX];
+            const A=s.start, B=s.end;
+            const beats=(timing.beats||[]).filter(b=>b.end>A+0.05 && b.start<B-0.05)
+              .map(b=>({text:b.text, start:+(Math.max(A,b.start)-A).toFixed(3), end:+(Math.min(B,b.end)-A).toFixed(3)}));
+            fs.writeFileSync("beats.json", JSON.stringify({total:+(B-A).toFixed(3), beats}));
+            fs.writeFileSync("text.txt",(beats).filter(x=>(x.end-x.start)>=0.4).map(x=>(x.text||"").trim()).filter(Boolean).join(" "));
+          '
+          echo "Texto:"; cat text.txt
+
+      - name: IA elige el vibe de musica
+        run: |
+          node -e '
+            const fs=require("fs");const KEY=process.env.GEMINI_API_KEY;const text=fs.readFileSync("text.txt","utf8");
+            (async()=>{let v="cinematic";try{
+              const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${KEY}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:`Elige el vibe de musica de fondo para este short de datos/dinero que MAXIMICE retencion y vistas. Responde SOLO una palabra: cinematic, tension o electronic.\n"""${text.slice(0,700)}"""`}]}]})});
+              const j=await r.json();const t=(j?.candidates?.[0]?.content?.parts?.[0]?.text||"").toLowerCase();
+              v=["tension","electronic","cinematic"].find(x=>t.includes(x))||"cinematic";
+            }catch(e){}fs.writeFileSync("vibe.txt",v);console.log("vibe:",v);})();
+          '
+
+      - name: Voz de locutor (Gemini TTS)
+        run: |
+          node pipeline/gemini_tts.mjs text.txt short.mp3 "$VOICE"
+          echo "duracion: $(ffprobe -v error -show_entries format=duration -of default=nk=1:nw=1 short.mp3)s"
+
+      - name: Karaoke (Whisper)
+        run: |
+          pip install faster-whisper
+          python pipeline/whisper_words.py short.mp3 words.json || echo "sin karaoke"
+
+      - name: Bajar musica del vibe
+        run: |
+          VIBE=$(cat vibe.txt)
+          npx --yes wrangler@4 r2 object get "$BUCKET/music/$VIBE.mp3" --file=music.mp3 --remote 2>/dev/null || echo "sin musica"
+
+      - name: Render + subtitulos + voz + musica
+        run: |
+          node pipeline/build_short.mjs beats.json index.html short.mp3 logo
+          npx --yes hyperframes@${HF_VERSION} render --quality standard --workers auto -o short_silent.mp4 2>&1 | tail -15
+          if [ -s music.mp3 ]; then
+            ffmpeg -y -i short_silent.mp4 -i short.mp3 -stream_loop -1 -i music.mp3 \
+              -filter_complex "[0:v]subtitles=captions.ass[v];[2:a]volume=0.38,afade=t=in:st=0:d=0.6[mus];[mus][1:a]sidechaincompress=threshold=0.04:ratio=6:attack=15:release=280[mduck];[1:a][mduck]amix=inputs=2:duration=first:dropout_transition=0[a]" \
+              -map "[v]" -map "[a]" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest -movflags +faststart short.mp4
+          else
+            ffmpeg -y -i short_silent.mp4 -i short.mp3 -filter_complex "[0:v]subtitles=captions.ass[v]" -map "[v]" -map 1:a:0 -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest -movflags +faststart short.mp4
+          fi
+          ls -la short.mp4
+
+      - name: Titulo + descripcion (con hashtags + credito de musica)
+        run: |
+          VIBE=$(cat vibe.txt)
+          case "$VIBE" in
+            tension) CREDIT="Music: Mechanolith by Kevin MacLeod (incompetech.com), licensed under CC BY 4.0";;
+            electronic) CREDIT="Music: Blippy Trance by Kevin MacLeod (incompetech.com), licensed under CC BY 4.0";;
+            *) CREDIT="Music: Long Note Two by Kevin MacLeod (incompetech.com), licensed under CC BY 4.0";;
+          esac
+          CREDIT="$CREDIT" node -e '
+            const fs=require("fs");const p=JSON.parse(fs.readFileSync("plan.json","utf8"));const s=p.shorts[+process.env.IDX];
+            fs.writeFileSync("title.txt",((s.title||"The Data Lens")+" #Shorts").slice(0,100));
+            const desc=[s.caption||s.hook||"", "", ((s.hashtags||[]).join(" ")+" #Shorts").trim(), "", "▶️ Subscribe: https://youtube.com/@TheDataLensHQ?sub_confirmation=1", "", process.env.CREDIT, "", "This short uses an AI-generated voice."].join("\n");
+            fs.writeFileSync("description.txt",desc);
+          '
+          echo "Titulo:"; cat title.txt
+
+      - name: Subir el short a YouTube (privado)
+        run: node pipeline/short_publish.mjs short.mp4 title.txt description.txt
+
+      - name: Enviar al chat con boton Publicar
+        if: always()
+        run: |
+          if [ -f short_id.txt ]; then
+            VID=$(cat short_id.txt); TITLE=$(cat title.txt)
+            MK=$(node -e "process.stdout.write(JSON.stringify({inline_keyboard:[[{text:'▶️ Ver el short',url:'https://youtu.be/'+process.argv[1]}],[{text:'✅ Publicar',callback_data:'short_pub:'+process.argv[1]},{text:'⏸️ Dejar privado',callback_data:'short_keep:'+process.argv[1]}]]}))" "$VID")
+            bash pipeline/notify_telegram.sh "🎬 Short final #$((IDX+1)) listo (privado): ${TITLE}"$'\n'"▶️ https://youtu.be/${VID}"$'\n\n'"Revisalo y aprueba para publicar." "" "$MK"
+          else
+            bash pipeline/notify_telegram.sh "❌ El short #$((IDX+1)) fallo al generar/subir."
+          fi

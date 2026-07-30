@@ -219,8 +219,9 @@ async function handleMessage(message, env) {
       if (await busyGuard(env, chatId)) return;
       const napp = await countApprovedShorts(env);
       if (!napp) return tg(env, "sendMessage", { chat_id: chatId, text: "No hay shorts aprobados aún. Corre /shorts, aprueba los que quieras y luego /generarshorts." });
-      const r = await ghDispatch(env, "shorts_generate.yml", {});
-      return ack(env, chatId, r, `Generando ${napp} short(s) aprobado(s)`);
+      // Pipeline FINAL: voz de locutor + karaoke + logo + musica (nativo vertical).
+      const r = await ghDispatch(env, "shorts_final.yml", {});
+      return ack(env, chatId, r, `Generando ${napp} short(s) final(es) — voz+karaoke+logo+música`);
     }
 
     case "/listo":
