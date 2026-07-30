@@ -189,7 +189,25 @@ async function handleApi(request, env, url) {
     // Corridas: activas (en proceso) + PROBLEMAS (fallidas recientes, con el paso que fallo).
     const runsRes = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=15`);
     const runs = runsRes.ok ? ((await runsRes.json()).workflow_runs || []) : [];
-    state.active = runs.filter((r) => r.status !== "completed").map((r) => ({ name: r.name, status: r.status }));
+    // Activas CON paso actual + % + ETA (para verlo en vivo en la app, cortito).
+    const actRuns = runs.filter((r) => r.status !== "completed");
+    state.active = [];
+    for (const r of actRuns) {
+      const mins = r.run_started_at ? Math.max(0, Math.round((Date.now() - Date.parse(r.run_started_at)) / 60000)) : 0;
+      let step = r.status === "queued" ? "en cola…" : "iniciando…";
+      const jr = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs/${r.id}/jobs`);
+      if (jr.ok) {
+        const jobs = (await jr.json()).jobs || [];
+        const job = jobs.find((j) => j.status === "in_progress") || jobs[0];
+        const steps = (job && job.steps) || [];
+        const total = steps.length, done = steps.filter((s) => s.status === "completed").length;
+        const cur = steps.find((s) => s.status === "in_progress");
+        if (cur) step = `paso ${Math.min(done + 1, total)}/${total}: ${cur.name}`;
+        else if (total && done === total) step = "cerrando…";
+      }
+      const exp = expectedMin(r.name);
+      state.active.push({ name: r.name, status: r.status, step, pct: r.status === "queued" ? 0 : Math.min(99, Math.round((mins / exp) * 100)), eta: Math.max(0, exp - mins) });
+    }
     // PROBLEMAS sin repetir: solo la ULTIMA corrida por workflow, y solo si esa fallo
     // (asi cada error sale UNA vez y se limpia solo cuando reintentas con exito).
     const latestByWf = {};

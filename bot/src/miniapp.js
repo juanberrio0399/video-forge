@@ -54,6 +54,8 @@ export const APP_HTML = `<!doctype html>
   .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
   .chip{font-size:12px;padding:6px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.18);cursor:pointer}
   .chip.on{background:var(--cy);color:#04121a;border-color:var(--cy);font-weight:700}
+  .live{display:inline-block;width:9px;height:9px;border-radius:50%;background:#34d399;margin-right:2px;animation:pulse 1.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.55)}70%{box-shadow:0 0 0 8px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
 </style></head>
 <body>
 <header><h1>The Data Lens</h1><div class="sub" id="hd">Centro de control</div></header>
@@ -95,7 +97,11 @@ export const APP_HTML = `<!doctype html>
   function statusHtml(){
     var a=ST.active||[];
     if(!a.length) return '<div class="card muted">✅ Nada en proceso ahora.</div>';
-    return '<div class="card">'+a.map(function(r){return '<div style="margin:2px 0">⏳ '+esc(r.name)+' — <span class="muted">'+esc(r.status)+'</span></div>';}).join("")+'</div>';
+    return a.map(function(r){
+      return '<div class="card"><div style="font-weight:700"><span class="live"></span> '+esc(r.name)+'</div>'
+        +'<div class="muted" style="font-size:12px;margin:4px 0">'+esc(r.step||r.status)+(r.eta?' · ~'+r.eta+' min':'')+'</div>'
+        +'<div class="bar"><i style="width:'+(r.pct||3)+'%"></i></div></div>';
+    }).join("");
   }
   function problemsHtml(){
     var p=ST.problems||[];
@@ -113,7 +119,8 @@ export const APP_HTML = `<!doctype html>
   function render(){
     var ch = ST.channel||{}, cs = ST.channel_stats||{}, mon = ST.monetization||{};
     var pub = ST.published||[], up = ST.upcoming||[], sh = (ST.shorts_list||[]);
-    el("hd").textContent = "@TheDataLensHQ · actualizado "+ (ST.updated_at? String(ST.updated_at).slice(0,16).replace("T"," "):"—");
+    var liveTag = (ST.active&&ST.active.length) ? " · 🟢 en vivo" : "";
+    el("hd").textContent = "@TheDataLensHQ · act. "+ (ST.updated_at? String(ST.updated_at).slice(5,16).replace("T"," "):"—") + liveTag;
 
     // CANAL
     el("s-canal").innerHTML =
@@ -235,9 +242,15 @@ export const APP_HTML = `<!doctype html>
     recFiles.forEach(function(f){fd.append("file",f);});
     toast("Subiendo receta…"); api("/api/upload",{method:"POST",body:fd}).then(function(r){return r.json();}).then(function(j){toast(j.ok?"✅ Armando el reel, te llega al chat":"❌ "+(j.error||"falló"));recFiles=[];}); }
 
-  function load(){ api("/api/state").then(function(r){return r.json();}).then(function(j){ if(j.error){el("hd").textContent="No autorizado";return;} ST=j; render(); }).catch(function(){el("hd").textContent="Error de conexión";}); }
+  // Auto-refresco: RAPIDO (9s) cuando algo corre = se ve en vivo; lento (25s) cuando no.
+  // No refresca en "Crear" para no borrar lo que escribes.
+  var refTimer=null;
+  function scheduleRefresh(){
+    clearTimeout(refTimer);
+    var ms=(ST.active&&ST.active.length)?9000:25000;
+    refTimer=setTimeout(function(){ if(curTab!=="crear") load(); else scheduleRefresh(); }, ms);
+  }
+  function load(){ api("/api/state").then(function(r){return r.json();}).then(function(j){ if(j.error){el("hd").textContent="No autorizado";return;} ST=j; render(); scheduleRefresh(); }).catch(function(){el("hd").textContent="Error de conexión";scheduleRefresh();}); }
   load();
-  // Auto-refresco del estado en vivo (no en "Crear" para no borrar lo que escribes).
-  setInterval(function(){ if(curTab!=="crear") load(); }, 25000);
 </script>
 </body></html>`;
