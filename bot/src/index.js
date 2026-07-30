@@ -192,6 +192,11 @@ async function handleApi(request, env, url) {
     state.long_count = (state.published || []).length;
     state.shorts_count = (inv.shorts || []).length;
     state.shorts_public = (inv.shorts || []).filter((s) => s.privacy === "public").length;
+    // Lista compacta de TODOS los videos (largos + shorts) con tipo, vistas y duracion.
+    state.all_videos = [
+      ...(inv.longs || []).map((v) => ({ type: "long", video_id: v.video_id, title: v.title, privacy: v.privacy, views: v.views, seconds: v.seconds })),
+      ...(inv.shorts || []).map((v) => ({ type: "short", video_id: v.video_id, title: v.title, privacy: v.privacy, views: v.views, seconds: v.seconds })),
+    ];
     // Shorts "hechos" = hay aprobados y TODOS estan subidos (tienen video_id).
     const shortsDone = approvedShorts.length > 0 && approvedShorts.every((s) => s.video_id);
     (state.published || []).forEach((v, i) => { v.shorts_done = i === 0 ? shortsDone : false; });

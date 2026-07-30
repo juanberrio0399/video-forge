@@ -90,6 +90,7 @@ export const APP_HTML = `<!doctype html>
   function toast(m){var t=el("toast");t.textContent=m;t.classList.add("show");setTimeout(function(){t.classList.remove("show");},2600);}
   function api(path, opts){opts=opts||{};opts.headers=opts.headers||{};opts.headers["X-Init-Data"]=INIT;return fetch(path,opts);}
   function num(n){n=+n||0;return n>=1000?(n/1000).toFixed(n>=100000?0:1)+"k":String(n);}
+  function durTxt(sec){ if(sec==null) return "—"; sec=+sec; if(sec>=60){var m=Math.floor(sec/60),s=sec%60;return m+":"+("0"+s).slice(-2);} return sec+"s"; }
 
   var curTab="canal";
   function tab(name){
@@ -132,6 +133,26 @@ export const APP_HTML = `<!doctype html>
     if(sst.uploaded && !sst.all_done) return '<div class="card"><button class="btn" onclick="goShorts()">🎬 Ver / publicar shorts</button></div>';
     if(sst.can_suggest) return '<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700">🎬 Siguiente: sugerir shorts</div><div class="muted" style="font-size:12px;margin:4px 0">El video quedó publicado. Ahora sus shorts.</div><button class="btn" onclick="goShorts()">Ir a Shorts</button></div>';
     return '';
+  }
+  function currentStage(){
+    var a=ST.active||[], p=ST.production||{}, sst=ST.shorts_status||{};
+    var isA=function(re){return a.some(function(r){return re.test(r.name||"");});};
+    if(isA(/Producir|guion/i)) return 1;
+    if(isA(/Voiceover|voz/i)) return 2;
+    if(isA(/Render|fase/i)) return 3;
+    if(p.seo && !p.approved && !p.done) return 4;
+    if(p.approved && !p.done) return 5;
+    if(p.done && (sst.pending||sst.approved_pend||(sst.uploaded&&!sst.all_done)||sst.can_suggest)) return 6;
+    return 0;
+  }
+  function flowStepsHtml(){
+    var st=currentStage(); if(!st) return "";
+    var steps=["Guion","Voz","Render","Aprobar","Publicar","Shorts"];
+    var cells=steps.map(function(lbl,i){
+      var n=i+1; var col = n<st?"var(--gr)":(n===st?"var(--cy)":"var(--hint)");
+      return '<div style="flex:1;text-align:center;font-size:10px;font-weight:'+(n===st?"700":"400")+';color:'+col+'">'+(n<st?"✓ ":(n===st?"● ":""))+esc(lbl)+'</div>';
+    }).join("");
+    return '<div class="card" style="padding:10px"><div style="font-weight:700;font-size:13px;margin-bottom:6px">📍 Vamos en el paso '+st+' de 6</div><div style="display:flex;gap:4px">'+cells+'</div></div>';
   }
   function productionHtml(){
     var p=ST.production||{}, q=p.quality, seo=p.seo;
@@ -203,20 +224,20 @@ export const APP_HTML = `<!doctype html>
       + problemsHtml()
       + '<div class="card"><button class="btn" onclick="dispatch(\\'channel_report.yml\\',\\'Reporte de métricas\\')">🔄 Refrescar métricas</button></div>';
 
-    // VIDEOS
-    var vrows = pub.map(function(v,idx){
-      var s=v.stats||{}; var pv=v.privacy==="public";
-      // Botón de shorts SOLO en el video más nuevo, público y sin shorts hechos.
-      var shortsCell = v.shorts_done ? '<span class="muted">✓</span>'
-        : ((idx===0 && pv) ? '<button class="btn mini" onclick="goShorts()">✂️ Hacer</button>' : '<span class="muted">—</span>');
-      return '<tr><td>'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc(v.title||v.video_id)+'</a>':esc(v.title||""))+'<div class="muted" style="font-size:11px">'+esc(v.published_at||"")+'</div></td>'
-        +'<td><span class="tag '+(pv?"pub":"priv")+'">'+esc(v.privacy||"")+'</span></td>'
-        +'<td style="text-align:right">'+(pv?num(s.views):"—")+'</td>'
-        +'<td style="text-align:right">'+shortsCell+'</td></tr>';
+    // VIDEOS: tabla compacta con TODOS (largos + shorts), tipo, duración y vistas.
+    var av = ST.all_videos||[];
+    var nLong = av.filter(function(v){return v.type==="long";}).length;
+    var nShort = av.filter(function(v){return v.type==="short";}).length;
+    var vrows = av.map(function(v){
+      var pv=v.privacy==="public";
+      return '<tr><td style="text-align:center">'+(v.type==="short"?"🎬":"📹")+'</td>'
+        +'<td>'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").replace(/ #Shorts$/,"").slice(0,40))+'</a>':esc(v.title||""))+'</td>'
+        +'<td style="text-align:right;white-space:nowrap">'+durTxt(v.seconds)+'</td>'
+        +'<td style="text-align:right">'+(pv?num(v.views):"🔒")+'</td></tr>';
     }).join("");
-    el("s-videos").innerHTML='<h2>Videos publicados</h2><div class="card"><table><tr><th>Título</th><th>Estado</th><th style="text-align:right">Vistas</th><th style="text-align:right">Shorts</th></tr>'+(vrows||'<tr><td class="muted">Sin videos.</td></tr>')+'</table></div>'
-      +'<button class="btn" onclick="dispatch(\\'render_phased.yml\\',\\'Render del video por fases\\')">🎬 Renderizar video</button>'
-      +'<button class="btn ghost" onclick="dispatch(\\'voice_parallel.yml\\',\\'Generar voz\\')">🎙️ Generar voz</button>';
+    el("s-videos").innerHTML='<h2>Videos · '+nLong+' largos · '+nShort+' shorts</h2>'
+      +'<div class="card" style="padding:8px"><table style="font-size:13px"><tr><th></th><th>Título</th><th style="text-align:right">Dur</th><th style="text-align:right">Vistas</th></tr>'+(vrows||'<tr><td colspan="4" class="muted">Sin videos.</td></tr>')+'</table></div>'
+      +'<div class="muted" style="font-size:11px;text-align:center">📹 largo · 🎬 short · 🔒 privado</div>';
 
     // PLAN (panel de produccion): estado + siguiente con boton + pendientes + tendencias
     var next = up[0];
@@ -224,9 +245,10 @@ export const APP_HTML = `<!doctype html>
     var producing = (ST.active||[]).some(function(r){return /Producir|guion|Render VIDEO|Voiceover/i.test(r.name||"");});
     var prows = rest.map(function(u){return '<tr><td>#'+(u.n||"")+'</td><td>'+esc(u.topic||"")+'<div class="muted" style="font-size:11px">'+esc(u.why||"")+'</div></td><td style="text-align:right;white-space:nowrap">'+esc(u.target_date||"")+'</td></tr>';}).join("");
     el("s-plan").innerHTML=
-      problemsHtml()
+      flowStepsHtml()
       +productionHtml()
       +nextStepHtml()
+      +problemsHtml()
       +(next
         ? '<h2>Siguiente video</h2><div class="card"><div style="font-weight:800;font-size:16px">#'+(next.n||"")+' · '+esc(next.topic||"")+'</div>'
           +'<div class="muted" style="margin:6px 0 12px">'+esc(next.why||"")+' · '+esc(next.target_date||"")+'</div>'
