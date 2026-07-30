@@ -49,7 +49,7 @@ export const APP_HTML = `<!doctype html>
   .nav button.on{color:var(--cy)}
   .hide{display:none}
   .muted{color:var(--hint);font-size:13px}
-  #toast{position:fixed;bottom:78px;left:14px;right:14px;background:#111a2b;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:12px 14px;text-align:center;transform:translateY(120px);transition:.25s;z-index:20}
+  #toast{position:fixed;bottom:78px;left:14px;right:14px;background:#111a2b;color:#fff;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:13px 16px;text-align:center;font-weight:600;transform:translateY(140px);transition:.25s;z-index:20;box-shadow:0 8px 30px rgba(0,0,0,.45)}
   #toast.show{transform:translateY(0)}
   .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
   .chip{font-size:12px;padding:6px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.18);cursor:pointer}
