@@ -132,15 +132,20 @@ const dia = [];
 beats.forEach((b) => {
   const start = +b.start || 0;
   const end = Math.min(+b.end || start + 2, total);
+  const span = end - start;
+  if (span < 0.4) return; // fragmento espurio del borde (cola del beat vecino) -> lo salto
   const words = (b.text || "").trim().split(/\s+/).filter(Boolean);
   if (!words.length) return;
-  const PER = 4;
+  // Cuantos trozos caben con cada uno >= ~0.45s (legible). Reparto PAREJO dentro de [start,end].
+  const maxChunks = Math.max(1, Math.floor(span / 0.45));
+  const nChunks = Math.min(Math.ceil(words.length / 4), maxChunks);
+  const per = Math.ceil(words.length / nChunks);
   const chunks = [];
-  for (let w = 0; w < words.length; w += PER) chunks.push(words.slice(w, w + PER).join(" "));
-  const dur = Math.max(0.35, (end - start) / chunks.length);
+  for (let w = 0; w < words.length; w += per) chunks.push(words.slice(w, w + per).join(" "));
+  const dur = span / chunks.length; // sin piso: cs < ce siempre, ultimo ce = end
   chunks.forEach((txt, ci) => {
     const cs = start + ci * dur;
-    const ce = Math.min(end, start + (ci + 1) * dur);
+    const ce = start + (ci + 1) * dur;
     dia.push(`Dialogue: 0,${assTime(cs)},${assTime(ce)},Def,,0,0,0,,${txt.replace(/[\r\n]+/g, " ")}`);
   });
 });
