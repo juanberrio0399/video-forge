@@ -123,7 +123,30 @@ async function validateInitData(initData, env) {
 const APP_WORKFLOWS = new Set([
   "render_phased.yml", "voice_parallel.yml", "channel_report.yml", "shorts_plan.yml",
   "shorts_final.yml", "publish_youtube.yml", "set_privacy.yml", "recipe_reel.yml",
+  "produce_video.yml",
 ]);
+
+// Analisis de tendencias con Gemini (¿los proximos videos estan alineados?).
+async function geminiTrends(env) {
+  if (!env.GEMINI_API_KEY) return { error: "Falta GEMINI_API_KEY en el Worker (agrégalo al deploy)." };
+  const state = (await r2json(env, "channel/state.json")) || {};
+  const up = (state.upcoming || []).map((u) => `#${u.n}: ${u.topic}`).join("\n") || "(ninguno)";
+  const pub = (state.published || []).map((v) => v.title).join("; ") || "(ninguno)";
+  const prompt = `Eres estratega de un canal faceless de datos/dinero en YouTube (ingles, mercado EE.UU.). Ya publicado: ${pub}. Proximos videos planeados:\n${up}\n\nResponde en ESPAÑOL, breve y concreto (sin relleno): por CADA proximo tema, una linea con potencial de vistas ALTO/MEDIO/BAJO segun tendencias e interes actual del publico + un ajuste corto para mejorarlo. Al final, sugiere 1-2 temas calientes que FALTAN y deberiamos agregar.`;
+  for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${env.GEMINI_API_KEY}`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      });
+      if (!r.ok) continue;
+      const j = await r.json();
+      const t = j?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (t) return { analysis: t };
+    } catch {}
+  }
+  return { error: "No pude analizar (Gemini no respondio)." };
+}
 
 async function handleApi(request, env, url) {
   const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { "content-type": "application/json" } });
@@ -145,6 +168,10 @@ async function handleApi(request, env, url) {
     const act = await activeRuns(env);
     state.active = (act || []).map((r) => ({ name: r.name, status: r.status }));
     return json(state);
+  }
+
+  if (url.pathname === "/api/trends") {
+    return json(await geminiTrends(env));
   }
 
   if (url.pathname === "/api/dispatch" && request.method === "POST") {
