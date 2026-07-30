@@ -152,13 +152,17 @@ export const APP_HTML = `<!doctype html>
       +'<h2>Programados (pendientes)</h2><div class="card"><table><tr><th>#</th><th>Tema</th><th style="text-align:right">Fecha</th></tr>'+(prows||'<tr><td class="muted">—</td></tr>')+'</table></div>'
       +'<div class="card muted">Cadencia objetivo: '+esc((ST.cadence&&ST.cadence.goal)||"1 video cada 2 días")+'.</div>';
 
-    // SHORTS
-    var srows = sh.map(function(s){var pv=s.privacy==="public";
-      return '<tr><td>'+(s.video_id?'<a href="https://youtu.be/'+s.video_id+'" target="_blank">'+esc(s.title||"Short")+'</a>':esc(s.title||"Short"))+'</td>'
-        +'<td><span class="tag '+(pv?"pub":"priv")+'">'+esc(s.privacy||"?")+'</span></td>'
-        +'<td style="text-align:right">'+(s.video_id&&!pv?'<button class="btn mini" onclick="pubShort(\\''+s.video_id+'\\')">Publicar</button>':(pv?num(s.views):"—"))+'</td></tr>';
+    // SHORTS: agrupados bajo el video (nombre + numero), con privacidad real.
+    var groups = ST.shorts_groups||[];
+    var ghtml = groups.map(function(g){
+      var rows = g.shorts.map(function(s){var pv=s.privacy==="public";
+        return '<tr><td>'+(s.video_id?'<a href="https://youtu.be/'+s.video_id+'" target="_blank">'+esc(s.title||"Short")+'</a>':esc(s.title||"Short"))+'</td>'
+          +'<td><span class="tag '+(pv?"pub":"priv")+'">'+esc(s.privacy||"?")+'</span></td>'
+          +'<td style="text-align:right">'+(s.video_id&&!pv?'<button class="btn mini" onclick="pubShort(\\''+s.video_id+'\\')">Publicar</button>':(pv?num(s.views):"—"))+'</td></tr>';
+      }).join("");
+      return '<h2>🎬 Video #'+(g.n||1)+' · '+esc(g.title||"")+'</h2><div class="card"><table><tr><th>Short</th><th>Estado</th><th style="text-align:right">Vistas</th></tr>'+rows+'</table></div>';
     }).join("");
-    el("s-shorts").innerHTML='<h2>Shorts</h2><div class="card"><table><tr><th>Título</th><th>Estado</th><th style="text-align:right"></th></tr>'+(srows||'<tr><td class="muted">Sin shorts aún.</td></tr>')+'</table></div>'
+    el("s-shorts").innerHTML=(ghtml||'<div class="card muted">Sin shorts aún.</div>')
       +'<button class="btn" onclick="dispatch(\\'shorts_plan.yml\\',\\'La IA sugiere shorts\\')">🤖 Sugerir shorts</button>'
       +'<button class="btn ghost" onclick="dispatch(\\'shorts_final.yml\\',\\'Generar los shorts aprobados\\')">✂️ Generar shorts aprobados</button>';
 
