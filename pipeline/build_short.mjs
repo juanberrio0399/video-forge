@@ -130,25 +130,28 @@ function assTime(s) {
 }
 const dia = [];
 const asc = (s) => String(s).replace(/[{}\\]/g, "").replace(/[\r\n]+/g, " ");
-const HI = "&HEED322&"; // cyan de marca (BGR) para la palabra activa
-const WH = "&HFFFFFF&"; // blanco base
 
 if (fs.existsSync("words.json")) {
-  // KARAOKE palabra por palabra (timestamps reales de Whisper). Resalta la palabra que
-  // se esta diciendo; el resto en blanco. Lineas de ~4 palabras.
+  // KARAOKE con \k NATIVO de libass: la palabra que se dice se pinta de cyan (PrimaryColour
+  // del estilo Kar) y las que faltan quedan en blanco (SecondaryColour). Timestamps de Whisper.
   const words = JSON.parse(fs.readFileSync("words.json", "utf8")).filter((w) => w && w.word);
   const LINE = 4;
   for (let i = 0; i < words.length; i += LINE) {
     const line = words.slice(i, i + LINE);
-    for (let j = 0; j < line.length; j++) {
-      const segStart = +line[j].start;
-      const segEnd = j < line.length - 1 ? +line[j + 1].start : +line[j].end;
-      if (!(segEnd > segStart)) continue;
-      const text = line.map((w, k) => (k === j ? `{\\c${HI}}${asc(w.word)}{\\c${WH}}` : asc(w.word))).join(" ");
-      dia.push(`Dialogue: 0,${assTime(segStart)},${assTime(segEnd)},Def,,0,0,0,,{\\c${WH}}${text}`);
-    }
+    const last = line.length - 1;
+    const start = +line[0].start;
+    const end = +line[last].end;
+    if (!(end > start)) continue;
+    // \k por palabra en centisegundos; cada palabra se "canta" desde su inicio hasta el de la
+    // siguiente (absorbe los huecos), asi el resaltado avanza sincronizado con la voz.
+    const parts = line.map((w, k) => {
+      const nextT = k < last ? +line[k + 1].start : +w.end;
+      const kdur = Math.max(1, Math.round((nextT - +w.start) * 100));
+      return `{\\k${kdur}}${asc(w.word)}`;
+    });
+    dia.push(`Dialogue: 0,${assTime(start)},${assTime(end)},Kar,,0,0,0,,${parts.join(" ")}`);
   }
-  console.log(`karaoke: ${words.length} palabras`);
+  console.log(`karaoke: ${words.length} palabras, ${dia.length} lineas`);
 } else {
   // Fallback: trozos de 3-4 palabras (sin timestamps por palabra).
   beats.forEach((b) => {
@@ -177,8 +180,9 @@ PlayResY: ${H}
 WrapStyle: 0
 
 [V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Def,Liberation Sans,96,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,7,4,2,90,90,360,1
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Kar,Liberation Sans,96,&H00EED322,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,7,4,2,90,90,360,1
+Style: Def,Liberation Sans,96,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,7,4,2,90,90,360,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
