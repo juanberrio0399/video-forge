@@ -11,6 +11,10 @@ on:
         description: "Voz de locutor (Charon, Rasalgethi, Iapetus, Alnilam, Orus)"
         required: false
         default: "Charon"
+      only:
+        description: "Solo estos indices (ej: 2 o 1,2). Vacio = todos los aprobados."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -38,9 +42,15 @@ jobs:
           node-version: "22"
       - name: Leer aprobados del plan
         id: list
+        env:
+          ONLY: ${{ github.event.inputs.only }}
         run: |
           npx --yes wrangler@4 r2 object get "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote
-          APP=$(node -e 'const p=JSON.parse(require("fs").readFileSync("plan.json","utf8"));process.stdout.write(JSON.stringify((p.shorts||[]).filter(s=>s.approved).map(s=>s.n)))')
+          if [ -n "$ONLY" ]; then
+            APP=$(node -e 'process.stdout.write(JSON.stringify(process.env.ONLY.split(",").map(x=>parseInt(x.trim(),10)).filter(x=>!isNaN(x))))')
+          else
+            APP=$(node -e 'const p=JSON.parse(require("fs").readFileSync("plan.json","utf8"));process.stdout.write(JSON.stringify((p.shorts||[]).filter(s=>s.approved).map(s=>s.n)))')
+          fi
           echo "approved=$APP" >> "$GITHUB_OUTPUT"
           echo "aprobados: $APP"
           bash pipeline/notify_telegram.sh "🎬 Generando los shorts FINALES aprobados ($APP) con el formato pro (voz+karaoke+logo+musica). Te mando cada uno para revisar y publicar."
