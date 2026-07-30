@@ -137,6 +137,32 @@ export const APP_HTML = `<!doctype html>
     if(sst.can_suggest) return '<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700">🎬 Siguiente: sugerir shorts</div><div class="muted" style="font-size:12px;margin:4px 0">El video quedó publicado. Ahora sus shorts.</div><button class="btn" onclick="goShorts()">Ir a Shorts</button></div>';
     return '';
   }
+  function analyticsHtml(){
+    var a=ST.analytics, tot=ST.totals||{};
+    var h='<h2>📊 Analytics de YouTube <span class="live"></span></h2>';
+    if(!ST.analytics_ok){
+      return h+'<div class="card muted">Analytics ya está autorizado ✅. YouTube tarda ~1-2 días en procesar el primer dato; en cuanto llegue, aquí verás vistas, minutos vistos y crecimiento en vivo.</div>';
+    }
+    var l=(a&&a.last28)||{views:0,minutes:0,subs_gained:0,avg_sec:0};
+    h+='<div class="card"><div class="muted" style="font-size:12px;margin-bottom:8px">Últimos 28 días</div><div class="row">'
+      +'<div class="kpi"><div class="n">'+num(l.views)+'</div><div class="l">Vistas</div></div>'
+      +'<div class="kpi"><div class="n">'+num(l.minutes)+'</div><div class="l">Min vistos</div></div>'
+      +'<div class="kpi"><div class="n">'+(l.subs_gained>=0?"+":"")+num(l.subs_gained)+'</div><div class="l">Subs</div></div>'
+      +'<div class="kpi"><div class="n">'+durTxt(l.avg_sec)+'</div><div class="l">Dur. media</div></div>'
+      +'</div>';
+    var daily=(a&&a.daily)||[];
+    if(daily.length){
+      var mx=Math.max.apply(null, daily.map(function(x){return x.views;}).concat([1]));
+      var bars=daily.slice(-21).map(function(x){
+        var hh=Math.max(2, Math.round((x.views/mx)*44));
+        return '<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end"><div style="height:'+hh+'px;background:var(--cy);border-radius:2px"></div></div>';
+      }).join("");
+      h+='<div style="margin-top:12px"><div class="muted" style="font-size:11px;margin-bottom:4px">Vistas por día (últimos 21)</div><div style="display:flex;gap:2px;align-items:flex-end;height:48px">'+bars+'</div></div>';
+    }
+    h+='</div>';
+    h+='<div class="card muted" style="font-size:11px">Tiempo reproducido total del canal: '+num(tot.watch_min||0)+' min · Los datos de YouTube Analytics tienen ~1-2 días de retraso.</div>';
+    return h;
+  }
   function currentStage(){
     var a=ST.active||[], p=ST.production||{}, sst=ST.shorts_status||{};
     var isA=function(re){return a.some(function(r){return re.test(r.name||"");});};
@@ -219,6 +245,7 @@ export const APP_HTML = `<!doctype html>
       + '<div class="kpi"><div class="n">'+(ST.long_count||0)+'</div><div class="l">Largos</div></div>'
       + '<div class="kpi"><div class="n">'+(ST.shorts_count||0)+'</div><div class="l">Shorts</div></div>'
       + '</div></div>'
+      + analyticsHtml()
       + '<h2>Monetización (YPP)</h2><div class="card">'
       + '<div class="muted">Suscriptores '+(mon.subs||0)+' / 1000</div><div class="bar"><i style="width:'+pct(mon.subs,1000)+'%"></i></div>'
       + '<div class="muted" style="margin-top:10px">Horas '+(mon.watch_hours!=null?mon.watch_hours:"—")+' / 4000</div><div class="bar"><i style="width:'+pct(mon.watch_hours,4000)+'%"></i></div>'
