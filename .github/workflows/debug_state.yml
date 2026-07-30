@@ -1,0 +1,32 @@
+name: DEBUG estado (volcar R2 al log)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      BUCKET: video-forge
+      PROJECT: "0001-youtube-money"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Volcar los JSON clave de R2
+        run: |
+          echo "===== plan.json (shorts) ====="
+          npx --yes wrangler@4 r2 object get "$BUCKET/shorts/$PROJECT/plan.json" --file=- --remote 2>/dev/null || echo "(no existe)"
+          echo ""; echo "===== package.json (SEO) ====="
+          npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/package.json" --file=- --remote 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const p=JSON.parse(s);console.log("title:",p.title);console.log("validation.nota:",(p.validation||{}).nota_global)}catch(e){console.log("(no parse)")}})' || echo "(no existe)"
+          echo ""; echo "===== video_id.txt ====="
+          npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/video_id.txt" --file=- --remote 2>/dev/null || echo "(no existe)"
+          echo ""; echo "===== produced.json ====="
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/produced.json" --file=- --remote 2>/dev/null || echo "(no existe)"
+          echo ""; echo "===== seo_approved.json ====="
+          npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/seo_approved.json" --file=- --remote 2>/dev/null || echo "(no existe)"
+          echo ""; echo "===== inventory_cache.json (largos/shorts) ====="
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/inventory_cache.json" --file=- --remote 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const i=JSON.parse(s);console.log("longs:",(i.longs||[]).map(v=>v.video_id+"/"+v.privacy).join(", "));console.log("shorts:",(i.shorts||[]).map(v=>v.video_id+"/"+v.privacy).join(", "));console.log("at:",i.at)}catch(e){console.log("(no parse)")}})' || echo "(no existe)"
