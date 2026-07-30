@@ -159,14 +159,29 @@ async function handleApi(request, env, url) {
     const state = await r2json(env, "channel/state.json") || {};
     const plan = await r2json(env, "shorts/0001-youtube-money/plan.json") || {};
     const approvedShorts = (plan.shorts || []).filter((s) => s.approved);
+    // Estado REAL en YouTube (privacidad + vistas) de videos y shorts.
+    const yt = await ytStatus(env, [
+      ...(state.published || []).map((v) => v.video_id),
+      ...approvedShorts.map((s) => s.video_id),
+    ]);
+    (state.published || []).forEach((v) => {
+      if (v.video_id && yt[v.video_id]) {
+        v.privacy = yt[v.video_id].privacy || v.privacy;
+        v.stats = { views: yt[v.video_id].views, likes: yt[v.video_id].likes };
+      }
+    });
     // Shorts "hechos" = hay aprobados y TODOS estan subidos (tienen video_id).
     const shortsDone = approvedShorts.length > 0 && approvedShorts.every((s) => s.video_id);
-    // El plan de shorts pertenece al video del proyecto (el 1o publicado). Marca por video
-    // si sus shorts ya estan hechos; los demas quedan pendientes.
     (state.published || []).forEach((v, i) => { v.shorts_done = i === 0 ? shortsDone : false; });
-    state.shorts_list = approvedShorts.map((s) => ({
-      title: s.title, video_id: s.video_id || null, privacy: s.video_id ? "private" : "—",
+    // Agrupa los shorts bajo el video al que pertenecen (por ahora, el 1o publicado).
+    const firstVid = (state.published || [])[0] || {};
+    const shortsWith = approvedShorts.map((s) => ({
+      title: s.title, video_id: s.video_id || null,
+      privacy: s.video_id ? (yt[s.video_id] ? yt[s.video_id].privacy : "private") : "—",
+      views: s.video_id && yt[s.video_id] ? yt[s.video_id].views : 0,
     }));
+    state.shorts_groups = shortsWith.length ? [{ n: firstVid.n || 1, title: firstVid.title || "Video 1", shorts: shortsWith }] : [];
+    state.shorts_list = shortsWith;
     let voices = [];
     const reg = await r2json(env, "voice/registry.json");
     if (reg) voices = Object.values(reg).map((v) => v.label);
@@ -229,6 +244,29 @@ async function handleApi(request, env, url) {
     return json({ error: "kind desconocido" }, 400);
   }
   return json({ error: "ruta no encontrada" }, 404);
+}
+
+// Consulta YouTube el estado REAL (privacidad + vistas) de varios videos por id.
+async function ytStatus(env, ids) {
+  ids = [...new Set((ids || []).filter(Boolean))];
+  if (!ids.length || !env.YT_REFRESH_TOKEN) return {};
+  try {
+    const tr = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ client_id: env.YT_CLIENT_ID, client_secret: env.YT_CLIENT_SECRET, refresh_token: env.YT_REFRESH_TOKEN, grant_type: "refresh_token" }),
+    });
+    const tj = await tr.json();
+    if (!tj.access_token) return {};
+    const r = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=status,statistics&id=${ids.join(",")}`, { headers: { Authorization: `Bearer ${tj.access_token}` } });
+    const j = await r.json();
+    const out = {};
+    for (const it of j.items || []) out[it.id] = {
+      privacy: it.status && it.status.privacyStatus,
+      views: +((it.statistics && it.statistics.viewCount) || 0),
+      likes: +((it.statistics && it.statistics.likeCount) || 0),
+    };
+    return out;
+  } catch { return {}; }
 }
 
 // Lee un JSON de R2 (o null).
