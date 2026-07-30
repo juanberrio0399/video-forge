@@ -1,0 +1,76 @@
+name: Semilla de MUSICA libre (a R2)
+
+# Descarga tracks royalty-free (Kevin MacLeod, CC-BY) por VIBE y los guarda en R2
+# (music/<vibe>.mp3). Prueba varias URLs por vibe y se queda con la que funcione
+# (valida que sea un mp3 real por tamano). Se corre UNA vez; R2 los conserva.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Descargar y validar por vibe
+        run: |
+          # vibe|url1|url2|...  (se prueba en orden; la 1a valida gana)
+          try_vibe () {
+            VIBE="$1"; shift
+            for u in "$@"; do
+              echo "[$VIBE] probando: $u"
+              if curl -sL --max-time 60 -A "Mozilla/5.0" -o "m.mp3" "$u"; then
+                SZ=$(stat -c%s m.mp3 2>/dev/null || echo 0)
+                # mp3 real = > 200 KB y empieza con ID3 o frame MPEG (0xFF)
+                HEAD=$(head -c 3 m.mp3 | xxd -p 2>/dev/null || echo "")
+                if [ "$SZ" -gt 200000 ] && { echo "$HEAD" | grep -qiE "^494433" || echo "$HEAD" | grep -qiE "^fff"; }; then
+                  echo "[$VIBE] OK ($SZ bytes) -> R2 music/$VIBE.mp3"
+                  npx --yes wrangler@4 r2 object put "$BUCKET/music/$VIBE.mp3" --file=m.mp3 --remote
+                  rm -f m.mp3
+                  return 0
+                fi
+                echo "[$VIBE] descarga invalida ($SZ bytes, head=$HEAD)"
+              fi
+              rm -f m.mp3
+            done
+            echo "[$VIBE] NINGUNA url funciono"
+            return 1
+          }
+
+          B="https://incompetech.com/music/royalty-free/mp3-royaltyfree"
+          A="https://archive.org/download"
+
+          try_vibe cinematic \
+            "$B/Long%20Note%20Two.mp3" \
+            "$B/Ghostpocalypse%20-%206%20Crossing%20the%20Threshold.mp3" \
+            "$A/mc_ghostpocalypse/Ghostpocalypse%20-%206%20Crossing%20the%20Threshold.mp3" || true
+
+          try_vibe tension \
+            "$B/Mechanolith.mp3" \
+            "$B/Anguish.mp3" \
+            "$B/Echoes%20of%20Time%20v2.mp3" || true
+
+          try_vibe electronic \
+            "$B/Blippy%20Trance.mp3" \
+            "$B/Cyborg%20Ninja.mp3" \
+            "$B/Voxel%20Revolution.mp3" || true
+
+          echo "=== resumen R2 music/ ==="
+          npx --yes wrangler@4 r2 object get "$BUCKET/music/cinematic.mp3" --file=/dev/null --remote 2>&1 | tail -1 || true
+
+      - name: Avisar
+        if: always()
+        run: |
+          bash pipeline/notify_telegram.sh "🎵 Semilla de musica lista. Intente bajar tracks libres (cinematic/tension/electronic) a R2. Revisa el log para ver cuales quedaron." || true
