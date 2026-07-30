@@ -90,6 +90,11 @@ export const APP_HTML = `<!doctype html>
   document.querySelectorAll(".nav button").forEach(function(b){b.onclick=function(){tab(b.getAttribute("data-t"));};});
 
   function pct(a,b){return Math.min(100,Math.round((( +a||0)/(b||1))*100));}
+  function statusHtml(){
+    var a=ST.active||[];
+    if(!a.length) return '<div class="card muted">✅ Nada en proceso ahora.</div>';
+    return '<div class="card">'+a.map(function(r){return '<div style="margin:2px 0">⏳ '+esc(r.name)+' — <span class="muted">'+esc(r.status)+'</span></div>';}).join("")+'</div>';
+  }
 
   function render(){
     var ch = ST.channel||{}, cs = ST.channel_stats||{}, mon = ST.monetization||{};
@@ -108,6 +113,7 @@ export const APP_HTML = `<!doctype html>
       + '<div class="muted" style="margin-top:10px">Horas '+(mon.watch_hours!=null?mon.watch_hours:"—")+' / 4000</div><div class="bar"><i style="width:'+pct(mon.watch_hours,4000)+'%"></i></div>'
       + '<div style="margin-top:12px" class="'+(mon.elegible?"":"muted")+'">'+(mon.elegible?"✅ Elegible para monetizar":"❌ Aún no elegible")+'</div>'
       + '</div>'
+      + '<h2>⚡ En proceso ahora</h2>'+statusHtml()
       + '<div class="card"><button class="btn" onclick="dispatch(\\'channel_report.yml\\',\\'Reporte de métricas\\')">🔄 Refrescar métricas</button></div>';
 
     // VIDEOS
@@ -119,11 +125,23 @@ export const APP_HTML = `<!doctype html>
     }).join("");
     el("s-videos").innerHTML='<h2>Videos publicados</h2><div class="card"><table><tr><th>Título</th><th>Estado</th><th style="text-align:right">Vistas</th></tr>'+(vrows||'<tr><td class="muted">Sin videos.</td></tr>')+'</table></div>'
       +'<button class="btn" onclick="dispatch(\\'render_phased.yml\\',\\'Render del video por fases\\')">🎬 Renderizar video</button>'
-      +'<button class="btn ghost" onclick="dispatch(\\'voice_parallel.yml\\',\\'Generar voz\\')">🎙️ Generar voz</button>';
+      +'<button class="btn ghost" onclick="dispatch(\\'voice_parallel.yml\\',\\'Generar voz\\')">🎙️ Generar voz</button>'
+      +'<button class="btn ghost" onclick="dispatch(\\'shorts_plan.yml\\',\\'Sugerir shorts del video\\')">✂️ Hacer shorts de este video</button>';
 
-    // PLAN
-    var prows = up.map(function(u){return '<tr><td>#'+(u.n||"")+'</td><td>'+esc(u.topic||"")+'<div class="muted" style="font-size:11px">'+esc(u.why||"")+'</div></td><td style="text-align:right;white-space:nowrap">'+esc(u.target_date||"")+'</td></tr>';}).join("");
-    el("s-plan").innerHTML='<h2>Próximos videos</h2><div class="card"><table><tr><th>#</th><th>Tema</th><th style="text-align:right">Fecha</th></tr>'+(prows||'<tr><td class="muted">Sin programación.</td></tr>')+'</table></div>'
+    // PLAN (panel de produccion): estado + siguiente con boton + pendientes + tendencias
+    var next = up[0];
+    var rest = up.slice(1);
+    var prows = rest.map(function(u){return '<tr><td>#'+(u.n||"")+'</td><td>'+esc(u.topic||"")+'<div class="muted" style="font-size:11px">'+esc(u.why||"")+'</div></td><td style="text-align:right;white-space:nowrap">'+esc(u.target_date||"")+'</td></tr>';}).join("");
+    el("s-plan").innerHTML=
+      '<h2>⚡ En proceso ahora</h2>'+statusHtml()
+      +(next
+        ? '<h2>Siguiente video</h2><div class="card"><div style="font-weight:800;font-size:16px">#'+(next.n||"")+' · '+esc(next.topic||"")+'</div>'
+          +'<div class="muted" style="margin:6px 0 12px">'+esc(next.why||"")+' · '+esc(next.target_date||"")+'</div>'
+          +'<button class="btn" onclick="produceVideo('+(next.n||0)+')">▶️ Producir este video</button>'
+          +'<button class="btn ghost" onclick="showTrends()">🔥 Analizar tendencias (¿alineado?)</button></div>'
+        : '<div class="card muted">🎉 No hay videos pendientes.</div>')
+      +'<div id="trendsOut"></div>'
+      +'<h2>Programados (pendientes)</h2><div class="card"><table><tr><th>#</th><th>Tema</th><th style="text-align:right">Fecha</th></tr>'+(prows||'<tr><td class="muted">—</td></tr>')+'</table></div>'
       +'<div class="card muted">Cadencia objetivo: '+esc((ST.cadence&&ST.cadence.goal)||"1 video cada 2 días")+'.</div>';
 
     // SHORTS
@@ -160,6 +178,18 @@ export const APP_HTML = `<!doctype html>
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:workflow})})
       .then(function(r){return r.json();}).then(function(j){toast(j.ok?("✅ "+label+" — en marcha"):("❌ "+(j.error||"no pude")));})
       .catch(function(){toast("❌ Error de red");});
+  }
+  function produceVideo(n){
+    var u=(ST.upcoming||[]).find(function(x){return x.n===n;})||{};
+    if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
+    api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"produce_video.yml",inputs:{topic:u.topic||"",n:String(n)}})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?("✅ Produciendo el video #"+n+" — te aviso al chat"):("❌ "+(j.error||"no pude")));setTimeout(load,1500);});
+  }
+  function showTrends(){
+    var o=el("trendsOut"); o.innerHTML='<div class="card muted">🔎 Analizando tendencias…</div>';
+    api("/api/trends").then(function(r){return r.json();}).then(function(j){
+      o.innerHTML='<h2>🔥 Tendencias — ¿alineado?</h2><div class="card">'+esc(j.analysis||j.error||"sin datos").replace(/\\n/g,"<br>")+'</div>';
+    }).catch(function(){o.innerHTML='<div class="card muted">No pude analizar tendencias.</div>';});
   }
   function pubShort(id){
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"set_privacy.yml",inputs:{video_id:id,privacy:"public"}})})

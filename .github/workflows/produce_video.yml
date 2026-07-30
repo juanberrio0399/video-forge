@@ -1,0 +1,63 @@
+name: Producir VIDEO desde un tema (paso 1 - guion)
+
+# Lo dispara la app ("Producir este video"). La IA escribe el guion completo del tema
+# (formato voicemap) y lo guarda en R2. Es el paso 1 de la produccion: con el guion
+# listo siguen la voz y el render. Avisa al chat con el resumen.
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Tema del video"
+        required: true
+      n:
+        description: "Numero del video en la serie"
+        required: false
+        default: "2"
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  script:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      TOPIC: ${{ github.event.inputs.topic }}
+      N: ${{ github.event.inputs.n || '2' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Avisar arranque
+        run: bash pipeline/notify_telegram.sh "✍️ Escribiendo el guion del video #${N}: ${TOPIC}. Te muestro el resumen en un momento."
+
+      - name: Generar el guion (IA)
+        run: node pipeline/video_script.mjs "$TOPIC" voicemap.json
+
+      - name: Guardar el guion en R2
+        run: |
+          npx --yes wrangler@4 r2 object put "$BUCKET/scripts/next_voicemap.json" --file=voicemap.json --remote
+          echo "R2: scripts/next_voicemap.json"
+
+      - name: Avisar resumen al chat
+        if: always()
+        run: |
+          if [ -f voicemap.json ]; then
+            TITLE=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("voicemap.json","utf8")).title||"")}catch(e){}')
+            NB=$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync("voicemap.json","utf8")).beats.length))}catch(e){process.stdout.write("?")}')
+            HOOK=$(node -e 'try{const v=JSON.parse(require("fs").readFileSync("voicemap.json","utf8"));process.stdout.write((v.beats[0]&&v.beats[0].text||"").slice(0,180))}catch(e){}')
+            bash pipeline/notify_telegram.sh "✍️ Guion del video #${N} listo: \"${TITLE}\" (${NB} beats)."$'\n\n'"Gancho: ${HOOK}"$'\n\n'"Siguiente paso: generar la voz y renderizar (dime y sigo, o desde la app)."
+          else
+            bash pipeline/notify_telegram.sh "❌ No pude escribir el guion del video #${N}."
+          fi

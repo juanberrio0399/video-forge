@@ -37,6 +37,7 @@ jobs:
           printf '%s' "${{ secrets.GH_TOKEN }}"                | npx --yes wrangler@4 secret put GH_TOKEN
           printf '%s' "${{ secrets.OWNER_CHAT_ID }}"           | npx --yes wrangler@4 secret put OWNER_CHAT_ID
           printf '%s' "${{ secrets.TELEGRAM_WEBHOOK_SECRET }}" | npx --yes wrangler@4 secret put TELEGRAM_WEBHOOK_SECRET
+          printf '%s' "${{ secrets.GEMINI_API_KEY }}"          | npx --yes wrangler@4 secret put GEMINI_API_KEY
 
       - name: Registrar webhook de Telegram
         run: |
