@@ -32,51 +32,24 @@ jobs:
         chunk: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v4
-      - name: Bajar voz de referencia de R2 (o del registro subido desde la app)
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          mkdir -p assets/voice
-          if npx --yes wrangler@4 r2 object get "video-forge/voice/ref_juan_es.mp3" --file=assets/voice/ref_juan_es.mp3 --remote 2>/dev/null; then
-            echo "ref: ref_juan_es.mp3"
-          else
-            echo "ref_juan_es.mp3 no esta; busco en el registro de voces (subidas desde la app)"
-            npx --yes wrangler@4 r2 object get "video-forge/voice/registry.json" --file=registry.json --remote 2>/dev/null || echo "{}" > registry.json
-            SLUG=$(node -e 'const r=JSON.parse(require("fs").readFileSync("registry.json","utf8")||"{}");const k=Object.keys(r);const p=k.find(x=>/juan|yo|locutor/i.test(x))||k[0]||"";process.stdout.write(p)')
-            if [ -n "$SLUG" ] && npx --yes wrangler@4 r2 object get "video-forge/voice/ref_${SLUG}.mp3" --file=assets/voice/ref_juan_es.mp3 --remote 2>/dev/null; then
-              echo "ref del registro: ${SLUG}"
-            else
-              echo "NO HAY VOZ DE REFERENCIA EN R2. Sube tu voz desde la app (Crear -> Voz)."
-              exit 1
-            fi
-          fi
-          ls -la assets/voice/
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.11"
+          node-version: "22"
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - name: Install Chatterbox (CPU torch)
-        run: |
-          python -m pip install --upgrade pip
-          pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install chatterbox-tts soundfile numpy
-      - name: Bajar el guion ACTIVO de R2 (el de la fabrica), si existe
+      - name: Bajar el guion ACTIVO de R2 (fabrica) o el del repo
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          npx --yes wrangler@4 r2 object get "video-forge/audio/0001-youtube-money/voicemap_full.json" --file=voicemap_active.json --remote 2>/dev/null && echo "usando guion de R2" || echo "sin guion en R2; uso el del repo"
-      - name: Sintetizar pedazo
+          npx --yes wrangler@4 r2 object get "video-forge/audio/0001-youtube-money/voicemap_full.json" --file=voicemap_active.json --remote 2>/dev/null && echo "guion de R2" || cp "${{ github.event.inputs.map || 'projects/0001-youtube-money/voicemap_full.json' }}" voicemap_active.json
+      - name: Sintetizar pedazo (voz de LOCUTOR, Gemini TTS)
         env:
-          MAP_REPO: ${{ github.event.inputs.map || 'projects/0001-youtube-money/voicemap_full.json' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VOICE: Charon
         run: |
           mkdir -p out
-          # Prefiere el guion activo de R2 (fabrica); si no, el del repo.
-          MAP="$MAP_REPO"; [ -s voicemap_active.json ] && MAP="voicemap_active.json"
-          echo "MAP=$MAP"
-          python pipeline/tts_chatterbox_directed.py "$MAP" "out/part_${{ matrix.chunk }}.wav" ${{ matrix.chunk }} ${NUM_CHUNKS}
+          node pipeline/tts_gemini_directed.mjs voicemap_active.json "out/part_${{ matrix.chunk }}.wav" ${{ matrix.chunk }} ${NUM_CHUNKS}
       - name: Subir pedazo (audio + tiempos)
         uses: actions/upload-artifact@v4
         with:
