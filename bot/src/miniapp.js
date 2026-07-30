@@ -190,11 +190,11 @@ export const APP_HTML = `<!doctype html>
       + '<div class="card"><button class="btn" onclick="dispatch(\\'channel_report.yml\\',\\'Reporte de métricas\\')">🔄 Refrescar métricas</button></div>';
 
     // VIDEOS
-    var vrows = pub.map(function(v){
+    var vrows = pub.map(function(v,idx){
       var s=v.stats||{}; var pv=v.privacy==="public";
-      // Boton de shorts SOLO por video y SOLO si estan pendientes.
+      // Botón de shorts SOLO en el video más nuevo, público y sin shorts hechos.
       var shortsCell = v.shorts_done ? '<span class="muted">✓</span>'
-        : (pv ? '<button class="btn mini" onclick="dispatch(\\'shorts_plan.yml\\',\\'Sugerir shorts\\')">✂️ Hacer</button>' : '<span class="muted">—</span>');
+        : ((idx===0 && pv) ? '<button class="btn mini" onclick="goShorts()">✂️ Hacer</button>' : '<span class="muted">—</span>');
       return '<tr><td>'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc(v.title||v.video_id)+'</a>':esc(v.title||""))+'<div class="muted" style="font-size:11px">'+esc(v.published_at||"")+'</div></td>'
         +'<td><span class="tag '+(pv?"pub":"priv")+'">'+esc(v.privacy||"")+'</span></td>'
         +'<td style="text-align:right">'+(pv?num(s.views):"—")+'</td>'
@@ -225,19 +225,45 @@ export const APP_HTML = `<!doctype html>
       +'<h2>Programados (pendientes)</h2><div class="card"><table><tr><th>#</th><th>Tema</th><th style="text-align:right">Fecha</th></tr>'+(prows||'<tr><td class="muted">—</td></tr>')+'</table></div>'
       +'<div class="card muted">Cadencia objetivo: '+esc((ST.cadence&&ST.cadence.goal)||"1 video cada 2 días")+'.</div>';
 
-    // SHORTS: agrupados bajo el video (nombre + numero), con privacidad real.
-    var groups = ST.shorts_groups||[];
-    var ghtml = groups.map(function(g){
-      var rows = g.shorts.map(function(s){var pv=s.privacy==="public";
-        return '<tr><td>'+(s.video_id?'<a href="https://youtu.be/'+s.video_id+'" target="_blank">'+esc(s.title||"Short")+'</a>':esc(s.title||"Short"))+'</td>'
-          +'<td><span class="tag '+(pv?"pub":"priv")+'">'+esc(s.privacy||"?")+'</span></td>'
-          +'<td style="text-align:right">'+(s.video_id&&!pv?'<button class="btn mini" onclick="pubShort(\\''+s.video_id+'\\')">Publicar</button>':(pv?num(s.views):"—"))+'</td></tr>';
+    // SHORTS: aprobar → generar → publicar, todo desde la app.
+    var prop = ST.shorts_proposal||[]; var sst = ST.shorts_status||{};
+    var pend=prop.filter(function(s){return s.state==="pending";});
+    var appr=prop.filter(function(s){return s.state==="approved";});
+    var upl=prop.filter(function(s){return s.state==="uploaded";});
+    var skip=prop.filter(function(s){return s.state==="skipped";});
+    var sh="";
+    if(pend.length){
+      sh+='<h2>🤖 Sugerencias por aprobar ('+pend.length+')</h2>';
+      sh+=pend.map(function(s){
+        return '<div class="card"><div style="font-weight:700">'+esc(s.title)+(s.dur?' · '+s.dur+'s':'')+'</div>'
+          +(s.hook?'<div class="muted" style="font-size:12px;margin:3px 0">🪝 '+esc(s.hook)+'</div>':'')
+          +(s.caption?'<div style="font-size:13px;margin:3px 0">'+esc(s.caption)+'</div>':'')
+          +((s.hashtags&&s.hashtags.length)?'<div class="muted" style="font-size:11px">'+esc(s.hashtags.join(" "))+'</div>':'')
+          +'<div style="margin-top:8px"><button class="btn mini" onclick="shortApprove('+s.n+',1)">✅ Aprobar</button> '
+          +'<button class="btn mini ghost" onclick="shortApprove('+s.n+',0)">❌ Saltar</button></div></div>';
       }).join("");
-      return '<h2>🎬 Video #'+(g.n||1)+' · '+esc(g.title||"")+'</h2><div class="card"><table><tr><th>Short</th><th>Estado</th><th style="text-align:right">Vistas</th></tr>'+rows+'</table></div>';
-    }).join("");
-    el("s-shorts").innerHTML=(ghtml||'<div class="card muted">Sin shorts aún.</div>')
-      +'<button class="btn" onclick="dispatch(\\'shorts_plan.yml\\',\\'La IA sugiere shorts\\')">🤖 Sugerir shorts</button>'
-      +'<button class="btn ghost" onclick="dispatch(\\'shorts_final.yml\\',\\'Generar los shorts aprobados\\')">✂️ Generar shorts aprobados</button>';
+    }
+    if(appr.length){
+      sh+='<h2>✅ Aprobados ('+appr.length+') — listos para generar</h2><div class="card">'
+        +appr.map(function(s){return '<div style="margin:2px 0">• '+esc(s.title)+'</div>';}).join("")
+        +'<button class="btn" onclick="dispatch(\\'shorts_final.yml\\',\\'Generar los shorts aprobados\\')">🎬 Generar los aprobados</button></div>';
+    }
+    if(upl.length){
+      sh+='<h2>🎬 Shorts hechos</h2><div class="card"><table><tr><th>Short</th><th>Estado</th><th style="text-align:right">Vistas</th></tr>'
+        +upl.map(function(s){var pv=s.privacy==="public";
+          return '<tr><td>'+(s.video_id?'<a href="https://youtu.be/'+s.video_id+'" target="_blank">'+esc(s.title)+'</a>':esc(s.title))+'</td>'
+          +'<td><span class="tag '+(pv?"pub":"priv")+'">'+esc(s.privacy||"?")+'</span></td>'
+          +'<td style="text-align:right">'+(!pv?'<button class="btn mini" onclick="pubShort(\\''+s.video_id+'\\')">Publicar</button>':num(s.views))+'</td></tr>';
+        }).join("")+'</table></div>';
+    }
+    if(skip.length) sh+='<div class="muted" style="font-size:12px;margin:6px 2px">Saltados: '+skip.length+'.</div>';
+    if(sst.can_suggest){
+      sh+='<button class="btn" onclick="suggestShorts()">🤖 Sugerir shorts del último video</button>'
+        +'<div class="muted" style="font-size:11px;margin-top:4px">La IA analiza el último video: cuántos shorts, de qué momentos y qué tan largos.</div>';
+    } else if(sst.all_done){
+      sh+='<div class="card muted">✓ Ya hiciste los shorts de este video. Cuando publiques uno nuevo, aquí podrás sugerir los suyos.</div>';
+    }
+    el("s-shorts").innerHTML=sh||'<div class="card muted">Aún no hay shorts. Publica un video y dale a Sugerir.</div>';
 
     // CREAR
     el("s-crear").innerHTML=
@@ -294,14 +320,21 @@ export const APP_HTML = `<!doctype html>
   function publishVideo(){
     var p=ST.production||{}; if(!p.video_id){toast("Aún no hay video subido");return;}
     var go=function(){ api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"set_privacy.yml",inputs:{video_id:p.video_id,privacy:"public"}})})
-      .then(function(r){return r.json();}).then(function(j){
-        if(j.ok){ toast("🌍 Publicando + analizando shorts de este video…");
-          // Encadena: al publicar, la IA arranca a proponer los shorts (tú los apruebas).
-          api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"shorts_plan.yml"})});
-        } else { toast("❌ "+(j.error||"no pude")); }
-        setTimeout(load,1800); }); };
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🌍 Publicando el video como público. Cuando quieras, ve a Shorts y dale Sugerir.":"❌ "+(j.error||"no pude"));setTimeout(load,1800);}); };
     if(tg&&tg.showConfirm){ tg.showConfirm("¿Publicar el video como PÚBLICO en el canal?",function(ok){if(ok)go();}); }
     else if(confirm("¿Publicar el video como PÚBLICO en el canal?")){ go(); }
+  }
+  function shortApprove(n, ok){
+    if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("light");
+    api("/api/short",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({n:n,action:ok?"approve":"skip"})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?(ok?"✅ Short aprobado":"❌ Short saltado"):"❌ no pude");setTimeout(load,500);});
+  }
+  function goShorts(){ tab("shorts"); }
+  function suggestShorts(){
+    var vid=(ST.shorts_status&&ST.shorts_status.latest_video_id)||"";
+    if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
+    api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"shorts_plan.yml",inputs:vid?{video_id:vid}:{}})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🤖 Analizando el último video para sugerir shorts…":"❌ "+(j.error||"no pude"));setTimeout(load,2500);});
   }
   function pubShort(id){
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"set_privacy.yml",inputs:{video_id:id,privacy:"public"}})})
