@@ -7,6 +7,10 @@ on:
         description: "Ruta en R2 del video (ej: video/shorts_test/short.mp4)"
         required: true
         default: "video/shorts_test/short.mp4"
+      times:
+        description: "Segundos separados por espacio (seek PRECISO)"
+        required: false
+        default: "1 5 12 20 30"
 
 permissions:
   contents: read
@@ -31,8 +35,9 @@ jobs:
           mkdir -p frames
           DUR=$(ffprobe -v error -show_entries format=duration -of default=nk=1:nw=1 v.mp4)
           echo "duracion=$DUR"
-          for t in 1 5 12 20 30; do
-            ffmpeg -y -ss $t -i v.mp4 -frames:v 1 -q:v 3 "frames/f_${t}s.jpg" 2>/dev/null || true
+          # -ss DESPUES de -i = seek PRECISO por frame (no salta al keyframe).
+          for t in ${{ github.event.inputs.times || '1 5 12 20 30' }}; do
+            ffmpeg -y -i v.mp4 -ss $t -frames:v 1 -q:v 3 "frames/f_${t}s.jpg" 2>/dev/null || true
           done
           ls -la frames/
       - name: Subir frames
