@@ -49,7 +49,8 @@ jobs:
           if [ -n "$ONLY" ]; then
             APP=$(node -e 'process.stdout.write(JSON.stringify(process.env.ONLY.split(",").map(x=>parseInt(x.trim(),10)).filter(x=>!isNaN(x))))')
           else
-            APP=$(node -e 'const p=JSON.parse(require("fs").readFileSync("plan.json","utf8"));process.stdout.write(JSON.stringify((p.shorts||[]).filter(s=>s.approved).map(s=>s.n)))')
+            # Solo los aprobados que AUN NO tienen video_id (no re-subir = no duplicados).
+            APP=$(node -e 'const p=JSON.parse(require("fs").readFileSync("plan.json","utf8"));process.stdout.write(JSON.stringify((p.shorts||[]).filter(s=>s.approved && !s.video_id).map(s=>s.n)))')
           fi
           echo "approved=$APP" >> "$GITHUB_OUTPUT"
           echo "aprobados: $APP"

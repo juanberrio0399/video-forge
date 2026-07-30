@@ -23,4 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Enviar mensaje
-        run: bash pipeline/notify_telegram.sh "${{ github.event.inputs.text }}"
+        env:
+          TEXT: ${{ github.event.inputs.text }}
+        run: bash pipeline/notify_telegram.sh "$TEXT"

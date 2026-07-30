@@ -33,11 +33,14 @@ jobs:
       - name: Avisar arranque
         run: bash pipeline/notify_telegram.sh "🎬 Analizando el video para sugerir Shorts (cuántos, de qué momentos y qué tan largos). Ya te muestro las propuestas."
 
-      - name: Bajar tiempos de R2
-        run: npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing.json --remote || echo "sin timing"
+      - name: Bajar tiempos + guion ACTIVO de R2
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing.json --remote || echo "sin timing"
+          # Guion del video REALMENTE producido (de R2); si no, el del repo.
+          npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/voicemap_full.json" --file=voicemap_active.json --remote 2>/dev/null && echo "guion de R2" || cp "projects/$PROJECT/voicemap_full.json" voicemap_active.json
 
       - name: Analizar y proponer los shorts
-        run: node pipeline/shorts_plan.mjs "projects/$PROJECT/voicemap_full.json" timing.json plan.json
+        run: node pipeline/shorts_plan.mjs voicemap_active.json timing.json plan.json
 
       - name: Guardar el plan en R2
         run: npx --yes wrangler@4 r2 object put "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote

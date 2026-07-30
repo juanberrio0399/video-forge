@@ -86,10 +86,16 @@ jobs:
         run: |
           mkdir -p renders
           : > list.txt
+          MISSING=0
           for i in $(seq 0 $((NUM_CHUNKS-1))); do
             f="parts/part_${i}.wav"
-            if [ -f "$f" ]; then echo "file '$PWD/$f'" >> list.txt; fi
+            if [ -f "$f" ]; then echo "file '$PWD/$f'" >> list.txt; else echo "FALTA pedazo $i"; MISSING=$((MISSING+1)); fi
           done
+          # Si falta cualquier pedazo, NO armar una voz incompleta ni encadenar el render.
+          if [ "$MISSING" -gt 0 ]; then
+            echo "Faltan $MISSING pedazo(s) de $NUM_CHUNKS -> abortar para no dejar narración a medias."
+            exit 1
+          fi
           echo "=== orden de union ==="; cat list.txt
           ffmpeg -y -f concat -safe 0 -i list.txt -ar 24000 -ac 1 renders/full_raw.wav
           ffmpeg -y -i renders/full_raw.wav \

@@ -114,6 +114,9 @@ async function validateInitData(initData, env) {
   const secret = await hmacBytes(new TextEncoder().encode("WebAppData"), env.TELEGRAM_BOT_TOKEN);
   const check = toHex(await hmacBytes(secret, dcs));
   if (check !== hash) return null;
+  // Frescura: rechazar initData de mas de 24 h (cierra el replay a largo plazo).
+  const authDate = +(params.get("auth_date") || 0);
+  if (!authDate || (Date.now() / 1000 - authDate) > 86400) return null;
   let user;
   try { user = JSON.parse(params.get("user") || "null"); } catch { return null; }
   if (!user || !isOwner(user.id, env)) return null;
@@ -159,17 +162,22 @@ async function handleApi(request, env, url) {
     const state = await r2json(env, "channel/state.json") || {};
     const plan = await r2json(env, "shorts/0001-youtube-money/plan.json") || {};
     const approvedShorts = (plan.shorts || []).filter((s) => s.approved);
-    // Estado REAL en YouTube (privacidad + vistas) de videos y shorts.
-    const yt = await ytStatus(env, [
-      ...(state.published || []).map((v) => v.video_id),
-      ...approvedShorts.map((s) => s.video_id),
-    ]);
-    (state.published || []).forEach((v) => {
-      if (v.video_id && yt[v.video_id]) {
-        v.privacy = yt[v.video_id].privacy || v.privacy;
-        v.stats = { views: yt[v.video_id].views, likes: yt[v.video_id].likes };
-      }
-    });
+    // Inventario REAL del canal (cacheado 10 min): largos + shorts + subs/vistas.
+    // Asi la lista de publicados y el contador se actualizan solos al subir/publicar.
+    const inv = await channelInventory(env);
+    const seedPub = state.published || [];
+    if (inv.longs && inv.longs.length) {
+      state.published = inv.longs.map((v) => {
+        const seed = seedPub.find((p) => p.video_id === v.video_id) || {};
+        return { video_id: v.video_id, title: v.title, privacy: v.privacy, published_at: v.published_at, n: seed.n, ai_score: seed.ai_score, stats: { views: v.views, likes: v.likes } };
+      });
+    }
+    // Privacidad/vistas frescas de los shorts aprobados (del plan).
+    const yt = await ytStatus(env, approvedShorts.map((s) => s.video_id));
+    // Contadores: cuantos videos largos y cuantos shorts (lo que pidio Juan).
+    state.long_count = (state.published || []).length;
+    state.shorts_count = (inv.shorts || []).length;
+    state.shorts_public = (inv.shorts || []).filter((s) => s.privacy === "public").length;
     // Shorts "hechos" = hay aprobados y TODOS estan subidos (tienen video_id).
     const shortsDone = approvedShorts.length > 0 && approvedShorts.every((s) => s.video_id);
     (state.published || []).forEach((v, i) => { v.shorts_done = i === 0 ? shortsDone : false; });
@@ -182,6 +190,17 @@ async function handleApi(request, env, url) {
     }));
     state.shorts_groups = shortsWith.length ? [{ n: firstVid.n || 1, title: firstVid.title || "Video 1", shorts: shortsWith }] : [];
     state.shorts_list = shortsWith;
+    // Avanzar PROXIMOS: quitar los que ya se produjeron (channel/produced.json = {done:[ns]}).
+    const produced = (await r2json(env, "channel/produced.json")) || { done: [] };
+    const doneSet = new Set(produced.done || []);
+    state.upcoming = (state.upcoming || []).filter((u) => !doneSet.has(u.n));
+    // Metricas frescas del canal (del inventario, cada 10 min).
+    if (inv.at) {
+      state.channel_stats = { subs: inv.subs, total_views: inv.total_views, videos: (inv.longs || []).length + (inv.shorts || []).length };
+      state.monetization = state.monetization || {};
+      state.monetization.subs = inv.subs;
+    }
+    state.inventory_at = inv.at;
     let voices = [];
     const reg = await r2json(env, "voice/registry.json");
     if (reg) voices = Object.values(reg).map((v) => v.label);
@@ -264,7 +283,14 @@ async function handleApi(request, env, url) {
     let body = {};
     try { body = await request.json(); } catch {}
     if (!APP_WORKFLOWS.has(body.workflow)) return json({ error: "workflow no permitido" }, 400);
-    const r = await ghDispatch(env, body.workflow, body.inputs || {});
+    // Validar la forma de los inputs conocidos (defensa en profundidad).
+    const inputs = body.inputs || {};
+    if (inputs.video_id != null && !/^[A-Za-z0-9_-]{11}$/.test(String(inputs.video_id))) return json({ error: "video_id inválido" }, 400);
+    if (inputs.privacy != null && !["public", "private", "unlisted"].includes(String(inputs.privacy))) return json({ error: "privacy inválido" }, 400);
+    if (inputs.n != null && !/^\d{1,4}$/.test(String(inputs.n))) return json({ error: "n inválido" }, 400);
+    if (inputs.notes != null) inputs.notes = String(inputs.notes).slice(0, 500);
+    if (inputs.topic != null) inputs.topic = String(inputs.topic).slice(0, 300);
+    const r = await ghDispatch(env, body.workflow, inputs);
     return json({ ok: r.ok, status: r.status });
   }
 
@@ -332,6 +358,59 @@ async function ytStatus(env, ids) {
     };
     return out;
   } catch { return {}; }
+}
+
+// Duracion ISO8601 (PT#M#S) -> segundos.
+function isoDurSec(d) {
+  const m = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(d || "") || [];
+  return (+(m[1] || 0)) * 3600 + (+(m[2] || 0)) * 60 + (+(m[3] || 0));
+}
+// Token OAuth de YouTube (refresh).
+async function ytToken(env) {
+  if (!env.YT_REFRESH_TOKEN) return null;
+  try {
+    const tr = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ client_id: env.YT_CLIENT_ID, client_secret: env.YT_CLIENT_SECRET, refresh_token: env.YT_REFRESH_TOKEN, grant_type: "refresh_token" }),
+    });
+    const tj = await tr.json();
+    return tj.access_token || null;
+  } catch { return null; }
+}
+// Inventario REAL del canal (largos vs shorts) + subs/vistas. Cacheado 10 min en R2 para
+// no gastar cuota de YouTube en cada refresco de la app. Asi la lista se actualiza sola.
+async function channelInventory(env) {
+  const cached = await r2json(env, "channel/inventory_cache.json");
+  if (cached && cached.at && (Date.now() - Date.parse(cached.at) < 10 * 60 * 1000)) return cached;
+  const token = await ytToken(env);
+  if (!token) return cached || { longs: [], shorts: [], subs: 0, total_views: 0, at: null, stale: true };
+  const H = { Authorization: `Bearer ${token}` };
+  try {
+    const ch = await (await fetch("https://www.googleapis.com/youtube/v3/channels?part=contentDetails,statistics&mine=true", { headers: H })).json();
+    const item = ch.items && ch.items[0];
+    const up = item && item.contentDetails && item.contentDetails.relatedPlaylists && item.contentDetails.relatedPlaylists.uploads;
+    if (!up) return cached || { longs: [], shorts: [], subs: 0, total_views: 0, at: null, stale: true };
+    let ids = [], page = "";
+    do {
+      const j = await (await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId=${up}&pageToken=${page}`, { headers: H })).json();
+      ids.push(...(j.items || []).map((i) => i.contentDetails.videoId));
+      page = j.nextPageToken || "";
+    } while (page && ids.length < 200);
+    const longs = [], shorts = [];
+    for (let i = 0; i < ids.length; i += 50) {
+      const j = await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status,statistics,contentDetails&id=${ids.slice(i, i + 50).join(",")}`, { headers: H })).json();
+      for (const v of j.items || []) {
+        const secs = isoDurSec(v.contentDetails.duration);
+        const row = { video_id: v.id, title: v.snippet.title, privacy: v.status.privacyStatus, published_at: v.snippet.publishedAt.slice(0, 10), views: +((v.statistics || {}).viewCount || 0), likes: +((v.statistics || {}).likeCount || 0), seconds: secs };
+        if (secs > 0 && secs <= 60) shorts.push(row); else longs.push(row);
+      }
+    }
+    longs.sort((a, b) => (a.published_at < b.published_at ? 1 : -1));
+    shorts.sort((a, b) => (a.published_at < b.published_at ? 1 : -1));
+    const inv = { longs, shorts, subs: +(((item.statistics || {}).subscriberCount) || 0), total_views: +(((item.statistics || {}).viewCount) || 0), at: new Date().toISOString() };
+    await env.R2.put("channel/inventory_cache.json", JSON.stringify(inv), { httpMetadata: { contentType: "application/json" } });
+    return inv;
+  } catch { return cached || { longs: [], shorts: [], subs: 0, total_views: 0, at: null, stale: true }; }
 }
 
 // Lee un JSON de R2 (o null).

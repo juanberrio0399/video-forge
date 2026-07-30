@@ -261,7 +261,8 @@ jobs:
             fs.writeFileSync("list.txt", lines.join("\n")+"\n");
             fs.appendFileSync(process.env.GITHUB_ENV, `MIN_SCORE=${min===99?0:min}\n`);
             fs.appendFileSync(process.env.GITHUB_ENV, `SCORES=${scores.join(" ")}\n`);
-            if(missing.length) console.log("OJO faltan fases:", missing.join(","));
+            // Si falta una fase (ni re-renderizada ni en el run base), NO entregar un video con hueco.
+            if(missing.length){ console.error("Faltan fases (dejarian un hueco):", missing.join(",")); process.exit(1); }
             console.log("orden de union:\n"+lines.join("\n"));
             if(!lines.length){ console.error("Sin fases para unir"); process.exit(1); }
           '

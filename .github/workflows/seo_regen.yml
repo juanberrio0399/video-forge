@@ -62,10 +62,11 @@ jobs:
           echo "VIDEO_ID=$(cat video_id.txt)"
 
       - name: Regenerar el paquete SEO (con las sugerencias previas)
+        env:
+          NOTES: ${{ github.event.inputs.notes }}
         run: |
           # Pasa las sugerencias/problemas del paquete anterior + los comentarios de Juan.
           SEO_IMPROVE="$(node -e "try{const v=JSON.parse(require('fs').readFileSync('prev_package.json','utf8')).validation||{};process.stdout.write([...(v.problemas||[]),...(v.sugerencias||[])].join('; '))}catch(e){}")"
-          NOTES="${{ github.event.inputs.notes }}"
           if [ -n "$NOTES" ]; then SEO_IMPROVE="Comentarios de Juan (PRIORIDAD): $NOTES. $SEO_IMPROVE"; fi
           export SEO_IMPROVE
           echo "Guia de mejora: ${SEO_IMPROVE:-(sin sugerencias previas)}"
