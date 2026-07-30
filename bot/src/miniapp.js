@@ -244,16 +244,26 @@ export const APP_HTML = `<!doctype html>
     var upl=prop.filter(function(s){return s.state==="uploaded";});
     var skip=prop.filter(function(s){return s.state==="skipped";});
     var sh="";
+    var vid=sst.latest_video_id;
     if(pend.length){
       sh+='<h2>🤖 Sugerencias por aprobar ('+pend.length+')</h2>';
       sh+=pend.map(function(s){
+        var moment = (vid && s.start!=null) ? 'https://youtu.be/'+vid+'?t='+s.start : null;
+        var mmss = (s.start!=null) ? (Math.floor(s.start/60)+':'+('0'+(s.start%60)).slice(-2)) : '';
         return '<div class="card"><div style="font-weight:700">'+esc(s.title)+(s.dur?' · '+s.dur+'s':'')+'</div>'
+          +(mmss?'<div class="muted" style="font-size:11px">⏱️ desde el '+mmss+' del video</div>':'')
           +(s.hook?'<div class="muted" style="font-size:12px;margin:3px 0">🪝 '+esc(s.hook)+'</div>':'')
           +(s.caption?'<div style="font-size:13px;margin:3px 0">'+esc(s.caption)+'</div>':'')
           +((s.hashtags&&s.hashtags.length)?'<div class="muted" style="font-size:11px">'+esc(s.hashtags.join(" "))+'</div>':'')
-          +'<div style="margin-top:8px"><button class="btn mini" onclick="shortApprove('+s.n+',1)">✅ Aprobar</button> '
+          +'<div style="margin-top:8px">'
+          +(moment?'<a class="btn mini ghost" href="'+moment+'" target="_blank">▶️ Ver el momento</a> ':'')
+          +'<button class="btn mini" onclick="shortApprove('+s.n+',1)">✅ Aprobar</button> '
           +'<button class="btn mini ghost" onclick="shortApprove('+s.n+',0)">❌ Saltar</button></div></div>';
       }).join("");
+      // Rehacer las sugerencias con comentarios (como el SEO).
+      sh+='<div class="card"><div class="muted" style="font-size:12px;margin-bottom:6px">¿No te convencen? Deja un comentario y la IA las rehace:</div>'
+        +'<textarea id="shNotes" placeholder="Ej: shorts más cortos, que empiecen con la cifra, usa el momento del minuto 3"></textarea>'
+        +'<button class="btn ghost" onclick="regenShorts()">🔁 Regenerar sugerencias con mis comentarios</button></div>';
     }
     if(appr.length){
       sh+='<h2>✅ Aprobados ('+appr.length+') — listos para generar</h2><div class="card">'
@@ -342,12 +352,15 @@ export const APP_HTML = `<!doctype html>
       .then(function(r){return r.json();}).then(function(j){toast(j.ok?(ok?"✅ Short aprobado":"❌ Short saltado"):"❌ no pude");setTimeout(load,500);});
   }
   function goShorts(){ tab("shorts"); }
-  function suggestShorts(){
+  function runShortsPlan(notes){
     var vid=(ST.shorts_status&&ST.shorts_status.latest_video_id)||"";
+    var inputs={}; if(vid)inputs.video_id=vid; if(notes)inputs.notes=notes;
     if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
-    api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"shorts_plan.yml",inputs:vid?{video_id:vid}:{}})})
-      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🤖 Analizando el último video para sugerir shorts…":"❌ "+(j.error||"no pude"));setTimeout(load,2500);});
+    api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"shorts_plan.yml",inputs:inputs})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🤖 Analizando el video para (re)sugerir shorts…":"❌ "+(j.error||"no pude"));setTimeout(load,2500);});
   }
+  function suggestShorts(){ runShortsPlan(""); }
+  function regenShorts(){ runShortsPlan((el("shNotes")&&el("shNotes").value)||""); }
   function pubShort(id){
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"set_privacy.yml",inputs:{video_id:id,privacy:"public"}})})
       .then(function(r){return r.json();}).then(function(j){toast(j.ok?"✅ Publicando el short":"❌ no pude");setTimeout(load,1500);});

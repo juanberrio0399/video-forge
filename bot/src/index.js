@@ -212,7 +212,8 @@ async function handleApi(request, env, url) {
       const st = uploaded ? "uploaded" : (s.approved === true ? "approved" : (s.skipped === true ? "skipped" : "pending"));
       return {
         n: s.n, title: s.title || ("Short #" + ((s.n || 0) + 1)), hook: s.hook || "", caption: s.caption || "",
-        hashtags: s.hashtags || [], dur: s.dur || null, state: st, video_id: s.video_id || null,
+        hashtags: s.hashtags || [], dur: s.dur || null, start: s.start != null ? s.start : null, end: s.end != null ? s.end : null,
+        state: st, video_id: s.video_id || null,
         privacy: uploaded ? (yt[s.video_id] ? yt[s.video_id].privacy : "private") : null,
         views: uploaded && yt[s.video_id] ? yt[s.video_id].views : 0,
       };

@@ -11,6 +11,10 @@ on:
         description: "ID del video del que son los shorts (para no re-sugerir)"
         required: false
         default: ""
+      notes:
+        description: "Comentarios de Juan para mejorar las sugerencias (opcional)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -45,6 +49,8 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/voicemap_full.json" --file=voicemap_active.json --remote 2>/dev/null && echo "guion de R2" || cp "projects/$PROJECT/voicemap_full.json" voicemap_active.json
 
       - name: Analizar y proponer los shorts
+        env:
+          SHORTS_NOTES: ${{ github.event.inputs.notes }}
         run: node pipeline/shorts_plan.mjs voicemap_active.json timing.json plan.json
 
       - name: Estampar de qué video es el plan
