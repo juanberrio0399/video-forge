@@ -97,6 +97,18 @@ export const APP_HTML = `<!doctype html>
     if(!a.length) return '<div class="card muted">✅ Nada en proceso ahora.</div>';
     return '<div class="card">'+a.map(function(r){return '<div style="margin:2px 0">⏳ '+esc(r.name)+' — <span class="muted">'+esc(r.status)+'</span></div>';}).join("")+'</div>';
   }
+  function problemsHtml(){
+    var p=ST.problems||[];
+    if(!p.length) return "";
+    return '<h2>⚠️ Problemas</h2>'+p.map(function(x){
+      return '<div class="card" style="border:1px solid rgba(245,158,11,.45)">'
+        +'<div style="font-weight:700;color:var(--am)">⚠️ '+esc(x.name)+'</div>'
+        +'<div class="muted" style="margin:4px 0">Falló en: '+esc(x.step||"?")+'</div>'
+        +'<div><button class="btn mini" onclick="retry(\\''+esc(x.workflow)+'\\')">🔁 Reintentar</button> '
+        +'<a class="btn mini ghost" href="'+esc(x.url)+'" target="_blank">Ver detalle</a></div>'
+        +'<div class="muted" style="font-size:12px;margin-top:6px">Suele resolverse reintentando. Si persiste, escríbeme por el chat y lo reviso.</div></div>';
+    }).join("");
+  }
 
   function render(){
     var ch = ST.channel||{}, cs = ST.channel_stats||{}, mon = ST.monetization||{};
@@ -115,6 +127,7 @@ export const APP_HTML = `<!doctype html>
       + '<div class="muted" style="margin-top:10px">Horas '+(mon.watch_hours!=null?mon.watch_hours:"—")+' / 4000</div><div class="bar"><i style="width:'+pct(mon.watch_hours,4000)+'%"></i></div>'
       + '<div style="margin-top:12px" class="'+(mon.elegible?"":"muted")+'">'+(mon.elegible?"✅ Elegible para monetizar":"❌ Aún no elegible")+'</div>'
       + '</div>'
+      + problemsHtml()
       + '<h2>⚡ En proceso ahora</h2>'+statusHtml()
       + '<div class="card"><button class="btn" onclick="dispatch(\\'channel_report.yml\\',\\'Reporte de métricas\\')">🔄 Refrescar métricas</button></div>';
 
@@ -139,7 +152,8 @@ export const APP_HTML = `<!doctype html>
     var producing = (ST.active||[]).some(function(r){return /Producir|guion|Render VIDEO|Voiceover/i.test(r.name||"");});
     var prows = rest.map(function(u){return '<tr><td>#'+(u.n||"")+'</td><td>'+esc(u.topic||"")+'<div class="muted" style="font-size:11px">'+esc(u.why||"")+'</div></td><td style="text-align:right;white-space:nowrap">'+esc(u.target_date||"")+'</td></tr>';}).join("");
     el("s-plan").innerHTML=
-      '<h2>⚡ En proceso ahora</h2>'+statusHtml()
+      problemsHtml()
+      +'<h2>⚡ En proceso ahora</h2>'+statusHtml()
       +(next
         ? '<h2>Siguiente video</h2><div class="card"><div style="font-weight:800;font-size:16px">#'+(next.n||"")+' · '+esc(next.topic||"")+'</div>'
           +'<div class="muted" style="margin:6px 0 12px">'+esc(next.why||"")+' · '+esc(next.target_date||"")+'</div>'
@@ -190,6 +204,11 @@ export const APP_HTML = `<!doctype html>
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:workflow})})
       .then(function(r){return r.json();}).then(function(j){toast(j.ok?("✅ "+label+" — en marcha"):("❌ "+(j.error||"no pude")));})
       .catch(function(){toast("❌ Error de red");});
+  }
+  function retry(wf){
+    if(wf==="produce_video.yml"){ var u=(ST.upcoming||[])[0]; if(u){produceVideo(u.n);return;} }
+    api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:wf})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🔁 Reintentando…":"❌ "+(j.error||"no pude"));setTimeout(load,1500);});
   }
   function produceVideo(n){
     var u=(ST.upcoming||[]).find(function(x){return x.n===n;})||{};

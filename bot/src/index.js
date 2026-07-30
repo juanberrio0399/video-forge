@@ -186,8 +186,21 @@ async function handleApi(request, env, url) {
     const reg = await r2json(env, "voice/registry.json");
     if (reg) voices = Object.values(reg).map((v) => v.label);
     state.voices = voices;
-    const act = await activeRuns(env);
-    state.active = (act || []).map((r) => ({ name: r.name, status: r.status }));
+    // Corridas: activas (en proceso) + PROBLEMAS (fallidas recientes, con el paso que fallo).
+    const runsRes = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=15`);
+    const runs = runsRes.ok ? ((await runsRes.json()).workflow_runs || []) : [];
+    state.active = runs.filter((r) => r.status !== "completed").map((r) => ({ name: r.name, status: r.status }));
+    const fails = runs.filter((r) => r.conclusion === "failure" && (Date.now() - Date.parse(r.updated_at)) < 6 * 3600 * 1000).slice(0, 4);
+    state.problems = [];
+    for (const r of fails) {
+      let step = "";
+      const jr = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs/${r.id}/jobs`);
+      if (jr.ok) {
+        const job = ((await jr.json()).jobs || []).find((j) => j.conclusion === "failure");
+        if (job) { const s = (job.steps || []).find((x) => x.conclusion === "failure"); step = s ? s.name : job.name; }
+      }
+      state.problems.push({ name: r.name, step, url: r.html_url, workflow: (r.path || "").split("/").pop() });
+    }
     return json(state);
   }
 
