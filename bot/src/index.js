@@ -208,7 +208,8 @@ async function handleApi(request, env, url) {
     // Estado por short: pending (sin decidir) | approved | skipped | uploaded.
     state.shorts_proposal = planShorts.map((s) => {
       const uploaded = !!s.video_id;
-      const st = uploaded ? "uploaded" : (s.approved === true ? "approved" : ((s.skipped || s.approved === false) ? "skipped" : "pending"));
+      // pending = aun sin decidir (approved!=true y NO saltado). skipped SOLO si skipped===true.
+      const st = uploaded ? "uploaded" : (s.approved === true ? "approved" : (s.skipped === true ? "skipped" : "pending"));
       return {
         n: s.n, title: s.title || ("Short #" + ((s.n || 0) + 1)), hook: s.hook || "", caption: s.caption || "",
         hashtags: s.hashtags || [], dur: s.dur || null, state: st, video_id: s.video_id || null,
@@ -220,7 +221,8 @@ async function handleApi(request, env, url) {
     const latestVid = (state.published || [])[0] || {};
     // ¿El plan actual es del ULTIMO video publicado? (para no sugerir de más).
     const forCurrent = !!(plan.for_video_id && latestVid.video_id && plan.for_video_id === latestVid.video_id);
-    const allDone = sp.some((s) => s.state === "uploaded") && !sp.some((s) => s.state === "pending" || s.state === "approved");
+    const anyToAct = sp.some((s) => s.state === "pending" || s.state === "approved");
+    const allDone = sp.some((s) => s.state === "uploaded") && !anyToAct;
     state.shorts_status = {
       total: sp.length,
       pending: sp.filter((s) => s.state === "pending").length,
@@ -228,14 +230,17 @@ async function handleApi(request, env, url) {
       uploaded: sp.filter((s) => s.state === "uploaded").length,
       all_done: allDone,
       for_current: forCurrent,
-      // Puede sugerir si el plan NO es del video actual (ese aún no tiene shorts), o no hay plan.
-      can_suggest: !forCurrent || sp.length === 0,
+      // Sugerir SOLO si no hay nada por decidir/generar Y (no hay plan o es de otro video).
+      can_suggest: !anyToAct && (sp.length === 0 || !forCurrent),
       latest_video_id: latestVid.video_id || null,
     };
     // Avanzar PROXIMOS: quitar los que ya se produjeron (channel/produced.json = {done:[ns]}).
     const produced = (await r2json(env, "channel/produced.json")) || { done: [] };
     const doneSet = new Set(produced.done || []);
-    state.upcoming = (state.upcoming || []).filter((u) => !doneSet.has(u.n));
+    // Avanza los proximos: quita los ya producidos (produced.json) Y los cubiertos por
+    // la cantidad de largos ya publicados (auto-avance aunque falte produced.json).
+    const longCount0 = (state.published || []).length;
+    state.upcoming = (state.upcoming || []).filter((u) => !doneSet.has(u.n) && u.n > longCount0);
     // Metricas frescas del canal (del inventario, cada 10 min).
     if (inv.at) {
       state.channel_stats = { subs: inv.subs, total_views: inv.total_views, videos: (inv.longs || []).length + (inv.shorts || []).length };
@@ -292,8 +297,11 @@ async function handleApi(request, env, url) {
     const approvedFlag = await r2json(env, "video/0001-youtube-money/seo_approved.json");
     // Aprobado solo si el titulo aprobado == el titulo actual (si regeneras el SEO, se resetea).
     const isApproved = !!(approvedFlag && approvedFlag.approved && pkg && approvedFlag.title === pkg.title);
+    // El video de producción YA está publicado (público) => el paso SEO terminó, se oculta.
+    const prodPublished = !!(seoVideoId && (inv.longs || []).some((v) => v.video_id === seoVideoId && v.privacy === "public"));
     state.production = {
       approved: isApproved,
+      done: prodPublished,
       quality: quality || null,
       seo: pkg ? {
         title: pkg.title || null, description: pkg.description || null,

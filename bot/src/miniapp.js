@@ -122,8 +122,19 @@ export const APP_HTML = `<!doctype html>
   }
 
   function scoreColor(s){ return s>=7.5?"#34d399":(s>=6?"#f59e0b":"#f87171"); }
+  function nextStepHtml(){
+    var p=ST.production||{}, sst=ST.shorts_status||{};
+    if(!p.done) return ""; // aún en revisión/publicación del video: manda la tarjeta de producción
+    // Video ya publicado → el siguiente paso son los shorts.
+    if(sst.pending) return '<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700">🎬 Siguiente: aprobar shorts</div><div class="muted" style="font-size:12px;margin:4px 0">Hay '+sst.pending+' short(s) sugerido(s) esperando tu aprobación.</div><button class="btn" onclick="goShorts()">Ver shorts para aprobar</button></div>';
+    if(sst.approved_pend) return '<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700">🎬 Siguiente: generar shorts</div><div class="muted" style="font-size:12px;margin:4px 0">'+sst.approved_pend+' aprobado(s), listos para generar.</div><button class="btn" onclick="goShorts()">Ir a Shorts</button></div>';
+    if(sst.uploaded && !sst.all_done) return '<div class="card"><button class="btn" onclick="goShorts()">🎬 Ver / publicar shorts</button></div>';
+    if(sst.can_suggest) return '<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700">🎬 Siguiente: sugerir shorts</div><div class="muted" style="font-size:12px;margin:4px 0">El video quedó publicado. Ahora sus shorts.</div><button class="btn" onclick="goShorts()">Ir a Shorts</button></div>';
+    return '';
+  }
   function productionHtml(){
     var p=ST.production||{}, q=p.quality, seo=p.seo;
+    if(p.done) return ""; // video ya publicado: el paso SEO terminó, no mostrar su calificación
     if(!q && !seo) return "";
     var h='<h2>🎬 Video en producción</h2>';
     if(q){
@@ -213,6 +224,7 @@ export const APP_HTML = `<!doctype html>
       problemsHtml()
       +'<h2>⚡ En proceso ahora</h2>'+statusHtml()
       +productionHtml()
+      +nextStepHtml()
       +(next
         ? '<h2>Siguiente video</h2><div class="card"><div style="font-weight:800;font-size:16px">#'+(next.n||"")+' · '+esc(next.topic||"")+'</div>'
           +'<div class="muted" style="margin:6px 0 12px">'+esc(next.why||"")+' · '+esc(next.target_date||"")+'</div>'
