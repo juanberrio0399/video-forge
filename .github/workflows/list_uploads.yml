@@ -1,0 +1,38 @@
+name: Inventario del canal (desenredar duplicados)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Listar uploads con privacidad
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: node pipeline/list_uploads.mjs
+      - name: Mandar inventario al chat
+        if: always()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+        run: |
+          if [ -f inventory_msg.txt ]; then
+            bash pipeline/notify_telegram.sh "$(cat inventory_msg.txt)"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: inventory
+          path: inventory.json
+          if-no-files-found: ignore
