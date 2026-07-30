@@ -171,6 +171,10 @@ jobs:
       - name: Subir el short a YouTube (privado)
         run: node pipeline/short_publish.mjs short.mp4 title.txt description.txt
 
+      - name: Guardar el video_id para actualizar el plan
+        if: ${{ hashFiles('short_id.txt') != '' }}
+        run: npx --yes wrangler@4 r2 object put "$BUCKET/shorts/$PROJECT/uploaded_${IDX}.txt" --file=short_id.txt --remote
+
       - name: Enviar al chat con boton Publicar
         if: always()
         run: |
@@ -181,3 +185,38 @@ jobs:
           else
             bash pipeline/notify_telegram.sh "❌ El short #$((IDX+1)) fallo al generar/subir."
           fi
+
+  finalize:
+    needs: [prepare, make]
+    if: ${{ always() && needs.prepare.outputs.approved != '[]' && needs.prepare.outputs.approved != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      APPROVED: ${{ needs.prepare.outputs.approved }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Escribir los video_id nuevos en el plan (asi la app los muestra bien)
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote
+          N=0
+          for idx in $(node -e "process.stdout.write(JSON.parse(process.env.APPROVED).join(' '))"); do
+            if npx --yes wrangler@4 r2 object get "$BUCKET/shorts/$PROJECT/uploaded_${idx}.txt" --file=id.txt --remote 2>/dev/null; then
+              VID=$(cat id.txt)
+              node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("plan.json","utf8"));const i=+process.argv[1];if(p.shorts[i]){p.shorts[i].video_id=process.argv[2];p.shorts[i].approved=true;}fs.writeFileSync("plan.json",JSON.stringify(p,null,2));' "$idx" "$VID"
+              echo "plan[$idx].video_id = $VID"; N=$((N+1))
+              npx --yes wrangler@4 r2 object delete "$BUCKET/shorts/$PROJECT/uploaded_${idx}.txt" --remote 2>/dev/null || true
+            fi
+          done
+          npx --yes wrangler@4 r2 object put "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote --content-type application/json
+          echo "N=$N" >> "$GITHUB_ENV"
+      - name: Avisar
+        if: always()
+        run: |
+          bash pipeline/notify_telegram.sh "🗂️ Plan de shorts actualizado con ${N} video_id nuevo(s). La app ya los muestra correctamente en Shorts."
