@@ -185,8 +185,9 @@ async function handleApi(request, env, url) {
         return { video_id: v.video_id, title: v.title, privacy: v.privacy, published_at: v.published_at, n: seed.n, ai_score: seed.ai_score, stats: { views: v.views, likes: v.likes } };
       });
     }
-    // Privacidad/vistas frescas de los shorts aprobados (del plan).
-    const yt = await ytStatus(env, approvedShorts.map((s) => s.video_id));
+    // Privacidad/vistas frescas de TODOS los shorts subidos (del plan).
+    const planShorts = plan.shorts || [];
+    const yt = await ytStatus(env, planShorts.filter((s) => s.video_id).map((s) => s.video_id));
     // Contadores: cuantos videos largos y cuantos shorts (lo que pidio Juan).
     state.long_count = (state.published || []).length;
     state.shorts_count = (inv.shorts || []).length;
@@ -203,6 +204,34 @@ async function handleApi(request, env, url) {
     }));
     state.shorts_groups = shortsWith.length ? [{ n: firstVid.n || 1, title: firstVid.title || "Video 1", shorts: shortsWith }] : [];
     state.shorts_list = shortsWith;
+    // PROPUESTA completa de shorts (para aprobar/generar/publicar DESDE la app).
+    // Estado por short: pending (sin decidir) | approved | skipped | uploaded.
+    state.shorts_proposal = planShorts.map((s) => {
+      const uploaded = !!s.video_id;
+      const st = uploaded ? "uploaded" : (s.approved === true ? "approved" : ((s.skipped || s.approved === false) ? "skipped" : "pending"));
+      return {
+        n: s.n, title: s.title || ("Short #" + ((s.n || 0) + 1)), hook: s.hook || "", caption: s.caption || "",
+        hashtags: s.hashtags || [], dur: s.dur || null, state: st, video_id: s.video_id || null,
+        privacy: uploaded ? (yt[s.video_id] ? yt[s.video_id].privacy : "private") : null,
+        views: uploaded && yt[s.video_id] ? yt[s.video_id].views : 0,
+      };
+    });
+    const sp = state.shorts_proposal;
+    const latestVid = (state.published || [])[0] || {};
+    // ¿El plan actual es del ULTIMO video publicado? (para no sugerir de más).
+    const forCurrent = !!(plan.for_video_id && latestVid.video_id && plan.for_video_id === latestVid.video_id);
+    const allDone = sp.some((s) => s.state === "uploaded") && !sp.some((s) => s.state === "pending" || s.state === "approved");
+    state.shorts_status = {
+      total: sp.length,
+      pending: sp.filter((s) => s.state === "pending").length,
+      approved_pend: sp.filter((s) => s.state === "approved").length,
+      uploaded: sp.filter((s) => s.state === "uploaded").length,
+      all_done: allDone,
+      for_current: forCurrent,
+      // Puede sugerir si el plan NO es del video actual (ese aún no tiene shorts), o no hay plan.
+      can_suggest: !forCurrent || sp.length === 0,
+      latest_video_id: latestVid.video_id || null,
+    };
     // Avanzar PROXIMOS: quitar los que ya se produjeron (channel/produced.json = {done:[ns]}).
     const produced = (await r2json(env, "channel/produced.json")) || { done: [] };
     const doneSet = new Set(produced.done || []);
@@ -290,6 +319,16 @@ async function handleApi(request, env, url) {
       JSON.stringify({ approved: true, title, at: new Date().toISOString() }),
       { httpMetadata: { contentType: "application/json" } });
     return json({ ok: true, title });
+  }
+
+  if (url.pathname === "/api/short" && request.method === "POST") {
+    // Aprobar o saltar un short propuesto (actualiza el plan en R2), desde la app.
+    let body = {};
+    try { body = await request.json(); } catch {}
+    const n = Number(body.n);
+    if (!Number.isInteger(n) || !["approve", "skip"].includes(body.action)) return json({ error: "parámetros inválidos" }, 400);
+    const ok = await markShort(env, n, body.action === "approve");
+    return json({ ok });
   }
 
   if (url.pathname === "/api/dispatch" && request.method === "POST") {

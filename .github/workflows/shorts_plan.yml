@@ -6,6 +6,11 @@ name: Shorts — analisis IA (sugiere cuantos y cuales)
 
 on:
   workflow_dispatch:
+    inputs:
+      video_id:
+        description: "ID del video del que son los shorts (para no re-sugerir)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -42,8 +47,14 @@ jobs:
       - name: Analizar y proponer los shorts
         run: node pipeline/shorts_plan.mjs voicemap_active.json timing.json plan.json
 
+      - name: Estampar de qué video es el plan
+        env:
+          FOR_VIDEO_ID: ${{ github.event.inputs.video_id }}
+        run: |
+          node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("plan.json","utf8"));p.for_video_id=process.env.FOR_VIDEO_ID||"";fs.writeFileSync("plan.json",JSON.stringify(p,null,2));console.log("plan.for_video_id =",p.for_video_id||"(vacío)")'
+
       - name: Guardar el plan en R2
-        run: npx --yes wrangler@4 r2 object put "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote
+        run: npx --yes wrangler@4 r2 object put "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote --content-type application/json
 
       - name: Enviar cada short al chat con Aprobar/Saltar
         run: |
