@@ -41,6 +41,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - name: FFmpeg + libs de Chrome
         run: |
           sudo apt-get update
@@ -79,6 +82,12 @@ jobs:
           ffmpeg -y -ss "$A" -i voiceover.mp3 -t "$DUR" -c:a libmp3lame -b:a 192k -ar 44100 -ac 2 short.mp3
           ffprobe -v error -show_entries format=duration -of default=nk=1:nw=1 short.mp3 || true
           ls -la beats.json short.mp3
+
+      - name: Karaoke — timestamps por palabra (Whisper)
+        run: |
+          pip install faster-whisper
+          python pipeline/whisper_words.py short.mp3 words.json || echo "whisper fallo; sigo sin karaoke"
+          head -c 400 words.json 2>/dev/null || echo "sin words.json"
 
       - name: Construir la composicion vertical + render (mudo) + pegar audio
         run: |
