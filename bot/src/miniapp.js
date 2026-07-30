@@ -177,7 +177,8 @@ export const APP_HTML = `<!doctype html>
       '<div class="card"><div class="row">'
       + '<div class="kpi"><div class="n">'+num(cs.subs)+'</div><div class="l">Subs</div></div>'
       + '<div class="kpi"><div class="n">'+num(cs.total_views)+'</div><div class="l">Vistas</div></div>'
-      + '<div class="kpi"><div class="n">'+(cs.videos||0)+'</div><div class="l">Videos</div></div>'
+      + '<div class="kpi"><div class="n">'+(ST.long_count||0)+'</div><div class="l">Largos</div></div>'
+      + '<div class="kpi"><div class="n">'+(ST.shorts_count||0)+'</div><div class="l">Shorts</div></div>'
       + '</div></div>'
       + '<h2>Monetización (YPP)</h2><div class="card">'
       + '<div class="muted">Suscriptores '+(mon.subs||0)+' / 1000</div><div class="bar"><i style="width:'+pct(mon.subs,1000)+'%"></i></div>'
@@ -293,7 +294,12 @@ export const APP_HTML = `<!doctype html>
   function publishVideo(){
     var p=ST.production||{}; if(!p.video_id){toast("Aún no hay video subido");return;}
     var go=function(){ api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"set_privacy.yml",inputs:{video_id:p.video_id,privacy:"public"}})})
-      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🌍 Publicando el video como público…":"❌ "+(j.error||"no pude"));setTimeout(load,1800);}); };
+      .then(function(r){return r.json();}).then(function(j){
+        if(j.ok){ toast("🌍 Publicando + analizando shorts de este video…");
+          // Encadena: al publicar, la IA arranca a proponer los shorts (tú los apruebas).
+          api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"shorts_plan.yml"})});
+        } else { toast("❌ "+(j.error||"no pude")); }
+        setTimeout(load,1800); }); };
     if(tg&&tg.showConfirm){ tg.showConfirm("¿Publicar el video como PÚBLICO en el canal?",function(ok){if(ok)go();}); }
     else if(confirm("¿Publicar el video como PÚBLICO en el canal?")){ go(); }
   }

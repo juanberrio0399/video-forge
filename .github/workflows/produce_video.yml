@@ -53,7 +53,12 @@ jobs:
         run: |
           # Este es el guion "activo": la voz y el render lo leen desde aqui.
           npx --yes wrangler@4 r2 object put "$BUCKET/audio/$PROJECT/voicemap_full.json" --file=voicemap.json --remote
-          npx --yes wrangler@4 r2 object put "$BUCKET/scripts/next_voicemap.json" --file=voicemap.json --remote
+
+      - name: Marcar el video como PRODUCIDO (para avanzar los proximos en la app)
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/produced.json" --file=produced.json --remote 2>/dev/null || echo '{"done":[]}' > produced.json
+          node -e 'const fs=require("fs");let p={done:[]};try{p=JSON.parse(fs.readFileSync("produced.json","utf8"))}catch(e){};const n=+process.env.N;if(!Array.isArray(p.done))p.done=[];if(!p.done.includes(n))p.done.push(n);fs.writeFileSync("produced.json",JSON.stringify(p));console.log("producidos:",p.done.join(","))'
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/produced.json" --file=produced.json --remote --content-type application/json
 
       - name: Avisar el guion + arrancar la VOZ (encadena render)
         run: |
