@@ -32,13 +32,25 @@ jobs:
         chunk: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v4
-      - name: Bajar voz de referencia de R2 (privada, no vive en el repo)
+      - name: Bajar voz de referencia de R2 (o del registro subido desde la app)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           mkdir -p assets/voice
-          npx --yes wrangler@4 r2 object get "video-forge/voice/ref_juan_es.mp3" --file=assets/voice/ref_juan_es.mp3 --remote
+          if npx --yes wrangler@4 r2 object get "video-forge/voice/ref_juan_es.mp3" --file=assets/voice/ref_juan_es.mp3 --remote 2>/dev/null; then
+            echo "ref: ref_juan_es.mp3"
+          else
+            echo "ref_juan_es.mp3 no esta; busco en el registro de voces (subidas desde la app)"
+            npx --yes wrangler@4 r2 object get "video-forge/voice/registry.json" --file=registry.json --remote 2>/dev/null || echo "{}" > registry.json
+            SLUG=$(node -e 'const r=JSON.parse(require("fs").readFileSync("registry.json","utf8")||"{}");const k=Object.keys(r);const p=k.find(x=>/juan|yo|locutor/i.test(x))||k[0]||"";process.stdout.write(p)')
+            if [ -n "$SLUG" ] && npx --yes wrangler@4 r2 object get "video-forge/voice/ref_${SLUG}.mp3" --file=assets/voice/ref_juan_es.mp3 --remote 2>/dev/null; then
+              echo "ref del registro: ${SLUG}"
+            else
+              echo "NO HAY VOZ DE REFERENCIA EN R2. Sube tu voz desde la app (Crear -> Voz)."
+              exit 1
+            fi
+          fi
           ls -la assets/voice/
       - uses: actions/setup-python@v5
         with:
