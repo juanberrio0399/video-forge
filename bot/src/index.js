@@ -123,7 +123,7 @@ async function validateInitData(initData, env) {
 const APP_WORKFLOWS = new Set([
   "render_phased.yml", "voice_parallel.yml", "channel_report.yml", "shorts_plan.yml",
   "shorts_final.yml", "publish_youtube.yml", "set_privacy.yml", "recipe_reel.yml",
-  "produce_video.yml",
+  "produce_video.yml", "seo_regen.yml",
 ]);
 
 // Analisis de tendencias con Gemini (¿los proximos videos estan alineados?).
@@ -228,7 +228,11 @@ async function handleApi(request, env, url) {
     const pkg = await r2json(env, "video/0001-youtube-money/package.json");
     let seoVideoId = null;
     try { const ido = await env.R2.get("video/0001-youtube-money/video_id.txt"); if (ido) seoVideoId = (await ido.text()).trim(); } catch {}
+    const approvedFlag = await r2json(env, "video/0001-youtube-money/seo_approved.json");
+    // Aprobado solo si el titulo aprobado == el titulo actual (si regeneras el SEO, se resetea).
+    const isApproved = !!(approvedFlag && approvedFlag.approved && pkg && approvedFlag.title === pkg.title);
     state.production = {
+      approved: isApproved,
       quality: quality || null,
       seo: pkg ? {
         title: pkg.title || null, description: pkg.description || null,
@@ -244,6 +248,16 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/trends") {
     return json(await geminiTrends(env));
+  }
+
+  if (url.pathname === "/api/approve" && request.method === "POST") {
+    // Aprobar la descripcion/SEO (paso 1). NO publica; solo marca que quedo bueno.
+    const pkg = await r2json(env, "video/0001-youtube-money/package.json");
+    const title = pkg ? pkg.title || "" : "";
+    await env.R2.put("video/0001-youtube-money/seo_approved.json",
+      JSON.stringify({ approved: true, title, at: new Date().toISOString() }),
+      { httpMetadata: { contentType: "application/json" } });
+    return json({ ok: true, title });
   }
 
   if (url.pathname === "/api/dispatch" && request.method === "POST") {

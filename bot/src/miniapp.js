@@ -148,8 +148,21 @@ export const APP_HTML = `<!doctype html>
         +'<div class="ytcard"><div class="ytthumb"><span class="ytbig">'+esc(seo.thumbnail_text||"THE DATA LENS")+'</span></div>'
         +'<div style="padding:9px"><div class="yttitle">'+esc(seo.title||"—")+'</div><div class="muted" style="font-size:12px">The Data Lens · '+(p.video_id?"privado":"—")+'</div></div></div>';
     }
-    if(p.watch_url){ h+='<a class="btn" href="'+esc(location.origin+p.watch_url)+'" target="_blank">▶️ Ver el video</a>'; }
-    h+='<div class="muted" style="font-size:12px;margin:2px 2px 12px">Para aprobar o regenerar (SEO / video) usa los botones del chat. ✅</div>';
+    if(p.watch_url){ h+='<a class="btn ghost" href="'+esc(location.origin+p.watch_url)+'" target="_blank">▶️ Ver el video</a>'; }
+    if(seo){
+      h+='<div class="card"><div class="muted" style="font-size:12px;margin-bottom:6px">Comentarios para mejorar el SEO (opcional):</div>'
+        +'<textarea id="seoNotes" placeholder="Ej: título más directo, menos clickbait, menciona la cifra"></textarea>'
+        +'<button class="btn ghost" onclick="regenSeo()">🔁 Regenerar SEO</button>';
+      if(p.approved){
+        h+='<div style="text-align:center;font-weight:700;color:var(--gr);padding:8px;margin:8px 0;background:rgba(52,211,153,.12);border-radius:12px">✅ Descripción aprobada</div>'
+          +'<button class="btn" onclick="publishVideo()">🌍 Publicar (hacer público)</button>'
+          +'<div class="muted" style="font-size:11px;margin-top:4px">Paso 2: esto hace el video PÚBLICO en el canal.</div>';
+      } else {
+        h+='<button class="btn" onclick="approveSeo()">✅ Aprobar descripción</button>'
+          +'<div class="muted" style="font-size:11px;margin-top:4px">Paso 1: aprobar deja el SEO listo (el video sigue privado). Después aparece Publicar.</div>';
+      }
+      h+='</div>';
+    }
     return h;
   }
 
@@ -267,6 +280,23 @@ export const APP_HTML = `<!doctype html>
       o.innerHTML='<h2>🔥 Tendencias — ¿alineado?</h2><div class="card">'+esc(j.analysis||j.error||"sin datos").replace(/\\n/g,"<br>")+'</div>';
     }).catch(function(){o.innerHTML='<div class="card muted">No pude analizar tendencias.</div>';});
   }
+  function regenSeo(){
+    var notes=(el("seoNotes")&&el("seoNotes").value)||"";
+    if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("light");
+    api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"seo_regen.yml",inputs:{notes:notes}})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🔁 Regenerando el SEO — te muestro el nuevo aquí y en el chat":"❌ "+(j.error||"no pude"));setTimeout(load,2500);});
+  }
+  function approveSeo(){
+    if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
+    api("/api/approve",{method:"POST"}).then(function(r){return r.json();}).then(function(j){toast(j.ok?"✅ Descripción aprobada. Ahora aparece Publicar.":"❌ no pude");setTimeout(load,600);});
+  }
+  function publishVideo(){
+    var p=ST.production||{}; if(!p.video_id){toast("Aún no hay video subido");return;}
+    var go=function(){ api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"set_privacy.yml",inputs:{video_id:p.video_id,privacy:"public"}})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🌍 Publicando el video como público…":"❌ "+(j.error||"no pude"));setTimeout(load,1800);}); };
+    if(tg&&tg.showConfirm){ tg.showConfirm("¿Publicar el video como PÚBLICO en el canal?",function(ok){if(ok)go();}); }
+    else if(confirm("¿Publicar el video como PÚBLICO en el canal?")){ go(); }
+  }
   function pubShort(id){
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"set_privacy.yml",inputs:{video_id:id,privacy:"public"}})})
       .then(function(r){return r.json();}).then(function(j){toast(j.ok?"✅ Publicando el short":"❌ no pude");setTimeout(load,1500);});
@@ -283,10 +313,12 @@ export const APP_HTML = `<!doctype html>
   // Auto-refresco: RAPIDO (9s) cuando algo corre = se ve en vivo; lento (25s) cuando no.
   // No refresca en "Crear" para no borrar lo que escribes.
   var refTimer=null;
+  function isTyping(){ var a=document.activeElement; return a && (a.tagName==="TEXTAREA"||a.tagName==="INPUT"); }
   function scheduleRefresh(){
     clearTimeout(refTimer);
     var ms=(ST.active&&ST.active.length)?9000:25000;
-    refTimer=setTimeout(function(){ if(curTab!=="crear") load(); else scheduleRefresh(); }, ms);
+    // No refrescar si estás escribiendo (no borrar comentarios/textos a medias).
+    refTimer=setTimeout(function(){ if(curTab!=="crear" && !isTyping()) load(); else scheduleRefresh(); }, ms);
   }
   function load(){ api("/api/state").then(function(r){return r.json();}).then(function(j){ if(j.error){el("hd").textContent="No autorizado";return;} ST=j; render(); scheduleRefresh(); }).catch(function(){el("hd").textContent="Error de conexión";scheduleRefresh();}); }
   load();
