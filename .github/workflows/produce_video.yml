@@ -40,7 +40,8 @@ jobs:
           node-version: "22"
 
       - name: Avisar arranque
-        run: bash pipeline/notify_telegram.sh "✍️ Escribiendo el guion del video #${N}: ${TOPIC}. Te muestro el resumen en un momento."
+        run: |
+          bash pipeline/notify_telegram.sh "✍️ Escribiendo el guion del video número ${N} (${TOPIC}). Te muestro el resumen en un momento."
 
       - name: Generar el guion (IA)
         run: node pipeline/video_script.mjs "$TOPIC" voicemap.json
