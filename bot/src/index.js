@@ -10,9 +10,18 @@
  *  - El GitHub token vive como secret del Worker, nunca en el codigo.
  */
 
+import { APP_HTML } from "./miniapp.js";
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // Mini App (interfaz "tipo app pro" dentro de Telegram).
+    if (url.pathname === "/app") {
+      return new Response(APP_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
+    }
+    if (url.pathname.startsWith("/api/")) {
+      return handleApi(request, env, url);
+    }
     // Ver el video por link (streaming desde R2). Telegram por bot no deja mandar
     // archivos >50MB; el video del canal pesa ~250MB, asi que se ve por aqui.
     if (request.method === "GET" && url.pathname.startsWith("/watch/")) {
@@ -84,6 +93,117 @@ async function handleWatch(request, env, key) {
   }
   headers.set("Content-Length", String(size));
   return new Response(obj.body, { status: 200, headers });
+}
+
+// ---------- Mini App: API (auth por initData de Telegram) ----------
+async function hmacBytes(keyBytes, msg) {
+  const key = await crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(msg)));
+}
+const toHex = (u8) => [...u8].map((b) => b.toString(16).padStart(2, "0")).join("");
+
+// Valida el initData que manda la Web App de Telegram. Devuelve el user si es valido
+// y es el OWNER; si no, null. (Algoritmo oficial de Telegram con HMAC-SHA256.)
+async function validateInitData(initData, env) {
+  if (!initData || !env.TELEGRAM_BOT_TOKEN) return null;
+  const params = new URLSearchParams(initData);
+  const hash = params.get("hash");
+  if (!hash) return null;
+  params.delete("hash");
+  const dcs = [...params.entries()].map(([k, v]) => `${k}=${v}`).sort().join("\n");
+  const secret = await hmacBytes(new TextEncoder().encode("WebAppData"), env.TELEGRAM_BOT_TOKEN);
+  const check = toHex(await hmacBytes(secret, dcs));
+  if (check !== hash) return null;
+  let user;
+  try { user = JSON.parse(params.get("user") || "null"); } catch { return null; }
+  if (!user || !isOwner(user.id, env)) return null;
+  return user;
+}
+
+const APP_WORKFLOWS = new Set([
+  "render_phased.yml", "voice_parallel.yml", "channel_report.yml", "shorts_plan.yml",
+  "shorts_final.yml", "publish_youtube.yml", "set_privacy.yml", "recipe_reel.yml",
+]);
+
+async function handleApi(request, env, url) {
+  const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { "content-type": "application/json" } });
+  const initData = request.headers.get("X-Init-Data") || "";
+  const user = await validateInitData(initData, env);
+  if (!user) return json({ error: "no autorizado" }, 403);
+  const chatId = env.OWNER_CHAT_ID;
+
+  if (url.pathname === "/api/state") {
+    const state = await r2json(env, "channel/state.json") || {};
+    const plan = await r2json(env, "shorts/0001-youtube-money/plan.json") || {};
+    state.shorts_list = (plan.shorts || []).filter((s) => s.approved).map((s) => ({
+      title: s.title, video_id: s.video_id || null, privacy: s.video_id ? "private" : "—",
+    }));
+    let voices = [];
+    const reg = await r2json(env, "voice/registry.json");
+    if (reg) voices = Object.values(reg).map((v) => v.label);
+    state.voices = voices;
+    const act = await activeRuns(env);
+    state.active = (act || []).map((r) => ({ name: r.name, status: r.status }));
+    return json(state);
+  }
+
+  if (url.pathname === "/api/dispatch" && request.method === "POST") {
+    let body = {};
+    try { body = await request.json(); } catch {}
+    if (!APP_WORKFLOWS.has(body.workflow)) return json({ error: "workflow no permitido" }, 400);
+    const r = await ghDispatch(env, body.workflow, body.inputs || {});
+    return json({ ok: r.ok, status: r.status });
+  }
+
+  if (url.pathname === "/api/upload" && request.method === "POST") {
+    const form = await request.formData();
+    const kind = form.get("kind");
+    if (kind === "photo") {
+      const f = form.get("file");
+      if (!f) return json({ error: "sin archivo" }, 400);
+      await env.R2.put(editKey(chatId, "source"), new Uint8Array(await f.arrayBuffer()), { httpMetadata: { contentType: "image/jpeg" } });
+      const { mode, prompt } = parseEdit(form.get("prompt") || "");
+      const r = await ghDispatch(env, "photo_edit.yml", { chat_id: String(chatId), mode, prompt: prompt || "", strength: "suave" });
+      await putEditState(env, chatId, { awaiting: false, mode, prompt, strength: "suave" });
+      return json({ ok: r.ok });
+    }
+    if (kind === "voice") {
+      const f = form.get("file");
+      if (!f) return json({ error: "sin archivo" }, 400);
+      const slug = slugifyVoice(form.get("name") || "voz");
+      await env.R2.put(`voice/ref_${slug}.mp3`, new Uint8Array(await f.arrayBuffer()), { httpMetadata: { contentType: "audio/mpeg" } });
+      const reg = (await r2json(env, "voice/registry.json")) || {};
+      reg[slug] = { label: form.get("name") || slug, key: `voice/ref_${slug}.mp3` };
+      await env.R2.put("voice/registry.json", JSON.stringify(reg), { httpMetadata: { contentType: "application/json" } });
+      return json({ ok: true });
+    }
+    if (kind === "recipe") {
+      const files = form.getAll("file");
+      if (!files.length) return json({ error: "sin archivos" }, 400);
+      let n = 0;
+      for (const f of files) {
+        const idx = String(n).padStart(3, "0");
+        const ext = (f.type || "").startsWith("video") ? "mp4" : "jpg";
+        await env.R2.put(recipeKey(chatId, `media/${idx}.${ext}`), new Uint8Array(await f.arrayBuffer()), { httpMetadata: { contentType: f.type || "image/jpeg" } });
+        n++;
+      }
+      const text = form.get("text") || "";
+      if (text) await env.R2.put(recipeKey(chatId, "text"), text, { httpMetadata: { contentType: "text/plain; charset=utf-8" } });
+      await setRecipeState(env, chatId, { active: false, n });
+      const r = await ghDispatch(env, "recipe_reel.yml", { chat_id: String(chatId), count: String(n) });
+      return json({ ok: r.ok });
+    }
+    return json({ error: "kind desconocido" }, 400);
+  }
+  return json({ error: "ruta no encontrada" }, 404);
+}
+
+// Lee un JSON de R2 (o null).
+async function r2json(env, key) {
+  if (!env.R2) return null;
+  const o = await env.R2.get(key);
+  if (!o) return null;
+  try { return JSON.parse(await o.text()); } catch { return null; }
 }
 
 // ---------- Manejo de mensajes ----------
@@ -386,6 +506,7 @@ async function handleCallback(cb, env) {
 const KB = {
   home: {
     inline_keyboard: [
+      [{ text: "🚀 Abrir la app (panel pro)", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app" } }],
       [{ text: "🎬 Video", callback_data: "menu:video" }, { text: "📊 Canal", callback_data: "menu:canal" }],
       [{ text: "🖼️ Foto", callback_data: "menu:foto" }, { text: "🎤 Voces", callback_data: "menu:voces" }],
       [{ text: "🍳 Recetas", callback_data: "menu:recetas" }, { text: "❓ Ayuda", callback_data: "menu:ayuda" }],
@@ -434,6 +555,11 @@ const TXT = {
 };
 
 async function sendMenu(env, chatId) {
+  // Boton de menu de Telegram que abre la Mini App (interfaz tipo app).
+  await tg(env, "setChatMenuButton", {
+    chat_id: chatId,
+    menu_button: { type: "web_app", text: "📊 App", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app" } },
+  });
   await tg(env, "setMyCommands", {
     commands: [
       { command: "start", description: "🏠 Menú" },
