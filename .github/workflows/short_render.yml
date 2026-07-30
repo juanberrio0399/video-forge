@@ -14,6 +14,10 @@ on:
         description: "logo | broll | animation"
         required: false
         default: "logo"
+      voice:
+        description: "Voz de locutor Gemini TTS (Charon, Rasalgethi, Iapetus, Alnilam, Orus)"
+        required: false
+        default: "Charon"
 
 permissions:
   contents: read
@@ -82,6 +86,23 @@ jobs:
           ffmpeg -y -ss "$A" -i voiceover.mp3 -t "$DUR" -c:a libmp3lame -b:a 192k -ar 44100 -ac 2 short.mp3
           ffprobe -v error -show_entries format=duration -of default=nk=1:nw=1 short.mp3 || true
           ls -la beats.json short.mp3
+
+      - name: Voz de LOCUTOR (Gemini TTS) — re-narra el short
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VOICE: ${{ github.event.inputs.voice || 'Charon' }}
+        run: |
+          # Texto del short (de beats.json) -> narracion nueva con voz de locutor.
+          node -e 'const b=JSON.parse(require("fs").readFileSync("beats.json","utf8"));require("fs").writeFileSync("text.txt",(b.beats||[]).map(x=>(x.text||"").trim()).filter(Boolean).join(" "))'
+          echo "Texto:"; cat text.txt
+          if node pipeline/gemini_tts.mjs text.txt tts.mp3 "$VOICE"; then
+            mv tts.mp3 short.mp3
+            DUR=$(ffprobe -v error -show_entries format=duration -of default=nk=1:nw=1 short.mp3)
+            node -e 'const fs=require("fs");const b=JSON.parse(fs.readFileSync("beats.json","utf8"));b.total=parseFloat(process.argv[1]);fs.writeFileSync("beats.json",JSON.stringify(b))' "$DUR"
+            echo "Voz de locutor lista · nueva duracion: ${DUR}s"
+          else
+            echo "Gemini TTS fallo; me quedo con la voz actual (clon)."
+          fi
 
       - name: Karaoke — timestamps por palabra (Whisper)
         run: |
