@@ -1,0 +1,32 @@
+name: Sellar plan de shorts con su video (one-off)
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: "video_id al que pertenece el plan actual"
+        required: true
+        default: "w75dYwiq4zA"
+
+permissions:
+  contents: read
+
+jobs:
+  stamp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      BUCKET: video-forge
+      PROJECT: "0001-youtube-money"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      VID: ${{ github.event.inputs.video_id }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Sellar for_video_id en el plan
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote
+          node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("plan.json","utf8"));p.for_video_id=process.env.VID;fs.writeFileSync("plan.json",JSON.stringify(p,null,2));console.log("sellado for_video_id =",p.for_video_id)'
+          npx --yes wrangler@4 r2 object put "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote --content-type application/json
