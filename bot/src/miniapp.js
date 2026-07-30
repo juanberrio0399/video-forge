@@ -83,7 +83,9 @@ export const APP_HTML = `<!doctype html>
   function api(path, opts){opts=opts||{};opts.headers=opts.headers||{};opts.headers["X-Init-Data"]=INIT;return fetch(path,opts);}
   function num(n){n=+n||0;return n>=1000?(n/1000).toFixed(n>=100000?0:1)+"k":String(n);}
 
+  var curTab="canal";
   function tab(name){
+    curTab=name;
     ["canal","videos","plan","shorts","crear"].forEach(function(t){el("s-"+t).classList.toggle("hide",t!==name);});
     document.querySelectorAll(".nav button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-t")===name);});
   }
@@ -134,13 +136,16 @@ export const APP_HTML = `<!doctype html>
     // PLAN (panel de produccion): estado + siguiente con boton + pendientes + tendencias
     var next = up[0];
     var rest = up.slice(1);
+    var producing = (ST.active||[]).some(function(r){return /Producir|guion|Render VIDEO|Voiceover/i.test(r.name||"");});
     var prows = rest.map(function(u){return '<tr><td>#'+(u.n||"")+'</td><td>'+esc(u.topic||"")+'<div class="muted" style="font-size:11px">'+esc(u.why||"")+'</div></td><td style="text-align:right;white-space:nowrap">'+esc(u.target_date||"")+'</td></tr>';}).join("");
     el("s-plan").innerHTML=
       '<h2>⚡ En proceso ahora</h2>'+statusHtml()
       +(next
         ? '<h2>Siguiente video</h2><div class="card"><div style="font-weight:800;font-size:16px">#'+(next.n||"")+' · '+esc(next.topic||"")+'</div>'
           +'<div class="muted" style="margin:6px 0 12px">'+esc(next.why||"")+' · '+esc(next.target_date||"")+'</div>'
-          +'<button class="btn" onclick="produceVideo('+(next.n||0)+')">▶️ Producir este video</button>'
+          +(producing
+            ? '<div style="text-align:center;font-weight:700;color:var(--cy);padding:10px;background:rgba(34,211,238,.12);border-radius:12px">⏳ Produciendo… mira "En proceso ahora"</div>'
+            : '<button class="btn" onclick="produceVideo('+(next.n||0)+')">▶️ Producir este video</button>')
           +'<button class="btn ghost" onclick="showTrends()">🔥 Analizar tendencias (¿alineado?)</button></div>'
         : '<div class="card muted">🎉 No hay videos pendientes.</div>')
       +'<div id="trendsOut"></div>'
@@ -209,5 +214,7 @@ export const APP_HTML = `<!doctype html>
 
   function load(){ api("/api/state").then(function(r){return r.json();}).then(function(j){ if(j.error){el("hd").textContent="No autorizado";return;} ST=j; render(); }).catch(function(){el("hd").textContent="Error de conexión";}); }
   load();
+  // Auto-refresco del estado en vivo (no en "Crear" para no borrar lo que escribes).
+  setInterval(function(){ if(curTab!=="crear") load(); }, 25000);
 </script>
 </body></html>`;
