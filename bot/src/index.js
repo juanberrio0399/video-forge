@@ -224,6 +224,7 @@ async function handleApi(request, env, url) {
       ...(inv.shorts || []).map((v) => ({ type: "short", video_id: v.video_id, title: v.title, privacy: v.privacy, views: v.views, seconds: v.seconds, watch_min: v.watch_min || 0, avg_sec: v.avg_sec || 0 })),
     ];
     state.analytics_ok = !!inv.analytics_ok;
+    state.analytics = inv.analytics || null;
     state.totals = {
       views: state.all_videos.reduce((s, v) => s + (v.views || 0), 0),
       watch_min: state.all_videos.reduce((s, v) => s + (v.watch_min || 0), 0),
@@ -509,9 +510,10 @@ async function channelInventory(env) {
     longs.sort((a, b) => (a.published_at < b.published_at ? 1 : -1));
     shorts.sort((a, b) => (a.published_at < b.published_at ? 1 : -1));
     // Tiempo REPRODUCIDO por video (minutos vistos) — Analytics API (requiere scope yt-analytics).
-    let analyticsOk = false;
+    let analyticsOk = false, analytics = null;
     try {
       const today = new Date().toISOString().slice(0, 10);
+      const start28 = new Date(Date.now() - 28 * 86400 * 1000).toISOString().slice(0, 10);
       const a = await fetch(`https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=2020-01-01&endDate=${today}&metrics=estimatedMinutesWatched,averageViewDuration&dimensions=video&sort=-estimatedMinutesWatched&maxResults=200`, { headers: H });
       if (a.ok) {
         const aj = await a.json();
@@ -520,9 +522,23 @@ async function channelInventory(env) {
         for (const row of aj.rows || []) wm[row[0]] = { watch_min: Math.round(row[1] || 0), avg_sec: Math.round(row[2] || 0) };
         for (const v of longs) { const w = wm[v.video_id] || {}; v.watch_min = w.watch_min || 0; v.avg_sec = w.avg_sec || 0; }
         for (const v of shorts) { const w = wm[v.video_id] || {}; v.watch_min = w.watch_min || 0; v.avg_sec = w.avg_sec || 0; }
+        // Totales + serie diaria de los ultimos 28 dias (para el tablero de analytics).
+        try {
+          const [totRes, dayRes] = await Promise.all([
+            fetch(`https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=${start28}&endDate=${today}&metrics=views,estimatedMinutesWatched,subscribersGained,averageViewDuration`, { headers: H }),
+            fetch(`https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=${start28}&endDate=${today}&dimensions=day&metrics=views,estimatedMinutesWatched&sort=day`, { headers: H }),
+          ]);
+          const tj2 = totRes.ok ? await totRes.json() : null;
+          const dj = dayRes.ok ? await dayRes.json() : null;
+          const tr2 = (tj2 && tj2.rows && tj2.rows[0]) || [];
+          analytics = {
+            last28: { views: tr2[0] || 0, minutes: Math.round(tr2[1] || 0), subs_gained: tr2[2] || 0, avg_sec: Math.round(tr2[3] || 0) },
+            daily: ((dj && dj.rows) || []).map((r) => ({ d: r[0], views: r[1] || 0, min: Math.round(r[2] || 0) })),
+          };
+        } catch {}
       }
     } catch {}
-    const inv = { longs, shorts, subs: +(((item.statistics || {}).subscriberCount) || 0), total_views: +(((item.statistics || {}).viewCount) || 0), analytics_ok: analyticsOk, at: new Date().toISOString() };
+    const inv = { longs, shorts, subs: +(((item.statistics || {}).subscriberCount) || 0), total_views: +(((item.statistics || {}).viewCount) || 0), analytics_ok: analyticsOk, analytics, at: new Date().toISOString() };
     await env.R2.put("channel/inventory_cache.json", JSON.stringify(inv), { httpMetadata: { contentType: "application/json" } });
     return inv;
   } catch { return cached || { longs: [], shorts: [], subs: 0, total_views: 0, at: null, stale: true }; }
