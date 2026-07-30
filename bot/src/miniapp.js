@@ -119,14 +119,17 @@ export const APP_HTML = `<!doctype html>
     // VIDEOS
     var vrows = pub.map(function(v){
       var s=v.stats||{}; var pv=v.privacy==="public";
+      // Boton de shorts SOLO por video y SOLO si estan pendientes.
+      var shortsCell = v.shorts_done ? '<span class="muted">✓</span>'
+        : (pv ? '<button class="btn mini" onclick="dispatch(\\'shorts_plan.yml\\',\\'Sugerir shorts\\')">✂️ Hacer</button>' : '<span class="muted">—</span>');
       return '<tr><td>'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc(v.title||v.video_id)+'</a>':esc(v.title||""))+'<div class="muted" style="font-size:11px">'+esc(v.published_at||"")+'</div></td>'
         +'<td><span class="tag '+(pv?"pub":"priv")+'">'+esc(v.privacy||"")+'</span></td>'
-        +'<td style="text-align:right">'+(pv?num(s.views):"—")+'</td></tr>';
+        +'<td style="text-align:right">'+(pv?num(s.views):"—")+'</td>'
+        +'<td style="text-align:right">'+shortsCell+'</td></tr>';
     }).join("");
-    el("s-videos").innerHTML='<h2>Videos publicados</h2><div class="card"><table><tr><th>Título</th><th>Estado</th><th style="text-align:right">Vistas</th></tr>'+(vrows||'<tr><td class="muted">Sin videos.</td></tr>')+'</table></div>'
+    el("s-videos").innerHTML='<h2>Videos publicados</h2><div class="card"><table><tr><th>Título</th><th>Estado</th><th style="text-align:right">Vistas</th><th style="text-align:right">Shorts</th></tr>'+(vrows||'<tr><td class="muted">Sin videos.</td></tr>')+'</table></div>'
       +'<button class="btn" onclick="dispatch(\\'render_phased.yml\\',\\'Render del video por fases\\')">🎬 Renderizar video</button>'
-      +'<button class="btn ghost" onclick="dispatch(\\'voice_parallel.yml\\',\\'Generar voz\\')">🎙️ Generar voz</button>'
-      +'<button class="btn ghost" onclick="dispatch(\\'shorts_plan.yml\\',\\'Sugerir shorts del video\\')">✂️ Hacer shorts de este video</button>';
+      +'<button class="btn ghost" onclick="dispatch(\\'voice_parallel.yml\\',\\'Generar voz\\')">🎙️ Generar voz</button>';
 
     // PLAN (panel de produccion): estado + siguiente con boton + pendientes + tendencias
     var next = up[0];

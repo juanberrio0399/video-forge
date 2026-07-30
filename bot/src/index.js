@@ -158,7 +158,13 @@ async function handleApi(request, env, url) {
   if (url.pathname === "/api/state") {
     const state = await r2json(env, "channel/state.json") || {};
     const plan = await r2json(env, "shorts/0001-youtube-money/plan.json") || {};
-    state.shorts_list = (plan.shorts || []).filter((s) => s.approved).map((s) => ({
+    const approvedShorts = (plan.shorts || []).filter((s) => s.approved);
+    // Shorts "hechos" = hay aprobados y TODOS estan subidos (tienen video_id).
+    const shortsDone = approvedShorts.length > 0 && approvedShorts.every((s) => s.video_id);
+    // El plan de shorts pertenece al video del proyecto (el 1o publicado). Marca por video
+    // si sus shorts ya estan hechos; los demas quedan pendientes.
+    (state.published || []).forEach((v, i) => { v.shorts_done = i === 0 ? shortsDone : false; });
+    state.shorts_list = approvedShorts.map((s) => ({
       title: s.title, video_id: s.video_id || null, privacy: s.video_id ? "private" : "—",
     }));
     let voices = [];
