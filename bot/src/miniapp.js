@@ -65,6 +65,7 @@ export const APP_HTML = `<!doctype html>
 <body>
 <header><h1>The Data Lens</h1><div class="sub" id="hd">Centro de control</div></header>
 <div class="wrap">
+  <div id="globalStatus"></div>
   <div id="s-canal"></div>
   <div id="s-videos" class="hide"></div>
   <div id="s-plan" class="hide"></div>
@@ -183,6 +184,9 @@ export const APP_HTML = `<!doctype html>
     var liveTag = (ST.active&&ST.active.length) ? " · 🟢 en vivo" : "";
     el("hd").textContent = "@TheDataLensHQ · act. "+ (ST.updated_at? String(ST.updated_at).slice(5,16).replace("T"," "):"—") + liveTag;
 
+    // Estado GLOBAL: cualquier proceso en marcha se ve arriba, en TODAS las pestañas.
+    el("globalStatus").innerHTML = (ST.active&&ST.active.length) ? ('<h2>⚡ En proceso ahora</h2>'+statusHtml()) : "";
+
     // CANAL
     el("s-canal").innerHTML =
       '<div class="card"><div class="row">'
@@ -197,7 +201,6 @@ export const APP_HTML = `<!doctype html>
       + '<div style="margin-top:12px" class="'+(mon.elegible?"":"muted")+'">'+(mon.elegible?"✅ Elegible para monetizar":"❌ Aún no elegible")+'</div>'
       + '</div>'
       + problemsHtml()
-      + '<h2>⚡ En proceso ahora</h2>'+statusHtml()
       + '<div class="card"><button class="btn" onclick="dispatch(\\'channel_report.yml\\',\\'Reporte de métricas\\')">🔄 Refrescar métricas</button></div>';
 
     // VIDEOS
@@ -222,7 +225,6 @@ export const APP_HTML = `<!doctype html>
     var prows = rest.map(function(u){return '<tr><td>#'+(u.n||"")+'</td><td>'+esc(u.topic||"")+'<div class="muted" style="font-size:11px">'+esc(u.why||"")+'</div></td><td style="text-align:right;white-space:nowrap">'+esc(u.target_date||"")+'</td></tr>';}).join("");
     el("s-plan").innerHTML=
       problemsHtml()
-      +'<h2>⚡ En proceso ahora</h2>'+statusHtml()
       +productionHtml()
       +nextStepHtml()
       +(next
@@ -309,7 +311,7 @@ export const APP_HTML = `<!doctype html>
   function dispatch(workflow, label){
     if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("light");
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:workflow})})
-      .then(function(r){return r.json();}).then(function(j){toast(j.ok?("✅ "+label+" — en marcha"):("❌ "+(j.error||"no pude")));})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?("✅ "+label+" — en marcha, mira ⚡ arriba el progreso"):("❌ "+(j.error||"no pude")));if(j.ok)setTimeout(load,3000);})
       .catch(function(){toast("❌ Error de red");});
   }
   function retry(wf){
