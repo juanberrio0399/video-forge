@@ -223,6 +223,22 @@ async function handleApi(request, env, url) {
       }
       state.problems.push({ name: r.name, step, url: r.html_url, workflow: (r.path || "").split("/").pop() });
     }
+    // PRODUCCION actual: calificacion de la IA (calidad del render) + paquete SEO + preview.
+    const quality = await r2json(env, "video/0001-youtube-money/quality.json");
+    const pkg = await r2json(env, "video/0001-youtube-money/package.json");
+    let seoVideoId = null;
+    try { const ido = await env.R2.get("video/0001-youtube-money/video_id.txt"); if (ido) seoVideoId = (await ido.text()).trim(); } catch {}
+    state.production = {
+      quality: quality || null,
+      seo: pkg ? {
+        title: pkg.title || null, description: pkg.description || null,
+        tags: pkg.tags || [], hashtags: pkg.hashtags || [],
+        thumbnail_text: pkg.thumbnail_text || null, chapters: pkg.chapters || [],
+        pinned_comment: pkg.pinned_comment || null, validation: pkg.validation || null,
+      } : null,
+      video_id: seoVideoId,
+      watch_url: "/watch/video/0001-youtube-money/video.mp4",
+    };
     return json(state);
   }
 
