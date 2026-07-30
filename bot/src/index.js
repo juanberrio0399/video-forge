@@ -164,6 +164,32 @@ async function geminiTrends(env) {
   return { error: "No pude analizar (Gemini no respondio)." };
 }
 
+// Analisis de RENDIMIENTO: que videos rinden mas (vistas + minutos vistos) y que replicar.
+async function geminiInsights(env) {
+  if (!env.GEMINI_API_KEY) return { error: "Falta GEMINI_API_KEY en el Worker." };
+  const inv = await channelInventory(env);
+  const vids = [...(inv.longs || []), ...(inv.shorts || [])]
+    .filter((v) => v.privacy === "public")
+    .map((v) => ({ t: v.title, type: (v.seconds || 0) <= 60 ? "short" : "largo", views: v.views || 0, watch: v.watch_min || 0 }))
+    .sort((a, b) => b.views - a.views);
+  if (!vids.length) return { error: "Aún no hay videos públicos con métricas para analizar." };
+  const lines = vids.map((v) => `- [${v.type}] ${v.t} — ${v.views} vistas, ${v.watch} min vistos`).join("\n");
+  const prompt = `Eres estratega de crecimiento de un canal faceless de datos/dinero en YouTube (ingles, EE.UU.). Videos publicados con su rendimiento REAL:\n${lines}\n\nAnaliza y responde en ESPAÑOL, breve y accionable (sin relleno):\n1) Qué temas/formatos rinden MÁS (por vistas y por minutos vistos) y QUÉ tienen en común (tema, ángulo, tipo de título).\n2) Qué NO funciona.\n3) 3-4 IDEAS de próximos videos concretas que REPLIQUEN lo que funciona, con el título tentativo en INGLÉS. Prioriza vistas y retención.`;
+  for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${env.GEMINI_API_KEY}`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      });
+      if (!r.ok) continue;
+      const j = await r.json();
+      const t = j?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (t) return { analysis: t };
+    } catch {}
+  }
+  return { error: "No pude analizar (Gemini no respondió)." };
+}
+
 async function handleApi(request, env, url) {
   const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { "content-type": "application/json" } });
   const initData = request.headers.get("X-Init-Data") || "";
@@ -194,9 +220,14 @@ async function handleApi(request, env, url) {
     state.shorts_public = (inv.shorts || []).filter((s) => s.privacy === "public").length;
     // Lista compacta de TODOS los videos (largos + shorts) con tipo, vistas y duracion.
     state.all_videos = [
-      ...(inv.longs || []).map((v) => ({ type: "long", video_id: v.video_id, title: v.title, privacy: v.privacy, views: v.views, seconds: v.seconds })),
-      ...(inv.shorts || []).map((v) => ({ type: "short", video_id: v.video_id, title: v.title, privacy: v.privacy, views: v.views, seconds: v.seconds })),
+      ...(inv.longs || []).map((v) => ({ type: "long", video_id: v.video_id, title: v.title, privacy: v.privacy, views: v.views, seconds: v.seconds, watch_min: v.watch_min || 0, avg_sec: v.avg_sec || 0 })),
+      ...(inv.shorts || []).map((v) => ({ type: "short", video_id: v.video_id, title: v.title, privacy: v.privacy, views: v.views, seconds: v.seconds, watch_min: v.watch_min || 0, avg_sec: v.avg_sec || 0 })),
     ];
+    state.analytics_ok = !!inv.analytics_ok;
+    state.totals = {
+      views: state.all_videos.reduce((s, v) => s + (v.views || 0), 0),
+      watch_min: state.all_videos.reduce((s, v) => s + (v.watch_min || 0), 0),
+    };
     // Shorts "hechos" = hay aprobados y TODOS estan subidos (tienen video_id).
     const shortsDone = approvedShorts.length > 0 && approvedShorts.every((s) => s.video_id);
     (state.published || []).forEach((v, i) => { v.shorts_done = i === 0 ? shortsDone : false; });
@@ -323,6 +354,10 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/trends") {
     return json(await geminiTrends(env));
+  }
+
+  if (url.pathname === "/api/insights") {
+    return json(await geminiInsights(env));
   }
 
   if (url.pathname === "/api/approve" && request.method === "POST") {
@@ -473,7 +508,21 @@ async function channelInventory(env) {
     }
     longs.sort((a, b) => (a.published_at < b.published_at ? 1 : -1));
     shorts.sort((a, b) => (a.published_at < b.published_at ? 1 : -1));
-    const inv = { longs, shorts, subs: +(((item.statistics || {}).subscriberCount) || 0), total_views: +(((item.statistics || {}).viewCount) || 0), at: new Date().toISOString() };
+    // Tiempo REPRODUCIDO por video (minutos vistos) — Analytics API (requiere scope yt-analytics).
+    let analyticsOk = false;
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const a = await fetch(`https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=2020-01-01&endDate=${today}&metrics=estimatedMinutesWatched,averageViewDuration&dimensions=video&sort=-estimatedMinutesWatched&maxResults=200`, { headers: H });
+      if (a.ok) {
+        const aj = await a.json();
+        analyticsOk = true;
+        const wm = {};
+        for (const row of aj.rows || []) wm[row[0]] = { watch_min: Math.round(row[1] || 0), avg_sec: Math.round(row[2] || 0) };
+        for (const v of longs) { const w = wm[v.video_id] || {}; v.watch_min = w.watch_min || 0; v.avg_sec = w.avg_sec || 0; }
+        for (const v of shorts) { const w = wm[v.video_id] || {}; v.watch_min = w.watch_min || 0; v.avg_sec = w.avg_sec || 0; }
+      }
+    } catch {}
+    const inv = { longs, shorts, subs: +(((item.statistics || {}).subscriberCount) || 0), total_views: +(((item.statistics || {}).viewCount) || 0), analytics_ok: analyticsOk, at: new Date().toISOString() };
     await env.R2.put("channel/inventory_cache.json", JSON.stringify(inv), { httpMetadata: { contentType: "application/json" } });
     return inv;
   } catch { return cached || { longs: [], shorts: [], subs: 0, total_views: 0, at: null, stale: true }; }

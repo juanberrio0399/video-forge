@@ -93,6 +93,9 @@ export const APP_HTML = `<!doctype html>
   function durTxt(sec){ if(sec==null) return "—"; sec=+sec; if(sec>=60){var m=Math.floor(sec/60),s=sec%60;return m+":"+("0"+s).slice(-2);} return sec+"s"; }
 
   var curTab="canal";
+  var vSort="views";
+  var lastInsights="";
+  function setVSort(s){ vSort=s; render(); }
   function tab(name){
     curTab=name;
     ["canal","videos","plan","shorts","crear"].forEach(function(t){el("s-"+t).classList.toggle("hide",t!==name);});
@@ -224,19 +227,26 @@ export const APP_HTML = `<!doctype html>
       + problemsHtml()
       + '<div class="card"><button class="btn" onclick="dispatch(\\'channel_report.yml\\',\\'Reporte de métricas\\')">🔄 Refrescar métricas</button></div>';
 
-    // VIDEOS: tabla compacta con TODOS (largos + shorts), tipo, duración y vistas.
-    var av = ST.all_videos||[];
-    var nLong = av.filter(function(v){return v.type==="long";}).length;
-    var nShort = av.filter(function(v){return v.type==="short";}).length;
-    var vrows = av.map(function(v){
+    // VIDEOS: tabla compacta con TODOS (largos+shorts), tipo, vistas y MINUTOS VISTOS + total + IA.
+    var av=(ST.all_videos||[]).slice();
+    var tot=ST.totals||{views:0,watch_min:0};
+    var nLong=av.filter(function(v){return v.type==="long";}).length;
+    var nShort=av.filter(function(v){return v.type==="short";}).length;
+    av.sort(function(a,b){ return vSort==="watch" ? (b.watch_min||0)-(a.watch_min||0) : (b.views||0)-(a.views||0); });
+    var vrows=av.map(function(v){
       var pv=v.privacy==="public";
       return '<tr><td style="text-align:center">'+(v.type==="short"?"🎬":"📹")+'</td>'
-        +'<td>'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").replace(/ #Shorts$/,"").slice(0,40))+'</a>':esc(v.title||""))+'</td>'
-        +'<td style="text-align:right;white-space:nowrap">'+durTxt(v.seconds)+'</td>'
-        +'<td style="text-align:right">'+(pv?num(v.views):"🔒")+'</td></tr>';
+        +'<td>'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").replace(/ #Shorts$/,"").slice(0,38))+'</a>':esc(v.title||""))+'</td>'
+        +'<td style="text-align:right">'+(pv?num(v.views):"🔒")+'</td>'
+        +'<td style="text-align:right">'+(ST.analytics_ok?num(v.watch_min||0):"—")+'</td></tr>';
     }).join("");
+    var totalRow='<tr style="font-weight:800;border-top:2px solid rgba(255,255,255,.2)"><td></td><td>TOTAL ('+av.length+')</td><td style="text-align:right">'+num(tot.views)+'</td><td style="text-align:right">'+(ST.analytics_ok?num(tot.watch_min):"—")+'</td></tr>';
     el("s-videos").innerHTML='<h2>Videos · '+nLong+' largos · '+nShort+' shorts</h2>'
-      +'<div class="card" style="padding:8px"><table style="font-size:13px"><tr><th></th><th>Título</th><th style="text-align:right">Dur</th><th style="text-align:right">Vistas</th></tr>'+(vrows||'<tr><td colspan="4" class="muted">Sin videos.</td></tr>')+'</table></div>'
+      +'<div style="display:flex;gap:6px;margin:4px 0"><span class="chip'+(vSort==="views"?" on":"")+'" onclick="setVSort(\\'views\\')">Por vistas</span><span class="chip'+(vSort==="watch"?" on":"")+'" onclick="setVSort(\\'watch\\')">Por min vistos</span></div>'
+      +'<div class="card" style="padding:8px"><table style="font-size:13px"><tr><th></th><th>Título</th><th style="text-align:right">Vistas</th><th style="text-align:right">Min vist.</th></tr>'+(vrows||'<tr><td colspan="4" class="muted">Sin videos.</td></tr>')+totalRow+'</table></div>'
+      +(ST.analytics_ok?'':'<div class="muted" style="font-size:11px">⚠️ Los "min vistos" necesitan el permiso de YouTube Analytics. Reautoriza el OAuth con el scope yt-analytics para verlos.</div>')
+      +'<button class="btn" onclick="showInsights()">🧠 Analizar qué replicar (IA)</button>'
+      +'<div id="insightsOut">'+lastInsights+'</div>'
       +'<div class="muted" style="font-size:11px;text-align:center">📹 largo · 🎬 short · 🔒 privado</div>';
 
     // PLAN (panel de produccion): estado + siguiente con boton + pendientes + tendencias
@@ -352,6 +362,13 @@ export const APP_HTML = `<!doctype html>
     api("/api/trends").then(function(r){return r.json();}).then(function(j){
       o.innerHTML='<h2>🔥 Tendencias — ¿alineado?</h2><div class="card">'+esc(j.analysis||j.error||"sin datos").replace(/\\n/g,"<br>")+'</div>';
     }).catch(function(){o.innerHTML='<div class="card muted">No pude analizar tendencias.</div>';});
+  }
+  function showInsights(){
+    var o=el("insightsOut"); o.innerHTML='<div class="card muted">🧠 Analizando qué videos rinden más y qué replicar…</div>';
+    api("/api/insights").then(function(r){return r.json();}).then(function(j){
+      lastInsights='<h2>🧠 Qué replicar</h2><div class="card">'+esc(j.analysis||j.error||"sin datos").replace(/\\n/g,"<br>")+'</div>';
+      var e=el("insightsOut"); if(e) e.innerHTML=lastInsights;
+    }).catch(function(){var e=el("insightsOut"); if(e) e.innerHTML='<div class="card muted">No pude analizar.</div>';});
   }
   function regenSeo(){
     var notes=(el("seoNotes")&&el("seoNotes").value)||"";
