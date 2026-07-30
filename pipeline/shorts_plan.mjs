@@ -39,12 +39,15 @@ async function gemini(prompt) {
 }
 
 const mins = Math.round(total / 60);
+const notes = (process.env.SHORTS_NOTES || "").trim();
 const prompt =
   `Eres estratega de YouTube Shorts para un canal faceless de datos/dinero en INGLES (mercado EE.UU.). ` +
   `Este es el video (${mins} min) con timestamps por linea:\n"""${lines.slice(0, 6000)}"""\n\n` +
   `Sugiere los MEJORES momentos autoconclusivos para convertir en Shorts verticales (9:16, entre 20 y 55 segundos, ` +
   `que se entiendan solos y enganchen en el primer segundo). Decide CUANTOS tienen sentido (regla: ~1 short por cada ` +
-  `2-3 min, maximo 5). Prioriza revelaciones de cifras grandes y datos sorprendentes. Devuelve SOLO JSON:\n` +
+  `2-3 min, maximo 5). Prioriza revelaciones de cifras grandes y datos sorprendentes.` +
+  (notes ? ` COMENTARIOS DE JUAN (PRIORIDAD, tenlos muy en cuenta y hazlo distinto a lo anterior): "${notes}".` : ``) +
+  ` Devuelve SOLO JSON:\n` +
   `{"reasoning":"1-2 frases: cuantos shorts y por que","shorts":[{"title":"titulo scroll-stopping <60 chars","start_sec":N,"end_sec":N,"hook":"primera frase que retiene","hashtags":["#..."],"caption":"caption corto para el short"}]}`;
 
 const plan = (await gemini(prompt)) || { reasoning: "Sin IA; propongo 1 short del gancho.", shorts: [{ title: "The number that never stops", start_sec: 0, end_sec: 40, hook: "YouTube makes $1,900 every second.", hashtags: ["#youtube", "#money", "#shorts"], caption: "How much YouTube makes every second." }] };
