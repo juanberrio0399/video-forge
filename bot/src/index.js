@@ -190,7 +190,11 @@ async function handleApi(request, env, url) {
     const runsRes = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=15`);
     const runs = runsRes.ok ? ((await runsRes.json()).workflow_runs || []) : [];
     state.active = runs.filter((r) => r.status !== "completed").map((r) => ({ name: r.name, status: r.status }));
-    const fails = runs.filter((r) => r.conclusion === "failure" && (Date.now() - Date.parse(r.updated_at)) < 6 * 3600 * 1000).slice(0, 4);
+    // PROBLEMAS sin repetir: solo la ULTIMA corrida por workflow, y solo si esa fallo
+    // (asi cada error sale UNA vez y se limpia solo cuando reintentas con exito).
+    const latestByWf = {};
+    for (const r of runs) { const wf = r.path || r.name; if (!latestByWf[wf]) latestByWf[wf] = r; }
+    const fails = Object.values(latestByWf).filter((r) => r.conclusion === "failure" && (Date.now() - Date.parse(r.updated_at)) < 6 * 3600 * 1000).slice(0, 5);
     state.problems = [];
     for (const r of fails) {
       let step = "";

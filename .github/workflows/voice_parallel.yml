@@ -10,6 +10,10 @@ on:
         description: "Mapa de voz (JSON por beat)"
         required: false
         default: "projects/0001-youtube-money/voicemap_full.json"
+      then_render:
+        description: "Al terminar, disparar el render (parte de la fabrica)"
+        required: false
+        default: "false"
 
 permissions:
   contents: read
@@ -46,11 +50,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install chatterbox-tts soundfile numpy
+      - name: Bajar el guion ACTIVO de R2 (el de la fabrica), si existe
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 r2 object get "video-forge/audio/0001-youtube-money/voicemap_full.json" --file=voicemap_active.json --remote 2>/dev/null && echo "usando guion de R2" || echo "sin guion en R2; uso el del repo"
       - name: Sintetizar pedazo
         env:
-          MAP: ${{ github.event.inputs.map || 'projects/0001-youtube-money/voicemap_full.json' }}
+          MAP_REPO: ${{ github.event.inputs.map || 'projects/0001-youtube-money/voicemap_full.json' }}
         run: |
           mkdir -p out
+          # Prefiere el guion activo de R2 (fabrica); si no, el del repo.
+          MAP="$MAP_REPO"; [ -s voicemap_active.json ] && MAP="voicemap_active.json"
+          echo "MAP=$MAP"
           python pipeline/tts_chatterbox_directed.py "$MAP" "out/part_${{ matrix.chunk }}.wav" ${{ matrix.chunk }} ${NUM_CHUNKS}
       - name: Subir pedazo (audio + tiempos)
         uses: actions/upload-artifact@v4
@@ -131,14 +144,21 @@ jobs:
           npx --yes wrangler@4 r2 object put "$BUCKET/audio/$PROJECT/voiceover.mp3" --file=renders/voiceover_dir.mp3 --remote
           npx --yes wrangler@4 r2 object put "$BUCKET/audio/$PROJECT/timing.json" --file=renders/timing.json --remote
           echo "R2: audio/$PROJECT/voiceover.mp3 + timing.json"
-      - name: Avisar a Telegram
+      - name: Avisar a Telegram + (fabrica) encadenar el RENDER
         if: always()
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          THEN_RENDER: ${{ github.event.inputs.then_render }}
         run: |
           if [ -f renders/voiceover_dir.mp3 ]; then
-            bash pipeline/notify_telegram.sh "🎙️ Resultado: NARRACIÓN lista (tu voz), guardada en R2. Es el paso previo al video. Si suena bien, dale a 🎬 Renderizar." renders/voiceover_dir.mp3
+            if [ "$THEN_RENDER" = "true" ]; then
+              bash pipeline/notify_telegram.sh "🎙️ Narración lista. Ahora renderizo el video por fases (automatico). Te lo mando para aprobar al terminar." renders/voiceover_dir.mp3
+              gh workflow run render_phased.yml -R "$GITHUB_REPOSITORY" && echo "render disparado"
+            else
+              bash pipeline/notify_telegram.sh "🎙️ Resultado: NARRACIÓN lista (tu voz), guardada en R2. Es el paso previo al video. Si suena bien, dale a 🎬 Renderizar." renders/voiceover_dir.mp3
+            fi
           else
             bash pipeline/notify_telegram.sh "❌ La narración falló al unir los pedazos. Vuelve a intentar con 🎙️ Generar voz."
           fi

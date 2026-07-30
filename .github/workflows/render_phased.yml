@@ -50,15 +50,17 @@ jobs:
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
-      - name: Bajar voz + tiempos de R2
+      - name: Bajar voz + tiempos + guion activo de R2
         run: |
           npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/voiceover.mp3" --file=voiceover.mp3 --remote
           npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing.json --remote
+          # Guion activo (de la fabrica) para partir en fases + juzgar el gancho; si no, el del repo.
+          npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/voicemap_full.json" --file=voicemap_active.json --remote 2>/dev/null && echo "guion de R2" || cp "projects/$PROJECT/voicemap_full.json" voicemap_active.json
 
       - name: Partir en fases
         id: split
         run: |
-          node pipeline/split_phases.mjs timing.json "projects/$PROJECT/voicemap_full.json" phases
+          node pipeline/split_phases.mjs timing.json voicemap_active.json phases
           # Cortar el audio de cada fase segun el manifest (absStart -> absEnd).
           node -e '
             const fs=require("fs"), {execSync}=require("child_process");
