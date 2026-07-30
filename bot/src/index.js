@@ -26,7 +26,7 @@ export default {
     // archivos >50MB; el video del canal pesa ~250MB, asi que se ve por aqui.
     if (request.method === "GET" && url.pathname.startsWith("/watch/")) {
       const key = decodeURIComponent(url.pathname.slice("/watch/".length));
-      return handleWatch(request, env, key);
+      return handleWatch(request, env, key, url.searchParams.get("t"));
     }
     // Health check / raiz (GET): util para probar que el Worker esta vivo.
     if (request.method !== "POST") {
@@ -64,10 +64,16 @@ export default {
 // Sirve un video desde R2 por HTTP con soporte de Range (streaming + seek en el
 // navegador). Solo expone los prefijos seguros (video/ y recipe/); NUNCA voice/ ni
 // estados. Asi Juan ve el resultado sin el limite de 50MB de Telegram.
-async function handleWatch(request, env, key) {
+async function handleWatch(request, env, key, token) {
   if (!env.R2) return new Response("sin almacenamiento", { status: 500 });
   if (!/^(video|recipe)\/[^?]+\.(mp4|mov|webm)$/.test(key)) {
     return new Response("no permitido", { status: 403 });
+  }
+  // Contenido PERSONAL (recipe/): exige enlace firmado (HMAC). Asi no queda publico
+  // aunque alguien adivine la URL + el chat_id. Los video/ del canal (que van a YouTube) siguen abiertos.
+  if (key.startsWith("recipe/")) {
+    const good = await watchToken(env, key);
+    if (!good || token !== good) return new Response("no autorizado", { status: 403 });
   }
   const rangeHeader = request.headers.get("Range");
   let opts = {};
@@ -101,6 +107,13 @@ async function hmacBytes(keyBytes, msg) {
   return new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(msg)));
 }
 const toHex = (u8) => [...u8].map((b) => b.toString(16).padStart(2, "0")).join("");
+// Token firmado para enlaces /watch de contenido personal (recipe/). Mismo secreto
+// que usan los workflows (TELEGRAM_BOT_TOKEN), asi el que arma el reel puede firmar el link.
+async function watchToken(env, key) {
+  if (!env.TELEGRAM_BOT_TOKEN) return null;
+  const h = toHex(await hmacBytes(new TextEncoder().encode(env.TELEGRAM_BOT_TOKEN), "watch:" + key));
+  return h.slice(0, 32);
+}
 
 // Valida el initData que manda la Web App de Telegram. Devuelve el user si es valido
 // y es el OWNER; si no, null. (Algoritmo oficial de Telegram con HMAC-SHA256.)

@@ -111,10 +111,15 @@ jobs:
 
       - name: Devolver el reel al chat
         if: always()
+        env:
+          WORKER_URL: https://video-forge-bot.tienvo.workers.dev
         run: |
           if [ -f reel.mp4 ]; then
             TITLE=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("plan.json","utf8")).title||"Receta")}catch(e){process.stdout.write("Receta")}')
-            MK='{"inline_keyboard":[[{"text":"🍳 Otra receta","callback_data":"receta"}]]}'
+            # Link FIRMADO (HMAC) para ver el reel sin dejarlo publico (contenido personal).
+            KEY="recipe/${CHAT}/reel.mp4"
+            LINK=$(KEY="$KEY" node -e 'const c=require("crypto");const t=c.createHmac("sha256",process.env.TELEGRAM_BOT_TOKEN).update("watch:"+process.env.KEY).digest("hex").slice(0,32);process.stdout.write(process.env.WORKER_URL+"/watch/"+process.env.KEY+"?t="+t)')
+            MK=$(LINK="$LINK" node -e 'process.stdout.write(JSON.stringify({inline_keyboard:[[{text:"▶️ Ver el reel (privado)",url:process.env.LINK}],[{text:"🍳 Otra receta",callback_data:"receta"}]]}))')
             bash pipeline/notify_telegram.sh "🍳 Resultado: REEL de receta — ${TITLE}. Vertical 9:16 para TikTok/IG, con tu voz y los subtítulos de la preparación. ¿Lo usas o armamos otra?" reel.mp4 "$MK"
           else
             bash pipeline/notify_telegram.sh "❌ No pude armar el reel de la receta. Reintenta con /receta."
