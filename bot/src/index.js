@@ -229,6 +229,20 @@ async function handleApi(request, env, url) {
       views: state.all_videos.reduce((s, v) => s + (v.views || 0), 0),
       watch_min: state.all_videos.reduce((s, v) => s + (v.watch_min || 0), 0),
     };
+    // MATRIZ de control por video largo: check de lo hecho + acciones posibles.
+    // publicado = en vivo del canal; el resto del registro channel/videos.json.
+    const vledger = (await r2json(env, "channel/videos.json")) || {};
+    state.video_matrix = (inv.longs || []).map((v) => {
+      const st = (vledger[v.video_id] || {}).stages || {};
+      return {
+        video_id: v.video_id, title: v.title, public: v.privacy === "public", views: v.views, watch_min: v.watch_min || 0,
+        stages: {
+          publicado: v.privacy === "public",
+          miniatura: !!st.thumbnail,
+          shorts: !!st.shorts,
+        },
+      };
+    });
     // Shorts "hechos" = hay aprobados y TODOS estan subidos (tienen video_id).
     const shortsDone = approvedShorts.length > 0 && approvedShorts.every((s) => s.video_id);
     (state.published || []).forEach((v, i) => { v.shorts_done = i === 0 ? shortsDone : false; });

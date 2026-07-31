@@ -217,6 +217,15 @@ jobs:
           done
           npx --yes wrangler@4 r2 object put "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote --content-type application/json
           echo "N=$N" >> "$GITHUB_ENV"
+      - name: Marcar "shorts hechos" en el registro por video
+        if: ${{ env.N != '0' && env.N != '' }}
+        run: |
+          FOR=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("plan.json","utf8")).for_video_id||"")}catch(e){}')
+          if [ -n "$FOR" ]; then
+            npx --yes wrangler@4 r2 object get "$BUCKET/channel/videos.json" --file=videos.json --remote 2>/dev/null || echo '{}' > videos.json
+            node pipeline/mark_stage.mjs videos.json "$FOR" "" shorts
+            npx --yes wrangler@4 r2 object put "$BUCKET/channel/videos.json" --file=videos.json --remote --content-type application/json
+          fi
       - name: Avisar
         if: always()
         run: |
