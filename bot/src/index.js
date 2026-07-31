@@ -66,7 +66,7 @@ export default {
 // estados. Asi Juan ve el resultado sin el limite de 50MB de Telegram.
 async function handleWatch(request, env, key, token) {
   if (!env.R2) return new Response("sin almacenamiento", { status: 500 });
-  if (!/^(video|recipe)\/[^?]+\.(mp4|mov|webm)$/.test(key)) {
+  if (!/^(video|recipe)\/[^?]+\.(mp4|mov|webm|jpg|jpeg|png|webp)$/.test(key)) {
     return new Response("no permitido", { status: 403 });
   }
   // Contenido PERSONAL (recipe/): exige enlace firmado (HMAC). Asi no queda publico
@@ -332,6 +332,8 @@ async function handleApi(request, env, url) {
     const pkg = await r2json(env, "video/0001-youtube-money/package.json");
     let seoVideoId = null;
     try { const ido = await env.R2.get("video/0001-youtube-money/video_id.txt"); if (ido) seoVideoId = (await ido.text()).trim(); } catch {}
+    let thumbUrl = null;
+    try { const th = await env.R2.head("video/0001-youtube-money/thumbnail.jpg"); if (th) thumbUrl = "/watch/video/0001-youtube-money/thumbnail.jpg"; } catch {}
     const approvedFlag = await r2json(env, "video/0001-youtube-money/seo_approved.json");
     // Aprobado solo si el titulo aprobado == el titulo actual (si regeneras el SEO, se resetea).
     const isApproved = !!(approvedFlag && approvedFlag.approved && pkg && approvedFlag.title === pkg.title);
@@ -349,6 +351,7 @@ async function handleApi(request, env, url) {
       } : null,
       video_id: seoVideoId,
       watch_url: "/watch/video/0001-youtube-money/video.mp4",
+      thumb_url: thumbUrl,
     };
     return json(state);
   }
@@ -806,14 +809,6 @@ async function handleCallback(cb, env) {
         if (await busyGuard(env, chatId)) return;
         const r = await ghDispatch(env, "render_phased.yml", {});
         return ack(env, chatId, r, "Regenerando por fases");
-      }
-      if (data === "short_style_ok") {
-        return tg(env, "sendMessage", { chat_id: chatId, text: "👍 Perfecto, con ese estilo. Dime cuando quieras y genero los 3 shorts así, nativos en vertical." });
-      }
-      if (data === "short_style_next") {
-        if (await busyGuard(env, chatId)) return;
-        const r = await ghDispatch(env, "short_render.yml", { short_index: "0", style: "animation" });
-        return ack(env, chatId, r, "Probando el short con estilo animación limpia");
       }
       if (data.startsWith("short_pub:")) {
         const vid = data.slice("short_pub:".length);
