@@ -27,29 +27,40 @@ env:
 
 jobs:
   decide:
-    name: Elegir motor de voz
+    name: Elegir motor y voz
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       engine: ${{ steps.e.outputs.engine }}
+      kvoice: ${{ steps.e.outputs.kvoice }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Probar Gemini (si esta saturado -> Kokoro de respaldo)
+      - name: Decidir segun la voz elegida (o auto con respaldo Kokoro)
         id: e
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           VOICE: Charon
         run: |
+          npx --yes wrangler@4 r2 object get "video-forge/channel/voice_choice.json" --file=vc.json --remote 2>/dev/null || echo '{}' > vc.json
+          CH_ENGINE=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("vc.json","utf8")).engine||"")}catch(e){}')
+          CH_KVOICE=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("vc.json","utf8")).kvoice||"")}catch(e){}')
+          KVOICE="${CH_KVOICE:-am_michael}"
           IN="${{ github.event.inputs.engine }}"
           if [ "$IN" = "gemini" ] || [ "$IN" = "kokoro" ]; then
-            ENGINE="$IN"; echo "motor FORZADO: $ENGINE"
+            ENGINE="$IN"; echo "motor FORZADO por input: $ENGINE"
+          elif [ "$CH_ENGINE" = "kokoro" ]; then
+            ENGINE="kokoro"; echo "voz elegida: Kokoro $KVOICE"
           else
-            ENGINE=$(node pipeline/tts_health.mjs); echo "motor auto: $ENGINE"
+            ENGINE=$(node pipeline/tts_health.mjs); echo "voz elegida: Gemini (o auto) -> $ENGINE"
           fi
           echo "engine=$ENGINE" >> "$GITHUB_OUTPUT"
+          echo "kvoice=$KVOICE" >> "$GITHUB_OUTPUT"
 
   synth:
     name: Pedazo ${{ matrix.chunk }}
@@ -89,7 +100,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           VOICE: Charon
-          KVOICE: am_michael
+          KVOICE: ${{ needs.decide.outputs.kvoice || 'am_michael' }}
         run: |
           mkdir -p out
           if [ "$ENGINE" = "kokoro" ]; then
