@@ -175,19 +175,16 @@ export const APP_HTML = `<!doctype html>
   }
   function pendingThumbsHtml(){
     var vm=ST.video_matrix||[];
-    var withThumb=vm.filter(function(v){return v.thumb_url;});
-    if(!withThumb.length) return "";
-    return '<h2>🖼️ Miniaturas</h2>'+withThumb.map(function(v){
+    // Solo las que FALTAN aprobar; al aprobar, desaparece la tarjeta.
+    var pend=vm.filter(function(v){return v.thumb_url && !(v.stages||{}).miniatura;});
+    if(!pend.length) return "";
+    return pend.map(function(v){
       var u=esc(location.origin+v.thumb_url)+"?t="+(ST.updated_at||"");
-      var applied=!!(v.stages||{}).miniatura;
-      return '<div class="card"'+(applied?'':' style="border:1px solid var(--cy)"')+'>'
-        +'<div style="font-weight:700;margin-bottom:6px">'+(applied?'✅ Miniatura puesta':'⏳ Por aprobar')+' — '+esc((v.title||"").slice(0,28))+'</div>'
+      return '<div class="card" style="border:1px solid var(--cy)">'
+        +'<div style="font-weight:700;margin-bottom:6px">🖼️ Miniatura por aprobar — '+esc((v.title||"").slice(0,28))+'</div>'
         +'<a href="'+u+'" target="_blank"><img src="'+u+'" style="width:100%;border-radius:8px;display:block;margin-bottom:8px"></a>'
-        +(applied
-          ? '<button class="btn ghost" onclick="thumbRow(\\''+v.video_id+'\\')">🔁 Rehacer (cambiar)</button>'
-          : '<button class="btn" onclick="thumbApprove(\\''+v.video_id+'\\')">✅ Aprobar y ponerla en YouTube</button>'
-            +'<button class="btn ghost" onclick="thumbRow(\\''+v.video_id+'\\')">🔁 Rehacer otra</button>')
-        +'</div>';
+        +'<button class="btn" onclick="thumbApprove(\\''+v.video_id+'\\')">✅ Aprobar y ponerla en YouTube</button>'
+        +'<button class="btn ghost" onclick="thumbRow(\\''+v.video_id+'\\')">🔁 Rehacer otra</button></div>';
     }).join("");
   }
   function matrixHtml(){
@@ -202,12 +199,12 @@ export const APP_HTML = `<!doctype html>
       }
       // Miniatura: solo ESTADO en la tabla; la imagen grande y el botón salen ARRIBA.
       var miniCell;
-      if(!v.thumb_url){
-        miniCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="thumbRow(\\''+vid+'\\')">＋ Hacer</span></td>';
+      if(s.miniatura){
+        miniCell='<td style="text-align:center"><span style="color:#34d399;font-size:15px">✓</span> <span style="cursor:pointer;color:var(--hint)" onclick="thumbRow(\\''+vid+'\\')">🔁</span></td>';
+      } else if(v.thumb_url){
+        miniCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--am);font-size:11px;font-weight:700" onclick="window.scrollTo(0,0)">⏳ aprobar ↑</span></td>';
       } else {
-        miniCell='<td style="text-align:center">'+(s.miniatura
-          ?'<span style="color:#34d399;font-size:16px">✓</span>'
-          :'<span style="color:var(--cy);font-size:11px">⬆ arriba</span>')+'</td>';
+        miniCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="thumbRow(\\''+vid+'\\')">＋ Hacer</span></td>';
       }
       return '<tr><td>'+(vid?'<a href="https://youtu.be/'+vid+'" target="_blank">'+esc((v.title||"").slice(0,20))+'</a>':esc((v.title||"").slice(0,20)))+'</td>'
         +cell("publicado","publishRow(\\'"+vid+"\\')")
