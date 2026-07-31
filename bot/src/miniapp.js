@@ -44,9 +44,9 @@ export const APP_HTML = `<!doctype html>
   textarea{min-height:80px;resize:vertical}
   .file{display:flex;align-items:center;gap:10px;background:var(--bg);border:1px dashed rgba(255,255,255,.25);border-radius:12px;padding:14px;justify-content:center;color:var(--hint);cursor:pointer;margin:8px 0}
   .nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid rgba(255,255,255,.08);padding:6px 4px 10px}
-  .nav button{flex:1;background:none;border:0;color:var(--hint);font-size:10px;padding:6px 2px;cursor:pointer}
-  .nav button .ic{font-size:20px;display:block}
-  .nav button.on{color:var(--cy)}
+  .nav button{flex:1;background:none;border:0;color:var(--hint);font-size:11px;font-weight:600;padding:5px 2px;cursor:pointer;border-radius:12px;margin:0 2px;transition:background .15s}
+  .nav button .ic{font-size:20px;display:block;margin-bottom:2px}
+  .nav button.on{color:var(--cy);background:rgba(34,211,238,.14)}
   .hide{display:none}
   .muted{color:var(--hint);font-size:13px}
   #toast{position:fixed;bottom:78px;left:14px;right:14px;background:#111a2b;color:#fff;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:13px 16px;text-align:center;font-weight:600;transform:translateY(140px);transition:.25s;z-index:20;box-shadow:0 8px 30px rgba(0,0,0,.45)}
@@ -77,7 +77,7 @@ export const APP_HTML = `<!doctype html>
 <div class="nav">
   <button data-t="canal" class="on"><span class="ic">📊</span>Canal</button>
   <button data-t="videos"><span class="ic">🎬</span>Videos</button>
-  <button data-t="plan"><span class="ic">🗓️</span>Plan</button>
+  <button data-t="plan"><span class="ic">🧭</span>Control</button>
   <button data-t="shorts"><span class="ic">✂️</span>Shorts</button>
   <button data-t="crear"><span class="ic">✨</span>Crear</button>
 </div>
@@ -286,7 +286,7 @@ export const APP_HTML = `<!doctype html>
       + '<div style="margin-top:12px" class="'+(mon.elegible?"":"muted")+'">'+(mon.elegible?"✅ Elegible para monetizar":"❌ Aún no elegible")+'</div>'
       + '</div>'
       + problemsHtml()
-      + '<div class="card"><button class="btn" onclick="dispatch(\\'channel_report.yml\\',\\'Reporte de métricas\\')">🔄 Refrescar métricas</button></div>';
+      + '<button class="btn ghost" onclick="dispatch(\\'channel_report.yml\\',\\'Reporte de métricas\\')">🔄 Refrescar métricas</button>';
 
     // VIDEOS: tabla compacta con TODOS (largos+shorts), tipo, vistas y MINUTOS VISTOS + total + IA.
     var av=(ST.all_videos||[]).slice();
@@ -304,7 +304,7 @@ export const APP_HTML = `<!doctype html>
     var totalRow='<tr style="font-weight:800;border-top:2px solid rgba(255,255,255,.2)"><td></td><td>TOTAL ('+av.length+')</td><td style="text-align:right">'+num(tot.views)+'</td><td style="text-align:right">'+(ST.analytics_ok?num(tot.watch_min):"—")+'</td></tr>';
     el("s-videos").innerHTML='<h2>Videos · '+nLong+' largos · '+nShort+' shorts</h2>'
       +'<div style="display:flex;gap:6px;margin:4px 0"><span class="chip'+(vSort==="views"?" on":"")+'" onclick="setVSort(\\'views\\')">Por vistas</span><span class="chip'+(vSort==="watch"?" on":"")+'" onclick="setVSort(\\'watch\\')">Por min vistos</span></div>'
-      +'<div class="card" style="padding:8px"><table style="font-size:13px"><tr><th></th><th>Título</th><th style="text-align:right">Vistas</th><th style="text-align:right">Min vist.</th></tr>'+(vrows||'<tr><td colspan="4" class="muted">Sin videos.</td></tr>')+totalRow+'</table></div>'
+      +'<div class="card" style="padding:8px"><table style="font-size:13px"><tr><th></th><th>Título</th><th style="text-align:right">Vistas</th><th style="text-align:right">Min vist.</th></tr>'+(vrows||'<tr><td colspan="4" class="muted">Aún no hay videos. Ve a <b>Control</b> y dale ▶️ Producir para crear el primero.</td></tr>')+(vrows?totalRow:'')+'</table></div>'
       +(ST.analytics_ok?'':'<div class="muted" style="font-size:11px">⚠️ Los "min vistos" necesitan el permiso de YouTube Analytics. Reautoriza el OAuth con el scope yt-analytics para verlos.</div>')
       +'<button class="btn" onclick="showInsights()">🧠 Analizar qué replicar (IA)</button>'
       +'<div id="insightsOut">'+lastInsights+'</div>'
@@ -328,9 +328,9 @@ export const APP_HTML = `<!doctype html>
             ? '<div style="text-align:center;font-weight:700;color:var(--cy);padding:10px;background:rgba(34,211,238,.12);border-radius:12px">⏳ Produciendo… mira "En proceso ahora"</div>'
             : '<button class="btn" onclick="produceVideo('+(next.n||0)+')">▶️ Producir este video</button>')
           +'<button class="btn ghost" onclick="showTrends()">🔥 Analizar tendencias (¿alineado?)</button></div>'
-        : '<div class="card muted">🎉 No hay videos pendientes.</div>')
+        : '<div class="card muted">🎉 Todo lo programado ya se produjo. Pídeme por el chat más temas cuando quieras.</div>')
       +'<div id="trendsOut"></div>'
-      +'<h2>Programados (pendientes)</h2><div class="card"><table><tr><th>#</th><th>Tema</th><th style="text-align:right">Fecha</th></tr>'+(prows||'<tr><td class="muted">—</td></tr>')+'</table></div>'
+      +'<h2>Programados (pendientes)</h2><div class="card"><table><tr><th>#</th><th>Tema</th><th style="text-align:right">Fecha</th></tr>'+(prows||'<tr><td colspan="3" class="muted">No hay más temas en cola por ahora.</td></tr>')+'</table></div>'
       +'<div class="card muted">Cadencia objetivo: '+esc((ST.cadence&&ST.cadence.goal)||"1 video cada 2 días")+'.</div>';
 
     // SHORTS: aprobar → generar → publicar, todo desde la app.
