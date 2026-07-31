@@ -275,6 +275,7 @@ export const APP_HTML = `<!doctype html>
       +'<div style="display:flex;gap:6px;margin:4px 0"><span class="chip'+(vSort==="views"?" on":"")+'" onclick="setVSort(\\'views\\')">Por vistas</span><span class="chip'+(vSort==="watch"?" on":"")+'" onclick="setVSort(\\'watch\\')">Por min vistos</span></div>'
       +'<div class="card" style="padding:8px"><table style="font-size:13px"><tr><th></th><th>Título</th><th style="text-align:right">Vistas</th><th style="text-align:right">Min vist.</th></tr>'+(vrows||'<tr><td colspan="4" class="muted">Sin videos.</td></tr>')+totalRow+'</table></div>'
       +(ST.analytics_ok?'':'<div class="muted" style="font-size:11px">⚠️ Los "min vistos" necesitan el permiso de YouTube Analytics. Reautoriza el OAuth con el scope yt-analytics para verlos.</div>')
+      +'<button class="btn ghost" onclick="dispatch(\\'thumbnail_only.yml\\',\\'Miniatura del último video (sin tocar el SEO)\\')">🖼️ (Re)generar miniatura — no toca el SEO</button>'
       +'<button class="btn" onclick="showInsights()">🧠 Analizar qué replicar (IA)</button>'
       +'<div id="insightsOut">'+lastInsights+'</div>'
       +'<div class="muted" style="font-size:11px;text-align:center">📹 largo · 🎬 short · 🔒 privado</div>';
