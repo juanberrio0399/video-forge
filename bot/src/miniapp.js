@@ -183,9 +183,13 @@ export const APP_HTML = `<!doctype html>
         if(s[key]) return '<td style="text-align:center;color:#34d399;font-size:16px">✓</td>';
         return '<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="'+act+'">＋ Hacer</span></td>';
       }
+      // Miniatura: si ya existe, se ve la imagen real (clic para ampliar); si no, botón.
+      var miniCell;
+      if(v.thumb_url){ var u=esc(location.origin+v.thumb_url); miniCell='<td style="text-align:center"><a href="'+u+'" target="_blank"><img src="'+u+'" style="width:78px;border-radius:5px;vertical-align:middle;border:1px solid rgba(255,255,255,.15)"></a></td>'; }
+      else { miniCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="thumbRow(\\'"+vid+"\\')">＋ Hacer</span></td>'; }
       return '<tr><td>'+(vid?'<a href="https://youtu.be/'+vid+'" target="_blank">'+esc((v.title||"").slice(0,20))+'</a>':esc((v.title||"").slice(0,20)))+'</td>'
         +cell("publicado","publishRow(\\'"+vid+"\\')")
-        +cell("miniatura","thumbRow(\\'"+vid+"\\')")
+        +miniCell
         +cell("shorts","goShorts()")
         +'</tr>';
     }).join("");
