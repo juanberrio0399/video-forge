@@ -206,8 +206,11 @@ export const APP_HTML = `<!doctype html>
         +'<div class="muted" style="font-size:11px">TAGS</div><div style="margin-bottom:4px">'+((seo.tags||[]).map(function(t){return '<span class="chip" style="font-size:11px">'+esc(t)+'</span>';}).join(" ")||"—")+'</div>'
         +((val.problemas&&val.problemas.length)?'<div class="muted" style="font-size:12px;color:var(--am);margin-top:6px">⚠️ '+esc(val.problemas.join("; "))+'</div>':'')
         +'</div>';
-      h+='<div class="muted" style="font-size:11px;margin:2px 2px 0">Vista previa (cómo se vería):</div>'
-        +'<div class="ytcard"><div class="ytthumb"><span class="ytbig">'+esc(seo.thumbnail_text||"THE DATA LENS")+'</span></div>'
+      var thumbInner = p.thumb_url
+        ? '<img src="'+esc(location.origin+p.thumb_url)+'" style="width:100%;display:block" alt="miniatura">'
+        : '<div class="ytthumb"><span class="ytbig">'+esc(seo.thumbnail_text||"THE DATA LENS")+'</span></div>';
+      h+='<div class="muted" style="font-size:11px;margin:2px 2px 0">Vista previa'+(p.thumb_url?" (miniatura real)":" (cómo se vería)")+':</div>'
+        +'<div class="ytcard">'+thumbInner
         +'<div style="padding:9px"><div class="yttitle">'+esc(seo.title||"—")+'</div><div class="muted" style="font-size:12px">The Data Lens · '+(p.video_id?"privado":"—")+'</div></div></div>';
     }
     if(p.watch_url){ h+='<a class="btn ghost" href="'+esc(location.origin+p.watch_url)+'" target="_blank">▶️ Ver el video</a>'; }

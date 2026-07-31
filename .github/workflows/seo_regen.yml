@@ -41,6 +41,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Instalar ffmpeg + fuentes (para la miniatura)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation
 
       - name: Avisar al chat que ARRANCO
         run: bash pipeline/notify_telegram.sh "🔁 Regenerando el SEO del video (titulo/descripcion/tags) tomando en cuenta los comentarios de la IA. Te lo muestro en un momento."
@@ -77,6 +79,14 @@ jobs:
 
       - name: Aplicar el nuevo SEO al video (sin re-subir)
         run: node pipeline/youtube_update.mjs "$(cat video_id.txt)" publish/package.json
+
+      - name: Regenerar miniatura (Pollinations + texto) y fijarla
+        run: |
+          TOPIC=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("voicemap_active.json","utf8")).title||"data")}catch(e){process.stdout.write("data")}')
+          TT=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("publish/package.json","utf8")).thumbnail_text||"THE DATA LENS")}catch(e){process.stdout.write("THE DATA LENS")}')
+          node pipeline/make_thumbnail.mjs "$TOPIC" "$TT" thumbnail.jpg
+          node pipeline/youtube_thumbnail.mjs "$(cat video_id.txt)" thumbnail.jpg || echo "miniatura no fijada"
+          npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/thumbnail.jpg" --file=thumbnail.jpg --remote --content-type image/jpeg || true
 
       - name: Guardar el paquete nuevo en R2
         run: npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/package.json" --file=publish/package.json --remote

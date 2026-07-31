@@ -5,10 +5,9 @@ name = "video-forge-bot"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
 
-# Variables NO secretas (el repo objetivo y que workflow dispara /nuevo).
+# Variables NO secretas (el repo objetivo).
 [vars]
 GH_REPO = "juanberrio0399/video-forge"
-GH_PRODUCE_WORKFLOW = "render.yml"
 
 # Fase 7: editor de fotos. El Worker guarda el ORIGEN en R2 y dispara photo_edit.yml
 # (el retoque real corre en Actions con GFPGAN/Real-ESRGAN para preservar la identidad).
