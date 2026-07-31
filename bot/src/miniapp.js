@@ -183,10 +183,21 @@ export const APP_HTML = `<!doctype html>
         if(s[key]) return '<td style="text-align:center;color:#34d399;font-size:16px">✓</td>';
         return '<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="'+act+'">＋ Hacer</span></td>';
       }
-      // Miniatura: si ya existe, se ve la imagen real (clic para ampliar); si no, botón.
+      // Miniatura: 3 estados → hacer / generada-por-aprobar / aplicada (✓).
       var miniCell;
-      if(v.thumb_url){ var u=esc(location.origin+v.thumb_url); miniCell='<td style="text-align:center"><a href="'+u+'" target="_blank"><img src="'+u+'" style="width:78px;border-radius:5px;vertical-align:middle;border:1px solid rgba(255,255,255,.15)"></a></td>'; }
-      else { miniCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="thumbRow(\\'"+vid+"\\')">＋ Hacer</span></td>'; }
+      if(!v.thumb_url){
+        miniCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="thumbRow(\\'"+vid+"\\')">＋ Hacer</span></td>';
+      } else {
+        var u=esc(location.origin+v.thumb_url)+"?t="+(ST.updated_at||"");
+        var img='<a href="'+u+'" target="_blank"><img src="'+u+'" style="width:82px;border-radius:5px;display:block;margin:0 auto 4px;border:1px solid rgba(255,255,255,.15)"></a>';
+        if(s.miniatura){
+          miniCell='<td style="text-align:center">'+img+'<span style="color:#34d399;font-size:12px">✓ puesta</span></td>';
+        } else {
+          miniCell='<td style="text-align:center">'+img
+            +'<button class="btn mini" style="padding:4px 8px" onclick="thumbApprove(\\'"+vid+"\\')">✅ Aprobar</button> '
+            +'<button class="btn mini ghost" style="padding:4px 8px" onclick="thumbRow(\\'"+vid+"\\')">🔁</button></td>';
+        }
+      }
       return '<tr><td>'+(vid?'<a href="https://youtu.be/'+vid+'" target="_blank">'+esc((v.title||"").slice(0,20))+'</a>':esc((v.title||"").slice(0,20)))+'</td>'
         +cell("publicado","publishRow(\\'"+vid+"\\')")
         +miniCell
@@ -194,7 +205,7 @@ export const APP_HTML = `<!doctype html>
         +'</tr>';
     }).join("");
     return '<h2>📋 Control por video</h2>'
-      +'<div class="muted" style="font-size:12px;margin:0 2px 6px">Qué le falta a cada video. ✓ = hecho · toca <b>＋ Hacer</b> para completarlo. No cambia lo ya publicado.</div>'
+      +'<div class="muted" style="font-size:12px;margin:0 2px 6px">Qué le falta a cada video. <b>＋ Hacer</b> para completarlo. La miniatura la <b>ves aquí</b> y le das ✅ Aprobar (o 🔁 rehacer) antes de ponerla. No cambia lo ya publicado.</div>'
       +'<div class="card" style="padding:8px"><table style="font-size:13px">'+head+rows+'</table></div>';
   }
   function currentStage(){
@@ -475,8 +486,13 @@ export const APP_HTML = `<!doctype html>
   }
   function thumbRow(vid){
     if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("light");
-    api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"thumbnail_only.yml",inputs:{video_id:vid}})})
-      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🖼️ Generando la miniatura — te llega al chat":"❌ "+(j.error||"no pude"));setTimeout(load,3000);});
+    api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"thumbnail_only.yml",inputs:{video_id:vid,mode:"generate"}})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🖼️ Generando la miniatura — en un momento la ves aquí para aprobar":"❌ "+(j.error||"no pude"));setTimeout(load,4000);});
+  }
+  function thumbApprove(vid){
+    if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
+    api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"thumbnail_only.yml",inputs:{video_id:vid,mode:"apply"}})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"✅ Poniendo la miniatura en el video…":"❌ "+(j.error||"no pude"));setTimeout(load,3000);});
   }
   function pubShort(id){
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"set_privacy.yml",inputs:{video_id:id,privacy:"public"}})})
