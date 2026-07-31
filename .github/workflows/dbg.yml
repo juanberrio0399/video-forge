@@ -15,13 +15,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - uses: actions/checkout@v4
       - run: |
-          g(){ npx --yes wrangler@4 r2 object get "$BUCKET/$1" --file="$2" --remote 2>/dev/null || echo "{}" > "$2"; }
-          g channel/videos.json videos.json
-          g shorts/0001-youtube-money/plan.json plan.json
-          node -e '
-            const fs=require("fs");const rd=p=>{try{return JSON.parse(fs.readFileSync(p,"utf8"))}catch(e){return {}}};
-            const v=rd("videos.json");console.log("=== VIDEOS.JSON ===");for(const k in v)console.log(k,JSON.stringify(v[k].stages||{}),"|",(v[k].title||"").slice(0,30));
-            const p=rd("plan.json");console.log("=== PLAN ===","for_video_id:",p.for_video_id);
-            (p.shorts||[]).forEach(s=>console.log("  n="+s.n,"approved="+s.approved,"skipped="+s.skipped,"video_id="+(s.video_id||"-"),"|",(s.title||"").slice(0,34)));
-          '
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/videos.json" --file=videos.json --remote 2>/dev/null || echo '{}' > videos.json
+          node pipeline/mark_stage.mjs videos.json "w75dYwiq4zA" "" shorts
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/videos.json" --file=videos.json --remote --content-type application/json
+          echo "marcado w75d shorts:true"

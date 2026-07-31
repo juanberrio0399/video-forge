@@ -230,8 +230,12 @@ async function handleApi(request, env, url) {
       watch_min: state.all_videos.reduce((s, v) => s + (v.watch_min || 0), 0),
     };
     // MATRIZ de control por video largo: check de lo hecho + acciones posibles.
-    // publicado = en vivo del canal; el resto del registro channel/videos.json.
+    // publicado = en vivo del canal; miniatura = registro; shorts = registro O el plan
+    // (si el plan es de este video y sus shorts aprobados ya estan subidos) -> auto-corrige.
     const vledger = (await r2json(env, "channel/videos.json")) || {};
+    const planFor = plan.for_video_id;
+    const planApproved = (plan.shorts || []).filter((s) => s.approved);
+    const planShortsDone = planApproved.length > 0 && planApproved.every((s) => s.video_id);
     state.video_matrix = (inv.longs || []).map((v) => {
       const st = (vledger[v.video_id] || {}).stages || {};
       return {
@@ -239,7 +243,7 @@ async function handleApi(request, env, url) {
         stages: {
           publicado: v.privacy === "public",
           miniatura: !!st.thumbnail,
-          shorts: !!st.shorts,
+          shorts: !!st.shorts || !!(planFor && planFor === v.video_id && planShortsDone),
         },
       };
     });
