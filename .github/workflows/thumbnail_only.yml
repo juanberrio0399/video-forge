@@ -1,10 +1,17 @@
 name: Solo MINIATURA (sin tocar el SEO)
 
-# Genera y fija la miniatura del ULTIMO video SIN cambiar titulo/descripcion/tags.
-# Usa el thumbnail_text del paquete SEO que YA existe. No re-sube ni re-escribe SEO.
+# Genera y fija la miniatura de UN video SIN cambiar titulo/descripcion/tags.
+# - Sin video_id: usa el ULTIMO video (slot) y el thumbnail_text del SEO existente.
+# - Con video_id: cualquiera; saca su titulo de YouTube y arma un texto punchy.
+# Marca la etapa "miniatura" en el registro por video (channel/videos.json).
 
 on:
   workflow_dispatch:
+    inputs:
+      video_id:
+        description: "ID del video (vacio = el ultimo)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -20,11 +27,13 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
       YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
       YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      IN_VID: ${{ github.event.inputs.video_id }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -33,27 +42,47 @@ jobs:
       - name: ffmpeg + fuentes
         run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation
 
-      - name: Bajar paquete SEO + video_id + guion (de R2)
+      - name: Determinar video, tema y texto
         run: |
-          npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/package.json" --file=package.json --remote || echo "{}" > package.json
-          npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/video_id.txt" --file=video_id.txt --remote
-          npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/voicemap_full.json" --file=voicemap_active.json --remote 2>/dev/null || cp "projects/$PROJECT/voicemap_full.json" voicemap_active.json
-          echo "VIDEO_ID=$(cat video_id.txt)"
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/videos.json" --file=videos.json --remote 2>/dev/null || echo '{}' > videos.json
+          if [ -n "$IN_VID" ]; then
+            VID="$IN_VID"
+            TITLE=$(node pipeline/yt_title.mjs "$VID")
+            TOPIC="$TITLE"
+            TT=$(node pipeline/thumb_text.mjs "$TITLE")
+            SAVE_SLOT="no"
+          else
+            npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/package.json" --file=package.json --remote || echo "{}" > package.json
+            npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/video_id.txt" --file=video_id.txt --remote
+            npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/voicemap_full.json" --file=voicemap_active.json --remote 2>/dev/null || cp "projects/$PROJECT/voicemap_full.json" voicemap_active.json
+            VID=$(cat video_id.txt)
+            TITLE=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("voicemap_active.json","utf8")).title||"")}catch(e){}')
+            TOPIC="$TITLE"
+            TT=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("package.json","utf8")).thumbnail_text||"THE DATA LENS")}catch(e){process.stdout.write("THE DATA LENS")}')
+            SAVE_SLOT="yes"
+          fi
+          echo "VID=$VID" >> "$GITHUB_ENV"
+          echo "TOPIC=$TOPIC" >> "$GITHUB_ENV"
+          echo "TT=$TT" >> "$GITHUB_ENV"
+          echo "TITLE=$TITLE" >> "$GITHUB_ENV"
+          echo "SAVE_SLOT=$SAVE_SLOT" >> "$GITHUB_ENV"
+          echo "video=$VID | texto=$TT"
 
-      - name: Generar + fijar la miniatura (SEO intacto)
+      - name: Generar + fijar la miniatura (SEO intacto) + registrar
         run: |
-          TOPIC=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("voicemap_active.json","utf8")).title||"data")}catch(e){process.stdout.write("data")}')
-          TT=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("package.json","utf8")).thumbnail_text||"THE DATA LENS")}catch(e){process.stdout.write("THE DATA LENS")}')
-          echo "Tema: $TOPIC | Texto: $TT"
           node pipeline/make_thumbnail.mjs "$TOPIC" "$TT" thumbnail.jpg
-          node pipeline/youtube_thumbnail.mjs "$(cat video_id.txt)" thumbnail.jpg || echo "miniatura no fijada"
-          npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/thumbnail.jpg" --file=thumbnail.jpg --remote --content-type image/jpeg || true
+          node pipeline/youtube_thumbnail.mjs "$VID" thumbnail.jpg || echo "miniatura no fijada"
+          if [ "$SAVE_SLOT" = "yes" ]; then
+            npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/thumbnail.jpg" --file=thumbnail.jpg --remote --content-type image/jpeg || true
+          fi
+          node pipeline/mark_stage.mjs videos.json "$VID" "$TITLE" thumbnail
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/videos.json" --file=videos.json --remote --content-type application/json
 
       - name: Avisar al chat
         if: always()
         run: |
           if [ -f thumbnail.jpg ]; then
-            bash pipeline/notify_telegram.sh "🖼️ Miniatura actualizada en el video (el título/descripción/tags NO se tocaron)." thumbnail.jpg
+            bash pipeline/notify_telegram.sh "🖼️ Miniatura puesta en el video (título/descripción/tags NO se tocaron)." thumbnail.jpg
           else
             bash pipeline/notify_telegram.sh "❌ No se pudo generar la miniatura."
           fi

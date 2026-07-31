@@ -1,0 +1,32 @@
+name: Init matriz de videos (one-off)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  init:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      BUCKET: video-forge
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Escribir estado conocido (fusiona si ya existe)
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/videos.json" --file=videos.json --remote 2>/dev/null || echo '{}' > videos.json
+          node -e '
+            const fs=require("fs"); let db={}; try{db=JSON.parse(fs.readFileSync("videos.json","utf8"))||{}}catch(e){}
+            const set=(id,title,stages)=>{ db[id]=db[id]||{stages:{}}; db[id].title=db[id].title||title; db[id].stages=Object.assign({},stages,db[id].stages); };
+            set("VRqt4sz8N68","How YouTube Makes $1,900 EVERY Second ($60B Empire)",{shorts:true});
+            set("w75dYwiq4zA","1 Million YouTube Views: $50 vs $50,000?",{});
+            fs.writeFileSync("videos.json",JSON.stringify(db,null,2)); console.log(JSON.stringify(db,null,2));
+          '
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/videos.json" --file=videos.json --remote --content-type application/json

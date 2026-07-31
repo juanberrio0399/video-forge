@@ -65,6 +65,7 @@ export const APP_HTML = `<!doctype html>
 <body>
 <header><h1>The Data Lens</h1><div class="sub" id="hd">Centro de control</div></header>
 <div class="wrap">
+  <div id="tabHelp" class="muted" style="font-size:12px;margin:2px 2px 8px"></div>
   <div id="globalStatus"></div>
   <div id="s-canal"></div>
   <div id="s-videos" class="hide"></div>
@@ -95,11 +96,20 @@ export const APP_HTML = `<!doctype html>
   var curTab="canal";
   var vSort="views";
   var lastInsights="";
+  var TABHELP={
+    canal:"📊 Tu canal de un vistazo: seguidores, vistas y analytics — en vivo.",
+    videos:"🎥 Todos tus videos y shorts, con vistas y minutos vistos. Ordénalos y pide análisis.",
+    plan:"🧭 El centro de control: en qué paso va la producción y qué le falta a cada video.",
+    shorts:"✂️ Sugerir, aprobar y publicar shorts de tu último video.",
+    crear:"➕ Subir una foto para retocar, una receta o una nota de voz."
+  };
+  function setHelp(t){ var e=el("tabHelp"); if(e) e.textContent=TABHELP[t]||""; }
   function setVSort(s){ vSort=s; render(); }
   function tab(name){
     curTab=name;
     ["canal","videos","plan","shorts","crear"].forEach(function(t){el("s-"+t).classList.toggle("hide",t!==name);});
     document.querySelectorAll(".nav button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-t")===name);});
+    setHelp(name);
   }
   document.querySelectorAll(".nav button").forEach(function(b){b.onclick=function(){tab(b.getAttribute("data-t"));};});
 
@@ -162,6 +172,26 @@ export const APP_HTML = `<!doctype html>
     h+='</div>';
     h+='<div class="card muted" style="font-size:11px">Tiempo reproducido total del canal: '+num(tot.watch_min||0)+' min · Los datos de YouTube Analytics tienen ~1-2 días de retraso.</div>';
     return h;
+  }
+  function matrixHtml(){
+    var vm=ST.video_matrix||[];
+    if(!vm.length) return "";
+    var head='<tr><th style="text-align:left">Video</th><th>🌍 Público</th><th>🖼️ Miniatura</th><th>🎬 Shorts</th></tr>';
+    var rows=vm.map(function(v){
+      var s=v.stages||{}, vid=v.video_id;
+      function cell(key,act){
+        if(s[key]) return '<td style="text-align:center;color:#34d399;font-size:16px">✓</td>';
+        return '<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="'+act+'">＋ Hacer</span></td>';
+      }
+      return '<tr><td>'+(vid?'<a href="https://youtu.be/'+vid+'" target="_blank">'+esc((v.title||"").slice(0,20))+'</a>':esc((v.title||"").slice(0,20)))+'</td>'
+        +cell("publicado","publishRow(\\'"+vid+"\\')")
+        +cell("miniatura","thumbRow(\\'"+vid+"\\')")
+        +cell("shorts","goShorts()")
+        +'</tr>';
+    }).join("");
+    return '<h2>📋 Control por video</h2>'
+      +'<div class="muted" style="font-size:12px;margin:0 2px 6px">Qué le falta a cada video. ✓ = hecho · toca <b>＋ Hacer</b> para completarlo. No cambia lo ya publicado.</div>'
+      +'<div class="card" style="padding:8px"><table style="font-size:13px">'+head+rows+'</table></div>';
   }
   function currentStage(){
     var a=ST.active||[], p=ST.production||{}, sst=ST.shorts_status||{};
@@ -237,6 +267,7 @@ export const APP_HTML = `<!doctype html>
     var liveTag = (ST.active&&ST.active.length) ? " · 🟢 en vivo" : "";
     el("hd").textContent = "@TheDataLensHQ · act. "+ (ST.updated_at? String(ST.updated_at).slice(5,16).replace("T"," "):"—") + liveTag;
 
+    setHelp(curTab);
     // Estado GLOBAL: cualquier proceso en marcha se ve arriba, en TODAS las pestañas.
     el("globalStatus").innerHTML = (ST.active&&ST.active.length) ? ('<h2>⚡ En proceso ahora</h2>'+statusHtml()) : "";
 
@@ -275,7 +306,6 @@ export const APP_HTML = `<!doctype html>
       +'<div style="display:flex;gap:6px;margin:4px 0"><span class="chip'+(vSort==="views"?" on":"")+'" onclick="setVSort(\\'views\\')">Por vistas</span><span class="chip'+(vSort==="watch"?" on":"")+'" onclick="setVSort(\\'watch\\')">Por min vistos</span></div>'
       +'<div class="card" style="padding:8px"><table style="font-size:13px"><tr><th></th><th>Título</th><th style="text-align:right">Vistas</th><th style="text-align:right">Min vist.</th></tr>'+(vrows||'<tr><td colspan="4" class="muted">Sin videos.</td></tr>')+totalRow+'</table></div>'
       +(ST.analytics_ok?'':'<div class="muted" style="font-size:11px">⚠️ Los "min vistos" necesitan el permiso de YouTube Analytics. Reautoriza el OAuth con el scope yt-analytics para verlos.</div>')
-      +'<button class="btn ghost" onclick="dispatch(\\'thumbnail_only.yml\\',\\'Miniatura del último video (sin tocar el SEO)\\')">🖼️ (Re)generar miniatura — no toca el SEO</button>'
       +'<button class="btn" onclick="showInsights()">🧠 Analizar qué replicar (IA)</button>'
       +'<div id="insightsOut">'+lastInsights+'</div>'
       +'<div class="muted" style="font-size:11px;text-align:center">📹 largo · 🎬 short · 🔒 privado</div>';
@@ -289,6 +319,7 @@ export const APP_HTML = `<!doctype html>
       flowStepsHtml()
       +productionHtml()
       +nextStepHtml()
+      +matrixHtml()
       +problemsHtml()
       +(next
         ? '<h2>Siguiente video</h2><div class="card"><div style="font-weight:800;font-size:16px">#'+(next.n||"")+' · '+esc(next.topic||"")+'</div>'
@@ -433,6 +464,16 @@ export const APP_HTML = `<!doctype html>
   }
   function suggestShorts(){ runShortsPlan(""); }
   function regenShorts(){ runShortsPlan((el("shNotes")&&el("shNotes").value)||""); }
+  function publishRow(vid){
+    var go=function(){ api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"set_privacy.yml",inputs:{video_id:vid,privacy:"public"}})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🌍 Publicando el video…":"❌ "+(j.error||"no pude"));setTimeout(load,1800);}); };
+    if(tg&&tg.showConfirm){ tg.showConfirm("¿Publicar este video como PÚBLICO?",function(ok){if(ok)go();}); } else if(confirm("¿Publicar público?")){ go(); }
+  }
+  function thumbRow(vid){
+    if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("light");
+    api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"thumbnail_only.yml",inputs:{video_id:vid}})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🖼️ Generando la miniatura — te llega al chat":"❌ "+(j.error||"no pude"));setTimeout(load,3000);});
+  }
   function pubShort(id){
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"set_privacy.yml",inputs:{video_id:id,privacy:"public"}})})
       .then(function(r){return r.json();}).then(function(j){toast(j.ok?"✅ Publicando el short":"❌ no pude");setTimeout(load,1500);});
