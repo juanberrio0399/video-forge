@@ -66,7 +66,7 @@ export default {
 // estados. Asi Juan ve el resultado sin el limite de 50MB de Telegram.
 async function handleWatch(request, env, key, token) {
   if (!env.R2) return new Response("sin almacenamiento", { status: 500 });
-  if (!/^(video|recipe)\/[^?]+\.(mp4|mov|webm|jpg|jpeg|png|webp)$/.test(key)) {
+  if (!/^(video|recipe|voices)\/[^?]+\.(mp4|mov|webm|jpg|jpeg|png|webp|mp3|wav|m4a)$/.test(key)) {
     return new Response("no permitido", { status: 403 });
   }
   // Contenido PERSONAL (recipe/): exige enlace firmado (HMAC). Asi no queda publico
@@ -139,8 +139,16 @@ async function validateInitData(initData, env) {
 const APP_WORKFLOWS = new Set([
   "render_phased.yml", "voice_parallel.yml", "channel_report.yml", "shorts_plan.yml",
   "shorts_final.yml", "publish_youtube.yml", "set_privacy.yml", "recipe_reel.yml",
-  "produce_video.yml", "seo_regen.yml", "thumbnail_only.yml",
+  "produce_video.yml", "seo_regen.yml", "thumbnail_only.yml", "voice_samples.yml",
 ]);
+
+// Voces disponibles para el canal (con su ejemplo en R2). engine/kvoice se usan en la voz.
+const VOICE_OPTIONS = [
+  { id: "gemini_charon", label: "Locutor Gemini (Charon)", engine: "gemini", kvoice: "", sample: "voices/sample_gemini_charon.mp3" },
+  { id: "kokoro_am_michael", label: "Kokoro Michael (americano)", engine: "kokoro", kvoice: "am_michael", sample: "voices/sample_kokoro_am_michael.mp3" },
+  { id: "kokoro_bm_george", label: "Kokoro George (británico)", engine: "kokoro", kvoice: "bm_george", sample: "voices/sample_kokoro_bm_george.mp3" },
+  { id: "kokoro_af_heart", label: "Kokoro Heart (femenina)", engine: "kokoro", kvoice: "af_heart", sample: "voices/sample_kokoro_af_heart.mp3" },
+];
 
 // Analisis de tendencias con Gemini (¿los proximos videos estan alineados?).
 async function geminiTrends(env) {
@@ -315,6 +323,12 @@ async function handleApi(request, env, url) {
     const reg = await r2json(env, "voice/registry.json");
     if (reg) voices = Object.values(reg).map((v) => v.label);
     state.voices = voices;
+    // Selector de voz del canal (con ejemplos para escuchar).
+    const vchoice = await r2json(env, "channel/voice_choice.json");
+    state.voices_pick = {
+      current: (vchoice && vchoice.id) || "gemini_charon",
+      options: VOICE_OPTIONS.map((v) => ({ id: v.id, label: v.label, sample_url: "/watch/" + v.sample })),
+    };
     // Corridas: activas (en proceso) + PROBLEMAS (fallidas recientes, con el paso que fallo).
     const runsRes = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=15`);
     const runs = runsRes.ok ? ((await runsRes.json()).workflow_runs || []) : [];
@@ -397,6 +411,16 @@ async function handleApi(request, env, url) {
       JSON.stringify({ approved: true, title, at: new Date().toISOString() }),
       { httpMetadata: { contentType: "application/json" } });
     return json({ ok: true, title });
+  }
+
+  if (url.pathname === "/api/voice" && request.method === "POST") {
+    // Elegir la voz del canal (se usa en la proxima produccion).
+    let body = {};
+    try { body = await request.json(); } catch {}
+    const opt = VOICE_OPTIONS.find((v) => v.id === body.id);
+    if (!opt) return json({ error: "voz desconocida" }, 400);
+    await env.R2.put("channel/voice_choice.json", JSON.stringify({ id: opt.id, engine: opt.engine, kvoice: opt.kvoice, label: opt.label }), { httpMetadata: { contentType: "application/json" } });
+    return json({ ok: true, label: opt.label });
   }
 
   if (url.pathname === "/api/thumb-approve" && request.method === "POST") {

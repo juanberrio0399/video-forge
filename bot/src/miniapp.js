@@ -147,6 +147,20 @@ export const APP_HTML = `<!doctype html>
     if(sst.can_suggest) return '<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700">🎬 Siguiente: sugerir shorts</div><div class="muted" style="font-size:12px;margin:4px 0">El video quedó publicado. Ahora sus shorts.</div><button class="btn" onclick="goShorts()">Ir a Shorts</button></div>';
     return '';
   }
+  function voicePickerHtml(){
+    var vp=ST.voices_pick; if(!vp||!vp.options||!vp.options.length) return "";
+    return '<h2>🎙️ Voz del canal</h2><div class="card">'
+      +'<div class="muted" style="font-size:12px;margin-bottom:8px">Escucha y elige la voz para los próximos videos. La actual está marcada.</div>'
+      +vp.options.map(function(o){
+        var cur=o.id===vp.current;
+        return '<div style="margin:6px 0;padding:8px;border-radius:10px;background:'+(cur?"rgba(34,211,238,.12)":"transparent")+'">'
+          +'<div style="display:flex;align-items:center;gap:8px"><div style="flex:1;font-weight:600">'+esc(o.label)+(cur?' <span style="color:var(--cy);font-size:12px">· actual</span>':'')+'</div>'
+          +(cur?'':'<button class="btn mini" onclick="pickVoice(\\''+o.id+'\\')">Usar</button>')+'</div>'
+          +'<audio controls preload="none" style="width:100%;height:34px;margin-top:5px"><source src="'+esc(location.origin+o.sample_url)+'" type="audio/mpeg"></audio>'
+          +'</div>';
+      }).join("")
+      +'</div>';
+  }
   function r2Html(){
     var r=ST.r2; if(!r) return "";
     var warn=r.pct>=80;
@@ -426,7 +440,8 @@ export const APP_HTML = `<!doctype html>
 
     // CREAR
     el("s-crear").innerHTML=
-      '<h2>Editar foto</h2><div class="card">'
+      voicePickerHtml()
+      +'<h2>Editar foto</h2><div class="card">'
       +'<label class="file" for="fPhoto">🖼️ Elegir foto para retocar</label><input id="fPhoto" type="file" accept="image/*" class="hide">'
       +'<input id="pPrompt" type="text" placeholder="Opcional: qué cambiar (ej: fondo blanco, más luz)"></div>'
       +'<h2>Reel de receta</h2><div class="card">'
@@ -524,6 +539,11 @@ export const APP_HTML = `<!doctype html>
     if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"thumbnail_only.yml",inputs:{video_id:vid,mode:"apply"}})})
       .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🌍 Publicando la miniatura en YouTube…":"❌ "+(j.error||"no pude"));setTimeout(load,3000);});
+  }
+  function pickVoice(id){
+    if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
+    api("/api/voice",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:id})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?("✅ Voz del canal: "+j.label):"❌ no pude");setTimeout(load,600);});
   }
   function pubShort(id){
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"set_privacy.yml",inputs:{video_id:id,privacy:"public"}})})
