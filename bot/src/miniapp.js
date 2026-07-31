@@ -186,7 +186,7 @@ export const APP_HTML = `<!doctype html>
       // Miniatura: 3 estados → hacer / generada-por-aprobar / aplicada (✓).
       var miniCell;
       if(!v.thumb_url){
-        miniCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="thumbRow(\\'"+vid+"\\')">＋ Hacer</span></td>';
+        miniCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="thumbRow(\\''+vid+'\\')">＋ Hacer</span></td>';
       } else {
         var u=esc(location.origin+v.thumb_url)+"?t="+(ST.updated_at||"");
         var img='<a href="'+u+'" target="_blank"><img src="'+u+'" style="width:82px;border-radius:5px;display:block;margin:0 auto 4px;border:1px solid rgba(255,255,255,.15)"></a>';
@@ -194,8 +194,8 @@ export const APP_HTML = `<!doctype html>
           miniCell='<td style="text-align:center">'+img+'<span style="color:#34d399;font-size:12px">✓ puesta</span></td>';
         } else {
           miniCell='<td style="text-align:center">'+img
-            +'<button class="btn mini" style="padding:4px 8px" onclick="thumbApprove(\\'"+vid+"\\')">✅ Aprobar</button> '
-            +'<button class="btn mini ghost" style="padding:4px 8px" onclick="thumbRow(\\'"+vid+"\\')">🔁</button></td>';
+            +'<button class="btn mini" style="padding:4px 8px" onclick="thumbApprove(\\''+vid+'\\')">✅ Aprobar</button> '
+            +'<button class="btn mini ghost" style="padding:4px 8px" onclick="thumbRow(\\''+vid+'\\')">🔁</button></td>';
         }
       }
       return '<tr><td>'+(vid?'<a href="https://youtu.be/'+vid+'" target="_blank">'+esc((v.title||"").slice(0,20))+'</a>':esc((v.title||"").slice(0,20)))+'</td>'
