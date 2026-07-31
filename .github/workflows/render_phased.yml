@@ -109,7 +109,7 @@ jobs:
   render:
     needs: prepare
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
