@@ -72,6 +72,8 @@ jobs:
         run: |
           node pipeline/make_thumbnail.mjs "$TOPIC" "$TT" thumbnail.jpg
           node pipeline/youtube_thumbnail.mjs "$VID" thumbnail.jpg || echo "miniatura no fijada"
+          # Guardar POR-VIDEO (para verla en la app) + en el slot si es el ultimo.
+          npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/thumb_${VID}.jpg" --file=thumbnail.jpg --remote --content-type image/jpeg || true
           if [ "$SAVE_SLOT" = "yes" ]; then
             npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/thumbnail.jpg" --file=thumbnail.jpg --remote --content-type image/jpeg || true
           fi

@@ -236,17 +236,20 @@ async function handleApi(request, env, url) {
     const planFor = plan.for_video_id;
     const planApproved = (plan.shorts || []).filter((s) => s.approved);
     const planShortsDone = planApproved.length > 0 && planApproved.every((s) => s.video_id);
-    state.video_matrix = (inv.longs || []).map((v) => {
+    state.video_matrix = await Promise.all((inv.longs || []).map(async (v) => {
       const st = (vledger[v.video_id] || {}).stages || {};
+      let thumbUrl = null;
+      try { const th = await env.R2.head(`video/0001-youtube-money/thumb_${v.video_id}.jpg`); if (th) thumbUrl = `/watch/video/0001-youtube-money/thumb_${v.video_id}.jpg`; } catch {}
       return {
         video_id: v.video_id, title: v.title, public: v.privacy === "public", views: v.views, watch_min: v.watch_min || 0,
+        thumb_url: thumbUrl,
         stages: {
           publicado: v.privacy === "public",
-          miniatura: !!st.thumbnail,
+          miniatura: !!st.thumbnail || !!thumbUrl,
           shorts: !!st.shorts || !!(planFor && planFor === v.video_id && planShortsDone),
         },
       };
-    });
+    }));
     // Shorts "hechos" = hay aprobados y TODOS estan subidos (tienen video_id).
     const shortsDone = approvedShorts.length > 0 && approvedShorts.every((s) => s.video_id);
     (state.published || []).forEach((v, i) => { v.shorts_done = i === 0 ? shortsDone : false; });
