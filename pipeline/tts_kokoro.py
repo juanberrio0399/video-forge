@@ -1,63 +1,44 @@
-#!/usr/bin/env python3
-"""
-tts_kokoro.py - Genera la voz en off del canal con Kokoro-82M (Apache 2.0, gratis).
-
-Lee un archivo de narracion (texto plano, un parrafo por bloque) y produce un WAV
-a 24 kHz. Un paso posterior de ffmpeg lo normaliza a -14 LUFS y lo pasa a MP3.
-
-Uso:
-    python pipeline/tts_kokoro.py <narration.txt> <salida.wav> [voz]
-
-Voz por defecto: af_heart (US English, calidad alta). Alternativas: af_bella,
-am_michael, bm_george (UK). Ver la skill video-voz.
-"""
-import sys
+# tts_kokoro.py — narra el video con Kokoro TTS (open source, gratis, sin cuota) como
+# RESPALDO de Gemini. Produce el MISMO formato que tts_gemini_directed.mjs: un WAV por
+# pedazo + <out>.timing.json con {sr, beats:[{index,tipo,text,dur}]}, para que la union
+# y el render funcionen igual. Corre por PEDAZOS (como el pipeline de Gemini).
+#
+# Uso: python pipeline/tts_kokoro.py <voicemap.json> <out.wav> <chunkIndex> <numChunks>
+# Env: KVOICE (voz Kokoro, default am_michael). Modelos: kokoro-v1.0.onnx + voices-v1.0.bin.
+import json, sys, os, math
 import numpy as np
 import soundfile as sf
-from kokoro import KPipeline
+from kokoro_onnx import Kokoro
 
-SAMPLE_RATE = 24000
-GAP_BETWEEN_PARAGRAPHS = 0.35  # segundos de silencio entre parrafos (respiracion)
+map_path, out_wav, ci, nc = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
+voice = os.environ.get("KVOICE", "am_michael")
+spec = json.load(open(map_path, encoding="utf-8"))
+beats = spec.get("beats", spec) if isinstance(spec, dict) else spec
+size = max(1, math.ceil(len(beats) / nc))
+offset = ci * size
+chunk = beats[offset:offset + size]
+print(f"CHUNK {ci+1}/{nc}: {len(chunk)} beats (offset {offset}), voz Kokoro {voice}")
 
+kokoro = Kokoro("kokoro-v1.0.onnx", "voices-v1.0.bin")
+SR = 24000
+parts, timings = [], []
+for i, b in enumerate(chunk):
+    text = (b.get("text") or "").strip()
+    if not text:
+        continue
+    try:
+        samples, sr = kokoro.create(text, voice=voice, speed=1.0, lang="en-us")
+    except Exception as e:
+        print("Kokoro fallo beat", offset + i, "->", e)
+        samples, sr = np.zeros(SR, dtype=np.float32), SR
+    pause = int(round(float(b.get("pause_after", 0.25)) * sr))
+    seg = np.concatenate([np.asarray(samples, dtype=np.float32), np.zeros(pause, dtype=np.float32)])
+    parts.append(seg)
+    dur = len(seg) / sr
+    timings.append({"index": offset + i, "tipo": b.get("tipo", "-"), "text": text, "dur": round(dur, 3)})
+    print(f"  beat {offset+i} [{b.get('tipo','-')}] -> {dur:.2f}s")
 
-def main() -> int:
-    if len(sys.argv) < 3:
-        print("uso: python tts_kokoro.py <narration.txt> <salida.wav> [voz]")
-        return 2
-
-    narration_path = sys.argv[1]
-    out_path = sys.argv[2]
-    voice = sys.argv[3] if len(sys.argv) > 3 else "af_heart"
-
-    with open(narration_path, encoding="utf-8") as fh:
-        raw = fh.read()
-
-    # Un "parrafo" = bloque separado por linea en blanco. Da pausas naturales.
-    paragraphs = [p.strip() for p in raw.split("\n\n") if p.strip()]
-    if not paragraphs:
-        print("ERROR: narracion vacia")
-        return 1
-
-    print(f"Kokoro: voz={voice}  parrafos={len(paragraphs)}")
-    pipeline = KPipeline(lang_code="a")  # 'a' = American English
-
-    gap = np.zeros(int(GAP_BETWEEN_PARAGRAPHS * SAMPLE_RATE), dtype=np.float32)
-    parts: list[np.ndarray] = []
-
-    for i, para in enumerate(paragraphs, 1):
-        seg_count = 0
-        for _gs, _ps, audio in pipeline(para, voice=voice, speed=1.0):
-            parts.append(np.asarray(audio, dtype=np.float32))
-            seg_count += 1
-        parts.append(gap)
-        print(f"  parrafo {i}/{len(paragraphs)} -> {seg_count} segmento(s)")
-
-    full = np.concatenate(parts)
-    sf.write(out_path, full, SAMPLE_RATE)
-    dur = len(full) / SAMPLE_RATE
-    print(f"OK: {out_path}  ({dur/60:.2f} min, {dur:.1f} s)")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+full = np.concatenate(parts) if parts else np.zeros(int(0.05 * SR), dtype=np.float32)
+sf.write(out_wav, full, SR, subtype="PCM_16")
+json.dump({"sr": SR, "beats": timings}, open(out_wav + ".timing.json", "w"))
+print(f"OK chunk {ci}: {len(timings)} beats -> {out_wav}")
