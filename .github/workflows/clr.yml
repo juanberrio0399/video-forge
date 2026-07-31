@@ -1,0 +1,18 @@
+name: clr
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  c:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BUCKET: video-forge
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/videos.json" --file=v.json --remote 2>/dev/null || echo '{}' > v.json
+          node -e 'const fs=require("fs");let d={};try{d=JSON.parse(fs.readFileSync("v.json","utf8"))}catch(e){};for(const k in d){d[k].stages=d[k].stages||{};d[k].stages.thumbnail=false;}fs.writeFileSync("v.json",JSON.stringify(d,null,2));console.log(JSON.stringify(d))'
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/videos.json" --file=v.json --remote --content-type application/json
