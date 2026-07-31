@@ -68,6 +68,9 @@ jobs:
           node pipeline/make_thumbnail.mjs "$TOPIC" "$TT" thumbnail.jpg
           npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/thumb_${VID}.jpg" --file=thumbnail.jpg --remote --content-type image/jpeg
           if [ "$SAVE_SLOT" = "yes" ]; then npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/thumbnail.jpg" --file=thumbnail.jpg --remote --content-type image/jpeg || true; fi
+          # Marcar como GENERADA pero NO aplicada (para que salga el botón Aprobar en la app).
+          node -e 'const fs=require("fs");let d={};try{d=JSON.parse(fs.readFileSync("videos.json","utf8"))}catch(e){};const v=process.env.VID;d[v]=d[v]||{stages:{}};d[v].stages=d[v].stages||{};d[v].stages.thumbnail=false;fs.writeFileSync("videos.json",JSON.stringify(d,null,2));'
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/videos.json" --file=videos.json --remote --content-type application/json
           bash pipeline/notify_telegram.sh "🖼️ Miniatura GENERADA (aún no está puesta). Míralas en la app → Control y dale ✅ Aprobar, o 🔁 Rehacer." thumbnail.jpg
 
       - name: APLICAR la miniatura ya generada (fijar en YouTube)
