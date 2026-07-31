@@ -245,7 +245,7 @@ async function handleApi(request, env, url) {
         thumb_url: thumbUrl,
         stages: {
           publicado: v.privacy === "public",
-          miniatura: !!st.thumbnail || !!thumbUrl,
+          miniatura: !!st.thumbnail, // ✓ = aplicada en YouTube (thumb_url = solo generada, por aprobar)
           shorts: !!st.shorts || !!(planFor && planFor === v.video_id && planShortsDone),
         },
       };

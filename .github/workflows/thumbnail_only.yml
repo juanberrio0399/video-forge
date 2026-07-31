@@ -1,9 +1,8 @@
-name: Solo MINIATURA (sin tocar el SEO)
+name: Miniatura (generar / aprobar) sin tocar el SEO
 
-# Genera y fija la miniatura de UN video SIN cambiar titulo/descripcion/tags.
-# - Sin video_id: usa el ULTIMO video (slot) y el thumbnail_text del SEO existente.
-# - Con video_id: cualquiera; saca su titulo de YouTube y arma un texto punchy.
-# Marca la etapa "miniatura" en el registro por video (channel/videos.json).
+# mode=generate (default): crea la miniatura y la guarda para VERLA en la app. NO la fija.
+# mode=apply: toma la miniatura ya generada y la FIJA en el video (tras tu aprobacion).
+# Nunca toca titulo/descripcion/tags.
 
 on:
   workflow_dispatch:
@@ -12,6 +11,10 @@ on:
         description: "ID del video (vacio = el ultimo)"
         required: false
         default: ""
+      mode:
+        description: "generate | apply"
+        required: false
+        default: "generate"
 
 permissions:
   contents: read
@@ -34,6 +37,7 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
       IN_VID: ${{ github.event.inputs.video_id }}
+      MODE: ${{ github.event.inputs.mode }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -46,45 +50,31 @@ jobs:
         run: |
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/videos.json" --file=videos.json --remote 2>/dev/null || echo '{}' > videos.json
           if [ -n "$IN_VID" ]; then
-            VID="$IN_VID"
-            TITLE=$(node pipeline/yt_title.mjs "$VID")
-            TOPIC="$TITLE"
-            TT=$(node pipeline/thumb_text.mjs "$TITLE")
-            SAVE_SLOT="no"
+            VID="$IN_VID"; TITLE=$(node pipeline/yt_title.mjs "$VID"); TOPIC="$TITLE"; TT=$(node pipeline/thumb_text.mjs "$TITLE"); SAVE_SLOT="no"
           else
             npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/package.json" --file=package.json --remote || echo "{}" > package.json
             npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/video_id.txt" --file=video_id.txt --remote
             npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/voicemap_full.json" --file=voicemap_active.json --remote 2>/dev/null || cp "projects/$PROJECT/voicemap_full.json" voicemap_active.json
             VID=$(cat video_id.txt)
             TITLE=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("voicemap_active.json","utf8")).title||"")}catch(e){}')
-            TOPIC="$TITLE"
-            TT=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("package.json","utf8")).thumbnail_text||"THE DATA LENS")}catch(e){process.stdout.write("THE DATA LENS")}')
-            SAVE_SLOT="yes"
+            TOPIC="$TITLE"; TT=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("package.json","utf8")).thumbnail_text||"THE DATA LENS")}catch(e){process.stdout.write("THE DATA LENS")}'); SAVE_SLOT="yes"
           fi
-          echo "VID=$VID" >> "$GITHUB_ENV"
-          echo "TOPIC=$TOPIC" >> "$GITHUB_ENV"
-          echo "TT=$TT" >> "$GITHUB_ENV"
-          echo "TITLE=$TITLE" >> "$GITHUB_ENV"
-          echo "SAVE_SLOT=$SAVE_SLOT" >> "$GITHUB_ENV"
-          echo "video=$VID | texto=$TT"
+          { echo "VID=$VID"; echo "TOPIC=$TOPIC"; echo "TT=$TT"; echo "TITLE=$TITLE"; echo "SAVE_SLOT=$SAVE_SLOT"; } >> "$GITHUB_ENV"
+          echo "video=$VID | modo=${MODE:-generate} | texto=$TT"
 
-      - name: Generar + fijar la miniatura (SEO intacto) + registrar
+      - name: GENERAR la miniatura (no la fija)
+        if: ${{ github.event.inputs.mode != 'apply' }}
         run: |
           node pipeline/make_thumbnail.mjs "$TOPIC" "$TT" thumbnail.jpg
-          node pipeline/youtube_thumbnail.mjs "$VID" thumbnail.jpg || echo "miniatura no fijada"
-          # Guardar POR-VIDEO (para verla en la app) + en el slot si es el ultimo.
-          npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/thumb_${VID}.jpg" --file=thumbnail.jpg --remote --content-type image/jpeg || true
-          if [ "$SAVE_SLOT" = "yes" ]; then
-            npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/thumbnail.jpg" --file=thumbnail.jpg --remote --content-type image/jpeg || true
-          fi
+          npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/thumb_${VID}.jpg" --file=thumbnail.jpg --remote --content-type image/jpeg
+          if [ "$SAVE_SLOT" = "yes" ]; then npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/thumbnail.jpg" --file=thumbnail.jpg --remote --content-type image/jpeg || true; fi
+          bash pipeline/notify_telegram.sh "🖼️ Miniatura GENERADA (aún no está puesta). Míralas en la app → Control y dale ✅ Aprobar, o 🔁 Rehacer." thumbnail.jpg
+
+      - name: APLICAR la miniatura ya generada (fijar en YouTube)
+        if: ${{ github.event.inputs.mode == 'apply' }}
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/thumb_${VID}.jpg" --file=thumbnail.jpg --remote || { echo "no hay miniatura generada"; exit 1; }
+          node pipeline/youtube_thumbnail.mjs "$VID" thumbnail.jpg || echo "no fijada"
           node pipeline/mark_stage.mjs videos.json "$VID" "$TITLE" thumbnail
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/videos.json" --file=videos.json --remote --content-type application/json
-
-      - name: Avisar al chat
-        if: always()
-        run: |
-          if [ -f thumbnail.jpg ]; then
-            bash pipeline/notify_telegram.sh "🖼️ Miniatura puesta en el video (título/descripción/tags NO se tocaron)." thumbnail.jpg
-          else
-            bash pipeline/notify_telegram.sh "❌ No se pudo generar la miniatura."
-          fi
+          bash pipeline/notify_telegram.sh "✅ Miniatura PUESTA en el video (SEO intacto)." thumbnail.jpg
