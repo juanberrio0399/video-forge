@@ -1,0 +1,29 @@
+name: Watchdog (detecta y arregla colgadas)
+
+# Cada 20 min revisa si hay corridas colgadas (in_progress demasiado tiempo). Si las hay,
+# las cancela, avisa a Juan y auto-reintenta el render. Asi la fabrica se autocura.
+
+on:
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Revisar colgadas
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          OWNER_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+        run: node pipeline/watchdog.mjs
