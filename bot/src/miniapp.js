@@ -147,6 +147,17 @@ export const APP_HTML = `<!doctype html>
     if(sst.can_suggest) return '<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700">🎬 Siguiente: sugerir shorts</div><div class="muted" style="font-size:12px;margin:4px 0">El video quedó publicado. Ahora sus shorts.</div><button class="btn" onclick="goShorts()">Ir a Shorts</button></div>';
     return '';
   }
+  function r2Html(){
+    var r=ST.r2; if(!r) return "";
+    var warn=r.pct>=80;
+    return '<h2>💾 Almacenamiento '+(warn?'<span style="color:var(--am)">⚠️</span>':'')+'</h2><div class="card">'
+      +'<div class="muted">'+r.used_gb+' GB de '+r.limit_gb+' GB (gratis) · '+num(r.count)+' archivos</div>'
+      +'<div class="bar"><i style="width:'+Math.max(2,r.pct)+'%;background:'+(warn?"#f87171":"var(--cy)")+'"></i></div>'
+      +(warn
+        ?'<div style="color:var(--am);font-weight:700;margin-top:8px">⚠️ R2 al '+r.pct+'%. Hay que liberar espacio para que siga gratis (borrar renders/audios viejos).</div>'
+        :'<div class="muted" style="font-size:11px;margin-top:6px">Al '+r.pct+'% del límite gratis. Se revisa cada ~30 min.</div>')
+      +'</div>';
+  }
   function analyticsHtml(){
     var a=ST.analytics, tot=ST.totals||{};
     var h='<h2>📊 Analytics de YouTube <span class="live"></span></h2>';
@@ -180,16 +191,21 @@ export const APP_HTML = `<!doctype html>
     if(!pend.length) return "";
     return pend.map(function(v){
       var u=esc(location.origin+v.thumb_url)+"?t="+(ST.updated_at||"");
+      var appr=v.thumb_approved;
       return '<div class="card" style="border:1px solid var(--cy)">'
-        +'<div style="font-weight:700;margin-bottom:6px">🖼️ Miniatura por aprobar — '+esc((v.title||"").slice(0,28))+'</div>'
+        +'<div style="font-weight:700;margin-bottom:6px">🖼️ Miniatura — '+(appr?'aprobada ✓, falta publicar':'por aprobar')+' · '+esc((v.title||"").slice(0,22))+'</div>'
         +'<a href="'+u+'" target="_blank"><img src="'+u+'" style="width:100%;border-radius:8px;display:block;margin-bottom:8px"></a>'
-        +'<button class="btn" onclick="thumbApprove(\\''+v.video_id+'\\')">✅ Aprobar y ponerla en YouTube</button>'
+        +(appr
+          ? '<button class="btn" onclick="thumbPublish(\\''+v.video_id+'\\')">🌍 Publicar (ponerla en YouTube)</button>'
+          : '<button class="btn" onclick="thumbApprove(\\''+v.video_id+'\\')">✅ Aprobar</button>')
         +'<button class="btn ghost" onclick="thumbRow(\\''+v.video_id+'\\')">🔁 Rehacer otra</button></div>';
     }).join("");
   }
   function matrixHtml(){
-    var vm=ST.video_matrix||[];
-    if(!vm.length) return "";
+    // Solo videos producidos con ALGO pendiente; los que ya tienen todo ✓ no salen.
+    var vm=(ST.video_matrix||[]).filter(function(v){var s=v.stages||{};return !(s.publicado && s.miniatura && s.shorts);});
+    if(!(ST.video_matrix||[]).length) return "";
+    if(!vm.length) return '<h2>📋 Control por video</h2><div class="card muted">✅ Todos los videos están al día: publicados, con miniatura y shorts.</div>';
     var head='<tr><th style="text-align:left">Video</th><th>🌍 Público</th><th>🖼️ Miniatura</th><th>🎬 Shorts</th></tr>';
     var rows=vm.map(function(v){
       var s=v.stages||{}, vid=v.video_id;
@@ -308,6 +324,7 @@ export const APP_HTML = `<!doctype html>
       + '<div class="muted" style="margin-top:10px">Horas '+(mon.watch_hours!=null?mon.watch_hours:"—")+' / 4000</div><div class="bar"><i style="width:'+pct(mon.watch_hours,4000)+'%"></i></div>'
       + '<div style="margin-top:12px" class="'+(mon.elegible?"":"muted")+'">'+(mon.elegible?"✅ Elegible para monetizar":"❌ Aún no elegible")+'</div>'
       + '</div>'
+      + r2Html()
       + problemsHtml()
       + '<button class="btn ghost" onclick="dispatch(\\'channel_report.yml\\',\\'Reporte de métricas\\')">🔄 Refrescar métricas</button>';
 
@@ -499,9 +516,14 @@ export const APP_HTML = `<!doctype html>
       .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🖼️ Generando la miniatura — en un momento la ves aquí para aprobar":"❌ "+(j.error||"no pude"));setTimeout(load,4000);});
   }
   function thumbApprove(vid){
+    if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("light");
+    api("/api/thumb-approve",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({video_id:vid})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"✅ Aprobada. Ahora dale 🌍 Publicar.":"❌ no pude");setTimeout(load,500);});
+  }
+  function thumbPublish(vid){
     if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"thumbnail_only.yml",inputs:{video_id:vid,mode:"apply"}})})
-      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"✅ Poniendo la miniatura en el video…":"❌ "+(j.error||"no pude"));setTimeout(load,3000);});
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🌍 Publicando la miniatura en YouTube…":"❌ "+(j.error||"no pude"));setTimeout(load,3000);});
   }
   function pubShort(id){
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"set_privacy.yml",inputs:{video_id:id,privacy:"public"}})})

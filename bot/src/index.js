@@ -242,7 +242,7 @@ async function handleApi(request, env, url) {
       try { const th = await env.R2.head(`video/0001-youtube-money/thumb_${v.video_id}.jpg`); if (th) thumbUrl = `/watch/video/0001-youtube-money/thumb_${v.video_id}.jpg`; } catch {}
       return {
         video_id: v.video_id, title: v.title, public: v.privacy === "public", views: v.views, watch_min: v.watch_min || 0,
-        thumb_url: thumbUrl,
+        thumb_url: thumbUrl, thumb_approved: !!st.thumb_approved,
         stages: {
           publicado: v.privacy === "public",
           miniatura: !!st.thumbnail, // ✓ = aplicada en YouTube (thumb_url = solo generada, por aprobar)
@@ -307,6 +307,10 @@ async function handleApi(request, env, url) {
       state.monetization.subs = inv.subs;
     }
     state.inventory_at = inv.at;
+    // Uso de R2 (alerta para que siga gratis: limite 10 GB).
+    const r2u = await r2Usage(env);
+    const usedGb = (r2u.bytes || 0) / (1024 * 1024 * 1024);
+    state.r2 = { used_gb: Math.round(usedGb * 100) / 100, count: r2u.count || 0, limit_gb: 10, pct: Math.min(100, Math.round((usedGb / 10) * 100)) };
     let voices = [];
     const reg = await r2json(env, "voice/registry.json");
     if (reg) voices = Object.values(reg).map((v) => v.label);
@@ -393,6 +397,22 @@ async function handleApi(request, env, url) {
       JSON.stringify({ approved: true, title, at: new Date().toISOString() }),
       { httpMetadata: { contentType: "application/json" } });
     return json({ ok: true, title });
+  }
+
+  if (url.pathname === "/api/thumb-approve" && request.method === "POST") {
+    // Paso 1: APROBAR la miniatura (marca, NO la pone en YouTube todavia).
+    let body = {};
+    try { body = await request.json(); } catch {}
+    const vid = String(body.video_id || "");
+    if (!/^[A-Za-z0-9_-]{11}$/.test(vid)) return json({ error: "video_id inválido" }, 400);
+    const db = (await r2json(env, "channel/videos.json")) || {};
+    const e = db[vid] || { stages: {} };
+    e.stages = e.stages || {};
+    e.stages.thumb_approved = true;
+    e.updated_at = new Date().toISOString();
+    db[vid] = e;
+    await env.R2.put("channel/videos.json", JSON.stringify(db, null, 2), { httpMetadata: { contentType: "application/json" } });
+    return json({ ok: true });
   }
 
   if (url.pathname === "/api/short" && request.method === "POST") {
@@ -574,6 +594,24 @@ async function r2json(env, key) {
   const o = await env.R2.get(key);
   if (!o) return null;
   try { return JSON.parse(await o.text()); } catch { return null; }
+}
+
+// Uso de almacenamiento R2 (para no pasar el limite gratis de 10 GB). Cacheado 30 min.
+async function r2Usage(env) {
+  const cached = await r2json(env, "channel/r2usage.json");
+  if (cached && cached.at && (Date.now() - Date.parse(cached.at) < 30 * 60 * 1000)) return cached;
+  if (!env.R2) return cached || { bytes: 0, count: 0, at: null };
+  try {
+    let bytes = 0, count = 0, cursor, guard = 0;
+    do {
+      const res = await env.R2.list({ limit: 1000, cursor });
+      for (const o of res.objects || []) { bytes += o.size || 0; count++; }
+      cursor = res.truncated ? res.cursor : undefined;
+    } while (cursor && ++guard < 40);
+    const usage = { bytes, count, at: new Date().toISOString() };
+    await env.R2.put("channel/r2usage.json", JSON.stringify(usage), { httpMetadata: { contentType: "application/json" } });
+    return usage;
+  } catch { return cached || { bytes: 0, count: 0, at: null }; }
 }
 
 // ---------- Manejo de mensajes ----------
