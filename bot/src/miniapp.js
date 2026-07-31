@@ -173,6 +173,19 @@ export const APP_HTML = `<!doctype html>
     h+='<div class="card muted" style="font-size:11px">Tiempo reproducido total del canal: '+num(tot.watch_min||0)+' min · Los datos de YouTube Analytics tienen ~1-2 días de retraso.</div>';
     return h;
   }
+  function pendingThumbsHtml(){
+    var vm=ST.video_matrix||[];
+    var pend=vm.filter(function(v){return v.thumb_url && !(v.stages||{}).miniatura;});
+    if(!pend.length) return "";
+    return pend.map(function(v){
+      var u=esc(location.origin+v.thumb_url)+"?t="+(ST.updated_at||"");
+      return '<div class="card" style="border:1px solid var(--cy)">'
+        +'<div style="font-weight:700;margin-bottom:6px">🖼️ Miniatura por aprobar — '+esc((v.title||"").slice(0,30))+'</div>'
+        +'<a href="'+u+'" target="_blank"><img src="'+u+'" style="width:100%;border-radius:8px;display:block;margin-bottom:8px"></a>'
+        +'<button class="btn" onclick="thumbApprove(\\''+v.video_id+'\\')">✅ Aprobar y ponerla en YouTube</button>'
+        +'<button class="btn ghost" onclick="thumbRow(\\''+v.video_id+'\\')">🔁 Rehacer otra</button></div>';
+    }).join("");
+  }
   function matrixHtml(){
     var vm=ST.video_matrix||[];
     if(!vm.length) return "";
@@ -183,20 +196,16 @@ export const APP_HTML = `<!doctype html>
         if(s[key]) return '<td style="text-align:center;color:#34d399;font-size:16px">✓</td>';
         return '<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="'+act+'">＋ Hacer</span></td>';
       }
-      // Miniatura: 3 estados → hacer / generada-por-aprobar / aplicada (✓).
+      // Miniatura: 3 estados → hacer / generada-por-aprobar (se aprueba ARRIBA) / aplicada.
       var miniCell;
       if(!v.thumb_url){
         miniCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="thumbRow(\\''+vid+'\\')">＋ Hacer</span></td>';
       } else {
         var u=esc(location.origin+v.thumb_url)+"?t="+(ST.updated_at||"");
-        var img='<a href="'+u+'" target="_blank"><img src="'+u+'" style="width:82px;border-radius:5px;display:block;margin:0 auto 4px;border:1px solid rgba(255,255,255,.15)"></a>';
-        if(s.miniatura){
-          miniCell='<td style="text-align:center">'+img+'<span style="color:#34d399;font-size:12px">✓ puesta</span></td>';
-        } else {
-          miniCell='<td style="text-align:center">'+img
-            +'<button class="btn mini" style="padding:4px 8px" onclick="thumbApprove(\\''+vid+'\\')">✅ Aprobar</button> '
-            +'<button class="btn mini ghost" style="padding:4px 8px" onclick="thumbRow(\\''+vid+'\\')">🔁</button></td>';
-        }
+        var img='<a href="'+u+'" target="_blank"><img src="'+u+'" style="width:78px;border-radius:5px;display:block;margin:0 auto 3px;border:1px solid rgba(255,255,255,.15)"></a>';
+        miniCell='<td style="text-align:center">'+img+(s.miniatura
+          ?'<span style="color:#34d399;font-size:11px">✓ puesta</span>'
+          :'<span style="color:var(--cy);font-size:11px">⬆ aprobar arriba</span>')+'</td>';
       }
       return '<tr><td>'+(vid?'<a href="https://youtu.be/'+vid+'" target="_blank">'+esc((v.title||"").slice(0,20))+'</a>':esc((v.title||"").slice(0,20)))+'</td>'
         +cell("publicado","publishRow(\\'"+vid+"\\')")
@@ -331,7 +340,8 @@ export const APP_HTML = `<!doctype html>
     var producing = (ST.active||[]).some(function(r){return /Producir|guion|Render VIDEO|Voiceover/i.test(r.name||"");});
     var prows = rest.map(function(u){return '<tr><td>#'+(u.n||"")+'</td><td>'+esc(u.topic||"")+'<div class="muted" style="font-size:11px">'+esc(u.why||"")+'</div></td><td style="text-align:right;white-space:nowrap">'+esc(u.target_date||"")+'</td></tr>';}).join("");
     el("s-plan").innerHTML=
-      flowStepsHtml()
+      pendingThumbsHtml()
+      +flowStepsHtml()
       +productionHtml()
       +nextStepHtml()
       +matrixHtml()
