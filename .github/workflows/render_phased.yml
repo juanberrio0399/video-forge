@@ -164,7 +164,9 @@ jobs:
             rm -f renders/render.mp4
             node pipeline/build_background.mjs timing.json bg 0 || echo "fondo opcional fallo; sigo"
             node pipeline/build_composition.mjs timing.json index.html voiceover.mp3 0 bg/bg.json || { echo "composicion fallo"; continue; }
-            npx --yes hyperframes@${HF_VERSION} render --quality standard --workers auto -o renders/render.mp4 2>&1 | tail -25 || true
+            # timeout de 15 min por intento: si HyperFrames se cuelga (Chrome headless), lo mata y reintenta.
+            timeout 900 npx --yes hyperframes@${HF_VERSION} render --quality standard --workers auto -o renders/render.mp4 > "hf_${att}.log" 2>&1 || echo "Fase $PH intento $att: render se colgó (>15min) o falló — reintento."
+            tail -20 "hf_${att}.log" 2>/dev/null || true
             if [ ! -s renders/render.mp4 ]; then echo "Fase $PH intento $att: render SIN salida. Sigo."; continue; fi
             node pipeline/review_video.mjs renders/render.mp4 "${HOOK:-video de datos}" "review_${att}.txt" "review_${att}.json" voicemap.json || echo "review fallo"
             SCORE=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('review_${att}.json','utf8')).score||0)}catch(e){console.log(0)}")
