@@ -139,7 +139,7 @@ async function validateInitData(initData, env) {
 const APP_WORKFLOWS = new Set([
   "render_phased.yml", "voice_parallel.yml", "channel_report.yml", "shorts_plan.yml",
   "shorts_final.yml", "publish_youtube.yml", "set_privacy.yml", "recipe_reel.yml",
-  "produce_video.yml", "seo_regen.yml",
+  "produce_video.yml", "seo_regen.yml", "thumbnail_only.yml",
 ]);
 
 // Analisis de tendencias con Gemini (¿los proximos videos estan alineados?).
