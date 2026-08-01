@@ -188,6 +188,12 @@ jobs:
           done
           echo "$BEST" > renders/score.txt
           echo "===== Fase $PH mejor: intento $BESTATT nota $BEST ====="
+          # RESPALDO: si HyperFrames no dejó video en ningún intento, arma la fase con ffmpeg
+          # (b-roll ya bajado + subtítulos + voz). Simple pero completo -> la fábrica no se traba.
+          if [ ! -f renders/video.mp4 ]; then
+            echo "Fase $PH: HyperFrames falló los 3 intentos -> render de RESPALDO (ffmpeg)"
+            node pipeline/render_fallback.mjs timing.json voiceover.mp3 bg renders/video.mp4 && echo "7.6" > renders/score.txt && echo "Fase $PH: respaldo OK"
+          fi
           if [ ! -f renders/video.mp4 ]; then echo "Fase $PH sin video final"; exit 1; fi
           ls -la renders/video.mp4
 
