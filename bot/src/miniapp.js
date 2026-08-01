@@ -131,9 +131,17 @@ export const APP_HTML = `<!doctype html>
         +'<div style="font-weight:700;color:var(--am)">⚠️ '+esc(x.name)+'</div>'
         +'<div class="muted" style="margin:4px 0">Falló en: '+esc(x.step||"?")+'</div>'
         +'<div><button class="btn mini" onclick="retry(\\''+esc(x.workflow)+'\\')">🔁 Reintentar</button> '
-        +'<a class="btn mini ghost" href="'+esc(x.url)+'" target="_blank">Ver detalle</a></div>'
-        +'<div class="muted" style="font-size:12px;margin-top:6px">Suele resolverse reintentando. Si persiste, escríbeme por el chat y lo reviso.</div></div>';
+        +'<button class="btn mini ghost" onclick="showError('+(x.run_id||0)+')">📋 Ver el error</button></div>'
+        +'<div id="err'+(x.run_id||0)+'" style="margin-top:6px"></div></div>';
     }).join("");
+  }
+  function showError(run){
+    var o=el("err"+run); if(!o) return;
+    o.innerHTML='<div class="muted" style="font-size:12px">Cargando el error…</div>';
+    api("/api/error-detail?run="+run).then(function(r){return r.json();}).then(function(j){
+      o.innerHTML='<div class="card" style="background:var(--bg);padding:8px"><div style="color:var(--am);font-weight:700;font-size:12px;margin-bottom:4px">'+esc(j.step||"")+'</div>'
+        +'<div style="font-family:monospace;font-size:10.5px;white-space:pre-wrap;max-height:220px;overflow:auto">'+esc(j.detail||j.error||"sin detalle")+'</div></div>';
+    }).catch(function(){o.innerHTML='<div class="muted">No pude cargar el error.</div>';});
   }
 
   function scoreColor(s){ return s>=7.5?"#34d399":(s>=6?"#f59e0b":"#f87171"); }

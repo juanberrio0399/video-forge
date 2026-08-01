@@ -368,7 +368,7 @@ async function handleApi(request, env, url) {
         const job = ((await jr.json()).jobs || []).find((j) => j.conclusion === "failure");
         if (job) { const s = (job.steps || []).find((x) => x.conclusion === "failure"); step = s ? s.name : job.name; }
       }
-      state.problems.push({ name: r.name, step, url: r.html_url, workflow: (r.path || "").split("/").pop() });
+      state.problems.push({ name: r.name, step, url: r.html_url, run_id: r.id, workflow: (r.path || "").split("/").pop() });
     }
     // PRODUCCION actual: calificacion de la IA (calidad del render) + paquete SEO + preview.
     const quality = await r2json(env, "video/0001-youtube-money/quality.json");
@@ -407,6 +407,25 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/insights") {
     return json(await geminiInsights(env));
+  }
+
+  if (url.pathname === "/api/error-detail") {
+    // Trae el ERROR EXACTO (últimas líneas del log del paso fallido) para verlo en la app.
+    const runId = url.searchParams.get("run") || "";
+    if (!/^\d+$/.test(runId)) return json({ error: "run inválido" }, 400);
+    try {
+      const jr = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs/${runId}/jobs`);
+      if (!jr.ok) return json({ detail: "No pude leer el run." });
+      const job = ((await jr.json()).jobs || []).find((j) => j.conclusion === "failure");
+      if (!job) return json({ detail: "No encontré un paso fallido en ese run." });
+      const failedStep = (job.steps || []).find((s) => s.conclusion === "failure");
+      const lr = await fetch(`https://api.github.com/repos/${env.GH_REPO}/actions/jobs/${job.id}/logs`, { headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: "application/vnd.github+json", "User-Agent": "video-forge" } });
+      if (!lr.ok) return json({ detail: `No pude leer el log (HTTP ${lr.status}).`, step: failedStep && failedStep.name });
+      const text = await lr.text();
+      const lines = text.split("\n").map((l) => l.replace(/^\S+\s/, "")).filter((l) => l.trim());
+      const tail = lines.slice(-40).join("\n").slice(-2500);
+      return json({ detail: tail || "(log vacío)", step: (failedStep && failedStep.name) || job.name });
+    } catch (e) { return json({ detail: "Error leyendo el detalle: " + e.message }); }
   }
 
   if (url.pathname === "/api/approve" && request.method === "POST") {
