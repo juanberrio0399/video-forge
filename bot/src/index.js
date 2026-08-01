@@ -377,6 +377,7 @@ async function handleApi(request, env, url) {
     try { const ido = await env.R2.get("video/0001-youtube-money/video_id.txt"); if (ido) seoVideoId = (await ido.text()).trim(); } catch {}
     let thumbUrl = null;
     try { const th = await env.R2.head("video/0001-youtube-money/thumbnail.jpg"); if (th) thumbUrl = "/watch/video/0001-youtube-money/thumbnail.jpg"; } catch {}
+    const renderPending = await r2json(env, "video/0001-youtube-money/render_pending.json");
     const approvedFlag = await r2json(env, "video/0001-youtube-money/seo_approved.json");
     // Aprobado solo si el titulo aprobado == el titulo actual (si regeneras el SEO, se resetea).
     const isApproved = !!(approvedFlag && approvedFlag.approved && pkg && approvedFlag.title === pkg.title);
@@ -385,6 +386,7 @@ async function handleApi(request, env, url) {
     state.production = {
       approved: isApproved,
       done: prodPublished,
+      render_pending: !!renderPending,
       quality: quality || null,
       seo: pkg ? {
         title: pkg.title || null, description: pkg.description || null,

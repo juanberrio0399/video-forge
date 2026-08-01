@@ -354,6 +354,9 @@ jobs:
             fs.writeFileSync("quality.json", JSON.stringify({min_score:min, threshold:7.5, passed:min>=7.5, phases:scores, updated_at:new Date().toISOString()}));
           '
           npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/quality.json" --file=quality.json --remote --content-type application/json
+          # Señal para la app: video RENDERIZADO, esperando que Juan lo apruebe (todo en la app).
+          node -e 'require("fs").writeFileSync("render_pending.json", JSON.stringify({at:new Date().toISOString(), min_score:parseFloat(process.env.MIN_SCORE||"0")||0}))'
+          npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/render_pending.json" --file=render_pending.json --remote --content-type application/json
 
       - name: Subir artifact final
         if: ${{ hashFiles('renders/video.mp4') != '' }}
