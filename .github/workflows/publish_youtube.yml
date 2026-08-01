@@ -35,6 +35,7 @@ jobs:
 
       - name: Bajar video + tiempos + guion activo de R2
         run: |
+          npx --yes wrangler@4 r2 object delete "$BUCKET/video/$PROJECT/render_pending.json" --remote 2>/dev/null || true
           npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/video.mp4" --file=video.mp4 --remote
           npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing.json --remote || echo "sin timing (capitulos aproximados)"
           # Guion activo (de la fabrica) para el SEO correcto; si no, el del repo.

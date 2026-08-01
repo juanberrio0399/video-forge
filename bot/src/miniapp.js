@@ -269,6 +269,18 @@ export const APP_HTML = `<!doctype html>
   function productionHtml(){
     var p=ST.production||{}, q=p.quality, seo=p.seo;
     if(p.done) return ""; // video ya publicado: el paso SEO terminó, no mostrar su calificación
+    // Video RENDERIZADO esperando aprobación -> ver / aprobar / regenerar, TODO en la app.
+    if(p.render_pending){
+      var q2=p.quality||{}, ms=q2.min_score||0;
+      var hr='<h2>🎬 Video listo — revísalo y aprueba</h2>';
+      if(p.watch_url) hr+='<a class="btn" href="'+esc(location.origin+p.watch_url)+'" target="_blank">▶️ Ver el video</a>';
+      hr+='<div class="card"><div style="display:flex;align-items:center;gap:12px">'
+        +'<div class="score" style="color:'+scoreColor(ms)+'">'+ms+'<span style="font-size:13px;color:var(--hint)">/10</span></div>'
+        +'<div><div style="font-weight:700">Calificación IA del video</div><div class="muted" style="font-size:12px">'+(q2.passed?"✅ Pasó el mínimo (7.5)":"⚠️ Bajo 7.5 — puedes regenerar")+'</div></div></div></div>';
+      hr+='<button class="btn" onclick="approveRender()">✅ Aprobar (subir y preparar el SEO)</button>'
+        +'<button class="btn ghost" onclick="regenRender()">🔁 Regenerar el video</button>';
+      return hr;
+    }
     if(!q && !seo) return "";
     var h='<h2>🎬 Video en producción</h2>';
     if(q){
@@ -493,6 +505,16 @@ export const APP_HTML = `<!doctype html>
     if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("light");
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"seo_regen.yml",inputs:{notes:notes}})})
       .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🔁 Regenerando el SEO — te muestro el nuevo aquí y en el chat":"❌ "+(j.error||"no pude"));setTimeout(load,2500);});
+  }
+  function approveRender(){
+    if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
+    api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"publish_youtube.yml"})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"✅ Aprobado. Subiendo y preparando el SEO…":"❌ "+(j.error||"no pude"));setTimeout(load,2500);});
+  }
+  function regenRender(){
+    var go=function(){ api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"render_phased.yml"})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🔁 Regenerando el video…":"❌ "+(j.error||"no pude"));setTimeout(load,2500);}); };
+    if(tg&&tg.showConfirm){ tg.showConfirm("¿Regenerar el video (vuelve a renderizar)?",function(ok){if(ok)go();}); } else if(confirm("¿Regenerar el video?")){ go(); }
   }
   function approveSeo(){
     if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
