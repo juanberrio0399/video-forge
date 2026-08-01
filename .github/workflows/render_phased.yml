@@ -191,7 +191,8 @@ jobs:
             node pipeline/build_background.mjs timing.json bg 0 || echo "fondo opcional fallo; sigo"
             node pipeline/build_composition.mjs timing.json index.html voiceover.mp3 0 bg/bg.json || { echo "composicion fallo"; continue; }
             # timeout de 15 min por intento: si HyperFrames se cuelga (Chrome headless), lo mata y reintenta.
-            timeout 900 npx --yes hyperframes@${HF_VERSION} render --quality standard --workers auto -o renders/render.mp4 > "hf_${att}.log" 2>&1 || echo "Fase $PH intento $att: render se colgó (>15min) o falló — reintento."
+            # --browser-timeout 300: la composicion tiene ~22 clips de b-roll (pesada); con 60s (default) Chrome no la carga a tiempo y se cuelga.
+            timeout 900 npx --yes hyperframes@${HF_VERSION} render --quality standard --workers auto --browser-timeout 300 -o renders/render.mp4 > "hf_${att}.log" 2>&1 || echo "Fase $PH intento $att: render se colgó (>15min) o falló — reintento."
             tail -20 "hf_${att}.log" 2>/dev/null || true
             if [ ! -s renders/render.mp4 ] || ! ffprobe -v error -i renders/render.mp4 >/dev/null 2>&1; then echo "Fase $PH intento $att: render SIN salida o CORRUPTO (mp4 truncado). Sigo."; rm -f renders/render.mp4; continue; fi
             node pipeline/review_video.mjs renders/render.mp4 "${HOOK:-video de datos}" "review_${att}.txt" "review_${att}.json" voicemap.json || echo "review fallo"
