@@ -121,6 +121,8 @@ jobs:
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
       PH: ${{ matrix.phase }}
     steps:
       - uses: actions/checkout@v4
@@ -135,6 +137,11 @@ jobs:
             libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
             libgbm1 libpango-1.0-0 libcairo2 fonts-liberation \
             libasound2t64 || sudo apt-get install -y libasound2
+
+      - name: Asegurar el Chrome FIJO de HyperFrames (evita cuelgue del Chrome del sistema)
+        run: |
+          npx --yes hyperframes@${HF_VERSION} browser ensure || echo "browser ensure falló, sigo"
+          npx --yes hyperframes@${HF_VERSION} doctor --json 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log("doctor ok:",j.ok);(j.checks||[]).filter(c=>c.status!=="ok").forEach(c=>console.log("  ⚠️",c.name,c.status,(c.message||"").slice(0,80)))}catch(e){}})' || true
 
       - name: Bajar insumos de las fases
         uses: actions/download-artifact@v4
@@ -234,6 +241,17 @@ jobs:
             review.txt
           if-no-files-found: warn
           retention-days: 7
+
+      - name: (Si falla) mandar el ERROR EXACTO al chat
+        if: failure()
+        run: |
+          {
+            echo "❌ Render de la FASE $PH falló."
+            echo "--- HyperFrames (últimas líneas del log) ---"
+            tail -n 18 hf_*.log 2>/dev/null || true
+            [ -s hf_1.log ] || echo "(el log de HyperFrames está VACÍO -> Chrome no arrancó en el runner)"
+          } > err.txt
+          bash pipeline/notify_telegram.sh "$(head -c 1400 err.txt)"
 
   # 3) Une las fases en orden -> video completo -> R2 -> chat con aprobacion.
   combine:
