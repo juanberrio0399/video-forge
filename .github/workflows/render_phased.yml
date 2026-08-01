@@ -142,7 +142,21 @@ jobs:
           name: phases-in
           path: phases
 
+      - name: ¿Fase ya guardada en R2? (checkpoint -> reusar, no re-renderizar)
+        id: reuse
+        run: |
+          mkdir -p renders
+          FORCE="${{ github.event.inputs.only_phases }}"
+          if [ -z "$FORCE" ] && npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/phases/phase_${PH}.mp4" --file=renders/video.mp4 --remote 2>/dev/null; then
+            npx --yes wrangler@4 r2 object get "$BUCKET/video/$PROJECT/phases/phase_${PH}.txt" --file=renders/score.txt --remote 2>/dev/null || echo "7.5" > renders/score.txt
+            echo "Fase $PH ya estaba guardada en R2 -> la reuso (no re-renderizo)."
+            echo "reuse=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "reuse=no" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Preparar esta fase
+        if: ${{ steps.reuse.outputs.reuse != 'yes' }}
         run: |
           cp "phases/$PH/timing.json" timing.json
           cp "phases/$PH/voiceover.mp3" voiceover.mp3
@@ -150,6 +164,7 @@ jobs:
           ls -la timing.json voiceover.mp3 voicemap.json
 
       - name: Render fase con puerta de calidad (3 intentos, umbral 7.5)
+        if: ${{ steps.reuse.outputs.reuse != 'yes' }}
         env:
           THRESHOLD: "7.5"
           MAX_ATTEMPTS: "3"
@@ -196,6 +211,13 @@ jobs:
           fi
           if [ ! -f renders/video.mp4 ]; then echo "Fase $PH sin video final"; exit 1; fi
           ls -la renders/video.mp4
+
+      - name: Guardar la fase en R2 (checkpoint -> no se pierde si otra falla)
+        if: ${{ hashFiles('renders/video.mp4') != '' }}
+        run: |
+          npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/phases/phase_${PH}.mp4" --file=renders/video.mp4 --remote
+          npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/phases/phase_${PH}.txt" --file=renders/score.txt --remote || true
+          echo "Fase $PH guardada en R2."
 
       - name: Subir la fase renderizada
         if: always()

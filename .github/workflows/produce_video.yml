@@ -54,6 +54,13 @@ jobs:
           # Este es el guion "activo": la voz y el render lo leen desde aqui.
           npx --yes wrangler@4 r2 object put "$BUCKET/audio/$PROJECT/voicemap_full.json" --file=voicemap.json --remote
 
+      - name: Limpiar checkpoints de fases viejas (video nuevo)
+        run: |
+          for k in 0 1 2 3 4 5 6 7 8 9; do
+            npx --yes wrangler@4 r2 object delete "$BUCKET/video/$PROJECT/phases/phase_${k}.mp4" --remote 2>/dev/null || true
+            npx --yes wrangler@4 r2 object delete "$BUCKET/video/$PROJECT/phases/phase_${k}.txt" --remote 2>/dev/null || true
+          done
+
       - name: Marcar el video como PRODUCIDO (para avanzar los proximos en la app)
         run: |
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/produced.json" --file=produced.json --remote 2>/dev/null || echo '{"done":[]}' > produced.json
