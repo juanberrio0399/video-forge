@@ -9,19 +9,25 @@ const [topic, out = "voicemap.json"] = process.argv.slice(2);
 const KEY = process.env.GEMINI_API_KEY;
 if (!topic) { console.error("Falta el tema"); process.exit(1); }
 
+const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
 async function gemini(prompt) {
-  for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]) {
-    try {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${KEY}`, {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } }),
-      });
-      if (!r.ok) { console.error(`${m}: ${r.status}`); continue; }
-      const j = await r.json();
-      const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
-      return JSON.parse(t);
-    } catch (e) { console.error(`${m}: ${e.message}`); }
+  // Reintenta con backoff en 429/503 (el guion corre al inicio; si Gemini esta saturado, espera).
+  for (let round = 0; round < 3; round++) {
+    for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]) {
+      try {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${KEY}`, {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } }),
+        });
+        if (r.status === 429 || r.status === 503) { console.error(`${m}: ${r.status} (espero 15s y reintento)`); await sleep(15000); continue; }
+        if (!r.ok) { console.error(`${m}: ${r.status}`); continue; }
+        const j = await r.json();
+        const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
+        return JSON.parse(t);
+      } catch (e) { console.error(`${m}: ${e.message}`); }
+    }
   }
+  console.error("Gemini no respondio tras varios reintentos (guion).");
   return null;
 }
 
