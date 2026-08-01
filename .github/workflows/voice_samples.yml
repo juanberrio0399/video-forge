@@ -43,7 +43,7 @@ jobs:
           # Gemini locutor Charon
           node pipeline/gemini_tts.mjs sample.txt s_gemini_charon.mp3 Charon || echo "gemini charon fallo"
           # Kokoro voces
-          for V in am_michael bm_george af_heart; do
+          for V in am_michael am_adam bm_george bm_lewis af_heart af_bella bf_emma; do
             python pipeline/kokoro_sample.py "$V" "s_$V.wav" && ffmpeg -y -i "s_$V.wav" -codec:a libmp3lame -q:a 4 "s_kokoro_$V.mp3" || echo "kokoro $V fallo"
           done
           ls -la s_*.mp3

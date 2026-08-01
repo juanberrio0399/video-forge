@@ -146,8 +146,12 @@ const APP_WORKFLOWS = new Set([
 const VOICE_OPTIONS = [
   { id: "gemini_charon", label: "Locutor Gemini (Charon)", engine: "gemini", kvoice: "", sample: "voices/sample_gemini_charon.mp3" },
   { id: "kokoro_am_michael", label: "Kokoro Michael (americano)", engine: "kokoro", kvoice: "am_michael", sample: "voices/sample_kokoro_am_michael.mp3" },
+  { id: "kokoro_am_adam", label: "Kokoro Adam (americano)", engine: "kokoro", kvoice: "am_adam", sample: "voices/sample_kokoro_am_adam.mp3" },
   { id: "kokoro_bm_george", label: "Kokoro George (británico)", engine: "kokoro", kvoice: "bm_george", sample: "voices/sample_kokoro_bm_george.mp3" },
+  { id: "kokoro_bm_lewis", label: "Kokoro Lewis (británico)", engine: "kokoro", kvoice: "bm_lewis", sample: "voices/sample_kokoro_bm_lewis.mp3" },
   { id: "kokoro_af_heart", label: "Kokoro Heart (femenina)", engine: "kokoro", kvoice: "af_heart", sample: "voices/sample_kokoro_af_heart.mp3" },
+  { id: "kokoro_af_bella", label: "Kokoro Bella (femenina)", engine: "kokoro", kvoice: "af_bella", sample: "voices/sample_kokoro_af_bella.mp3" },
+  { id: "kokoro_bf_emma", label: "Kokoro Emma (británica)", engine: "kokoro", kvoice: "bf_emma", sample: "voices/sample_kokoro_bf_emma.mp3" },
 ];
 
 // Analisis de tendencias con Gemini (¿los proximos videos estan alineados?).
