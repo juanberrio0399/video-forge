@@ -305,6 +305,18 @@ jobs:
           BUCKET: video-forge
           PROJECT: "0001-youtube-money"
 
+      - name: Borrar checkpoints de fases (ya se unieron -> liberar R2)
+        if: ${{ hashFiles('renders/video.mp4') != '' }}
+        env:
+          BUCKET: video-forge
+          PROJECT: "0001-youtube-money"
+        run: |
+          for k in 0 1 2 3 4 5 6 7 8 9; do
+            npx --yes wrangler@4 r2 object delete "$BUCKET/video/$PROJECT/phases/phase_${k}.mp4" --remote 2>/dev/null || true
+            npx --yes wrangler@4 r2 object delete "$BUCKET/video/$PROJECT/phases/phase_${k}.txt" --remote 2>/dev/null || true
+          done
+          echo "Checkpoints de fases borrados (el video final ya quedó)."
+
       - name: Guardar la calificacion de calidad en R2 (para la app)
         if: ${{ hashFiles('renders/video.mp4') != '' }}
         env:
