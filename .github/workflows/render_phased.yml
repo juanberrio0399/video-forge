@@ -389,7 +389,7 @@ jobs:
               for k in 0 1 2 3 4 5 6 7 8 9; do npx --yes wrangler@4 r2 object delete "$BUCKET/video/$PROJECT/phases/phase_${k}.mp4" --remote 2>/dev/null || true; done
               npx --yes wrangler@4 r2 object delete "$BUCKET/audio/$PROJECT/voiceover.mp3" --remote 2>/dev/null || true
               npx --yes wrangler@4 r2 object delete "$BUCKET/audio/$PROJECT/timing.json" --remote 2>/dev/null || true
-              gh workflow run voice_parallel.yml -f then_render=true -f engine=gemini -R "$GITHUB_REPOSITORY" || true
+              gh workflow run voice_parallel.yml -f then_render=true -f engine=auto -R "$GITHUB_REPOSITORY" || true
               echo "QA_PASSED=0" >> "$GITHUB_ENV"
               bash pipeline/notify_telegram.sh "🤖 QA RECHAZÓ el video: ${REASONS}."$'\n'"Regenerando automáticamente (intento ${NEXT}/${QA_MAX_ATTEMPTS}). No te muestro nada hasta que cumpla."
             else
