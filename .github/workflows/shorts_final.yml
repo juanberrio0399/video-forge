@@ -176,13 +176,12 @@ jobs:
         if: ${{ hashFiles('short_id.txt') != '' }}
         run: npx --yes wrangler@4 r2 object put "$BUCKET/shorts/$PROJECT/uploaded_${IDX}.txt" --file=short_id.txt --remote
 
-      - name: Enviar al chat con boton Publicar
+      - name: Avisar short listo (publicar en la app)
         if: always()
         run: |
           if [ -f short_id.txt ]; then
             VID=$(cat short_id.txt); TITLE=$(cat title.txt)
-            MK=$(node -e "process.stdout.write(JSON.stringify({inline_keyboard:[[{text:'▶️ Ver el short',url:'https://youtu.be/'+process.argv[1]}],[{text:'✅ Publicar',callback_data:'short_pub:'+process.argv[1]},{text:'⏸️ Dejar privado',callback_data:'short_keep:'+process.argv[1]}]]}))" "$VID")
-            bash pipeline/notify_telegram.sh "🎬 Short final #$((IDX+1)) listo (privado): ${TITLE}"$'\n'"▶️ https://youtu.be/${VID}"$'\n\n'"Revisalo y aprueba para publicar." "" "$MK"
+            bash pipeline/notify_telegram.sh "🎬 Short final #$((IDX+1)) listo (privado): ${TITLE}"$'\n'"▶️ https://youtu.be/${VID}"$'\n\n'"👉 Publícalo en la app (pestaña Shorts): ahí lo ves y le das ✅ Publicar — todo desde la app."
           else
             bash pipeline/notify_telegram.sh "❌ El short #$((IDX+1)) fallo al generar/subir."
           fi

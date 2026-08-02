@@ -334,6 +334,44 @@ export const APP_HTML = `<!doctype html>
     return h;
   }
 
+  function bestTimesHtml(){
+    // Mejores horas para PUBLICAR (audiencia EE.UU., canal de datos/dinero, faceless).
+    // Se sube ~2-3h ANTES del pico de la tarde/noche para que el algoritmo lo indexe a tiempo.
+    // Corre en el navegador -> hora ET real (con horario de verano) via zona horaria.
+    var now=new Date();
+    var etNow=new Date(now.toLocaleString("en-US",{timeZone:"America/New_York"}));
+    var dow=etNow.getDay(); // 0 dom .. 6 sab
+    var hr=etNow.getHours()+etNow.getMinutes()/60;
+    // Ventana óptima por día: [inicio, fin, etiqueta] en hora ET
+    var WIN={0:[9,11,"9–11 AM"],1:[15,18,"3–6 PM"],2:[12,15,"12–3 PM"],3:[12,15,"12–3 PM"],4:[12,15,"12–3 PM"],5:[12,15,"12–3 PM"],6:[9,11,"9–11 AM"]};
+    var DAYS=["dom","lun","mar","mié","jue","vie","sáb"];
+    var BEST={4:1,5:1,6:1,0:1}; // mejores días para este nicho: jue, vie, sáb, dom
+    // Diferencia ET vs tu hora (Bogotá) en este instante (maneja el DST solo).
+    var diff=new Date(now.toLocaleString("en-US",{timeZone:"America/New_York"})).getHours()-new Date(now.toLocaleString("en-US",{timeZone:"America/Bogota"})).getHours();
+    function loc(h){var x=((h-diff)%24+24)%24;var ap=x>=12?"PM":"AM";var hh=x%12;if(hh===0)hh=12;return hh+" "+ap;}
+    var w=WIN[dow], rec, recLoc;
+    if(hr<w[1]){
+      var when=hr<w[0]?"HOY":"AHORA (ventana abierta)";
+      rec="📌 Publica <b>"+when+"</b> · "+DAYS[dow]+" "+w[2]+" ET"+(BEST[dow]?" ★":"");
+      recLoc="tu hora: "+loc(w[0])+"–"+loc(w[1]);
+    } else {
+      var nd=(dow+1)%7, w2=WIN[nd];
+      rec="📌 Próxima buena hora: <b>"+DAYS[nd]+" "+w2[2]+" ET</b>"+(BEST[nd]?" ★":"");
+      recLoc="tu hora: "+loc(w2[0])+"–"+loc(w2[1]);
+    }
+    // Tabla semanal compacta
+    var rows=[0,1,2,3,4,5,6].map(function(d){
+      var ww=WIN[d];
+      return '<tr'+(d===dow?' style="background:rgba(34,211,238,.12)"':'')+'><td>'+DAYS[d]+(BEST[d]?' ★':'')+'</td><td style="text-align:right">'+ww[2]+' ET</td><td style="text-align:right;color:var(--hint)">'+loc(ww[0])+'–'+loc(ww[1])+'</td></tr>';
+    }).join("");
+    return '<h2>⏰ Mejores horas para publicar</h2>'
+      +'<div class="card"><div style="font-weight:700;font-size:14px">'+rec+'</div>'
+      +'<div class="muted" style="font-size:12px;margin-top:2px">'+recLoc+'</div>'
+      +'<table style="font-size:12px;margin-top:10px;width:100%"><tr><th style="text-align:left">Día</th><th style="text-align:right">Hora EEUU (ET)</th><th style="text-align:right">Tu hora</th></tr>'+rows+'</table>'
+      +'<div class="muted" style="font-size:11px;margin-top:8px">★ = mejores días. Se sube ~2-3h antes del pico de la noche para que el algoritmo lo empuje. '
+      +(ST.analytics_ok?'Cuando el canal tenga más datos, ajusto esto a la hora real en que TU audiencia se conecta.':'Con datos de audiencia lo personalizo a tu público real.')+'</div></div>';
+  }
+
   function render(){
     var ch = ST.channel||{}, cs = ST.channel_stats||{}, mon = ST.monetization||{};
     var pub = ST.published||[], up = ST.upcoming||[], sh = (ST.shorts_list||[]);
@@ -395,6 +433,7 @@ export const APP_HTML = `<!doctype html>
       +productionHtml()
       +nextStepHtml()
       +matrixHtml()
+      +bestTimesHtml()
       +problemsHtml()
       +(next
         ? '<h2>Siguiente video</h2><div class="card"><div style="font-weight:800;font-size:16px">#'+(next.n||"")+' · '+esc(next.topic||"")+'</div>'
