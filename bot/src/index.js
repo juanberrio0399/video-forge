@@ -140,6 +140,7 @@ const APP_WORKFLOWS = new Set([
   "render_phased.yml", "voice_parallel.yml", "channel_report.yml", "shorts_plan.yml",
   "shorts_final.yml", "publish_youtube.yml", "set_privacy.yml", "recipe_reel.yml",
   "produce_video.yml", "seo_regen.yml", "thumbnail_only.yml", "voice_samples.yml",
+  "schedule_youtube.yml",
 ]);
 
 // Voces disponibles para el canal (con su ejemplo en R2). engine/kvoice se usan en la voz.
@@ -202,6 +203,33 @@ async function geminiInsights(env) {
   return { error: "No pude analizar (Gemini no respondió)." };
 }
 
+// Offset de ET (America/New_York) vs UTC en una fecha dada (-4 EDT / -5 EST) — maneja el DST.
+function etOffsetHours(d) {
+  try {
+    const s = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", timeZoneName: "shortOffset" }).formatToParts(d).find((p) => p.type === "timeZoneName").value;
+    const m = s.match(/GMT([+-]?\d{1,2})/); return m ? parseInt(m[1], 10) : -4;
+  } catch { return -4; }
+}
+// Mejor hora de publicacion (ET) por dia de semana: fin de semana 9AM, lunes 3PM, mar-vie 12PM.
+function bestHourET(dow) { if (dow === 0 || dow === 6) return 9; if (dow === 1) return 15; return 12; }
+// Proxima MEJOR hora (ET) libre, con >=2h de anticipacion, evitando slots ya ocupados (tol 1h).
+function nextBestSlot(occupiedMs) {
+  const now = Date.now(), minAhead = now + 2 * 3600 * 1000;
+  const dowMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  for (let day = 0; day < 21; day++) {
+    const probe = new Date(now + day * 86400 * 1000);
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" }).formatToParts(probe);
+    const y = +parts.find((p) => p.type === "year").value, mo = +parts.find((p) => p.type === "month").value, da = +parts.find((p) => p.type === "day").value;
+    const dow = dowMap[parts.find((p) => p.type === "weekday").value] ?? 2;
+    const hourET = bestHourET(dow), off = etOffsetHours(probe);
+    const slotMs = Date.UTC(y, mo - 1, da, hourET - off, 0, 0);
+    if (slotMs < minAhead) continue;
+    if (occupiedMs.some((o) => Math.abs(o - slotMs) < 3600 * 1000)) continue;
+    return new Date(slotMs).toISOString();
+  }
+  return null;
+}
+
 async function handleApi(request, env, url) {
   const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { "content-type": "application/json" } });
   const initData = request.headers.get("X-Init-Data") || "";
@@ -237,6 +265,13 @@ async function handleApi(request, env, url) {
     ];
     state.analytics_ok = !!inv.analytics_ok;
     state.analytics = inv.analytics || null;
+    // PROGRAMADOS: videos con publishAt en el futuro (YouTube los publica solo a esa hora).
+    // Al publicarse, YouTube quita publishAt y pasan a público -> desaparecen de esta lista.
+    const nowMs = Date.now();
+    state.scheduled = [...(inv.longs || []), ...(inv.shorts || [])]
+      .filter((v) => v.publish_at && Date.parse(v.publish_at) > nowMs)
+      .map((v) => ({ video_id: v.video_id, title: v.title, type: (v.seconds || 0) <= 60 ? "short" : "long", publish_at: v.publish_at }))
+      .sort((a, b) => Date.parse(a.publish_at) - Date.parse(b.publish_at));
     state.totals = {
       views: state.all_videos.reduce((s, v) => s + (v.views || 0), 0),
       watch_min: state.all_videos.reduce((s, v) => s + (v.watch_min || 0), 0),
@@ -441,6 +476,20 @@ async function handleApi(request, env, url) {
     } catch (e) { return json({ detail: "Error leyendo el detalle: " + e.message }); }
   }
 
+  if (url.pathname === "/api/schedule" && request.method === "POST") {
+    // Programa el video en la PROXIMA mejor hora (EEUU) libre. YouTube lo publica solo a esa hora.
+    let body = {}; try { body = await request.json(); } catch {}
+    let vid = body.video_id;
+    if (!vid) { try { const ido = await env.R2.get("video/0001-youtube-money/video_id.txt"); if (ido) vid = (await ido.text()).trim(); } catch {} }
+    if (!vid || !/^[A-Za-z0-9_-]{6,20}$/.test(vid)) return json({ error: "no encontré el video a programar" }, 400);
+    const inv = await channelInventory(env);
+    const occupied = [...(inv.longs || []), ...(inv.shorts || [])].filter((v) => v.publish_at && Date.parse(v.publish_at) > Date.now()).map((v) => Date.parse(v.publish_at));
+    const slot = nextBestSlot(occupied);
+    if (!slot) return json({ error: "no encontré un horario libre" }, 500);
+    const r = await ghDispatch(env, "schedule_youtube.yml", { video_id: vid, publish_at: slot });
+    return json({ ok: r.ok, publish_at: slot });
+  }
+
   if (url.pathname === "/api/approve" && request.method === "POST") {
     // Aprobar la descripcion/SEO (paso 1). NO publica; solo marca que quedo bueno.
     const pkg = await r2json(env, "video/0001-youtube-money/package.json");
@@ -610,7 +659,7 @@ async function channelInventory(env) {
       const j = await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status,statistics,contentDetails&id=${ids.slice(i, i + 50).join(",")}`, { headers: H })).json();
       for (const v of j.items || []) {
         const secs = isoDurSec(v.contentDetails.duration);
-        const row = { video_id: v.id, title: v.snippet.title, privacy: v.status.privacyStatus, published_at: v.snippet.publishedAt.slice(0, 10), views: +((v.statistics || {}).viewCount || 0), likes: +((v.statistics || {}).likeCount || 0), seconds: secs };
+        const row = { video_id: v.id, title: v.snippet.title, privacy: v.status.privacyStatus, publish_at: (v.status && v.status.publishAt) || null, published_at: v.snippet.publishedAt.slice(0, 10), views: +((v.statistics || {}).viewCount || 0), likes: +((v.statistics || {}).likeCount || 0), seconds: secs };
         if (secs > 0 && secs <= 60) shorts.push(row); else longs.push(row);
       }
     }

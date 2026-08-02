@@ -1,0 +1,54 @@
+name: Programar publicacion en YouTube (mejor hora)
+
+# Deja el video PRIVADO con publishAt: YouTube lo hace PUBLICO solo cuando llega esa hora.
+# Lo dispara la app con la mejor hora (EEUU) ya calculada.
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: "ID del video"
+        required: true
+        default: ""
+      publish_at:
+        description: "Hora de publicacion (ISO UTC, ej 2026-08-03T16:00:00Z)"
+        required: true
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  schedule:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      VID: ${{ github.event.inputs.video_id }}
+      PUB: ${{ github.event.inputs.publish_at }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Programar
+        run: |
+          if [ -z "$VID" ] || [ -z "$PUB" ]; then echo "Faltan datos -> no hago nada."; exit 0; fi
+          node pipeline/youtube_schedule.mjs "$VID" "$PUB"
+
+      - name: Avisar al chat
+        if: always()
+        run: |
+          if [ -f schedule_result.txt ]; then
+            bash pipeline/notify_telegram.sh "$(cat schedule_result.txt)"$'\n\n'"👉 Míralo en la app (Control → 📅 Programados). Al publicarse, desaparece de esa lista."
+          else
+            bash pipeline/notify_telegram.sh "❌ No pude programar el video. Revisa el log."
+          fi
