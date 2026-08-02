@@ -15,34 +15,41 @@ const RATE = 1902;
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const f2 = (n) => Number(n).toFixed(2);
 
-// ---- Escenas hero: se disparan cuando la voz dice cierta frase ----
-// tipo: "num" (numero gigante) | "cmp" (A vs B) | "split" (45/55) | "stmt" (frase-impacto)
-// Cada frase `m` es UNICA a un beat. Densidad alta a proposito: el medio/final se veian
-// flojos con puro b-roll; ahora cada tramo tiene su momento hero encima del footage.
-const SCENES = [
-  { m: "sixty billion dollars in a single year", type: "num", big: "$60B", sub: "YouTube · 2025 revenue", color: "cy" },
-  { m: "hundred and sixty-four million dollars a day", type: "num", big: "$164M", sub: "PER DAY", color: "cy" },
-  { m: "six point eight million dollars an hour", type: "num", big: "$6.8M", sub: "PER HOUR", color: "cy" },
-  { m: "hundred and fourteen thousand dollars a minute", type: "num", big: "$114K", sub: "PER MINUTE", color: "cy" },
-  { m: "nineteen hundred dollars a second", type: "num", big: "$1,900", sub: "PER SECOND", color: "gr" },
-  { m: "thirty-six billion dollars", type: "num", big: "$36.4B", sub: "ADS ONLY · 2024", color: "cy" },
-  // --- medio: publicidad Q4, cable / YouTube TV (antes puro b-roll) ---
-  { m: "final three months", type: "num", big: "$10B", sub: "ADS · ONE QUARTER (Q4 2024)", color: "cy" },
-  { m: "youtube sells cable", type: "stmt", big: "YouTube sells CABLE", sub: "live TV, over the internet" },
-  { m: "ten million subscribers", type: "num", big: "10,000,000", sub: "YouTube TV · at $83/mo", color: "am" },
-  { m: "eight hundred million", type: "num", big: "$800M", sub: "YouTube TV · PER MONTH", color: "am" },
-  { m: "one product alone", type: "num", big: "$10B", sub: "YouTube TV · PER YEAR", color: "am" },
-  { m: "biggest tv providers", type: "stmt", big: "One of the biggest TV providers in the U.S.", sub: "and almost nobody knows" },
-  // --- Netflix, reparto, creadores (final) ---
-  { m: "quietly passed netflix", type: "cmp", a: "YouTube", av: 100, b: "Netflix", bv: 65, sub: "total revenue · 2025" },
-  { m: "amateurs out-earned", type: "stmt", big: "The amateurs out-earned the pros", sub: "without a single YouTube camera" },
-  { m: "fifty-five percent", type: "split", sub: "of ad money goes to the creator" },
-  { m: "one hundred billion dollars", type: "num", big: "$100B", sub: "paid to creators · 4 years", color: "gr" },
-  { m: "biggest paycheck engine", type: "stmt", big: "The internet's biggest paycheck engine", sub: "" },
-  { m: "eighty-five million dollars", type: "num", big: "$85M", sub: "MrBeast · 2024 · Forbes", color: "am" },
-  { m: "person with a camera and a media empire", type: "stmt", big: "From a camera to an empire", sub: "the line has never been thinner" },
-  { m: "five seconds you wait", type: "num", big: "$10,000", sub: "IN 5 SECONDS", color: "gr" },
-];
+// ---- Datos animados AUTOMATICOS: por cada beat, si menciona una cifra/estadistica fuerte,
+// la mostramos GIGANTE y animada encima del b-roll. Funciona para CUALQUIER tema (no hardcodeado).
+const WORDNUM = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90, hundred: 100 };
+const COUNT = "views|users|subscribers|people|customers|stores|employees|downloads|followers";
+const magAbbr = { trillion: "T", billion: "B", million: "M", thousand: "K" };
+function extractFigure(text) {
+  const t = " " + text.replace(/,/g, "") + " ";
+  // 1) numero + magnitud + sustantivo de CONTEO -> "300M SUBSCRIBERS"
+  let m = t.match(new RegExp(`(\\d+(?:\\.\\d+)?)\\s?(trillion|billion|million|thousand)\\s(${COUNT})`, "i"));
+  if (m) return { big: m[1] + magAbbr[m[2].toLowerCase()], sub: m[3].toUpperCase() };
+  // 2) numero EN PALABRAS + magnitud (+ dollars/conteo) -> "$85M"
+  m = t.match(/\b([a-z]+)(?:[-\s]([a-z]+))?\s(trillion|billion|million|thousand)\s(dollars|people|users|views|subscribers|customers)?/i);
+  if (m && WORDNUM[m[1].toLowerCase()]) {
+    let n = WORDNUM[m[1].toLowerCase()]; if (m[2] && WORDNUM[m[2].toLowerCase()]) n += WORDNUM[m[2].toLowerCase()];
+    if (m[4] && !/dollar/i.test(m[4])) return { big: n + magAbbr[m[3].toLowerCase()], sub: m[4].toUpperCase() };
+    const money = /dollar/i.test(m[4] || "") || /\$/.test(text);
+    return { big: (money ? "$" : "") + n + magAbbr[m[3].toLowerCase()], sub: "" };
+  }
+  // 3) $X magnitud -> "$19B"
+  m = t.match(/\$\s?(\d+(?:\.\d+)?)\s?(trillion|billion|million|thousand)\b/i);
+  if (m) return { big: "$" + m[1] + magAbbr[m[2].toLowerCase()], sub: "" };
+  // 4) digito + magnitud sin unidad -> dinero (canal de dinero) "$XB"
+  m = t.match(/(\d+(?:\.\d+)?)\s?(trillion|billion|million|thousand)\b/i);
+  if (m) return { big: "$" + m[1] + magAbbr[m[2].toLowerCase()], sub: "" };
+  // 5) porcentaje
+  m = t.match(/(\d+(?:\.\d+)?)\s?(?:percent|%)/i);
+  if (m) return { big: m[1] + "%", sub: "" };
+  // 6) $X,XXX grande
+  m = text.match(/\$\s?\d[\d,]{2,}/);
+  if (m) return { big: m[0].replace(/\s/g, ""), sub: "" };
+  // 7) numero grande (4+ digitos) + conteo -> "40K STORES"
+  m = t.match(new RegExp(`(\\d{4,})\\s?(${COUNT})`, "i"));
+  if (m) { const n = +m[1]; const big = n >= 1e6 ? (n / 1e6).toFixed(n % 1e6 ? 1 : 0) + "M" : Math.round(n / 1000) + "K"; return { big, sub: m[2].toUpperCase() }; }
+  return null;
+}
 
 const els = [];
 const tw = []; // lineas GSAP
@@ -55,54 +62,27 @@ beats.forEach((b, i) => {
   tw.push(`tl.to("#cap${i}",{opacity:0,y:-10,duration:0.24,ease:"power1.in"},${f2(end - 0.2)});`);
 });
 
-// ---- Escenas hero ----
-let sid = 0;
+// ---- Datos animados (automaticos por beat) ----
+let sid = 0, lastHeroEnd = -99;
 beats.forEach((b) => {
-  const low = b.text.toLowerCase();
-  const s = SCENES.find((x) => low.includes(x.m));
-  if (!s) return;
+  const tipo = (b.tipo || "").toLowerCase();
+  const fig = extractFigure(b.text || "");
+  if (!fig || !["dato", "reveal", "hook", "sintesis", "cta"].includes(tipo)) return;
+  if (b.start - lastHeroEnd < 3.2) return; // no encimar datos seguidos
   const id = `sc${sid++}`;
-  const inT = b.start + 0.12;
-  const outT = Math.min(Math.min(b.end, total) - 0.15, inT + 3.4);
-
-  if (s.type === "num") {
-    els.push(`<div class="scene num c-${s.color}" id="${id}">
-        <div class="num-big">${esc(s.big)}</div>
-        <div class="num-sub">${esc(s.sub)}</div>
-      </div>`);
-    tw.push(`tl.fromTo("#${id} .num-big",{opacity:0,scale:0.7,y:30},{opacity:1,scale:1,y:0,duration:0.6,ease:"back.out(1.6)"},${f2(inT)});`);
-    tw.push(`tl.fromTo("#${id} .num-sub",{opacity:0,y:16},{opacity:1,y:0,duration:0.5,ease:"power3.out"},${f2(inT + 0.18)});`);
-    tw.push(`tl.to("#${id} .num-big",{scale:1.04,duration:${f2(outT - inT)},ease:"sine.inOut"},${f2(inT + 0.6)});`);
-    tw.push(`tl.to("#${id}",{opacity:0,duration:0.35,ease:"power1.in"},${f2(outT)});`);
-  } else if (s.type === "cmp") {
-    els.push(`<div class="scene cmp" id="${id}">
-        <div class="cmp-row"><div class="cmp-name">${esc(s.a)}</div><div class="cmp-track"><div class="cmp-fill f-yt" id="${id}a"></div></div></div>
-        <div class="cmp-row"><div class="cmp-name">${esc(s.b)}</div><div class="cmp-track"><div class="cmp-fill f-nf" id="${id}b"></div></div></div>
-        <div class="cmp-sub">${esc(s.sub)}</div>
-      </div>`);
-    tw.push(`tl.fromTo("#${id}",{opacity:0},{opacity:1,duration:0.4},${f2(inT)});`);
-    tw.push(`tl.fromTo("#${id}b",{width:"0%"},{width:"${s.bv}%",duration:0.9,ease:"power2.out"},${f2(inT + 0.1)});`);
-    tw.push(`tl.fromTo("#${id}a",{width:"0%"},{width:"${s.av}%",duration:1.2,ease:"power3.out"},${f2(inT + 0.5)});`);
-    tw.push(`tl.to("#${id}",{opacity:0,duration:0.35,ease:"power1.in"},${f2(outT + 0.6)});`);
-  } else if (s.type === "split") {
-    els.push(`<div class="scene split" id="${id}">
-        <div class="split-bar"><div class="split-g" id="${id}g"></div><div class="split-c" id="${id}c"></div></div>
-        <div class="split-legend"><span class="lg gr">55% creators</span><span class="lg mut">45% Google</span></div>
-        <div class="num-sub">${esc(s.sub)}</div>
-      </div>`);
-    tw.push(`tl.fromTo("#${id}",{opacity:0},{opacity:1,duration:0.4},${f2(inT)});`);
-    tw.push(`tl.fromTo("#${id}c",{width:"0%"},{width:"45%",duration:0.7,ease:"power2.out"},${f2(inT + 0.1)});`);
-    tw.push(`tl.fromTo("#${id}g",{width:"0%"},{width:"55%",duration:1.0,ease:"power3.out"},${f2(inT + 0.3)});`);
-    tw.push(`tl.to("#${id}",{opacity:0,duration:0.35,ease:"power1.in"},${f2(outT + 0.6)});`);
-  } else if (s.type === "stmt") {
-    els.push(`<div class="scene stmt" id="${id}">
-        <div class="stmt-big">${esc(s.big)}</div>
-        ${s.sub ? `<div class="stmt-sub">${esc(s.sub)}</div>` : ""}
-      </div>`);
-    tw.push(`tl.fromTo("#${id} .stmt-big",{opacity:0,scale:0.9,y:24},{opacity:1,scale:1,y:0,duration:0.55,ease:"back.out(1.4)"},${f2(inT)});`);
-    if (s.sub) tw.push(`tl.fromTo("#${id} .stmt-sub",{opacity:0,y:14},{opacity:1,y:0,duration:0.45,ease:"power3.out"},${f2(inT + 0.2)});`);
-    tw.push(`tl.to("#${id}",{opacity:0,duration:0.35,ease:"power1.in"},${f2(outT)});`);
-  }
+  const inT = b.start + 0.15;
+  const outT = Math.min(Math.min(b.end, total) - 0.15, inT + 3.0);
+  if (outT <= inT + 0.5) return;
+  lastHeroEnd = outT;
+  const color = (tipo === "reveal" || tipo === "cta") ? "gr" : (tipo === "hook" ? "am" : "cy");
+  els.push(`<div class="scene num c-${color}" id="${id}">
+      <div class="num-big">${esc(fig.big)}</div>
+      ${fig.sub ? `<div class="num-sub">${esc(fig.sub)}</div>` : ""}
+    </div>`);
+  tw.push(`tl.fromTo("#${id} .num-big",{opacity:0,scale:0.7,y:30},{opacity:1,scale:1,y:0,duration:0.6,ease:"back.out(1.6)"},${f2(inT)});`);
+  if (fig.sub) tw.push(`tl.fromTo("#${id} .num-sub",{opacity:0,y:16},{opacity:1,y:0,duration:0.5,ease:"power3.out"},${f2(inT + 0.18)});`);
+  tw.push(`tl.to("#${id} .num-big",{scale:1.04,duration:${f2(outT - inT)},ease:"sine.inOut"},${f2(inT + 0.6)});`);
+  tw.push(`tl.to("#${id}",{opacity:0,duration:0.35,ease:"power1.in"},${f2(outT)});`);
 });
 
 // ---- Capa de b-roll (footage real de fondo) + ken burns ----
@@ -115,6 +95,9 @@ broll.forEach((c, i) => {
   if (isVideo) {
     brollEls.push(`<video class="broll clip" id="bv${i}" data-start="${f2(c.start)}" data-duration="${f2(dur)}" data-track-index="0" src="${c.file}" muted playsinline></video>`);
     brollTw.push(`tl.fromTo("#bv${i}",{opacity:0},{opacity:1,duration:0.6,ease:"power1.out"},${f2(c.start)});`);
+    // Zoom lento alternado (in/out) por clip -> movimiento de director, no plano estatico.
+    const z0 = i % 2 ? 1.0 : 1.14, z1 = i % 2 ? 1.14 : 1.0;
+    brollTw.push(`tl.fromTo("#bv${i}",{scale:${z0}},{scale:${z1},duration:${f2(dur + 0.6)},ease:"none"},${f2(c.start)});`);
   } else {
     // imagen IA con ken burns (zoom + paneo), visibilidad por opacidad en su ventana
     const dx = i % 2 ? -50 : 50;
@@ -193,8 +176,6 @@ const html = `<!doctype html>
 
     <audio id="voz" class="clip" data-start="0" data-duration="${f2(total)}" data-track-index="9" src="${audioFile}"></audio>
 
-    <div id="ticker"><div class="tl">$ earned during this video</div><div class="tv mono" id="tv">$0</div></div>
-
     ${els.join("\n    ")}
 
     <div id="brand">The Data Lens</div>
@@ -209,10 +190,6 @@ const html = `<!doctype html>
     tl.to("#b1",{x:180,y:120,duration:T,ease:"sine.inOut"},0);
     tl.to("#b2",{x:-160,y:-90,duration:T,ease:"sine.inOut"},0);
     tl.to("#b3",{x:120,y:-140,duration:T,ease:"sine.inOut"},0);
-
-    // ticker sutil
-    const money={v:0}; const fmt=(n)=>"$"+Math.round(n).toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g,",");
-    tl.to(money,{v:${(RATE * total).toFixed(0)},duration:T,ease:"none",onUpdate:()=>{document.getElementById("tv").textContent=fmt(money.v);}},0);
 
     ${brollTw.join("\n    ")}
 

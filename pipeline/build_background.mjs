@@ -116,7 +116,11 @@ async function geminiPlan(list) {
   const fb = (process.env.FX_FOOTAGE || "").trim()
     ? `\n\nEl auditor marco este problema de footage en el intento anterior: "${process.env.FX_FOOTAGE.trim()}". CORRIGELO: busquedas mas especificas y relevantes al tema de cada segmento, mas VARIADAS (no repitas el mismo tipo de plano) y muy cinematograficas.`
     : "";
-  const prompt = `Eres director de fotografia de un video faceless cinematografico de datos/dinero (YouTube, ingles). Para CADA segmento de narracion da el mejor plano de fondo. Devuelve SOLO un array JSON, un objeto por segmento en el MISMO orden, con: "q" = query corta (2-4 palabras en INGLES) para buscar b-roll de stock MUY RELEVANTE al tema exacto del segmento (no generico), y "ai" = prompt de imagen IA de respaldo. REGLAS CLAVE: los planos deben verse BRILLANTES y bien iluminados (luz clara/dia, NADA de escenas oscuras o de noche; evita "dark", "night"), directamente relacionados con lo que dice ESE segmento, y VARIADOS entre si. Segmentos:\n${seg}${fb}`;
+  const prompt = `Eres director de fotografia de un video faceless cinematografico de datos/dinero (YouTube, ingles). Para CADA segmento de narracion da el MEJOR plano de fondo, PEGADO a lo que dice ese segmento.\n` +
+    `Devuelve SOLO un array JSON, un objeto por segmento en el MISMO orden, con:\n` +
+    `- "q" = query de 2-4 palabras en INGLES para buscar b-roll de stock. Si el segmento nombra una EMPRESA, MARCA, LUGAR, PRODUCTO u OBJETO concreto (ej: McDonald's, Tesla, stock exchange, warehouse, burger, real estate), la query DEBE ser sobre ESO especifico, no algo generico de "dinero". Usa el sustantivo concreto mas importante del segmento.\n` +
+    `- "ai" = prompt de imagen IA de respaldo, tambien especifico a ese segmento.\n` +
+    `REGLAS: planos BRILLANTES y bien iluminados (luz de dia, evita "dark"/"night"); MUY RELEVANTES al segmento exacto; VARIADOS entre si (no repitas el mismo tipo de plano); cinematograficos. Solo cae a un plano generico de dinero/datos si el segmento no menciona nada concreto.\nSegmentos:\n${seg}${fb}`;
   for (const m of ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-flash-latest", "gemini-2.0-flash"]) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI}`, {
