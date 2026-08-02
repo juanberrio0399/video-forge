@@ -126,12 +126,15 @@ export const APP_HTML = `<!doctype html>
   function problemsHtml(){
     var p=ST.problems||[];
     if(!p.length) return "";
-    return '<h2>⚠️ Problemas</h2>'+p.map(function(x){
+    return '<h2>⚠️ Problemas ('+p.length+')</h2>'
+      +'<div class="muted" style="font-size:11px;margin:0 2px 6px">Errores de las últimas 24 h. 📋 Ver el error muestra el detalle; 🔁 Reintentar lo vuelve a lanzar; ↗ abre el log completo en GitHub.</div>'
+      +p.map(function(x){
       return '<div class="card" style="border:1px solid rgba(245,158,11,.45)">'
         +'<div style="font-weight:700;color:var(--am)">⚠️ '+esc(x.name)+'</div>'
         +'<div class="muted" style="margin:4px 0">Falló en: '+esc(x.step||"?")+'</div>'
-        +'<div><button class="btn mini" onclick="retry(\\''+esc(x.workflow)+'\\')">🔁 Reintentar</button> '
-        +'<button class="btn mini ghost" onclick="showError('+(x.run_id||0)+')">📋 Ver el error</button></div>'
+        +'<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn mini" onclick="retry(\\''+esc(x.workflow)+'\\')">🔁 Reintentar</button>'
+        +'<button class="btn mini ghost" onclick="showError('+(x.run_id||0)+')">📋 Ver el error</button>'
+        +(x.url?'<a class="btn mini ghost" href="'+esc(x.url)+'" target="_blank">↗ Log completo</a>':'')+'</div>'
         +'<div id="err'+(x.run_id||0)+'" style="margin-top:6px"></div></div>';
     }).join("");
   }
@@ -537,14 +540,12 @@ export const APP_HTML = `<!doctype html>
       .catch(function(){toast("❌ Error de red");});
   }
   function retry(wf){
+    // produce_video se reintenta produciendo el próximo tema (necesita topic).
     if(wf==="produce_video.yml"){ var u=(ST.upcoming||[])[0]; if(u){produceVideo(u.n);return;} toast("Abre 'Siguiente video' para producir."); return; }
-    // Solo reintento a ciegas los workflows SIN inputs. Los que exigen datos (set_privacy,
-    // thumbnail_only, seo_regen, shorts_plan) NO: reintentar sin inputs usaría defaults
-    // peligrosos (p. ej. set_privacy dejaría PÚBLICO un video fijo). Se reintentan desde su tarjeta.
-    var SAFE={"channel_report.yml":1,"render_phased.yml":1,"publish_youtube.yml":1,"shorts_final.yml":1,"voice_parallel.yml":1};
-    if(!SAFE[wf]){ toast("⚠️ Ese paso se reintenta desde su tarjeta (necesita datos específicos), no desde aquí."); return; }
+    // El resto se reintenta directo. (set_privacy ya es inofensivo sin inputs: default vacío + guarda.)
+    if(!wf){ toast("❌ No sé qué workflow reintentar."); return; }
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:wf})})
-      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🔁 Reintentando…":"❌ "+(j.error||"no pude"));setTimeout(load,1500);})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🔁 Reintentando… mira ⚡ arriba":"❌ "+(j.error||"no pude"));setTimeout(load,2000);})
       .catch(function(){toast("❌ Error de red");});
   }
   function produceVideo(n){
