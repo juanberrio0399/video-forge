@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       phase_seconds:
-        description: "Segundos por fase (default 180 = 3 min)"
+        description: "Segundos por fase (default 120 = 2 min; fases mas cortas rinden mas rapido)"
         required: false
-        default: "180"
+        default: "120"
       only_phases:
         description: "Solo re-renderizar estas fases (ej: 1,2). Vacio = todas."
         required: false
@@ -41,7 +41,7 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      PHASE_SECONDS: ${{ github.event.inputs.phase_seconds || '180' }}
+      PHASE_SECONDS: ${{ github.event.inputs.phase_seconds || '120' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -109,7 +109,7 @@ jobs:
   render:
     needs: prepare
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 100
     strategy:
       fail-fast: false
       matrix:
@@ -174,11 +174,11 @@ jobs:
           cp "phases/$PH/voicemap.json" voicemap.json
           ls -la timing.json voiceover.mp3 voicemap.json
 
-      - name: Render fase con puerta de calidad (3 intentos, umbral 7.5)
+      - name: Render fase con puerta de calidad (2 intentos, umbral 7.5)
         if: ${{ steps.reuse.outputs.reuse != 'yes' }}
         env:
           THRESHOLD: "7.5"
-          MAX_ATTEMPTS: "3"
+          MAX_ATTEMPTS: "2"
         run: |
           mkdir -p renders
           HOOK=$(node -e "try{const v=JSON.parse(require('fs').readFileSync('voicemap.json','utf8'));process.stdout.write((v.beats&&v.beats[0]&&v.beats[0].text||'').slice(0,120))}catch(e){}")
@@ -190,9 +190,12 @@ jobs:
             rm -f renders/render.mp4
             node pipeline/build_background.mjs timing.json bg 0 || echo "fondo opcional fallo; sigo"
             node pipeline/build_composition.mjs timing.json index.html voiceover.mp3 0 bg/bg.json || { echo "composicion fallo"; continue; }
-            # timeout de 15 min por intento: si HyperFrames se cuelga (Chrome headless), lo mata y reintenta.
-            # --browser-timeout 300: la composicion tiene ~22 clips de b-roll (pesada); con 60s (default) Chrome no la carga a tiempo y se cuelga.
-            timeout 900 npx --yes hyperframes@${HF_VERSION} render --quality standard --workers auto --browser-timeout 300 -o renders/render.mp4 > "hf_${att}.log" 2>&1 || echo "Fase $PH intento $att: render se colgó (>15min) o falló — reintento."
+            # El render NO se colgaba: iba a ~1 fps y el timeout viejo (15 min) lo cortaba a mitad.
+            # Fix = velocidad + margen. Intento 1: standard (mejor calidad). Intento 2: draft
+            # (mucho mas rapido, asegura que SALGA). workers 3 paraleliza la captura; 40 min/intento.
+            Q="standard"; [ "$att" -ge 2 ] && Q="draft"
+            echo "Render calidad=$Q (intento $att)"
+            timeout 2400 npx --yes hyperframes@${HF_VERSION} render --quality "$Q" --workers 3 --browser-timeout 300 -o renders/render.mp4 > "hf_${att}.log" 2>&1 || echo "Fase $PH intento $att ($Q): render no termino a tiempo (>40min) o fallo — reintento."
             tail -20 "hf_${att}.log" 2>/dev/null || true
             if [ ! -s renders/render.mp4 ] || ! ffprobe -v error -i renders/render.mp4 >/dev/null 2>&1; then echo "Fase $PH intento $att: render SIN salida o CORRUPTO (mp4 truncado). Sigo."; rm -f renders/render.mp4; continue; fi
             node pipeline/review_video.mjs renders/render.mp4 "${HOOK:-video de datos}" "review_${att}.txt" "review_${att}.json" voicemap.json || echo "review fallo"
