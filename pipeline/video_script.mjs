@@ -31,9 +31,16 @@ async function gemini(prompt) {
   return null;
 }
 
+// MEJORA CONTINUA: aprendizajes de lo ya publicado (métricas reales + tendencias). Los inyecta
+// produce_video.yml via env LEARNINGS (de pipeline/learnings.mjs). Si viene, el guion los aplica.
+const LEARN = (process.env.LEARNINGS || "").trim();
+const learnBlock = LEARN
+  ? `\n\nAPRENDIZAJES DE ESTE CANAL (rendimiento real + tendencias) — APLÍCALOS en este guion (ángulo, tipo de gancho, formato de título, ritmo):\n${LEARN}\n`
+  : "";
+
 const prompt =
   `Eres guionista de un canal faceless de YouTube de DATOS/DINERO en INGLES (mercado EE.UU.), ` +
-  `estilo documental cinematografico con ALTA RETENCION. Escribe el guion COMPLETO (~7-9 min) del video sobre: "${topic}".\n` +
+  `estilo documental cinematografico con ALTA RETENCION. Escribe el guion COMPLETO (~7-9 min) del video sobre: "${topic}".${learnBlock}\n` +
   `Reglas de retencion: gancho brutal en la 1a frase; promete algo al inicio y pagalo al final; ` +
   `escala cifras/datos de menor a mayor; una vuelta de tuerca ("twist") a mitad y al final; ` +
   `micro-ganchos entre secciones; cierra con CTA (suscribirse + el siguiente video de la serie). ` +

@@ -308,10 +308,11 @@ async function handleApi(request, env, url) {
     // Avanzar PROXIMOS: quitar los que ya se produjeron (channel/produced.json = {done:[ns]}).
     const produced = (await r2json(env, "channel/produced.json")) || { done: [] };
     const doneSet = new Set(produced.done || []);
-    // Avanza los proximos: quita los ya producidos (produced.json) Y los cubiertos por
-    // la cantidad de largos ya publicados (auto-avance aunque falte produced.json).
-    const longCount0 = (state.published || []).length;
-    state.upcoming = (state.upcoming || []).filter((u) => !doneSet.has(u.n) && u.n > longCount0);
+    // Avanza los proximos: quita los ya producidos (produced.json, señal principal) Y los
+    // cubiertos por la cantidad de largos PUBLICOS (auto-avance de respaldo si falta produced.json).
+    // Usa PUBLICOS (no todos) para que un largo privado/borrador no oculte temas de la cola.
+    const publicLongCount = (state.published || []).filter((v) => v.privacy === "public").length;
+    state.upcoming = (state.upcoming || []).filter((u) => !doneSet.has(u.n) && u.n > publicLongCount);
     // Metricas frescas del canal (del inventario, cada 10 min).
     if (inv.at) {
       state.channel_stats = { subs: inv.subs, total_views: inv.total_views, videos: (inv.longs || []).length + (inv.shorts || []).length };
@@ -319,6 +320,10 @@ async function handleApi(request, env, url) {
       state.monetization.subs = inv.subs;
     }
     state.inventory_at = inv.at;
+    // MEJORA CONTINUA: aprendizajes (métricas reales + tendencias) que se aplican al próximo
+    // guion. Los genera pipeline/learnings.mjs antes de producir y los guarda en R2.
+    const learn = await r2json(env, "channel/learnings.json");
+    state.learnings = learn ? { brief: learn.brief || "", source: learn.source || "", top: (learn.top || []).slice(0, 5), at: learn.generated_at || null } : null;
     // Uso de R2 (alerta para que siga gratis: limite 10 GB).
     const r2u = await r2Usage(env);
     const usedGb = (r2u.bytes || 0) / (1024 * 1024 * 1024);
@@ -490,7 +495,8 @@ async function handleApi(request, env, url) {
   }
 
   if (url.pathname === "/api/upload" && request.method === "POST") {
-    const form = await request.formData();
+    let form;
+    try { form = await request.formData(); } catch { return json({ error: "cuerpo inválido (se esperaba multipart)" }, 400); }
     const kind = form.get("kind");
     if (kind === "photo") {
       const f = form.get("file");
