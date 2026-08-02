@@ -353,8 +353,9 @@ export const APP_HTML = `<!doctype html>
         +'<button class="btn ghost" onclick="regenSeo()">🔁 Regenerar SEO</button>';
       if(p.approved){
         h+='<div style="text-align:center;font-weight:700;color:var(--gr);padding:8px;margin:8px 0;background:rgba(52,211,153,.12);border-radius:12px">✅ Descripción aprobada</div>'
-          +'<button class="btn" onclick="publishVideo()">🌍 Publicar (hacer público)</button>'
-          +'<div class="muted" style="font-size:11px;margin-top:4px">Paso 2: esto hace el video PÚBLICO en el canal.</div>';
+          +'<button class="btn" onclick="scheduleVideo()">📅 Programar en la mejor hora</button>'
+          +'<div class="muted" style="font-size:11px;margin:4px 0 8px">Recomendado: lo deja listo y YouTube lo publica solo en el mejor horario (EEUU). Lo verás en 📅 Programados.</div>'
+          +'<button class="btn ghost" onclick="publishVideo()">🌍 Publicar ahora</button>';
       } else {
         h+='<button class="btn" onclick="approveSeo()">✅ Aprobar descripción</button>'
           +'<div class="muted" style="font-size:11px;margin-top:4px">Paso 1: aprobar deja el SEO listo (el video sigue privado). Después aparece Publicar.</div>';
@@ -375,6 +376,25 @@ export const APP_HTML = `<!doctype html>
       +(top?'<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.08);padding-top:6px"><div class="muted" style="font-size:11px;font-weight:700">Lo que más rinde:</div>'+top+'</div>':'')
       +(l.at?'<div class="muted" style="font-size:10px;margin-top:6px">Analizado: '+esc(String(l.at).slice(0,16).replace("T"," "))+'</div>':'')
       +'</div>';
+  }
+  function fmtSlot(iso){
+    try{
+      var d=new Date(iso);
+      var et=d.toLocaleString("es-CO",{timeZone:"America/New_York",weekday:"short",day:"numeric",month:"short",hour:"numeric",minute:"2-digit",hour12:true});
+      var lo=d.toLocaleString("es-CO",{timeZone:"America/Bogota",hour:"numeric",minute:"2-digit",hour12:true});
+      return et+" ET · tu "+lo;
+    }catch(e){return iso;}
+  }
+  function scheduledHtml(){
+    // Videos PROGRAMADOS (con hora futura). Al publicarse, YouTube los pasa a público y desaparecen.
+    var s=ST.scheduled||[]; if(!s.length) return "";
+    var rows=s.map(function(v){
+      return '<div style="border-top:1px solid rgba(255,255,255,.06);padding:6px 0">'
+        +'<div style="font-size:12px">'+(v.type==="short"?"🎬 ":"📹 ")+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,34))+'</a>':esc(v.title||""))+'</div>'
+        +'<div style="font-size:11px;color:var(--cy)">🕒 '+esc(fmtSlot(v.publish_at))+'</div></div>';
+    }).join("");
+    return '<h2>📅 Programados ('+s.length+')</h2>'
+      +'<div class="card"><div class="muted" style="font-size:11px;margin-bottom:4px">Se publican solos en la mejor hora (EEUU). Al publicarse, desaparecen de aquí.</div>'+rows+'</div>';
   }
   function bestTimesHtml(){
     // Mejores horas para PUBLICAR (audiencia EE.UU., canal de datos/dinero, faceless).
@@ -474,6 +494,7 @@ export const APP_HTML = `<!doctype html>
       pendingThumbsHtml()
       +flowStepsHtml()
       +productionHtml()
+      +scheduledHtml()
       +nextStepHtml()
       +matrixHtml()
       +learningsHtml()
@@ -619,8 +640,17 @@ export const APP_HTML = `<!doctype html>
     var p=ST.production||{}; if(!p.video_id){toast("Aún no hay video subido");return;}
     var go=function(){ api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"set_privacy.yml",inputs:{video_id:p.video_id,privacy:"public"}})})
       .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🌍 Publicando el video como público. Cuando quieras, ve a Shorts y dale Sugerir.":"❌ "+(j.error||"no pude"));setTimeout(load,1800);}); };
-    if(tg&&tg.showConfirm){ tg.showConfirm("¿Publicar el video como PÚBLICO en el canal?",function(ok){if(ok)go();}); }
-    else if(confirm("¿Publicar el video como PÚBLICO en el canal?")){ go(); }
+    if(tg&&tg.showConfirm){ tg.showConfirm("¿Publicar el video como PÚBLICO AHORA (sin esperar la mejor hora)?",function(ok){if(ok)go();}); }
+    else if(confirm("¿Publicar el video como PÚBLICO ahora?")){ go(); }
+  }
+  function scheduleVideo(){
+    var p=ST.production||{}; if(!p.video_id){toast("Aún no hay video subido");return;}
+    if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
+    api("/api/schedule",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({})})
+      .then(function(r){return r.json();}).then(function(j){
+        if(j.ok){ toast("📅 Programado para "+fmtSlot(j.publish_at)); setTimeout(load,1800); }
+        else toast("❌ "+(j.error||"no pude programar"));
+      }).catch(function(){toast("❌ Error de red");});
   }
   function shortApprove(n, ok){
     if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("light");
