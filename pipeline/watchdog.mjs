@@ -3,7 +3,7 @@
 //  2) Reintenta el render si FALLÓ (con guarda: max 3 fallos en 2h -> avisa y no insiste).
 const { GH_TOKEN, GITHUB_REPOSITORY: REPO, TELEGRAM_BOT_TOKEN, OWNER_CHAT_ID } = process.env;
 const H = { Authorization: `Bearer ${GH_TOKEN}`, Accept: "application/vnd.github+json" };
-const MAX_MIN = 100; // colgada si lleva mas de 100 min
+const MAX_MIN = 140; // colgada si pasa de 140 min (un render legitimo puede durar ~120: 2 intentos x 55 min)
 const now = Date.now();
 
 async function tg(text) {
