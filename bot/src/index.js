@@ -324,6 +324,9 @@ async function handleApi(request, env, url) {
     // guion. Los genera pipeline/learnings.mjs antes de producir y los guarda en R2.
     const learn = await r2json(env, "channel/learnings.json");
     state.learnings = learn ? { brief: learn.brief || "", source: learn.source || "", top: (learn.top || []).slice(0, 5), at: learn.generated_at || null } : null;
+    // Aprendizajes de ERRORES (identificados + analizados por IA + patrones). "Aprende dia con dia."
+    const elog = await r2json(env, "channel/error_log.json");
+    state.error_learnings = elog ? { incidents: (elog.incidents || []).slice(-6).reverse(), patterns: elog.patterns || [], at: elog.updated_at || null } : null;
     // Uso de R2 (alerta para que siga gratis: limite 10 GB).
     const r2u = await r2Usage(env);
     const usedGb = (r2u.bytes || 0) / (1024 * 1024 * 1024);
