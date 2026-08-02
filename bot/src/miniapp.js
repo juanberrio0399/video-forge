@@ -283,7 +283,14 @@ export const APP_HTML = `<!doctype html>
     // Video RENDERIZADO esperando aprobación -> ver / aprobar / regenerar, TODO en la app.
     if(p.render_pending){
       var q2=p.quality||{}, ms=q2.min_score||0;
+      var qa=p.render_qa||{};
       var hr='<h2>🎬 Video listo — revísalo y aprueba</h2>';
+      var mmss=qa.duration?(' · '+Math.floor(qa.duration/60)+':'+('0'+(qa.duration%60)).slice(-2)):'';
+      if(qa.warning){
+        hr+='<div class="card" style="border:1px solid rgba(245,158,11,.5)"><b style="color:var(--am)">⚠️ QA no pudo cumplir tras varios intentos</b><div class="muted" style="font-size:12px;margin-top:4px">'+esc(qa.warning)+'. Revísalo manual: apruébalo si te sirve o regéralo.</div></div>';
+      } else {
+        hr+='<div class="muted" style="font-size:12px;margin:2px">✅ Pasó el QA automático (duración'+mmss+', calidad OK).</div>';
+      }
       if(p.watch_url) hr+='<a class="btn" href="'+esc(location.origin+p.watch_url)+'" target="_blank">▶️ Ver el video</a>';
       hr+='<div class="card"><div style="display:flex;align-items:center;gap:12px">'
         +'<div class="score" style="color:'+scoreColor(ms)+'">'+ms+'<span style="font-size:13px;color:var(--hint)">/10</span></div>'

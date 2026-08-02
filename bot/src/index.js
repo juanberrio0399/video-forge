@@ -393,6 +393,7 @@ async function handleApi(request, env, url) {
       approved: isApproved,
       done: prodPublished,
       render_pending: !!renderPending,
+      render_qa: renderPending ? { ok: renderPending.qa_ok !== false, warning: renderPending.qa_warning || "", duration: renderPending.duration || 0 } : null,
       quality: quality || null,
       seo: pkg ? {
         title: pkg.title || null, description: pkg.description || null,

@@ -344,14 +344,21 @@ jobs:
           done
           echo "Checkpoints de fases borrados (el video final ya quedó)."
 
-      - name: Guardar la calificacion de calidad en R2 (para la app)
+      - name: QA automático — rechaza cortos/malos y regenera solo
         if: ${{ hashFiles('renders/video.mp4') != '' }}
         env:
           BUCKET: video-forge
           PROJECT: "0001-youtube-money"
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+          QA_MIN_DURATION: "300"
+          QA_MIN_SCORE: "7.0"
+          QA_MAX_ATTEMPTS: "3"
         run: |
+          # 1) Calificacion por fases (para la app).
           node -e '
             const fs=require("fs");
             const scores=(process.env.SCORES||"").trim().split(/\s+/).filter(Boolean).map(x=>{const [p,s]=x.split(":");return {phase:p,score:parseFloat(s)||0}});
@@ -359,9 +366,39 @@ jobs:
             fs.writeFileSync("quality.json", JSON.stringify({min_score:min, threshold:7.5, passed:min>=7.5, phases:scores, updated_at:new Date().toISOString()}));
           '
           npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/quality.json" --file=quality.json --remote --content-type application/json
-          # Señal para la app: video RENDERIZADO, esperando que Juan lo apruebe (todo en la app).
-          node -e 'require("fs").writeFileSync("render_pending.json", JSON.stringify({at:new Date().toISOString(), min_score:parseFloat(process.env.MIN_SCORE||"0")||0}))'
-          npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/render_pending.json" --file=render_pending.json --remote --content-type application/json
+          # 2) QA objetivo del video final: duracion + integridad + nota.
+          node pipeline/qa_check.mjs renders/video.mp4 "${MIN_SCORE:-0}" qa.json
+          npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/qa.json" --file=qa.json --remote --content-type application/json
+          export PASSED=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("qa.json","utf8")).passed?"1":"0")}catch(e){process.stdout.write("0")}')
+          export REASONS=$(node -e 'try{process.stdout.write((JSON.parse(require("fs").readFileSync("qa.json","utf8")).reasons||[]).join("; "))}catch(e){}')
+          export DUR=$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync("qa.json","utf8")).duration||0))}catch(e){process.stdout.write("0")}')
+          # 3) Contador de intentos QA (en R2) para no rehacer infinito.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/qa_attempts.json" --file=qa_attempts.json --remote 2>/dev/null || echo '{"n":0}' > qa_attempts.json
+          ATT=$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync("qa_attempts.json","utf8")).n||0))}catch(e){process.stdout.write("0")}')
+          writeRP(){ node -e 'require("fs").writeFileSync("render_pending.json", JSON.stringify({at:new Date().toISOString(), min_score:parseFloat(process.env.MIN_SCORE||"0")||0, qa_ok:process.argv[1]==="1", qa_warning:process.env.REASONS||"", duration:parseInt(process.env.DUR||"0",10)}))' "$1"; npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/render_pending.json" --file=render_pending.json --remote --content-type application/json; }
+          setAtt(){ echo "{\"n\":$1}" > qa_attempts.json; npx --yes wrangler@4 r2 object put "$BUCKET/channel/qa_attempts.json" --file=qa_attempts.json --remote --content-type application/json; }
+          if [ "$PASSED" = "1" ]; then
+            setAtt 0; writeRP 1
+            echo "QA_PASSED=1" >> "$GITHUB_ENV"
+            bash pipeline/notify_telegram.sh "✅ QA aprobó el video (${DUR}s, nota ${MIN_SCORE}). Está en la app (Control) para que lo apruebes."
+          else
+            NEXT=$((ATT+1))
+            if [ "$NEXT" -le "$QA_MAX_ATTEMPTS" ]; then
+              setAtt "$NEXT"
+              # NO render_pending: no se muestra un video malo. Rehace desde cero (voz completa + render).
+              for k in 0 1 2 3 4 5 6 7 8 9; do npx --yes wrangler@4 r2 object delete "$BUCKET/video/$PROJECT/phases/phase_${k}.mp4" --remote 2>/dev/null || true; done
+              npx --yes wrangler@4 r2 object delete "$BUCKET/audio/$PROJECT/voiceover.mp3" --remote 2>/dev/null || true
+              npx --yes wrangler@4 r2 object delete "$BUCKET/audio/$PROJECT/timing.json" --remote 2>/dev/null || true
+              gh workflow run voice_parallel.yml -f then_render=true -f engine=gemini -R "$GITHUB_REPOSITORY" || true
+              echo "QA_PASSED=0" >> "$GITHUB_ENV"
+              bash pipeline/notify_telegram.sh "🤖 QA RECHAZÓ el video: ${REASONS}."$'\n'"Regenerando automáticamente (intento ${NEXT}/${QA_MAX_ATTEMPTS}). No te muestro nada hasta que cumpla."
+            else
+              # Tope alcanzado: sin loop infinito. Lo dejo marcado para revision MANUAL.
+              setAtt 0; writeRP 0
+              echo "QA_PASSED=1" >> "$GITHUB_ENV"
+              bash pipeline/notify_telegram.sh "⚠️ QA no logró cumplir tras ${QA_MAX_ATTEMPTS} intentos (${REASONS}). Te lo dejo en la app (Control) marcado para revisión MANUAL."
+            fi
+          fi
 
       - name: Subir artifact final
         if: ${{ hashFiles('renders/video.mp4') != '' }}
@@ -371,22 +408,9 @@ jobs:
           path: renders/video.mp4
           retention-days: 14
 
-      - name: Enviar al chat con aprobacion
-        if: always()
+      - name: Avisar si NO se pudo armar el video (el QA ya avisa el resto)
+        if: ${{ always() && hashFiles('renders/video.mp4') == '' }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
-          PROJECT: "0001-youtube-money"
-        run: |
-          if [ -f renders/video.mp4 ]; then
-            MSG="🎬 VIDEO completo del canal listo (unido por fases)."$'\n'"Notas por fase:${SCORES} · mínima ${MIN_SCORE}/10."$'\n\n'
-            if node -e "process.exit((${MIN_SCORE:-0}) >= 7.5 ? 0 : 1)"; then
-              MSG="${MSG}✅ Todas las fases pasaron el mínimo (7.5)."
-            else
-              MSG="${MSG}⚠️ Quedó por debajo del mínimo (7.5). Recomiendo regenerarlo."
-            fi
-            MSG="${MSG}"$'\n'"👉 Ábrelo en la app (pestaña Control): ahí lo VES ▶️, lo apruebas ✅, lo regeneras 🔁 o lo publicas — todo desde la app."
-            bash pipeline/notify_telegram.sh "$MSG"
-          else
-            bash pipeline/notify_telegram.sh "❌ No pude unir las fases del video. Regeneralo desde la app (pestaña Control)."
-          fi
+        run: bash pipeline/notify_telegram.sh "❌ No pude unir las fases del video. Regeneralo desde la app (pestaña Control)."
