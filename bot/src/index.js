@@ -364,6 +364,9 @@ async function handleApi(request, env, url) {
     state.error_learnings = elog ? { incidents: (elog.incidents || []).slice(-6).reverse(), patterns: elog.patterns || [], at: elog.updated_at || null } : null;
     // Salud de las herramientas diarias (APIs gratis).
     state.tools_health = await r2json(env, "channel/tools_health.json");
+    // AUTO-MEJORA del render: lo que aprendió del último video y aplica al siguiente.
+    const craft = await r2json(env, "channel/craft_feedback.json");
+    state.craft = craft ? { footage: craft.footage_feedback || "", hook: craft.hook || "", score: craft.score || 0, fixes: craft.fixes || {}, at: craft.at || null } : null;
     // Uso de R2 (alerta para que siga gratis: limite 10 GB).
     const r2u = await r2Usage(env);
     const usedGb = (r2u.bytes || 0) / (1024 * 1024 * 1024);
