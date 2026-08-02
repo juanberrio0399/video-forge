@@ -339,7 +339,7 @@ async function handleApi(request, env, url) {
       options: VOICE_OPTIONS.map((v) => ({ id: v.id, label: v.label, sample_url: "/watch/" + v.sample })),
     };
     // Corridas: activas (en proceso) + PROBLEMAS (fallidas recientes, con el paso que fallo).
-    const runsRes = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=15`);
+    const runsRes = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=50`);
     const runs = runsRes.ok ? ((await runsRes.json()).workflow_runs || []) : [];
     // Activas CON paso actual + % + ETA (para verlo en vivo en la app, cortito).
     const actRuns = runs.filter((r) => r.status !== "completed");
@@ -364,7 +364,8 @@ async function handleApi(request, env, url) {
     // (asi cada error sale UNA vez y se limpia solo cuando reintentas con exito).
     const latestByWf = {};
     for (const r of runs) { const wf = r.path || r.name; if (!latestByWf[wf]) latestByWf[wf] = r; }
-    const fails = Object.values(latestByWf).filter((r) => r.conclusion === "failure" && (Date.now() - Date.parse(r.updated_at)) < 6 * 3600 * 1000).slice(0, 5);
+    // Muestra TODOS los errores recientes (últimas 24h), la última corrida fallida por workflow.
+    const fails = Object.values(latestByWf).filter((r) => r.conclusion === "failure" && (Date.now() - Date.parse(r.updated_at)) < 24 * 3600 * 1000).slice(0, 12);
     state.problems = [];
     for (const r of fails) {
       let step = "";
@@ -421,15 +422,18 @@ async function handleApi(request, env, url) {
     try {
       const jr = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs/${runId}/jobs`);
       if (!jr.ok) return json({ detail: "No pude leer el run." });
-      const job = ((await jr.json()).jobs || []).find((j) => j.conclusion === "failure");
-      if (!job) return json({ detail: "No encontré un paso fallido en ese run." });
-      const failedStep = (job.steps || []).find((s) => s.conclusion === "failure");
-      const lr = await fetch(`https://api.github.com/repos/${env.GH_REPO}/actions/jobs/${job.id}/logs`, { headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: "application/vnd.github+json", "User-Agent": "video-forge" } });
-      if (!lr.ok) return json({ detail: `No pude leer el log (HTTP ${lr.status}).`, step: failedStep && failedStep.name });
+      const jobs = (await jr.json()).jobs || [];
+      // Job que rompió: fallido, o cancelado (timeout), o el último no-exitoso.
+      const job = jobs.find((j) => j.conclusion === "failure") || jobs.find((j) => j.conclusion === "cancelled")
+        || jobs.filter((j) => j.conclusion && j.conclusion !== "success").pop();
+      if (!job) return json({ detail: "No encontré un paso con error en ese run. Abre el log completo en GitHub (↗)." });
+      const failedStep = (job.steps || []).find((s) => s.conclusion === "failure") || (job.steps || []).find((s) => s.conclusion === "cancelled");
+      const lr = await fetch(`https://api.github.com/repos/${env.GH_REPO}/actions/jobs/${job.id}/logs`, { headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: "application/vnd.github+json", "User-Agent": "video-forge" }, redirect: "follow" });
+      if (!lr.ok) return json({ detail: `No pude leer el log inline (HTTP ${lr.status}${lr.status === 410 ? " — el log ya expiró en GitHub" : ""}). Abre el log completo con ↗.`, step: (failedStep && failedStep.name) || job.name });
       const text = await lr.text();
       const lines = text.split("\n").map((l) => l.replace(/^\S+\s/, "")).filter((l) => l.trim());
-      const tail = lines.slice(-40).join("\n").slice(-2500);
-      return json({ detail: tail || "(log vacío)", step: (failedStep && failedStep.name) || job.name });
+      const tail = lines.slice(-45).join("\n").slice(-2800);
+      return json({ detail: tail || "(log vacío) — ábrelo completo con ↗.", step: (failedStep && failedStep.name) || job.name });
     } catch (e) { return json({ detail: "Error leyendo el detalle: " + e.message }); }
   }
 
