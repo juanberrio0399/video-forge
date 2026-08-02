@@ -62,20 +62,8 @@ jobs:
       - name: Guardar el plan en R2
         run: npx --yes wrangler@4 r2 object put "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote --content-type application/json
 
-      - name: Enviar cada short al chat con Aprobar/Saltar
+      - name: Avisar propuesta de shorts (aprobar en la app)
         run: |
           REASON=$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('plan.json','utf8')).reasoning||'')")
           N=$(node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync('plan.json','utf8')).shorts.length))")
-          bash pipeline/notify_telegram.sh "🎬 Propuesta de Shorts — la IA sugiere $N. $REASON"$'\n\n'"Te muestro uno por uno; aprueba los que quieras."
-          COUNT=$(node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync('plan.json','utf8')).shorts.length))")
-          for i in $(seq 0 $((COUNT-1))); do
-            MSG=$(PLAN_I=$i node -e '
-              const p=JSON.parse(require("fs").readFileSync("plan.json","utf8"));
-              const s=p.shorts[+process.env.PLAN_I];
-              const mmss=(x)=>`${String(Math.floor(x/60)).padStart(2,"0")}:${String(x%60).padStart(2,"0")}`;
-              process.stdout.write(`🎬 Short #${s.n+1}: ${s.title}\n⏱️ ${mmss(s.start)}–${mmss(s.end)} (${s.dur}s)\n🪝 ${s.hook}\n#️⃣ ${(s.hashtags||[]).join(" ")}\n📝 ${s.caption}`);
-            ')
-            MK=$(node -e "process.stdout.write(JSON.stringify({inline_keyboard:[[{text:'✅ Aprobar short '+($i+1),callback_data:'short_ok:$i'},{text:'❌ Saltar',callback_data:'short_no:$i'}]]}))")
-            bash pipeline/notify_telegram.sh "$MSG" "" "$MK"
-          done
-          bash pipeline/notify_telegram.sh "Cuando apruebes los que quieras, dime /generarshorts y los armo (9:16, con subtítulos) y los subo."
+          bash pipeline/notify_telegram.sh "🎬 Propuesta de Shorts — la IA sugiere $N. $REASON"$'\n\n'"👉 Míralos y apruébalos en la app (pestaña Shorts): ahí ves cada uno (título, corte, gancho) y le das ✅ Aprobar — todo desde la app. Luego se generan y suben (9:16, con subtítulos)."

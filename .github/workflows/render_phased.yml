@@ -375,15 +375,14 @@ jobs:
           PROJECT: "0001-youtube-money"
         run: |
           if [ -f renders/video.mp4 ]; then
-            WATCH="https://video-forge-bot.tienvo.workers.dev/watch/video/$PROJECT/video.mp4"
-            MK='{"inline_keyboard":[[{"text":"▶️ Ver el video","url":"'"$WATCH"'"}],[{"text":"✅ Aprobar y publicar","callback_data":"approve:video"},{"text":"🔁 Regenerar","callback_data":"regen:phased"}],[{"text":"✏️ Cambiar algo","callback_data":"change:video"}]]}'
-            MSG="🎬 Resultado: VIDEO completo del canal (unido por fases)."$'\n'"Notas por fase:${SCORES} · mínima ${MIN_SCORE}/10."$'\n\n'
+            MSG="🎬 VIDEO completo del canal listo (unido por fases)."$'\n'"Notas por fase:${SCORES} · mínima ${MIN_SCORE}/10."$'\n\n'
             if node -e "process.exit((${MIN_SCORE:-0}) >= 7.5 ? 0 : 1)"; then
-              MSG="${MSG}✅ Todas las fases pasaron el mínimo (7.5). Míralo con ▶️ Ver el video; si te gusta, apruébalo y lo publico (privado)."
+              MSG="${MSG}✅ Todas las fases pasaron el mínimo (7.5)."
             else
-              MSG="${MSG}⚠️ Quedó por debajo del mínimo (7.5). Míralo con ▶️ Ver el video. Recomiendo REGENERARLO, pero si te gusta puedes aprobarlo igual."
+              MSG="${MSG}⚠️ Quedó por debajo del mínimo (7.5). Recomiendo regenerarlo."
             fi
-            bash pipeline/notify_telegram.sh "$MSG" "" "$MK"
+            MSG="${MSG}"$'\n'"👉 Ábrelo en la app (pestaña Control): ahí lo VES ▶️, lo apruebas ✅, lo regeneras 🔁 o lo publicas — todo desde la app."
+            bash pipeline/notify_telegram.sh "$MSG"
           else
-            bash pipeline/notify_telegram.sh "❌ No pude unir las fases del video. Toca 🔁 Regenerar para reintentar."
+            bash pipeline/notify_telegram.sh "❌ No pude unir las fases del video. Regeneralo desde la app (pestaña Control)."
           fi

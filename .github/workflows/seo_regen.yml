@@ -91,13 +91,12 @@ jobs:
       - name: Guardar el paquete nuevo en R2
         run: npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/package.json" --file=publish/package.json --remote
 
-      - name: Reenviar el SEO al chat con aprobar/regenerar
+      - name: Avisar SEO regenerado (aprobar en la app)
         if: always()
         run: |
           VID=$(cat video_id.txt 2>/dev/null || echo "")
-          MK='{"inline_keyboard":[[{"text":"✅ Aprobar publicacion","callback_data":"pub_ok"},{"text":"🔁 Regenerar SEO","callback_data":"seo_regen"}]]}'
           if [ -f publish/summary.txt ]; then
-            bash pipeline/notify_telegram.sh "🔁 SEO regenerado y aplicado al video (https://youtu.be/${VID})."$'\n\n'"$(cat publish/summary.txt)"$'\n\n'"¿Apruebo o regenero otra vez?" "" "$MK"
+            bash pipeline/notify_telegram.sh "🔁 SEO regenerado y aplicado al video (https://youtu.be/${VID})."$'\n\n'"$(cat publish/summary.txt)"$'\n\n'"👉 Revísalo en la app (pestaña Control): apruébalo ✅ o regéralo otra vez 🔁 — todo desde la app."
           else
-            bash pipeline/notify_telegram.sh "❌ No pude regenerar el SEO. Reintenta."
+            bash pipeline/notify_telegram.sh "❌ No pude regenerar el SEO. Reintenta desde la app."
           fi

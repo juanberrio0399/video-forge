@@ -80,10 +80,8 @@ jobs:
         run: |
           if [ -f publish/youtube_result.txt ]; then
             bash pipeline/notify_telegram.sh "$(cat publish/youtube_result.txt)"
-            # El SEO + los comentarios de la IA salen con botones: aprobar o regenerar.
-            MK='{"inline_keyboard":[[{"text":"✅ Aprobar publicacion","callback_data":"pub_ok"},{"text":"🔁 Regenerar SEO","callback_data":"seo_regen"}]]}'
             if [ -f publish/summary.txt ]; then
-              bash pipeline/notify_telegram.sh "$(cat publish/summary.txt)"$'\n\n'"¿Apruebo esta publicacion (titulo/descripcion/tags) o regenero el SEO tomando en cuenta los comentarios?" "" "$MK"
+              bash pipeline/notify_telegram.sh "$(cat publish/summary.txt)"$'\n\n'"👉 Revisa el SEO en la app (pestaña Control): ahí lo apruebas ✅ o lo regeneras 🔁 con tus comentarios — todo desde la app."
             fi
           else
             bash pipeline/notify_telegram.sh "❌ Fallo la subida a YouTube. Revisa los secrets/OAuth."
