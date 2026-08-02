@@ -388,6 +388,23 @@ export const APP_HTML = `<!doctype html>
     return h;
   }
 
+  function craftHtml(){
+    // Auto-mejora: lo que el sistema aprendió del último video y aplica al siguiente.
+    var c=ST.craft; if(!c||(!c.footage && !c.hook && !c.score)) return "";
+    var f=c.fixes||{};
+    var fx=[];
+    if(f.brightness) fx.push("luz "+(f.brightness>0?"+":"")+f.brightness);
+    if(f.saturation) fx.push("saturación "+(f.saturation>0?"+":"")+f.saturation);
+    if(f.contrast) fx.push("contraste "+(f.contrast>0?"+":"")+f.contrast);
+    if(f.pace==="faster") fx.push("cortes más rápidos");
+    return '<h2>🔧 Auto-mejora (cada video aprende del anterior)</h2>'
+      +'<div class="card"><div class="muted" style="font-size:11px;margin-bottom:4px">Esto se aplica automáticamente al PRÓXIMO render.</div>'
+      +(c.score?'<div style="font-size:12px">Última nota del render: <b>'+c.score+'/10</b></div>':'')
+      +(c.hook?'<div style="font-size:12px">🪝 Gancho: '+esc(c.hook)+'</div>':'')
+      +(c.footage?'<div style="font-size:12px">🎬 Footage a mejorar: '+esc(c.footage)+'</div>':'')
+      +(fx.length?'<div style="font-size:12px;color:var(--cy)">🎨 Ajustes aprendidos: '+esc(fx.join(" · "))+'</div>':'')
+      +'</div>';
+  }
   function learningsHtml(){
     // Qué aprendimos de lo ya subido (métricas + tendencias) y se aplica al PRÓXIMO video.
     var l=ST.learnings; if(!l||!l.brief) return "";
@@ -529,6 +546,7 @@ export const APP_HTML = `<!doctype html>
       +nextStepHtml()
       +matrixHtml()
       +learningsHtml()
+      +craftHtml()
       +bestTimesHtml()
       +problemsHtml()
       +(next

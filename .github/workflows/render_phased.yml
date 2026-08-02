@@ -183,7 +183,11 @@ jobs:
           mkdir -p renders
           HOOK=$(node -e "try{const v=JSON.parse(require('fs').readFileSync('voicemap.json','utf8'));process.stdout.write((v.beats&&v.beats[0]&&v.beats[0].text||'').slice(0,120))}catch(e){}")
           echo "Fase $PH · intentos=$MAX_ATTEMPTS · gancho: ${HOOK:-(sin texto)}"
-          export FX_BRIGHT=0 FX_SAT=0 FX_CONTRAST=0 FX_PACE=same
+          # AUTO-MEJORA: cada video ARRANCA desde las correcciones aprendidas del anterior (no desde 0).
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/craft_feedback.json" --file=craft.json --remote 2>/dev/null || echo '{}' > craft.json
+          eval "$(node -e "try{const c=JSON.parse(require('fs').readFileSync('craft.json','utf8'));const f=c.fixes||{};const nz=(x)=>(+x||0).toFixed(3);console.log('export FX_BRIGHT='+nz(f.brightness)+' FX_SAT='+nz(f.saturation)+' FX_CONTRAST='+nz(f.contrast)+' FX_PACE='+(f.pace==='faster'?'faster':'same'))}catch(e){console.log('export FX_BRIGHT=0 FX_SAT=0 FX_CONTRAST=0 FX_PACE=same')}")"
+          export FX_FOOTAGE="$(node -e "try{process.stdout.write(String(JSON.parse(require('fs').readFileSync('craft.json','utf8')).footage_feedback||'').replace(/[\r\n\"]/g,' '))}catch(e){}")"
+          echo "Auto-mejora: arranco con FX b=$FX_BRIGHT s=$FX_SAT c=$FX_CONTRAST · footage aprendido: ${FX_FOOTAGE:-(ninguno)}"
           BEST="-1"; BESTATT=0
           for att in $(seq 1 "$MAX_ATTEMPTS"); do
             echo "===== Fase $PH · intento $att/$MAX_ATTEMPTS (FX b=$FX_BRIGHT s=$FX_SAT c=$FX_CONTRAST pace=$FX_PACE) ====="
@@ -204,6 +208,7 @@ jobs:
             echo "Fase $PH nota intento $att: $SCORE"
             if node -e "process.exit((${SCORE:-0}||0) > (${BEST:-0}) ? 0 : 1)"; then
               BEST="$SCORE"; BESTATT="$att"
+              BEST_FXB="$FX_BRIGHT"; BEST_FXS="$FX_SAT"; BEST_FXC="$FX_CONTRAST"; BEST_FXP="$FX_PACE"
               cp renders/render.mp4 renders/video.mp4
               cp "review_${att}.txt" review.txt 2>/dev/null || true
             fi
@@ -219,6 +224,13 @@ jobs:
           done
           echo "$BEST" > renders/score.txt
           echo "===== Fase $PH mejor: intento $BESTATT nota $BEST ====="
+          # AUTO-MEJORA: la fase 0 (gancho) guarda lo aprendido (FX + footage + hook) para el PROXIMO video.
+          if [ "$PH" = "0" ] && [ -n "$BESTATT" ] && [ "$BESTATT" != "0" ] && [ -f "review_${BESTATT}.json" ]; then
+            FX_BRIGHT="${BEST_FXB:-$FX_BRIGHT}" FX_SAT="${BEST_FXS:-$FX_SAT}" FX_CONTRAST="${BEST_FXC:-$FX_CONTRAST}" FX_PACE="${BEST_FXP:-$FX_PACE}" \
+            node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync('review_${BESTATT}.json','utf8'));fs.writeFileSync('craft_new.json',JSON.stringify({fixes:{brightness:+process.env.FX_BRIGHT||0,saturation:+process.env.FX_SAT||0,contrast:+process.env.FX_CONTRAST||0,pace:process.env.FX_PACE||'same'},footage_feedback:r.footage_feedback||'',hook:r.hook||'',score:r.score||0,at:new Date().toISOString()}))" && \
+            npx --yes wrangler@4 r2 object put "$BUCKET/channel/craft_feedback.json" --file=craft_new.json --remote --content-type application/json && \
+            echo "Auto-mejora: guardé lo aprendido (FX + footage) para el próximo video."
+          fi
           # RESPALDO: si HyperFrames no dejó video en ningún intento, arma la fase con ffmpeg
           # (b-roll ya bajado + subtítulos + voz). Simple pero completo -> la fábrica no se traba.
           if [ ! -f renders/video.mp4 ]; then
