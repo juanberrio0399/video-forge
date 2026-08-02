@@ -179,6 +179,13 @@ jobs:
             for (const b of beats) { b.start = Math.round(t*1000)/1000; t += b.dur; b.end = Math.round(t*1000)/1000; }
             fs.writeFileSync("renders/timing.json", JSON.stringify({ total: Math.round(t*1000)/1000, beats }, null, 2));
             console.log("timing.json:", beats.length, "beats, total", t.toFixed(1), "s");
+            // GUARDA anti-truncamiento: si el TTS fallo la mayoria de beats (silencio), el promedio
+            // por beat cae mucho. Cortar ACA para no gastar un render en una voz a medias.
+            const avg = beats.length ? t / beats.length : 0;
+            if (beats.length >= 20 && avg < 3.0) {
+              console.error(`❌ Narración TRUNCADA: ${beats.length} beats pero solo ${t.toFixed(0)}s (promedio ${avg.toFixed(1)}s/beat, muchos beats en silencio). Aborto para no renderizar una voz a medias.`);
+              process.exit(1);
+            }
           '
           cat renders/timing.json | head -20
       - name: Subir narracion + tiempos (artifact)
