@@ -19,6 +19,7 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
       YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
       YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
@@ -44,8 +45,20 @@ jobs:
       - name: Generar el reporte (metricas + monetizacion)
         run: node pipeline/channel_report.mjs state.json state_new.json report.txt
 
+      - name: Mantener la cola SIEMPRE en 10 ideas por delante
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/produced.json" --file=produced.json --remote 2>/dev/null || echo '{"done":[]}' > produced.json
+          # Alinear las ideas nuevas a lo que funciona (si hay aprendizajes guardados).
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/learnings.json" --file=learnings.json --remote 2>/dev/null || true
+          export LEARNINGS="$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("learnings.json","utf8")).brief||"")}catch(e){}')"
+          node pipeline/replenish_ideas.mjs state_new.json state_final.json produced.json 10 | tee replenish.txt
+          # Si agrego ideas, avisar al chat.
+          if grep -q "Cola rellenada" replenish.txt; then
+            bash pipeline/notify_telegram.sh "🧠 Cola de contenido rellenada — siempre 10 videos por delante."$'\n'"$(grep '^\s*+ #' replenish.txt)"
+          fi
+
       - name: Guardar el estado actualizado en R2
-        run: npx --yes wrangler@4 r2 object put "$BUCKET/channel/state.json" --file=state_new.json --remote
+        run: npx --yes wrangler@4 r2 object put "$BUCKET/channel/state.json" --file=state_final.json --remote
 
       - name: Enviar el reporte al chat
         if: always()

@@ -83,6 +83,16 @@ jobs:
           node -e 'const fs=require("fs");let p={done:[]};try{p=JSON.parse(fs.readFileSync("produced.json","utf8"))}catch(e){};const n=+process.env.N;if(!Array.isArray(p.done))p.done=[];if(!p.done.includes(n))p.done.push(n);fs.writeFileSync("produced.json",JSON.stringify(p));console.log("producidos:",p.done.join(","))'
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/produced.json" --file=produced.json --remote --content-type application/json
 
+      - name: Rellenar la cola a 10 ideas (producir una consume una)
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/state.json" --file=state.json --remote 2>/dev/null || cp channel/seed.json state.json
+          export LEARNINGS="$(cat learnings.txt 2>/dev/null)"
+          node pipeline/replenish_ideas.mjs state.json state_final.json produced.json 10 | tee replenish.txt || cp state.json state_final.json
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/state.json" --file=state_final.json --remote
+          if grep -q "Cola rellenada" replenish.txt 2>/dev/null; then
+            bash pipeline/notify_telegram.sh "🧠 Cola rellenada a 10 ideas (por delante)."$'\n'"$(grep '^\s*+ #' replenish.txt)"
+          fi
+
       - name: Avisar el guion + arrancar la VOZ (encadena render)
         run: |
           if [ -f voicemap.json ]; then
