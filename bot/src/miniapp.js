@@ -123,6 +123,26 @@ export const APP_HTML = `<!doctype html>
         +'<div class="bar"><i style="width:'+(r.pct||3)+'%"></i></div></div>';
     }).join("");
   }
+  function errorLearnHtml(){
+    // Bucle de errores: identificados + analizados por IA + patrones recurrentes. Aprende día con día.
+    var e=ST.error_learnings; if(!e||(!(e.incidents||[]).length && !(e.patterns||[]).length)) return "";
+    var catColor={transitorio:"var(--hint)",config:"var(--am)",codigo:"#f87171",datos:"var(--am)"};
+    var inc=(e.incidents||[]).map(function(i){
+      var col=catColor[i.category]||"var(--hint)";
+      return '<div style="border-top:1px solid rgba(255,255,255,.06);padding:6px 0">'
+        +'<div style="font-size:12px"><b>'+esc(i.workflow||i.name||"")+'</b> <span style="color:'+col+';font-size:10px">['+esc(i.category||"?")+']</span></div>'
+        +'<div class="muted" style="font-size:11px">'+esc(i.cause||"")+'</div>'
+        +(i.fix?'<div style="font-size:11px;color:var(--cy)">→ '+esc(i.fix)+'</div>':'')
+        +(i.url?'<a href="'+esc(i.url)+'" target="_blank" style="font-size:10px">↗ log</a>':'')+'</div>';
+    }).join("");
+    var pat=(e.patterns||[]).map(function(p){return '<span class="chip" style="font-size:11px">🔁 '+esc(p.key)+' ×'+p.count+'</span>';}).join(" ");
+    return '<h2>🛠️ Aprendizajes de errores</h2>'
+      +'<div class="card"><div class="muted" style="font-size:11px">El sistema identifica, analiza y aprende de cada error. Lo transitorio se reintenta solo; lo recurrente sale como patrón para resolverlo de raíz.</div>'
+      +(pat?'<div style="margin:8px 0">'+pat+'</div>':'')
+      +(inc||'<div class="muted" style="font-size:12px;margin-top:6px">Sin errores registrados. 🎉</div>')
+      +(e.at?'<div class="muted" style="font-size:10px;margin-top:6px">Último análisis: '+esc(String(e.at).slice(0,16).replace("T"," "))+'</div>':'')
+      +'</div>';
+  }
   function problemsHtml(){
     var p=ST.problems||[];
     if(!p.length) return "";
@@ -420,6 +440,7 @@ export const APP_HTML = `<!doctype html>
       + '</div>'
       + r2Html()
       + problemsHtml()
+      + errorLearnHtml()
       + '<button class="btn ghost" onclick="dispatch(\\'channel_report.yml\\',\\'Reporte de métricas\\')">🔄 Refrescar métricas</button>';
 
     // VIDEOS: tabla compacta con TODOS (largos+shorts), tipo, vistas y MINUTOS VISTOS + total + IA.
