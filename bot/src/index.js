@@ -362,6 +362,8 @@ async function handleApi(request, env, url) {
     // Aprendizajes de ERRORES (identificados + analizados por IA + patrones). "Aprende dia con dia."
     const elog = await r2json(env, "channel/error_log.json");
     state.error_learnings = elog ? { incidents: (elog.incidents || []).slice(-6).reverse(), patterns: elog.patterns || [], at: elog.updated_at || null } : null;
+    // Salud de las herramientas diarias (APIs gratis).
+    state.tools_health = await r2json(env, "channel/tools_health.json");
     // Uso de R2 (alerta para que siga gratis: limite 10 GB).
     const r2u = await r2Usage(env);
     const usedGb = (r2u.bytes || 0) / (1024 * 1024 * 1024);

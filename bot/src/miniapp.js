@@ -123,6 +123,20 @@ export const APP_HTML = `<!doctype html>
         +'<div class="bar"><i style="width:'+(r.pct||3)+'%"></i></div></div>';
     }).join("");
   }
+  function toolsHealthHtml(){
+    // Salud de las herramientas/APIs gratis que usa la fábrica a diario.
+    var t=ST.tools_health; if(!t||!(t.tools||[]).length) return "";
+    var rows=(t.tools||[]).map(function(x){
+      return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid rgba(255,255,255,.06);padding:5px 0">'
+        +'<div style="font-size:12px">'+(x.ok?"✅":(x.critical?"🔴":"🟡"))+' '+esc(x.name)+'</div>'
+        +'<div class="muted" style="font-size:11px;text-align:right">'+esc(x.detail||"")+'</div></div>';
+    }).join("");
+    var head=(t.down>0)?('⚠️ '+t.ok+'/'+t.total+' OK'):('✅ Todo OK ('+t.ok+'/'+t.total+')');
+    return '<h2>🧰 Herramientas diarias</h2>'
+      +'<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:2px">'+head+'</div>'+rows
+      +(t.at?'<div class="muted" style="font-size:10px;margin-top:6px">Validado: '+esc(String(t.at).slice(0,16).replace("T"," "))+'</div>':'')
+      +'</div>';
+  }
   function errorLearnHtml(){
     // Bucle de errores: identificados + analizados por IA + patrones recurrentes. Aprende día con día.
     var e=ST.error_learnings; if(!e||(!(e.incidents||[]).length && !(e.patterns||[]).length)) return "";
@@ -221,9 +235,18 @@ export const APP_HTML = `<!doctype html>
       var mx=Math.max.apply(null, daily.map(function(x){return x.views;}).concat([1]));
       var bars=daily.slice(-21).map(function(x){
         var hh=Math.max(2, Math.round((x.views/mx)*44));
-        return '<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end"><div style="height:'+hh+'px;background:var(--cy);border-radius:2px"></div></div>';
+        return '<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end"><div title="'+esc(x.d)+': '+x.views+' vistas" style="height:'+hh+'px;background:var(--cy);border-radius:2px"></div></div>';
       }).join("");
       h+='<div style="margin-top:12px"><div class="muted" style="font-size:11px;margin-bottom:4px">Vistas por día (últimos 21)</div><div style="display:flex;gap:2px;align-items:flex-end;height:48px">'+bars+'</div></div>';
+      // Histórico por día (tabla: fecha · vistas · minutos), lo más reciente arriba.
+      var drows=daily.slice(-30).reverse().map(function(x){
+        var dd=x.d?String(x.d).slice(5).replace("-","/"):"";
+        return '<tr><td>'+esc(dd)+'</td><td style="text-align:right">'+num(x.views||0)+'</td><td style="text-align:right">'+num(x.min||0)+'</td></tr>';
+      }).join("");
+      h+='<div style="margin-top:10px"><div class="muted" style="font-size:11px;margin-bottom:4px">Histórico por día</div>'
+        +'<div style="max-height:200px;overflow:auto"><table style="font-size:12px;width:100%"><tr><th style="text-align:left">Día</th><th style="text-align:right">Vistas</th><th style="text-align:right">Min vist.</th></tr>'+drows+'</table></div></div>';
+    } else if(ST.analytics_ok){
+      h+='<div class="muted" style="font-size:11px;margin-top:10px">Aún no hay historial por día. YouTube lo llena en 1-2 días tras las primeras vistas públicas.</div>';
     }
     h+='</div>';
     h+='<div class="card muted" style="font-size:11px">Tiempo reproducido total del canal: '+num(tot.watch_min||0)+' min · Los datos de YouTube Analytics tienen ~1-2 días de retraso.</div>';
@@ -459,31 +482,39 @@ export const APP_HTML = `<!doctype html>
       + '<div style="margin-top:12px" class="'+(mon.elegible?"":"muted")+'">'+(mon.elegible?"✅ Elegible para monetizar":"❌ Aún no elegible")+'</div>'
       + '</div>'
       + r2Html()
+      + toolsHealthHtml()
       + problemsHtml()
       + errorLearnHtml()
       + '<button class="btn ghost" onclick="dispatch(\\'channel_report.yml\\',\\'Reporte de métricas\\')">🔄 Refrescar métricas</button>';
 
     // VIDEOS: tabla compacta con TODOS (largos+shorts), tipo, vistas y MINUTOS VISTOS + total + IA.
     var av=(ST.all_videos||[]).slice();
-    var tot=ST.totals||{views:0,watch_min:0};
     var nLong=av.filter(function(v){return v.type==="long";}).length;
     var nShort=av.filter(function(v){return v.type==="short";}).length;
-    av.sort(function(a,b){ return vSort==="watch" ? (b.watch_min||0)-(a.watch_min||0) : (b.views||0)-(a.views||0); });
-    var vrows=av.map(function(v){
-      var pv=v.privacy==="public";
-      return '<tr><td style="text-align:center">'+(v.type==="short"?"🎬":"📹")+'</td>'
-        +'<td>'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").replace(/ #Shorts$/,"").slice(0,38))+'</a>':esc(v.title||""))+'</td>'
-        +'<td style="text-align:right">'+(pv?num(v.views):"🔒")+'</td>'
-        +'<td style="text-align:right">'+(ST.analytics_ok?num(v.watch_min||0):"—")+'</td></tr>';
-    }).join("");
-    var totalRow='<tr style="font-weight:800;border-top:2px solid rgba(255,255,255,.2)"><td></td><td>TOTAL ('+av.length+')</td><td style="text-align:right">'+num(tot.views)+'</td><td style="text-align:right">'+(ST.analytics_ok?num(tot.watch_min):"—")+'</td></tr>';
+    // DOS tablas separadas: Largos y Shorts, cada una con su subtotal.
+    function videoTable(title, type){
+      var list=av.filter(function(v){return v.type===type;});
+      list.sort(function(a,b){ return vSort==="watch" ? (b.watch_min||0)-(a.watch_min||0) : (b.views||0)-(a.views||0); });
+      var rows=list.map(function(v){
+        var pv=v.privacy==="public";
+        return '<tr><td>'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").replace(/ #Shorts$/,"").slice(0,40))+'</a>':esc(v.title||""))+'</td>'
+          +'<td style="text-align:right">'+(pv?num(v.views):"🔒")+'</td>'
+          +'<td style="text-align:right">'+(ST.analytics_ok?num(v.watch_min||0):"—")+'</td></tr>';
+      }).join("");
+      var sv=list.reduce(function(s,v){return s+(v.views||0);},0), sw=list.reduce(function(s,v){return s+(v.watch_min||0);},0);
+      var sub='<tr style="font-weight:800;border-top:2px solid rgba(255,255,255,.2)"><td>Subtotal ('+list.length+')</td><td style="text-align:right">'+num(sv)+'</td><td style="text-align:right">'+(ST.analytics_ok?num(sw):"—")+'</td></tr>';
+      return '<h3 style="margin:12px 2px 4px;font-size:14px">'+title+'</h3>'
+        +'<div class="card" style="padding:8px"><table style="font-size:13px"><tr><th style="text-align:left">Título</th><th style="text-align:right">Vistas</th><th style="text-align:right">Min vist.</th></tr>'
+        +(rows||'<tr><td colspan="3" class="muted">Aún no hay.</td></tr>')+(rows?sub:'')+'</table></div>';
+    }
     el("s-videos").innerHTML='<h2>Videos · '+nLong+' largos · '+nShort+' shorts</h2>'
       +'<div style="display:flex;gap:6px;margin:4px 0"><span class="chip'+(vSort==="views"?" on":"")+'" onclick="setVSort(\\'views\\')">Por vistas</span><span class="chip'+(vSort==="watch"?" on":"")+'" onclick="setVSort(\\'watch\\')">Por min vistos</span></div>'
-      +'<div class="card" style="padding:8px"><table style="font-size:13px"><tr><th></th><th>Título</th><th style="text-align:right">Vistas</th><th style="text-align:right">Min vist.</th></tr>'+(vrows||'<tr><td colspan="4" class="muted">Aún no hay videos. Ve a <b>Control</b> y dale ▶️ Producir para crear el primero.</td></tr>')+(vrows?totalRow:'')+'</table></div>'
+      +videoTable("📹 Videos largos","long")
+      +videoTable("🎬 Shorts","short")
       +(ST.analytics_ok?'':'<div class="muted" style="font-size:11px">⚠️ Los "min vistos" necesitan el permiso de YouTube Analytics. Reautoriza el OAuth con el scope yt-analytics para verlos.</div>')
       +'<button class="btn" onclick="showInsights()">🧠 Analizar qué replicar (IA)</button>'
       +'<div id="insightsOut">'+lastInsights+'</div>'
-      +'<div class="muted" style="font-size:11px;text-align:center">📹 largo · 🎬 short · 🔒 privado</div>';
+      +'<div class="muted" style="font-size:11px;text-align:center">🔒 privado</div>';
 
     // PLAN (panel de produccion): estado + siguiente con boton + pendientes + tendencias
     var next = up[0];
