@@ -109,7 +109,7 @@ jobs:
   render:
     needs: prepare
     runs-on: ubuntu-latest
-    timeout-minutes: 100
+    timeout-minutes: 125
     strategy:
       fail-fast: false
       matrix:
@@ -190,12 +190,13 @@ jobs:
             rm -f renders/render.mp4
             node pipeline/build_background.mjs timing.json bg 0 || echo "fondo opcional fallo; sigo"
             node pipeline/build_composition.mjs timing.json index.html voiceover.mp3 0 bg/bg.json || { echo "composicion fallo"; continue; }
-            # El render NO se colgaba: iba a ~1 fps y el timeout viejo (15 min) lo cortaba a mitad.
-            # Fix = velocidad + margen. Intento 1: standard (mejor calidad). Intento 2: draft
-            # (mucho mas rapido, asegura que SALGA). workers 3 paraleliza la captura; 40 min/intento.
-            Q="standard"; [ "$att" -ge 2 ] && Q="draft"
-            echo "Render calidad=$Q (intento $att)"
-            timeout 2400 npx --yes hyperframes@${HF_VERSION} render --quality "$Q" --workers 3 --browser-timeout 300 -o renders/render.mp4 > "hf_${att}.log" 2>&1 || echo "Fase $PH intento $att ($Q): render no termino a tiempo (>40min) o fallo — reintento."
+            # El render NO se colgaba: iba a ~1.25 fps y el timeout viejo lo cortaba a mitad (video
+            # truncado). Medido: draft y standard tardan igual -> el cuello es decodificar el video
+            # de fondo en Chrome (costo fijo/frame), la calidad no cambia la velocidad. Fix = TIEMPO:
+            # 55 min cubre una fase de 120s (3600 frames a 1.25 fps ~= 48 min). Las fases van en
+            # paralelo, asi que el reloj total sigue siendo ~una fase. Se queda en standard (mejor look).
+            echo "Render calidad=standard (intento $att)"
+            timeout 3300 npx --yes hyperframes@${HF_VERSION} render --quality standard --workers 3 --browser-timeout 300 -o renders/render.mp4 > "hf_${att}.log" 2>&1 || echo "Fase $PH intento $att: render no termino a tiempo (>55min) o fallo — reintento."
             tail -20 "hf_${att}.log" 2>/dev/null || true
             if [ ! -s renders/render.mp4 ] || ! ffprobe -v error -i renders/render.mp4 >/dev/null 2>&1; then echo "Fase $PH intento $att: render SIN salida o CORRUPTO (mp4 truncado). Sigo."; rm -f renders/render.mp4; continue; fi
             node pipeline/review_video.mjs renders/render.mp4 "${HOOK:-video de datos}" "review_${att}.txt" "review_${att}.json" voicemap.json || echo "review fallo"
