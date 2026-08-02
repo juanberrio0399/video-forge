@@ -184,7 +184,7 @@ export const APP_HTML = `<!doctype html>
     var a=ST.analytics, tot=ST.totals||{};
     var h='<h2>📊 Analytics de YouTube <span class="live"></span></h2>';
     if(!ST.analytics_ok){
-      return h+'<div class="card muted">Analytics ya está autorizado ✅. YouTube tarda ~1-2 días en procesar el primer dato; en cuanto llegue, aquí verás vistas, minutos vistos y crecimiento en vivo.</div>';
+      return h+'<div class="card muted">Aún sin datos de Analytics. Si ya reautorizaste el permiso, YouTube tarda ~1-2 días en procesar el primer dato. Si sigue vacío tras 2 días, reautoriza el OAuth con el scope <b>yt-analytics.readonly</b>. Entonces verás vistas, minutos vistos y crecimiento en vivo.</div>';
     }
     var l=(a&&a.last28)||{views:0,minutes:0,subs_gained:0,avg_sec:0};
     h+='<div class="card"><div class="muted" style="font-size:12px;margin-bottom:8px">Últimos 28 días</div><div class="row">'
@@ -334,6 +334,18 @@ export const APP_HTML = `<!doctype html>
     return h;
   }
 
+  function learningsHtml(){
+    // Qué aprendimos de lo ya subido (métricas + tendencias) y se aplica al PRÓXIMO video.
+    var l=ST.learnings; if(!l||!l.brief) return "";
+    var srcTxt={"metricas-reales":"según el rendimiento REAL de tus videos","sin-videos-publicos":"aún sin datos propios: tendencias + buenas prácticas","sin-oauth":"buenas prácticas (falta permiso de métricas)","error-fallback":"buenas prácticas"}[l.source]||"";
+    var top=(l.top||[]).slice(0,3).map(function(v){return '<div class="muted" style="font-size:11px">• '+esc((v.title||"").slice(0,42))+' — '+num(v.views||0)+' vistas'+(v.watch?' · '+num(v.watch)+' min':'')+'</div>';}).join("");
+    return '<h2>📈 Qué estamos mejorando</h2>'
+      +'<div class="card"><div class="muted" style="font-size:11px;margin-bottom:6px">Se aplica al próximo guion '+esc(srcTxt)+'.</div>'
+      +'<div style="font-size:13px;white-space:pre-wrap;max-height:180px;overflow:auto">'+esc(l.brief)+'</div>'
+      +(top?'<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.08);padding-top:6px"><div class="muted" style="font-size:11px;font-weight:700">Lo que más rinde:</div>'+top+'</div>':'')
+      +(l.at?'<div class="muted" style="font-size:10px;margin-top:6px">Analizado: '+esc(String(l.at).slice(0,16).replace("T"," "))+'</div>':'')
+      +'</div>';
+  }
   function bestTimesHtml(){
     // Mejores horas para PUBLICAR (audiencia EE.UU., canal de datos/dinero, faceless).
     // Se sube ~2-3h ANTES del pico de la tarde/noche para que el algoritmo lo indexe a tiempo.
@@ -433,6 +445,7 @@ export const APP_HTML = `<!doctype html>
       +productionHtml()
       +nextStepHtml()
       +matrixHtml()
+      +learningsHtml()
       +bestTimesHtml()
       +problemsHtml()
       +(next
@@ -524,9 +537,15 @@ export const APP_HTML = `<!doctype html>
       .catch(function(){toast("❌ Error de red");});
   }
   function retry(wf){
-    if(wf==="produce_video.yml"){ var u=(ST.upcoming||[])[0]; if(u){produceVideo(u.n);return;} }
+    if(wf==="produce_video.yml"){ var u=(ST.upcoming||[])[0]; if(u){produceVideo(u.n);return;} toast("Abre 'Siguiente video' para producir."); return; }
+    // Solo reintento a ciegas los workflows SIN inputs. Los que exigen datos (set_privacy,
+    // thumbnail_only, seo_regen, shorts_plan) NO: reintentar sin inputs usaría defaults
+    // peligrosos (p. ej. set_privacy dejaría PÚBLICO un video fijo). Se reintentan desde su tarjeta.
+    var SAFE={"channel_report.yml":1,"render_phased.yml":1,"publish_youtube.yml":1,"shorts_final.yml":1,"voice_parallel.yml":1};
+    if(!SAFE[wf]){ toast("⚠️ Ese paso se reintenta desde su tarjeta (necesita datos específicos), no desde aquí."); return; }
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:wf})})
-      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🔁 Reintentando…":"❌ "+(j.error||"no pude"));setTimeout(load,1500);});
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🔁 Reintentando…":"❌ "+(j.error||"no pude"));setTimeout(load,1500);})
+      .catch(function(){toast("❌ Error de red");});
   }
   function produceVideo(n){
     var u=(ST.upcoming||[]).find(function(x){return x.n===n;})||{};

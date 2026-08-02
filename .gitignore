@@ -19,3 +19,5 @@ assets/voice/*.wav
 _*/
 _*.mp3
 _*.mp4
+
+.wrangler/

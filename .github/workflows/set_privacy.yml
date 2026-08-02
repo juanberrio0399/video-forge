@@ -6,11 +6,11 @@ on:
       video_id:
         description: "ID del video"
         required: true
-        default: "VRqt4sz8N68"
+        default: ""
       privacy:
         description: "public | private | unlisted"
         required: false
-        default: "public"
+        default: "private"
 
 permissions:
   contents: read
@@ -37,15 +37,24 @@ jobs:
           node-version: "22"
 
       - name: Cambiar privacidad
-        run: node pipeline/youtube_privacy.mjs "${{ github.event.inputs.video_id }}" "${{ github.event.inputs.privacy }}"
+        env:
+          VID: ${{ github.event.inputs.video_id }}
+          PRIV: ${{ github.event.inputs.privacy }}
+        run: |
+          # Guarda: sin video_id no hace nada (evita tocar un video por defecto).
+          if [ -z "$VID" ]; then echo "Sin video_id -> no hago nada."; exit 0; fi
+          node pipeline/youtube_privacy.mjs "$VID" "$PRIV"
 
       - name: Actualizar el estado del canal en R2
         if: ${{ github.event.inputs.privacy == 'public' }}
+        env:
+          VID: ${{ github.event.inputs.video_id }}
         run: |
+          if [ -z "$VID" ]; then exit 0; fi
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/state.json" --file=state.json --remote 2>/dev/null || cp channel/seed.json state.json
           node -e '
             const fs=require("fs"); const s=JSON.parse(fs.readFileSync("state.json","utf8"));
-            const v=(s.published||[]).find(x=>x.video_id==="${{ github.event.inputs.video_id }}");
+            const v=(s.published||[]).find(x=>x.video_id===process.env.VID);
             if(v){ v.privacy="public"; }
             fs.writeFileSync("state.json", JSON.stringify(s,null,2));
           '

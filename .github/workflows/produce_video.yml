@@ -32,6 +32,9 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
       TOPIC: ${{ github.event.inputs.topic }}
@@ -44,10 +47,23 @@ jobs:
 
       - name: Avisar arranque
         run: |
-          bash pipeline/notify_telegram.sh "🏭 Produciendo el video número ${N} (${TOPIC}). Paso 1: escribiendo el guion. Luego voz y render, automatico. Te aviso en cada paso."
+          bash pipeline/notify_telegram.sh "🏭 Produciendo el video número ${N} (${TOPIC}). Paso 0: aprendiendo de lo ya subido (métricas + tendencias). Luego guion, voz y render, automatico. Te aviso en cada paso."
 
-      - name: Generar el guion (IA)
-        run: node pipeline/video_script.mjs "$TOPIC" voicemap.json
+      - name: Aprender de lo subido (métricas + tendencias) ANTES del guion
+        run: |
+          node pipeline/learnings.mjs learnings.txt learnings.json || echo "sin aprendizajes; sigo con buenas prácticas"
+          # Guardar en R2 para que la app muestre "qué estamos mejorando".
+          if [ -f learnings.json ]; then
+            npx --yes wrangler@4 r2 object put "$BUCKET/channel/learnings.json" --file=learnings.json --remote --content-type application/json || true
+          fi
+          # Avisar un resumen corto (primeras líneas del brief).
+          if [ -f learnings.txt ]; then
+            HEAD=$(head -c 500 learnings.txt)
+            bash pipeline/notify_telegram.sh "📈 Aprendizajes aplicados al video ${N}:"$'\n'"${HEAD}"
+          fi
+
+      - name: Generar el guion (IA, aplicando los aprendizajes)
+        run: LEARNINGS="$(cat learnings.txt 2>/dev/null)" node pipeline/video_script.mjs "$TOPIC" voicemap.json
 
       - name: Guardar el guion en el SLOT del proyecto (R2)
         run: |
