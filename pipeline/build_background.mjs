@@ -44,11 +44,10 @@ const FILLERS = [
 ];
 // Transiciones profesionales de ffmpeg (se van rotando).
 const TRANS = ["fade", "dissolve", "smoothleft", "smoothup", "wiperight", "circleopen", "slideup", "radial", "diagtl", "fadegrays"];
-// bg.mp4 lo lee HyperFrames como <video> y BUSCA frames (seeking) al renderizar. Con GOP
-// largo (default) cada seek decodifica desde el keyframe anterior y a veces se CUELGA.
-// All-intra (keyframe en cada frame) -> seek instantaneo y estable: el render sale animado
-// siempre. Pesa mas, pero es un archivo local temporal, no importa.
-const SEEK_SAFE = "-g 1 -keyint_min 1 -sc_threshold 0";
+// bg.mp4 lo lee HyperFrames como <video> y avanza los frames en orden al renderizar. Un GOP
+// ligero (keyframe cada ~1s) da buen seek SIN inflar el archivo ni frenar la decodificacion
+// secuencial. (All-intra -g 1 se probo: archivos enormes -> mas R2 y render mas lento; descartado.)
+const SEEK_SAFE = "-g 30 -keyint_min 30";
 
 // Tema de cada plano segun lo que dice la voz (footage y prompt IA).
 function theme(text) {
