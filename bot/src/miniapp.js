@@ -295,10 +295,15 @@ export const APP_HTML = `<!doctype html>
       } else {
         miniCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="thumbRow(\\''+vid+'\\')">＋ Hacer</span></td>';
       }
+      // Shorts: solo se pueden hacer del video YA PUBLICADO (público). Antes de eso, "⏳ al publicar".
+      var shortsCell;
+      if(s.shorts){ shortsCell='<td style="text-align:center;color:#34d399;font-size:16px">✓</td>'; }
+      else if(v.public){ shortsCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="goShorts()">＋ Hacer</span></td>'; }
+      else { shortsCell='<td style="text-align:center"><span style="color:var(--hint);font-size:11px">⏳ al publicar</span></td>'; }
       return '<tr><td>'+(vid?'<a href="https://youtu.be/'+vid+'" target="_blank">'+esc((v.title||"").slice(0,20))+'</a>':esc((v.title||"").slice(0,20)))+'</td>'
         +pubCell
         +miniCell
-        +cell("shorts","goShorts()")
+        +shortsCell
         +'</tr>';
     }).join("");
     return '<h2>📋 Control por video</h2>'

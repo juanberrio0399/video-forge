@@ -340,9 +340,10 @@ async function handleApi(request, env, url) {
       };
     });
     const sp = state.shorts_proposal;
-    const latestVid = (state.published || [])[0] || {};
-    // ¿El plan actual es del ULTIMO video publicado? (para no sugerir de más).
-    const forCurrent = !!(plan.for_video_id && latestVid.video_id && plan.for_video_id === latestVid.video_id);
+    // Los shorts se hacen del ultimo video PUBLICO (no de uno programado/privado).
+    const latestPublic = (state.published || []).find((v) => v.privacy === "public") || {};
+    // ¿El plan actual es del ULTIMO video publico? (para no sugerir de más).
+    const forCurrent = !!(plan.for_video_id && latestPublic.video_id && plan.for_video_id === latestPublic.video_id);
     const anyToAct = sp.some((s) => s.state === "pending" || s.state === "approved");
     const allDone = sp.some((s) => s.state === "uploaded") && !anyToAct;
     state.shorts_status = {
@@ -352,9 +353,9 @@ async function handleApi(request, env, url) {
       uploaded: sp.filter((s) => s.state === "uploaded").length,
       all_done: allDone,
       for_current: forCurrent,
-      // Sugerir SOLO si no hay nada por decidir/generar Y (no hay plan o es de otro video).
-      can_suggest: !anyToAct && (sp.length === 0 || !forCurrent),
-      latest_video_id: latestVid.video_id || null,
+      // Sugerir SOLO si YA hay un video PUBLICO, no hay nada por decidir/generar, y (no hay plan o es de otro video).
+      can_suggest: !!latestPublic.video_id && !anyToAct && (sp.length === 0 || !forCurrent),
+      latest_video_id: latestPublic.video_id || null,
     };
     // Avanzar PROXIMOS: quitar los que ya se produjeron (channel/produced.json = {done:[ns]}).
     const produced = (await r2json(env, "channel/produced.json")) || { done: [] };
