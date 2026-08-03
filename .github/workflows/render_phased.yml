@@ -392,7 +392,9 @@ jobs:
           # historial de GitHub (fuente de verdad; no depende de un contador que varios renders pisan).
           RECENT=$(curl -s -H "Authorization: Bearer ${GH_TOKEN}" "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/render_phased.yml/runs?per_page=40" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);const now=Date.now();console.log((j.workflow_runs||[]).filter(r=>now-Date.parse(r.created_at)<2*3600*1000).length)}catch(e){console.log(0)}})")
           echo "Renders en las ultimas 2h: ${RECENT:-?} (tope ${QA_MAX_RENDERS_2H})"
-          writeRP(){ node -e 'require("fs").writeFileSync("render_pending.json", JSON.stringify({at:new Date().toISOString(), min_score:parseFloat(process.env.MIN_SCORE||"0")||0, qa_ok:process.argv[1]==="1", qa_warning:process.env.REASONS||"", duration:parseInt(process.env.DUR||"0",10)}))' "$1"; npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/render_pending.json" --file=render_pending.json --remote --content-type application/json; }
+          # Un render nuevo = video NUEVO esperando aprobacion -> limpiar el estado de PUBLICACION del
+          # video anterior (id, SEO, aprobacion), que si no queda y ENMASCARA la tarjeta de aprobar.
+          writeRP(){ node -e 'require("fs").writeFileSync("render_pending.json", JSON.stringify({at:new Date().toISOString(), min_score:parseFloat(process.env.MIN_SCORE||"0")||0, qa_ok:process.argv[1]==="1", qa_warning:process.env.REASONS||"", duration:parseInt(process.env.DUR||"0",10)}))' "$1"; npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/render_pending.json" --file=render_pending.json --remote --content-type application/json; for f in video_id.txt package.json seo_approved.json; do npx --yes wrangler@4 r2 object delete "$BUCKET/video/$PROJECT/$f" --remote 2>/dev/null || true; done; }
           setAtt(){ echo "{\"n\":$1}" > qa_attempts.json; npx --yes wrangler@4 r2 object put "$BUCKET/channel/qa_attempts.json" --file=qa_attempts.json --remote --content-type application/json; }
           if [ "$PASSED" = "1" ]; then
             setAtt 0; writeRP 1
