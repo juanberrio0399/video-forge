@@ -300,11 +300,14 @@ async function handleApi(request, env, url) {
       const st = (vledger[v.video_id] || {}).stages || {};
       let thumbUrl = null;
       try { const th = await env.R2.head(`video/0001-youtube-money/thumb_${v.video_id}.jpg`); if (th) thumbUrl = `/watch/video/0001-youtube-money/thumb_${v.video_id}.jpg`; } catch {}
+      const scheduled = !!(v.publish_at && Date.parse(v.publish_at) > Date.now());
       return {
-        video_id: v.video_id, title: v.title, public: v.privacy === "public", views: v.views, watch_min: v.watch_min || 0,
+        video_id: v.video_id, title: v.title, public: v.privacy === "public", scheduled, publish_at: v.publish_at || null,
+        views: v.views, watch_min: v.watch_min || 0,
         thumb_url: thumbUrl, thumb_approved: !!st.thumb_approved,
         stages: {
-          publicado: v.privacy === "public",
+          // "publicado" = ya gestionado: público EN VIVO o PROGRAMADO (se publica solo a su hora).
+          publicado: v.privacy === "public" || scheduled,
           miniatura: !!st.thumbnail, // ✓ = aplicada en YouTube (thumb_url = solo generada, por aprobar)
           shorts: !!st.shorts || !!(planFor && planFor === v.video_id && planShortsDone),
         },
