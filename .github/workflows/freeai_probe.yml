@@ -1,0 +1,21 @@
+name: Free.ai sonda (descubrir contrato de la API de video)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FREEAI_API_KEY: ${{ secrets.FREEAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Sondear la API de Free.ai
+        run: node pipeline/freeai_probe.mjs
