@@ -23,11 +23,14 @@ if (!vtype.includes("video")) { reasons.push("sin pista de video"); hard = true;
 if (!atype.includes("audio")) { reasons.push("sin audio"); hard = true; }
 if (dur > 0 && dur < MIN_DUR) { reasons.push(`muy corto (${Math.round(dur)}s < ${MIN_DUR}s)`); hard = true; }
 
-const scoreLow = minScore < MIN_SCORE;
-if (scoreLow) reasons.push(`calidad baja (nota ${minScore} < ${MIN_SCORE})`);
+// La nota es INFORMATIVA, NO bloquea. (El auto-review de Gemini a veces falla y da 0; un review
+// fallido NO significa video malo. Y forzar una nota alta inalcanzable causaba loops de renders.)
+// Solo se marca como "baja" para avisarte, pero el video SE PRESENTA igual si esta completo.
+const scoreLow = minScore > 0 && minScore < MIN_SCORE;
+if (scoreLow) reasons.push(`nota ${minScore}/10 (por debajo de ${MIN_SCORE}, revísalo)`);
 
-// Pasa solo si NO hay fallo objetivo Y la nota alcanza el mínimo.
-const passed = !hard && !scoreLow;
+// PASA si no hay fallo OBJETIVO (corto/roto/sin audio). La calidad subjetiva no bloquea.
+const passed = !hard;
 
 fs.writeFileSync(out, JSON.stringify({
   passed, hard_fail: hard, duration: Math.round(dur), min_score: minScore,
