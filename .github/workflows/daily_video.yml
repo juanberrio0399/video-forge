@@ -1,0 +1,61 @@
+name: Video diario automatico (cron)
+
+# ROBUSTEZ / AUTONOMIA: produce 1 video al dia SOLO, sin que Juan ni nadie lo dispare.
+# Corre en la nube de GitHub -> no depende de Telegram ni de ninguna sesion abierta.
+# Guardas: NO produce si ya hay un video sin aprobar (render_pending) o si hay una produccion/render
+# en curso -> asi no pisa el slot ni encima trabajo. Juan aprueba cuando pueda; al dia siguiente sigue.
+
+on:
+  schedule:
+    - cron: "0 10 * * *"   # 10:00 UTC diario (~5-6 AM ET): queda listo para aprobar y programar al pico de la tarde
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Producir el proximo video (con guardas)
+        run: |
+          # GUARDA 1: ¿hay un video sin aprobar esperando? -> no pisar, salir.
+          if npx --yes wrangler@4 r2 object get "$BUCKET/video/0001-youtube-money/render_pending.json" --file=rp.json --remote 2>/dev/null && [ -s rp.json ]; then
+            echo "Hay un video sin aprobar (render_pending) -> hoy no produzco para no pisarlo."
+            bash pipeline/notify_telegram.sh "⏸️ Video diario en pausa: tienes un video sin aprobar en Control. Apruébalo/prográmalo y mañana sigo con el siguiente." || true
+            exit 0
+          fi
+          # GUARDA 2: ¿hay una produccion o render en curso? -> no encimar.
+          RUNNING=$(curl -s -H "Authorization: Bearer ${GH_TOKEN}" "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs?per_page=30" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);const n=(j.workflow_runs||[]).filter(r=>r.status!=='completed'&&/Producir|Voiceover|Render VIDEO/i.test(r.name||'')).length;console.log(n)}catch(e){console.log(0)}})")
+          if [ "${RUNNING:-0}" -gt 0 ]; then echo "Ya hay produccion/render en curso ($RUNNING) -> no encimo."; exit 0; fi
+          # Elegir el proximo tema de la cola (no producido y por delante de los publicos).
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/state.json" --file=state.json --remote 2>/dev/null || cp channel/seed.json state.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/produced.json" --file=produced.json --remote 2>/dev/null || echo '{"done":[]}' > produced.json
+          read N TOPIC < <(node -e '
+            const s=JSON.parse(require("fs").readFileSync("state.json","utf8"));
+            const p=JSON.parse(require("fs").readFileSync("produced.json","utf8"));
+            const done=new Set(p.done||[]);
+            const pub=(s.published||[]).filter(v=>v.privacy==="public").length;
+            const up=(s.upcoming||[]).filter(u=>!done.has(u.n)&&u.n>pub).sort((a,b)=>a.n-b.n);
+            const next=up[0];
+            if(next) process.stdout.write(next.n+" "+(next.topic||"").replace(/\n/g," "));
+          ')
+          if [ -z "$TOPIC" ]; then echo "Cola vacia -> nada que producir."; bash pipeline/notify_telegram.sh "⚠️ Video diario: la cola de ideas esta vacia. Genero mas en el proximo reporte." || true; exit 0; fi
+          echo "Produciendo automatico: #$N - $TOPIC"
+          gh workflow run produce_video.yml -f topic="$TOPIC" -f n="$N" -R "$GITHUB_REPOSITORY"
+          bash pipeline/notify_telegram.sh "🏭 Video diario AUTOMATICO arrancado: #$N - $TOPIC. Sale solo; te aviso cuando este en Control para aprobar." || true
