@@ -20,7 +20,12 @@ export default {
       return new Response(APP_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
     }
     if (url.pathname.startsWith("/api/")) {
-      return handleApi(request, env, url);
+      try {
+        return await handleApi(request, env, url);
+      } catch (e) {
+        // Nunca dejar la app en blanco por un error del servidor: devolver JSON legible.
+        return new Response(JSON.stringify({ error: "server", detail: (e && e.message) || "error" }), { status: 500, headers: { "content-type": "application/json" } });
+      }
     }
     // Ver el video por link (streaming desde R2). Telegram por bot no deja mandar
     // archivos >50MB; el video del canal pesa ~250MB, asi que se ve por aqui.
