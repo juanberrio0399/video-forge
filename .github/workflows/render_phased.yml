@@ -369,6 +369,7 @@ jobs:
           QA_MIN_DURATION: "300"
           QA_MIN_SCORE: "7.0"
           QA_MAX_ATTEMPTS: "3"
+          QA_MAX_RENDERS_2H: "5"
         run: |
           # 1) Calificacion por fases (para la app).
           node -e '
@@ -387,6 +388,10 @@ jobs:
           # 3) Contador de intentos QA (en R2) para no rehacer infinito.
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/qa_attempts.json" --file=qa_attempts.json --remote 2>/dev/null || echo '{"n":0}' > qa_attempts.json
           ATT=$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync("qa_attempts.json","utf8")).n||0))}catch(e){process.stdout.write("0")}')
+          # CORTACIRCUITOS a prueba de carreras: cuenta los renders REALES de las ultimas 2h en el
+          # historial de GitHub (fuente de verdad; no depende de un contador que varios renders pisan).
+          RECENT=$(curl -s -H "Authorization: Bearer ${GH_TOKEN}" "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/render_phased.yml/runs?per_page=40" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);const now=Date.now();console.log((j.workflow_runs||[]).filter(r=>now-Date.parse(r.created_at)<2*3600*1000).length)}catch(e){console.log(0)}})")
+          echo "Renders en las ultimas 2h: ${RECENT:-?} (tope ${QA_MAX_RENDERS_2H})"
           writeRP(){ node -e 'require("fs").writeFileSync("render_pending.json", JSON.stringify({at:new Date().toISOString(), min_score:parseFloat(process.env.MIN_SCORE||"0")||0, qa_ok:process.argv[1]==="1", qa_warning:process.env.REASONS||"", duration:parseInt(process.env.DUR||"0",10)}))' "$1"; npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/render_pending.json" --file=render_pending.json --remote --content-type application/json; }
           setAtt(){ echo "{\"n\":$1}" > qa_attempts.json; npx --yes wrangler@4 r2 object put "$BUCKET/channel/qa_attempts.json" --file=qa_attempts.json --remote --content-type application/json; }
           if [ "$PASSED" = "1" ]; then
@@ -395,7 +400,7 @@ jobs:
             bash pipeline/notify_telegram.sh "✅ Video LISTO y completo (${DUR}s). En la app (Control) puedes verlo ▶️, aprobarlo ✅, programarlo 📅 o regenerarlo 🔁."
           else
             NEXT=$((ATT+1))
-            if [ "$NEXT" -le "$QA_MAX_ATTEMPTS" ]; then
+            if [ "$NEXT" -le "$QA_MAX_ATTEMPTS" ] && [ "${RECENT:-99}" -lt "$QA_MAX_RENDERS_2H" ]; then
               setAtt "$NEXT"
               # NO render_pending: no se muestra un video malo. Rehace desde cero (voz completa + render).
               for k in 0 1 2 3 4 5 6 7 8 9; do npx --yes wrangler@4 r2 object delete "$BUCKET/video/$PROJECT/phases/phase_${k}.mp4" --remote 2>/dev/null || true; done
@@ -405,10 +410,11 @@ jobs:
               echo "QA_PASSED=0" >> "$GITHUB_ENV"
               bash pipeline/notify_telegram.sh "🤖 QA RECHAZÓ el video: ${REASONS}."$'\n'"Regenerando automáticamente (intento ${NEXT}/${QA_MAX_ATTEMPTS}). No te muestro nada hasta que cumpla."
             else
-              # Tope alcanzado: sin loop infinito. Lo dejo marcado para revision MANUAL.
+              # CORTACIRCUITOS: tope de intentos O demasiados renders en 2h. NUNCA loop infinito.
+              # Presento el mejor video que haya para revision MANUAL (no lo escondo).
               setAtt 0; writeRP 0
               echo "QA_PASSED=1" >> "$GITHUB_ENV"
-              bash pipeline/notify_telegram.sh "⚠️ QA no logró cumplir tras ${QA_MAX_ATTEMPTS} intentos (${REASONS}). Te lo dejo en la app (Control) marcado para revisión MANUAL."
+              bash pipeline/notify_telegram.sh "🛑 Corté las regeneraciones automáticas (${REASONS}; ${RECENT} renders en 2h / ${NEXT} intentos). Te dejo el video en la app (Control) para revisión MANUAL — apruébalo, prográmalo o regéralo tú."
             fi
           fi
 

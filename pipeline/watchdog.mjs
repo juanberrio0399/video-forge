@@ -34,15 +34,17 @@ const rruns = ((rr.ok ? (await rr.json()).workflow_runs : []) || []);
 const renderInProgress = rruns.some((x) => x.status !== "completed");
 const latest = rruns[0];
 const fails2h = rruns.filter((x) => x.conclusion === "failure" && (now - Date.parse(x.updated_at)) < 2 * 3600 * 1000).length;
+// CORTACIRCUITOS global: total de renders (de cualquier origen) en las ultimas 2h. Nunca loop.
+const renders2h = rruns.filter((x) => (now - Date.parse(x.created_at)) < 2 * 3600 * 1000).length;
 
 if (!renderInProgress && (cancelledHungRender || (latest && latest.conclusion === "failure" && (now - Date.parse(latest.updated_at)) < 45 * 60000))) {
-  if (fails2h < 3) {
+  if (fails2h < 3 && renders2h < 5) {
     const ok = await dispatchRender();
     await tg(`🛟 Watchdog: el render ${cancelledHungRender ? "se colgó" : "falló"}. Reintenté automáticamente${ok ? "" : " (no pude disparar)"}. (fallo ${fails2h + 1}/3)`);
     console.log("render reintentado");
   } else {
-    await tg(`⚠️ Watchdog: el render falló ${fails2h} veces seguidas — necesita revisión manual. No reintento más (para no gastar). Escríbeme y lo miro.`);
-    console.log("render: se alcanzo el limite de reintentos");
+    await tg(`🛑 Watchdog: corté los reintentos de render (${fails2h} fallos / ${renders2h} renders en 2h) — para NO entrar en bucle. Revísalo manual en la app.`);
+    console.log("render: cortacircuitos activo (limite 2h)");
   }
 } else {
   console.log(renderInProgress ? "render en curso, no toco" : "watchdog: todo OK");
