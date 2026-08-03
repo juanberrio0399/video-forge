@@ -31,7 +31,9 @@ const _ctr = (1.05 + NUMENV(process.env.FX_CONTRAST, 0)).toFixed(3);
 // filmica de contraste + micro-nitidez + vinneta suave. Sube el "piso" visual de cada
 // fotograma (que es lo que califica el auto-review) sin depender de los ajustes FX.
 // Sin vinneta (oscurecia y la IA pedia MAS luz). Curva suave + micro-nitidez.
-const CINE = "curves=preset=lighter,unsharp=3:3:0.30";
+// Look CINEMATOGRAFICO (sin oscurecer): curva luminosa + teal-orange sutil (sombras frias,
+// altas cálidas) + micro-nitidez + GRANO de pelicula temporal. Sube mucho el "no-plano" gratis.
+const CINE = "curves=preset=lighter,colorbalance=rs=-0.04:gs=-0.01:bs=0.05:rh=0.05:gh=0.01:bh=-0.05,unsharp=3:3:0.28,noise=alls=6:allf=t";
 const VF = `eq=brightness=${_brt}:saturation=${_sat}:contrast=${_ctr},${CINE}`; // grade + cine
 // Temas de relleno para VARIAR cuando dos planos seguidos caerian en el mismo tema.
 const FILLERS = [
@@ -164,8 +166,13 @@ async function makeSeg(i, s, th) {
   await aiImage(th.ai, img, 1000 + i);
   const frames = Math.round(dur * 30);
   const zin = i % 2 === 0; // alterna zoom in/out
-  const z = zin ? "min(zoom+0.0012,1.3)" : "if(lte(zoom,1.0),1.3,max(1.001,zoom-0.0012))";
-  execSync(`ffmpeg -y -loop 1 -i "${img}" -t ${dur} -vf "scale=2600:1463,zoompan=z='${z}':d=${frames}:s=1920x1080:fps=30,${VF}" -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${out}"`, { stdio: "ignore" });
+  const dir = i % 2 ? 1 : -1;
+  // Zoom SIEMPRE >1.1 (deja margen para panear) + PANEO diagonal -> sensacion de profundidad/camara,
+  // no un zoom plano. La imagen se escala a 2600 para tener recorrido.
+  const z = zin ? "if(lte(zoom,1.1),1.1,min(zoom+0.0010,1.32))" : "if(lte(zoom,1.1),1.32,max(1.1,zoom-0.0010))";
+  const px = `iw/2-(iw/zoom/2)+(on/${frames}-0.5)*${dir * 140}`;
+  const py = `ih/2-(ih/zoom/2)+(on/${frames}-0.5)*${dir * 70}`;
+  execSync(`ffmpeg -y -loop 1 -i "${img}" -t ${dur} -vf "scale=2600:1463,zoompan=z='${z}':x='${px}':y='${py}':d=${frames}:s=1920x1080:fps=30,${VF}" -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${out}"`, { stdio: "ignore" });
   return { out, dur, src: "ai" };
 }
 
