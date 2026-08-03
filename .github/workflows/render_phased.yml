@@ -109,7 +109,7 @@ jobs:
   render:
     needs: prepare
     runs-on: ubuntu-latest
-    timeout-minutes: 125
+    timeout-minutes: 100
     strategy:
       fail-fast: false
       matrix:
@@ -174,11 +174,11 @@ jobs:
           cp "phases/$PH/voicemap.json" voicemap.json
           ls -la timing.json voiceover.mp3 voicemap.json
 
-      - name: Render fase con puerta de calidad (2 intentos, umbral 7.5)
+      - name: Render fase (1 intento — rapido, cabe en el timeout; el QA final decide)
         if: ${{ steps.reuse.outputs.reuse != 'yes' }}
         env:
           THRESHOLD: "7.5"
-          MAX_ATTEMPTS: "2"
+          MAX_ATTEMPTS: "1"
         run: |
           mkdir -p renders
           HOOK=$(node -e "try{const v=JSON.parse(require('fs').readFileSync('voicemap.json','utf8'));process.stdout.write((v.beats&&v.beats[0]&&v.beats[0].text||'').slice(0,120))}catch(e){}")
