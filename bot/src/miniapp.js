@@ -330,14 +330,16 @@ export const APP_HTML = `<!doctype html>
       var hr='<h2>🎬 Video listo — revísalo y aprueba</h2>';
       var mmss=qa.duration?(' · '+Math.floor(qa.duration/60)+':'+('0'+(qa.duration%60)).slice(-2)):'';
       if(qa.warning){
-        hr+='<div class="card" style="border:1px solid rgba(245,158,11,.5)"><b style="color:var(--am)">⚠️ QA no pudo cumplir tras varios intentos</b><div class="muted" style="font-size:12px;margin-top:4px">'+esc(qa.warning)+'. Revísalo manual: apruébalo si te sirve o regéralo.</div></div>';
+        hr+='<div class="card" style="border:1px solid rgba(245,158,11,.5)"><b style="color:var(--am)">⚠️ '+esc(qa.warning)+'</b><div class="muted" style="font-size:12px;margin-top:4px">Revísalo: apruébalo si te sirve o regéralo.</div></div>';
       } else {
-        hr+='<div class="muted" style="font-size:12px;margin:2px">✅ Pasó el QA automático (duración'+mmss+', calidad OK).</div>';
+        hr+='<div class="muted" style="font-size:12px;margin:2px">✅ Video completo (duración'+mmss+'). Míralo y decide.</div>';
       }
       if(p.watch_url) hr+='<a class="btn" href="'+esc(location.origin+p.watch_url)+'" target="_blank">▶️ Ver el video</a>';
-      hr+='<div class="card"><div style="display:flex;align-items:center;gap:12px">'
-        +'<div class="score" style="color:'+scoreColor(ms)+'">'+ms+'<span style="font-size:13px;color:var(--hint)">/10</span></div>'
-        +'<div><div style="font-weight:700">Calificación IA del video</div><div class="muted" style="font-size:12px">'+(q2.passed?"✅ Pasó el mínimo (7.5)":"⚠️ Bajo 7.5 — puedes regenerar")+'</div></div></div></div>';
+      if(ms>0){
+        hr+='<div class="card"><div style="display:flex;align-items:center;gap:12px">'
+          +'<div class="score" style="color:'+scoreColor(ms)+'">'+ms+'<span style="font-size:13px;color:var(--hint)">/10</span></div>'
+          +'<div><div style="font-weight:700">Nota IA del video</div><div class="muted" style="font-size:12px">'+(ms>=7?"✅ Buena":"Puedes regenerar si quieres subirla")+'</div></div></div></div>';
+      }
       hr+='<button class="btn" onclick="approveRender()">✅ Aprobar (subir y preparar el SEO)</button>'
         +'<button class="btn ghost" onclick="regenRender()">🔁 Regenerar el video</button>';
       return hr;

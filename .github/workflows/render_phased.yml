@@ -392,7 +392,7 @@ jobs:
           if [ "$PASSED" = "1" ]; then
             setAtt 0; writeRP 1
             echo "QA_PASSED=1" >> "$GITHUB_ENV"
-            bash pipeline/notify_telegram.sh "✅ QA aprobó el video (${DUR}s, nota ${MIN_SCORE}). Está en la app (Control) para que lo apruebes."
+            bash pipeline/notify_telegram.sh "✅ Video LISTO y completo (${DUR}s). En la app (Control) puedes verlo ▶️, aprobarlo ✅, programarlo 📅 o regenerarlo 🔁."
           else
             NEXT=$((ATT+1))
             if [ "$NEXT" -le "$QA_MAX_ATTEMPTS" ]; then
