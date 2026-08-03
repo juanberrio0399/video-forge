@@ -274,10 +274,17 @@ async function handleApi(request, env, url) {
     // PROGRAMADOS: videos con publishAt en el futuro (YouTube los publica solo a esa hora).
     // Al publicarse, YouTube quita publishAt y pasan a público -> desaparecen de esta lista.
     const nowMs = Date.now();
-    state.scheduled = [...(inv.longs || []), ...(inv.shorts || [])]
+    const invAll = [...(inv.longs || []), ...(inv.shorts || [])];
+    const fromYT = invAll
       .filter((v) => v.publish_at && Date.parse(v.publish_at) > nowMs)
-      .map((v) => ({ video_id: v.video_id, title: v.title, type: (v.seconds || 0) <= 60 ? "short" : "long", publish_at: v.publish_at }))
-      .sort((a, b) => Date.parse(a.publish_at) - Date.parse(b.publish_at));
+      .map((v) => ({ video_id: v.video_id, title: v.title, type: (v.seconds || 0) <= 60 ? "short" : "long", publish_at: v.publish_at }));
+    // + registro LOCAL (recien programados, antes de que YouTube confirme). Se descartan los que ya
+    // aparecen en YouTube (evita duplicar) o que ya son publicos (ya se publicaron) o cuya hora paso.
+    const schedLocal = (await r2json(env, "channel/scheduled_local.json")) || [];
+    const publicIds = new Set(invAll.filter((v) => v.privacy === "public").map((v) => v.video_id));
+    const ytIds = new Set(fromYT.map((v) => v.video_id));
+    const fromLocal = schedLocal.filter((s) => s.publish_at && Date.parse(s.publish_at) > nowMs && !publicIds.has(s.video_id) && !ytIds.has(s.video_id));
+    state.scheduled = [...fromYT, ...fromLocal].sort((a, b) => Date.parse(a.publish_at) - Date.parse(b.publish_at));
     state.totals = {
       views: state.all_videos.reduce((s, v) => s + (v.views || 0), 0),
       watch_min: state.all_videos.reduce((s, v) => s + (v.watch_min || 0), 0),
@@ -496,6 +503,20 @@ async function handleApi(request, env, url) {
     const slot = nextBestSlot(occupied);
     if (!slot) return json({ error: "no encontré un horario libre" }, 500);
     const r = await ghDispatch(env, "schedule_youtube.yml", { video_id: vid, publish_at: slot });
+    if (r.ok) {
+      // Ya quedó programado: limpiar el estado del slot para que DESAPAREZCA la tarjeta de aprobar/programar.
+      for (const f of ["render_pending.json", "quality.json", "package.json", "seo_approved.json", "video_id.txt"]) {
+        try { await env.R2.delete(`video/0001-youtube-money/${f}`); } catch {}
+      }
+      // Registrar la programacion localmente para que salga YA en "Programados" (antes de que el
+      // inventario de YouTube confirme el publishAt). Se limpia solo cuando el video ya es publico.
+      const sched = (await r2json(env, "channel/scheduled_local.json")) || [];
+      const title = (inv.longs || []).concat(inv.shorts || []).find((v) => v.video_id === vid);
+      const rec = { video_id: vid, publish_at: slot, title: (title && title.title) || "Video", type: (title && (title.seconds || 0) <= 60) ? "short" : "long", at: new Date().toISOString() };
+      const merged = [...sched.filter((s) => s.video_id !== vid), rec];
+      try { await env.R2.put("channel/scheduled_local.json", JSON.stringify(merged), { httpMetadata: { contentType: "application/json" } }); } catch {}
+      try { await env.R2.delete("channel/inventory_cache.json"); } catch {} // refrescar Programados
+    }
     return json({ ok: r.ok, publish_at: slot });
   }
 
