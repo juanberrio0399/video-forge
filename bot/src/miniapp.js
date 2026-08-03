@@ -281,6 +281,11 @@ export const APP_HTML = `<!doctype html>
         if(s[key]) return '<td style="text-align:center;color:#34d399;font-size:16px">✓</td>';
         return '<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="'+act+'">＋ Hacer</span></td>';
       }
+      // Público: ✓ si en vivo, 🕒 Programado si tiene hora futura, ＋ Hacer si falta.
+      var pubCell;
+      if(v.public){ pubCell='<td style="text-align:center;color:#34d399;font-size:16px">✓</td>'; }
+      else if(v.scheduled){ pubCell='<td style="text-align:center"><span style="color:var(--cy);font-size:11px;font-weight:700">🕒 Programado</span></td>'; }
+      else { pubCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="publishRow(\\''+vid+'\\')">＋ Hacer</span></td>'; }
       // Miniatura: solo ESTADO en la tabla; la imagen grande y el botón salen ARRIBA.
       var miniCell;
       if(s.miniatura){
@@ -291,7 +296,7 @@ export const APP_HTML = `<!doctype html>
         miniCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="thumbRow(\\''+vid+'\\')">＋ Hacer</span></td>';
       }
       return '<tr><td>'+(vid?'<a href="https://youtu.be/'+vid+'" target="_blank">'+esc((v.title||"").slice(0,20))+'</a>':esc((v.title||"").slice(0,20)))+'</td>'
-        +cell("publicado","publishRow(\\'"+vid+"\\')")
+        +pubCell
         +miniCell
         +cell("shorts","goShorts()")
         +'</tr>';
