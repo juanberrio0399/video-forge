@@ -766,7 +766,7 @@ export const APP_HTML = `<!doctype html>
     // No refrescar si estás escribiendo (no borrar comentarios/textos a medias).
     refTimer=setTimeout(function(){ if(curTab!=="crear" && !isTyping()) load(); else scheduleRefresh(); }, ms);
   }
-  function load(){ api("/api/state").then(function(r){return r.json();}).then(function(j){ if(j.error){el("hd").textContent="No autorizado";return;} ST=j; render(); scheduleRefresh(); }).catch(function(){el("hd").textContent="Error de conexión";scheduleRefresh();}); }
+  function load(){ api("/api/state").then(function(r){return r.json();}).then(function(j){ if(j.error){ el("hd").textContent = j.error==="no autorizado" ? "No autorizado" : ("⚠️ "+(j.detail||j.error)+" — reintentando…"); scheduleRefresh(); return; } ST=j; render(); scheduleRefresh(); }).catch(function(){el("hd").textContent="Sin conexión — reintentando…";scheduleRefresh();}); }
   load();
 </script>
 </body></html>`;
