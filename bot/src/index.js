@@ -387,10 +387,12 @@ async function handleApi(request, env, url) {
     // Activas CON paso actual + % + ETA (para verlo en vivo en la app, cortito).
     const actRuns = runs.filter((r) => r.status !== "completed");
     state.active = [];
-    for (const r of actRuns) {
+    for (let ai = 0; ai < actRuns.length; ai++) {
+      const r = actRuns[ai];
       const mins = r.run_started_at ? Math.max(0, Math.round((Date.now() - Date.parse(r.run_started_at)) / 60000)) : 0;
       let step = r.status === "queued" ? "en cola…" : "iniciando…";
-      const jr = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs/${r.id}/jobs`);
+      // Solo pido el detalle de pasos de las primeras 3 activas (ahorra subrequests de Cloudflare).
+      const jr = ai < 3 ? await ghApi(env, `/repos/${env.GH_REPO}/actions/runs/${r.id}/jobs`) : { ok: false };
       if (jr.ok) {
         const jobs = (await jr.json()).jobs || [];
         const job = jobs.find((j) => j.status === "in_progress") || jobs[0];
@@ -408,16 +410,12 @@ async function handleApi(request, env, url) {
     const latestByWf = {};
     for (const r of runs) { const wf = r.path || r.name; if (!latestByWf[wf]) latestByWf[wf] = r; }
     // Muestra TODOS los errores recientes (últimas 24h), la última corrida fallida por workflow.
-    const fails = Object.values(latestByWf).filter((r) => r.conclusion === "failure" && (Date.now() - Date.parse(r.updated_at)) < 24 * 3600 * 1000).slice(0, 12);
+    const fails = Object.values(latestByWf).filter((r) => r.conclusion === "failure" && (Date.now() - Date.parse(r.updated_at)) < 24 * 3600 * 1000).slice(0, 8);
     state.problems = [];
     for (const r of fails) {
-      let step = "";
-      const jr = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs/${r.id}/jobs`);
-      if (jr.ok) {
-        const job = ((await jr.json()).jobs || []).find((j) => j.conclusion === "failure");
-        if (job) { const s = (job.steps || []).find((x) => x.conclusion === "failure"); step = s ? s.name : job.name; }
-      }
-      state.problems.push({ name: r.name, step, url: r.html_url, run_id: r.id, workflow: (r.path || "").split("/").pop() });
+      // Sin pedir /jobs aqui (ahorra subrequests de Cloudflare): el paso/detalle se carga al
+      // hacer clic en "Ver el error" (/api/error-detail). Asi /api/state no explota en subrequests.
+      state.problems.push({ name: r.name, step: "", url: r.html_url, run_id: r.id, workflow: (r.path || "").split("/").pop() });
     }
     // PRODUCCION actual: calificacion de la IA (calidad del render) + paquete SEO + preview.
     const quality = await r2json(env, "video/0001-youtube-money/quality.json");
