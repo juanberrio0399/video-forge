@@ -17,7 +17,8 @@ export default {
     const url = new URL(request.url);
     // Mini App (interfaz "tipo app pro" dentro de Telegram).
     if (url.pathname === "/app") {
-      return new Response(APP_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
+      // no-store: Telegram Mini App cachea el WebView; sin esto sigue sirviendo una version vieja.
+      return new Response(APP_HTML, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
     }
     if (url.pathname.startsWith("/api/")) {
       try {
