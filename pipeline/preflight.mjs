@@ -27,8 +27,15 @@ async function check(name, critical, fn, { retries = 3, wait = 20000 } = {}) {
 // ---- CRITICOS (sin esto la produccion falla) ----
 await check("Gemini (guion/SEO)", true, async () => {
   if (!GEMINI_API_KEY) return { ok: false, detail: "sin API key" };
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }) });
-  return { ok: r.ok, detail: r.ok ? "OK" : `HTTP ${r.status}${r.status === 429 ? " (cuota/transitorio)" : ""}` };
+  // Prueba VARIOS modelos (auto-adapta al que responda), igual que los scripts reales -> no marca
+  // caido solo porque un nombre de modelo dio 404. Si alguno responde, Gemini esta OK.
+  let saw429 = false;
+  for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-2.0-flash-lite"]) {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI_API_KEY}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }) });
+    if (r.ok) return { ok: true, detail: `OK (${m})` };
+    if (r.status === 429) saw429 = true;
+  }
+  return { ok: false, detail: saw429 ? "429 (cuota/transitorio)" : "ningun modelo respondio" };
 });
 await check("Kokoro (voz)", true, async () => {
   const r = await fetch("https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin", { method: "HEAD", redirect: "follow" });
