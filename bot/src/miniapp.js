@@ -607,11 +607,18 @@ export const APP_HTML = `<!doctype html>
         +'<button class="btn" onclick="dispatch(\\'shorts_final.yml\\',\\'Generar los shorts aprobados\\')">🎬 Generar los aprobados</button></div>';
     }
     if(upl.length){
-      sh+='<h2>🎬 Shorts hechos</h2><div class="card"><table><tr><th>Short</th><th>Estado</th><th style="text-align:right">Vistas</th></tr>'
+      // Los shorts NO se publican hasta que su video PADRE esté público (si no, llevan a un video que nadie ve).
+      var parentPub = sst.parent_public;
+      sh+='<h2>🎬 Shorts hechos</h2>';
+      if(!parentPub){
+        sh+='<div class="card" style="border:1px solid rgba(245,158,11,.45)"><div style="font-weight:700;color:var(--am)">⏳ Esperando que se publique el video</div>'
+          +'<div class="muted" style="font-size:12px;margin-top:4px">Estos shorts son de <b>'+esc(sst.parent_title||"un video")+'</b>, que aún está privado/programado. Se publicarán cuando el video esté público (los shorts llevan gente al video — sin video público no sirven).</div></div>';
+      }
+      sh+='<div class="card"><table><tr><th>Short</th><th>Estado</th><th style="text-align:right">'+(parentPub?"Vistas":"Acción")+'</th></tr>'
         +upl.map(function(s){var pv=s.privacy==="public";
           return '<tr><td>'+(s.video_id?'<a href="https://youtu.be/'+s.video_id+'" target="_blank">'+esc(s.title)+'</a>':esc(s.title))+'</td>'
           +'<td><span class="tag '+(pv?"pub":"priv")+'">'+esc(s.privacy||"?")+'</span></td>'
-          +'<td style="text-align:right">'+(!pv?'<button class="btn mini" onclick="pubShort(\\''+s.video_id+'\\')">Publicar</button>':num(s.views))+'</td></tr>';
+          +'<td style="text-align:right">'+(pv?num(s.views):(parentPub?'<button class="btn mini" onclick="pubShort(\\''+s.video_id+'\\')">Publicar</button>':'<span class="muted" style="font-size:11px">⏳ tras el video</span>'))+'</td></tr>';
         }).join("")+'</table></div>';
     }
     if(skip.length) sh+='<div class="muted" style="font-size:12px;margin:6px 2px">Saltados: '+skip.length+'.</div>';
