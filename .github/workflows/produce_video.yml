@@ -73,6 +73,20 @@ jobs:
             echo "PROCEED=no" >> "$GITHUB_ENV"
           fi
 
+      - name: Anti-limbo — contar intentos (si un tema falla 3 veces sin publicar, lo salto para no trancar la cola)
+        if: ${{ env.PROCEED != 'no' }}
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/attempts.json" --file=attempts.json --remote 2>/dev/null || echo '{}' > attempts.json
+          NA=$(N="$N" node -e 'const fs=require("fs");let a={};try{a=JSON.parse(fs.readFileSync("attempts.json","utf8"))}catch(e){};const n=process.env.N;a[n]=(a[n]||0)+1;fs.writeFileSync("attempts.json",JSON.stringify(a));process.stdout.write(String(a[n]))')
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/attempts.json" --file=attempts.json --remote --content-type application/json
+          if [ "${NA:-1}" -ge 4 ]; then
+            npx --yes wrangler@4 r2 object get "$BUCKET/channel/produced.json" --file=produced.json --remote 2>/dev/null || echo '{"done":[]}' > produced.json
+            N="$N" node -e 'const fs=require("fs");let p={done:[]};try{p=JSON.parse(fs.readFileSync("produced.json","utf8"))}catch(e){};const n=+process.env.N;if(!Array.isArray(p.done))p.done=[];if(!p.done.includes(n))p.done.push(n);fs.writeFileSync("produced.json",JSON.stringify(p));'
+            npx --yes wrangler@4 r2 object put "$BUCKET/channel/produced.json" --file=produced.json --remote --content-type application/json
+            bash pipeline/notify_telegram.sh "⚠️ Salté el video #${N} (${TOPIC}): lo intenté 3 veces y no logró publicarse. Sigo con otro tema para no trancar la cola. Puedes reintentarlo manual desde la app."
+            echo "PROCEED=no" >> "$GITHUB_ENV"
+          fi
+
       - name: Avisar arranque
         if: ${{ env.PROCEED != 'no' }}
         run: |
@@ -110,12 +124,11 @@ jobs:
             npx --yes wrangler@4 r2 object delete "$BUCKET/video/$PROJECT/phases/phase_${k}.txt" --remote 2>/dev/null || true
           done
 
-      - name: Marcar el video como PRODUCIDO (para avanzar los proximos en la app)
+      - name: Marcar el N ACTIVO en el slot (el "producido" real se marca al PUBLICAR, no antes — así no quedan huecos)
         if: ${{ env.PROCEED != 'no' }}
         run: |
-          npx --yes wrangler@4 r2 object get "$BUCKET/channel/produced.json" --file=produced.json --remote 2>/dev/null || echo '{"done":[]}' > produced.json
-          node -e 'const fs=require("fs");let p={done:[]};try{p=JSON.parse(fs.readFileSync("produced.json","utf8"))}catch(e){};const n=+process.env.N;if(!Array.isArray(p.done))p.done=[];if(!p.done.includes(n))p.done.push(n);fs.writeFileSync("produced.json",JSON.stringify(p));console.log("producidos:",p.done.join(","))'
-          npx --yes wrangler@4 r2 object put "$BUCKET/channel/produced.json" --file=produced.json --remote --content-type application/json
+          N="$N" TOPIC="$TOPIC" node -e 'require("fs").writeFileSync("active_n.json",JSON.stringify({n:+process.env.N,topic:process.env.TOPIC||"",at:new Date().toISOString()}))'
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/active_n.json" --file=active_n.json --remote --content-type application/json
 
       - name: Rellenar la cola a 10 ideas (producir una consume una)
         run: |

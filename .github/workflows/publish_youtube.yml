@@ -57,6 +57,19 @@ jobs:
           npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/package.json" --file=publish/package.json --remote
           npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/video_id.txt" --file=publish/video_id.txt --remote
 
+      - name: Marcar el N como PRODUCIDO (ya está en YouTube) — cierra el ciclo, sin huecos
+        if: ${{ hashFiles('publish/video_id.txt') != '' }}
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/active_n.json" --file=active_n.json --remote 2>/dev/null || echo '{}' > active_n.json
+          N=$(node -e 'try{const n=JSON.parse(require("fs").readFileSync("active_n.json","utf8")).n;process.stdout.write(n?String(n):"")}catch(e){}')
+          if [ -n "$N" ]; then
+            npx --yes wrangler@4 r2 object get "$BUCKET/channel/produced.json" --file=produced.json --remote 2>/dev/null || echo '{"done":[]}' > produced.json
+            N="$N" node -e 'const fs=require("fs");let p={done:[]};try{p=JSON.parse(fs.readFileSync("produced.json","utf8"))}catch(e){};const n=+process.env.N;if(!Array.isArray(p.done))p.done=[];if(!p.done.includes(n))p.done.push(n);fs.writeFileSync("produced.json",JSON.stringify(p));console.log("producidos:",p.done.join(","))'
+            npx --yes wrangler@4 r2 object put "$BUCKET/channel/produced.json" --file=produced.json --remote --content-type application/json
+            # limpiar el contador de intentos de ese N (ya salió bien)
+            npx --yes wrangler@4 r2 object get "$BUCKET/channel/attempts.json" --file=attempts.json --remote 2>/dev/null && N="$N" node -e 'const fs=require("fs");let a={};try{a=JSON.parse(fs.readFileSync("attempts.json","utf8"))}catch(e){};delete a[process.env.N];fs.writeFileSync("attempts.json",JSON.stringify(a))' && npx --yes wrangler@4 r2 object put "$BUCKET/channel/attempts.json" --file=attempts.json --remote --content-type application/json || true
+          fi
+
       - name: Miniatura automatica (Pollinations + texto) y fijarla
         if: ${{ hashFiles('publish/video_id.txt') != '' }}
         run: |
