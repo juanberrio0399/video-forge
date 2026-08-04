@@ -289,6 +289,16 @@ async function handleApi(request, env, url) {
       views: state.all_videos.reduce((s, v) => s + (v.views || 0), 0),
       watch_min: state.all_videos.reduce((s, v) => s + (v.watch_min || 0), 0),
     };
+    // ARBOL de Videos: cada LARGO con sus SHORTS anidados debajo (pestaña Videos, como la pidio Juan).
+    // Mapeo short->padre: ledger persistente (channel/shorts_map.json) + el plan actual (for_video_id).
+    const shortsMap = (await r2json(env, "channel/shorts_map.json")) || {};
+    if (plan.for_video_id) (plan.shorts || []).forEach((s) => { if (s.video_id) shortsMap[s.video_id] = plan.for_video_id; });
+    const byParent = {};
+    (inv.shorts || []).forEach((sh) => { const p = shortsMap[sh.video_id]; if (p) (byParent[p] = byParent[p] || []).push(sh); });
+    const slimV = (v) => ({ video_id: v.video_id, title: (v.title || "").replace(/ #Shorts$/, ""), privacy: v.privacy, views: v.views || 0, watch_min: v.watch_min || 0 });
+    state.video_tree = (inv.longs || []).map((l) => ({ ...slimV(l), shorts: (byParent[l.video_id] || []).map(slimV) }));
+    const groupedIds = new Set(Object.values(byParent).flat().map((s) => s.video_id));
+    state.video_tree_ungrouped = (inv.shorts || []).filter((sh) => !groupedIds.has(sh.video_id)).map(slimV);
     // MATRIZ de control por video largo: check de lo hecho + acciones posibles.
     // publicado = en vivo del canal; miniatura = registro; shorts = registro O el plan
     // (si el plan es de este video y sus shorts aprobados ya estan subidos) -> auto-corrige.
