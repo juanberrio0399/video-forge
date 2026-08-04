@@ -325,7 +325,9 @@ async function handleApi(request, env, url) {
           // "publicado" = ya gestionado: público EN VIVO o PROGRAMADO (se publica solo a su hora).
           publicado: v.privacy === "public" || scheduled,
           miniatura: !!st.thumbnail, // ✓ = aplicada en YouTube (thumb_url = solo generada, por aprobar)
-          shorts: !!st.shorts || !!(planFor && planFor === v.video_id && planShortsDone),
+          // shorts HECHOS si: el registro lo dice, O el video YA TIENE shorts en el canal (byParent),
+          // O el plan actual es de este video y sus shorts aprobados ya se subieron.
+          shorts: !!st.shorts || ((byParent[v.video_id] || []).length > 0) || !!(planFor && planFor === v.video_id && planShortsDone),
         },
       };
     }));
