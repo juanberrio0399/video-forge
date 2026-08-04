@@ -216,6 +216,10 @@ jobs:
           done
           npx --yes wrangler@4 r2 object put "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote --content-type application/json
           echo "N=$N" >> "$GITHUB_ENV"
+          # AUTO-MAPEO persistente short->video padre (para el arbol de la pestaña Videos, aunque el plan cambie).
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/shorts_map.json" --file=smap.json --remote 2>/dev/null || echo '{}' > smap.json
+          node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("plan.json","utf8"));const m=JSON.parse(fs.readFileSync("smap.json","utf8"));const par=p.for_video_id;if(par)(p.shorts||[]).forEach(s=>{if(s.video_id)m[s.video_id]=par;});fs.writeFileSync("smap.json",JSON.stringify(m));'
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/shorts_map.json" --file=smap.json --remote --content-type application/json
       - name: Marcar "shorts hechos" en el registro por video
         if: ${{ env.N != '0' && env.N != '' }}
         run: |
