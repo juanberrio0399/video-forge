@@ -26,6 +26,16 @@ const r = await fetch("https://www.googleapis.com/youtube/v3/videos?part=status"
   body: JSON.stringify({ id: videoId, status: { privacyStatus: "private", publishAt, selfDeclaredMadeForKids: false } }),
 });
 const j = await r.json();
-if (!r.ok || !j.id) { console.error("Error:", r.status, JSON.stringify(j).slice(0, 400)); process.exit(1); }
+if (!r.ok || !j.id) {
+  const reason = j?.error?.errors?.[0]?.reason || "";
+  if (reason === "invalidPublishAt") {
+    // Caso NORMAL, no un fallo: YouTube no deja agendar videos que ya estuvieron publicos.
+    // No marcar failure (no ensuciar Problemas ni spamear errores). Aviso suave.
+    fs.writeFileSync("schedule_result.txt", `ℹ️ Este video no se puede AGENDAR (YouTube no permite programar videos que ya estuvieron públicos). Si lo quieres vivo, publícalo directo desde la app.`);
+    console.log("invalidPublishAt -> no agendable (video viejo). No es un fallo de la fabrica.");
+    process.exit(0);
+  }
+  console.error("Error:", r.status, JSON.stringify(j).slice(0, 400)); process.exit(1);
+}
 console.log(`SCHEDULED VIDEO=${j.id} AT=${j.status?.publishAt}`);
 fs.writeFileSync("schedule_result.txt", `📅 Video PROGRAMADO: https://youtu.be/${j.id}\nSe publicará solo el ${publishAt} (UTC).`);
