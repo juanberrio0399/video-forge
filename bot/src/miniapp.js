@@ -516,34 +516,33 @@ export const APP_HTML = `<!doctype html>
       + errorLearnHtml()
       + '<button class="btn ghost" onclick="dispatch(\\'channel_report.yml\\',\\'Reporte de métricas\\')">🔄 Refrescar métricas</button>';
 
-    // VIDEOS: tabla compacta con TODOS (largos+shorts), tipo, vistas y MINUTOS VISTOS + total + IA.
-    var av=(ST.all_videos||[]).slice();
-    var nLong=av.filter(function(v){return v.type==="long";}).length;
-    var nShort=av.filter(function(v){return v.type==="short";}).length;
-    // DOS tablas separadas: Largos y Shorts, cada una con su subtotal.
-    function videoTable(title, type){
-      var list=av.filter(function(v){return v.type===type;});
-      list.sort(function(a,b){ return vSort==="watch" ? (b.watch_min||0)-(a.watch_min||0) : (b.views||0)-(a.views||0); });
-      var rows=list.map(function(v){
-        var pv=v.privacy==="public";
-        return '<tr><td>'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").replace(/ #Shorts$/,"").slice(0,40))+'</a>':esc(v.title||""))+'</td>'
-          +'<td style="text-align:right">'+(pv?num(v.views):"🔒")+'</td>'
-          +'<td style="text-align:right">'+(ST.analytics_ok?num(v.watch_min||0):"—")+'</td></tr>';
-      }).join("");
-      var sv=list.reduce(function(s,v){return s+(v.views||0);},0), sw=list.reduce(function(s,v){return s+(v.watch_min||0);},0);
-      var sub='<tr style="font-weight:800;border-top:2px solid rgba(255,255,255,.2)"><td>Subtotal ('+list.length+')</td><td style="text-align:right">'+num(sv)+'</td><td style="text-align:right">'+(ST.analytics_ok?num(sw):"—")+'</td></tr>';
-      return '<h3 style="margin:12px 2px 4px;font-size:14px">'+title+'</h3>'
-        +'<div class="card" style="padding:8px"><table style="font-size:13px"><tr><th style="text-align:left">Título</th><th style="text-align:right">Vistas</th><th style="text-align:right">Min vist.</th></tr>'
-        +(rows||'<tr><td colspan="3" class="muted">Aún no hay.</td></tr>')+(rows?sub:'')+'</table></div>';
+    // VIDEOS: ARBOL -> cada video LARGO con sus SHORTS anidados debajo + Vistas + Minutos + TOTAL.
+    var tree=ST.video_tree||[], ung=ST.video_tree_ungrouped||[];
+    var aok=ST.analytics_ok, gV=0, gW=0, rowsHtml="", li=0;
+    function vcell(v,isPub){ return '<td style="text-align:right">'+(isPub?num(v.views):"🔒")+'</td>'
+      +'<td style="text-align:right">'+(aok?num(v.watch_min||0):"—")+'</td>'; }
+    function link(v){ return v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,30))+'</a>':esc(v.title||""); }
+    tree.forEach(function(l){ li++;
+      var pv=l.privacy==="public"; gV+=l.views||0; gW+=l.watch_min||0;
+      rowsHtml+='<tr style="font-weight:700;border-top:1px solid rgba(255,255,255,.10)"><td>📹 <span class="muted" style="font-weight:400">#'+li+'</span> '+link(l)+'</td>'+vcell(l,pv)+'</tr>';
+      (l.shorts||[]).forEach(function(s){ var sp=s.privacy==="public"; gV+=s.views||0; gW+=s.watch_min||0;
+        rowsHtml+='<tr><td style="padding-left:24px">↳ 🎬 '+link(s)+'</td>'+vcell(s,sp)+'</tr>';
+      });
+    });
+    if(ung.length){
+      rowsHtml+='<tr style="font-weight:700;border-top:1px solid rgba(255,255,255,.10)"><td>🎬 Shorts sueltos</td><td></td><td></td></tr>';
+      ung.forEach(function(s){ var sp=s.privacy==="public"; gV+=s.views||0; gW+=s.watch_min||0;
+        rowsHtml+='<tr><td style="padding-left:24px">↳ '+link(s)+'</td>'+vcell(s,sp)+'</tr>';
+      });
     }
-    el("s-videos").innerHTML='<h2>Videos · '+nLong+' largos · '+nShort+' shorts</h2>'
-      +'<div style="display:flex;gap:6px;margin:4px 0"><span class="chip'+(vSort==="views"?" on":"")+'" onclick="setVSort(\\'views\\')">Por vistas</span><span class="chip'+(vSort==="watch"?" on":"")+'" onclick="setVSort(\\'watch\\')">Por min vistos</span></div>'
-      +videoTable("📹 Videos largos","long")
-      +videoTable("🎬 Shorts","short")
-      +(ST.analytics_ok?'':'<div class="muted" style="font-size:11px">⚠️ Los "min vistos" necesitan el permiso de YouTube Analytics. Reautoriza el OAuth con el scope yt-analytics para verlos.</div>')
+    var totalRow='<tr style="font-weight:900;border-top:2px solid rgba(255,255,255,.28)"><td>Total</td><td style="text-align:right">'+num(gV)+'</td><td style="text-align:right">'+(aok?num(gW):"—")+'</td></tr>';
+    el("s-videos").innerHTML='<h2>Videos</h2>'
+      +'<div class="card" style="padding:8px"><table style="font-size:13px;width:100%"><tr><th style="text-align:left">Video</th><th style="text-align:right">Vistas</th><th style="text-align:right">Min. vistos</th></tr>'
+      +(rowsHtml||'<tr><td colspan="3" class="muted">Aún no hay videos.</td></tr>')+(rowsHtml?totalRow:'')+'</table></div>'
+      +(aok?'':'<div class="muted" style="font-size:11px">⚠️ Los "min vistos" necesitan el permiso de YouTube Analytics (reautoriza el OAuth con el scope yt-analytics).</div>')
       +'<button class="btn" onclick="showInsights()">🧠 Analizar qué replicar (IA)</button>'
       +'<div id="insightsOut">'+lastInsights+'</div>'
-      +'<div class="muted" style="font-size:11px;text-align:center">🔒 privado</div>';
+      +'<div class="muted" style="font-size:11px;text-align:center">📹 largo · ↳🎬 sus shorts · 🔒 privado</div>';
 
     // PLAN (panel de produccion): estado + siguiente con boton + pendientes + tendencias
     var next = up[0];
