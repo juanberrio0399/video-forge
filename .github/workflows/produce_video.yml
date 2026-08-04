@@ -35,6 +35,7 @@ jobs:
       YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
       YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
       YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
       TOPIC: ${{ github.event.inputs.topic }}
@@ -44,6 +45,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+
+      - name: PRE-VUELO — validar herramientas antes de producir (aborta si algo critico esta caido)
+        run: |
+          if node pipeline/preflight.mjs; then
+            echo "Pre-vuelo OK: herramientas al dia."
+          else
+            REASON="$(cat preflight_reason.txt 2>/dev/null || echo 'una herramienta critica esta caida')"
+            bash pipeline/notify_telegram.sh "🛑 NO produzco el video ahora: hay una herramienta crítica caída (reintenté y sigue mal):"$'\n\n'"${REASON}"$'\n\n'"El sistema reintenta solo (video diario / watchdog) cuando se restablezca. Así producción no arranca con errores."
+            # Guardar el estado para verlo en la app.
+            npx --yes wrangler@4 r2 object put "$BUCKET/channel/tools_health.json" --file=tools_health.json --remote --content-type application/json 2>/dev/null || true
+            exit 1
+          fi
+          # Guardar salud de herramientas (todo OK) para la app.
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/tools_health.json" --file=tools_health.json --remote --content-type application/json 2>/dev/null || true
 
       - name: Avisar arranque
         run: |
