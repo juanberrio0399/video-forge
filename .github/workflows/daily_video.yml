@@ -46,16 +46,19 @@ jobs:
           # Elegir el proximo tema de la cola (no producido y por delante de los publicos).
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/state.json" --file=state.json --remote 2>/dev/null || cp channel/seed.json state.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/produced.json" --file=produced.json --remote 2>/dev/null || echo '{"done":[]}' > produced.json
-          read N TOPIC < <(node -e '
+          # Con command substitution + cut (robusto bajo bash -e; el 'read < <()' fallaba por EOF sin salto).
+          SEL=$(node -e '
             const s=JSON.parse(require("fs").readFileSync("state.json","utf8"));
             const p=JSON.parse(require("fs").readFileSync("produced.json","utf8"));
             const done=new Set(p.done||[]);
             const pub=(s.published||[]).filter(v=>v.privacy==="public").length;
             const up=(s.upcoming||[]).filter(u=>!done.has(u.n)&&u.n>pub).sort((a,b)=>a.n-b.n);
             const next=up[0];
-            if(next) process.stdout.write(next.n+" "+(next.topic||"").replace(/\n/g," "));
+            if(next) process.stdout.write(next.n+"\t"+(next.topic||"").replace(/[\t\n]/g," "));
           ')
-          if [ -z "$TOPIC" ]; then echo "Cola vacia -> nada que producir."; bash pipeline/notify_telegram.sh "⚠️ Video diario: la cola de ideas esta vacia. Genero mas en el proximo reporte." || true; exit 0; fi
+          N=$(printf '%s' "$SEL" | cut -f1)
+          TOPIC=$(printf '%s' "$SEL" | cut -f2-)
+          if [ -z "$SEL" ] || [ -z "$TOPIC" ]; then echo "Cola vacia -> nada que producir."; bash pipeline/notify_telegram.sh "⚠️ Video diario: la cola de ideas esta vacia. Genero mas en el proximo reporte." || true; exit 0; fi
           echo "Produciendo automatico: #$N - $TOPIC"
           gh workflow run produce_video.yml -f topic="$TOPIC" -f n="$N" -R "$GITHUB_REPOSITORY"
           bash pipeline/notify_telegram.sh "🏭 Video diario AUTOMATICO arrancado: #$N - $TOPIC. Sale solo; te aviso cuando este en Control para aprobar." || true
