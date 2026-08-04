@@ -250,6 +250,12 @@ async function handleApi(request, env, url) {
     // Inventario REAL del canal (cacheado 10 min): largos + shorts + subs/vistas.
     // Asi la lista de publicados y el contador se actualizan solos al subir/publicar.
     const inv = await channelInventory(env);
+    // OCULTOS (duplicados retirados): fuera de TODA la app (arbol, matriz, contadores...).
+    const hidden = new Set((await r2json(env, "channel/hidden_videos.json")) || []);
+    if (hidden.size) {
+      inv.longs = (inv.longs || []).filter((v) => !hidden.has(v.video_id));
+      inv.shorts = (inv.shorts || []).filter((v) => !hidden.has(v.video_id));
+    }
     const seedPub = state.published || [];
     if (inv.longs && inv.longs.length) {
       state.published = inv.longs.map((v) => {

@@ -60,11 +60,26 @@ jobs:
           # Guardar salud de herramientas (todo OK) para la app.
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/tools_health.json" --file=tools_health.json --remote --content-type application/json 2>/dev/null || true
 
+      - name: GUARDA anti-duplicados — no producir un tema que ya existe
+        run: |
+          if node pipeline/dup_check.mjs "$TOPIC"; then
+            echo "PROCEED=yes" >> "$GITHUB_ENV"
+          else
+            # Duplicado: NO produzco. Avanzo la cola (marco producido) y aviso -> el sistema sigue con otro tema.
+            npx --yes wrangler@4 r2 object get "$BUCKET/channel/produced.json" --file=produced.json --remote 2>/dev/null || echo '{"done":[]}' > produced.json
+            node -e 'const fs=require("fs");let p={done:[]};try{p=JSON.parse(fs.readFileSync("produced.json","utf8"))}catch(e){};const n=+process.env.N;if(!Array.isArray(p.done))p.done=[];if(!p.done.includes(n))p.done.push(n);fs.writeFileSync("produced.json",JSON.stringify(p));'
+            npx --yes wrangler@4 r2 object put "$BUCKET/channel/produced.json" --file=produced.json --remote --content-type application/json
+            bash pipeline/notify_telegram.sh "⏭️ Salté el video #${N} (${TOPIC}): ya existe uno muy parecido en el canal. Sigo con otro tema para NO duplicar."
+            echo "PROCEED=no" >> "$GITHUB_ENV"
+          fi
+
       - name: Avisar arranque
+        if: ${{ env.PROCEED != 'no' }}
         run: |
           bash pipeline/notify_telegram.sh "🏭 Produciendo el video número ${N} (${TOPIC}). Paso 0: aprendiendo de lo ya subido (métricas + tendencias). Luego guion, voz y render, automatico. Te aviso en cada paso."
 
       - name: Aprender de lo subido (métricas + tendencias) ANTES del guion
+        if: ${{ env.PROCEED != 'no' }}
         run: |
           node pipeline/learnings.mjs learnings.txt learnings.json || echo "sin aprendizajes; sigo con buenas prácticas"
           # Guardar en R2 para que la app muestre "qué estamos mejorando".
@@ -78,14 +93,17 @@ jobs:
           fi
 
       - name: Generar el guion (IA, aplicando los aprendizajes)
+        if: ${{ env.PROCEED != 'no' }}
         run: LEARNINGS="$(cat learnings.txt 2>/dev/null)" node pipeline/video_script.mjs "$TOPIC" voicemap.json
 
       - name: Guardar el guion en el SLOT del proyecto (R2)
+        if: ${{ env.PROCEED != 'no' }}
         run: |
           # Este es el guion "activo": la voz y el render lo leen desde aqui.
           npx --yes wrangler@4 r2 object put "$BUCKET/audio/$PROJECT/voicemap_full.json" --file=voicemap.json --remote
 
       - name: Limpiar checkpoints de fases viejas (video nuevo)
+        if: ${{ env.PROCEED != 'no' }}
         run: |
           for k in 0 1 2 3 4 5 6 7 8 9; do
             npx --yes wrangler@4 r2 object delete "$BUCKET/video/$PROJECT/phases/phase_${k}.mp4" --remote 2>/dev/null || true
@@ -93,6 +111,7 @@ jobs:
           done
 
       - name: Marcar el video como PRODUCIDO (para avanzar los proximos en la app)
+        if: ${{ env.PROCEED != 'no' }}
         run: |
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/produced.json" --file=produced.json --remote 2>/dev/null || echo '{"done":[]}' > produced.json
           node -e 'const fs=require("fs");let p={done:[]};try{p=JSON.parse(fs.readFileSync("produced.json","utf8"))}catch(e){};const n=+process.env.N;if(!Array.isArray(p.done))p.done=[];if(!p.done.includes(n))p.done.push(n);fs.writeFileSync("produced.json",JSON.stringify(p));console.log("producidos:",p.done.join(","))'
@@ -109,6 +128,7 @@ jobs:
           fi
 
       - name: Avisar el guion + arrancar la VOZ (encadena render)
+        if: ${{ env.PROCEED != 'no' }}
         run: |
           if [ -f voicemap.json ]; then
             TITLE=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("voicemap.json","utf8")).title||"")}catch(e){}')
