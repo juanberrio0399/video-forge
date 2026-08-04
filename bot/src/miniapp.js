@@ -614,11 +614,16 @@ export const APP_HTML = `<!doctype html>
         sh+='<div class="card" style="border:1px solid rgba(245,158,11,.45)"><div style="font-weight:700;color:var(--am)">⏳ Esperando que se publique el video</div>'
           +'<div class="muted" style="font-size:12px;margin-top:4px">Estos shorts son de <b>'+esc(sst.parent_title||"un video")+'</b>, que aún está privado/programado. Se publicarán cuando el video esté público (los shorts llevan gente al video — sin video público no sirven).</div></div>';
       }
-      sh+='<div class="card"><table><tr><th>Short</th><th>Estado</th><th style="text-align:right">'+(parentPub?"Vistas":"Acción")+'</th></tr>'
+      sh+='<div class="card"><table><tr><th>Short</th><th>Estado</th><th style="text-align:right">Acción</th></tr>'
         +upl.map(function(s){var pv=s.privacy==="public";
+          var cell;
+          if(pv){ cell=num(s.views)+' vistas'; }
+          else if(s.publish_at){ cell='<span style="font-size:10px;color:var(--cy)">🕒 '+esc(fmtSlot(s.publish_at))+'</span>'; }
+          else if(parentPub){ cell='<button class="btn mini" onclick="scheduleShort(\\''+s.video_id+'\\')">📅 Programar</button>'; }
+          else { cell='<span class="muted" style="font-size:11px">⏳ tras el video</span>'; }
           return '<tr><td>'+(s.video_id?'<a href="https://youtu.be/'+s.video_id+'" target="_blank">'+esc(s.title)+'</a>':esc(s.title))+'</td>'
-          +'<td><span class="tag '+(pv?"pub":"priv")+'">'+esc(s.privacy||"?")+'</span></td>'
-          +'<td style="text-align:right">'+(pv?num(s.views):(parentPub?'<button class="btn mini" onclick="pubShort(\\''+s.video_id+'\\')">Publicar</button>':'<span class="muted" style="font-size:11px">⏳ tras el video</span>'))+'</td></tr>';
+          +'<td><span class="tag '+(pv?"pub":"priv")+'">'+(s.publish_at&&!pv?"programado":esc(s.privacy||"?"))+'</span></td>'
+          +'<td style="text-align:right">'+cell+'</td></tr>';
         }).join("")+'</table></div>';
     }
     if(skip.length) sh+='<div class="muted" style="font-size:12px;margin:6px 2px">Saltados: '+skip.length+'.</div>';
@@ -717,6 +722,15 @@ export const APP_HTML = `<!doctype html>
     api("/api/schedule",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({})})
       .then(function(r){return r.json();}).then(function(j){
         if(j.ok){ toast("📅 Programado para "+fmtSlot(j.publish_at)); setTimeout(load,1800); }
+        else toast("❌ "+(j.error||"no pude programar"));
+      }).catch(function(){toast("❌ Error de red");});
+  }
+  function scheduleShort(id){
+    if(!id){toast("Sin short");return;}
+    if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
+    api("/api/schedule",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({video_id:id})})
+      .then(function(r){return r.json();}).then(function(j){
+        if(j.ok){ toast("📅 Short programado para "+fmtSlot(j.publish_at)); setTimeout(load,1800); }
         else toast("❌ "+(j.error||"no pude programar"));
       }).catch(function(){toast("❌ Error de red");});
   }
