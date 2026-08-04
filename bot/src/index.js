@@ -327,6 +327,8 @@ async function handleApi(request, env, url) {
     state.shorts_list = shortsWith;
     // PROPUESTA completa de shorts (para aprobar/generar/publicar DESDE la app).
     // Estado por short: pending (sin decidir) | approved | skipped | uploaded.
+    // Hora programada (publishAt) de cada short subido, del inventario de YouTube.
+    const shortPub = {}; invAll.forEach((v) => { if (v.publish_at) shortPub[v.video_id] = v.publish_at; });
     state.shorts_proposal = planShorts.map((s) => {
       const uploaded = !!s.video_id;
       // pending = aun sin decidir (approved!=true y NO saltado). skipped SOLO si skipped===true.
@@ -336,6 +338,7 @@ async function handleApi(request, env, url) {
         hashtags: s.hashtags || [], dur: s.dur || null, start: s.start != null ? s.start : null, end: s.end != null ? s.end : null,
         state: st, video_id: s.video_id || null,
         privacy: uploaded ? (yt[s.video_id] ? yt[s.video_id].privacy : "private") : null,
+        publish_at: uploaded ? (shortPub[s.video_id] || null) : null,
         views: uploaded && yt[s.video_id] ? yt[s.video_id].views : 0,
       };
     });
@@ -507,6 +510,7 @@ async function handleApi(request, env, url) {
     // Programa el video en la PROXIMA mejor hora (EEUU) libre. YouTube lo publica solo a esa hora.
     let body = {}; try { body = await request.json(); } catch {}
     let vid = body.video_id;
+    const isProductionVideo = !vid; // sin video_id en el body = el VIDEO de produccion (slot activo). Con video_id = un SHORT u otro.
     if (!vid) { try { const ido = await env.R2.get("video/0001-youtube-money/video_id.txt"); if (ido) vid = (await ido.text()).trim(); } catch {} }
     if (!vid || !/^[A-Za-z0-9_-]{6,20}$/.test(vid)) return json({ error: "no encontré el video a programar" }, 400);
     const inv = await channelInventory(env);
@@ -515,9 +519,12 @@ async function handleApi(request, env, url) {
     if (!slot) return json({ error: "no encontré un horario libre" }, 500);
     const r = await ghDispatch(env, "schedule_youtube.yml", { video_id: vid, publish_at: slot });
     if (r.ok) {
-      // Ya quedó programado: limpiar el estado del slot para que DESAPAREZCA la tarjeta de aprobar/programar.
-      for (const f of ["render_pending.json", "quality.json", "package.json", "seo_approved.json", "video_id.txt"]) {
-        try { await env.R2.delete(`video/0001-youtube-money/${f}`); } catch {}
+      // Solo el VIDEO de produccion limpia el slot (para que desaparezca la tarjeta de aprobar/programar).
+      // Un SHORT (video_id explicito) NO toca el slot del video principal.
+      if (isProductionVideo) {
+        for (const f of ["render_pending.json", "quality.json", "package.json", "seo_approved.json", "video_id.txt"]) {
+          try { await env.R2.delete(`video/0001-youtube-money/${f}`); } catch {}
+        }
       }
       // Registrar la programacion localmente para que salga YA en "Programados" (antes de que el
       // inventario de YouTube confirme el publishAt). Se limpia solo cuando el video ya es publico.
