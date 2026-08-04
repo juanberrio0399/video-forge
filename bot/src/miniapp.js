@@ -223,33 +223,40 @@ export const APP_HTML = `<!doctype html>
     if(!ST.analytics_ok){
       return h+'<div class="card muted">Aún sin datos de Analytics. Si ya reautorizaste el permiso, YouTube tarda ~1-2 días en procesar el primer dato. Si sigue vacío tras 2 días, reautoriza el OAuth con el scope <b>yt-analytics.readonly</b>. Entonces verás vistas, minutos vistos y crecimiento en vivo.</div>';
     }
-    var l=(a&&a.last28)||{views:0,minutes:0,subs_gained:0,avg_sec:0};
-    h+='<div class="card"><div class="muted" style="font-size:12px;margin-bottom:8px">Últimos 28 días</div><div class="row">'
-      +'<div class="kpi"><div class="n">'+num(l.views)+'</div><div class="l">Vistas</div></div>'
-      +'<div class="kpi"><div class="n">'+num(l.minutes)+'</div><div class="l">Min vistos</div></div>'
-      +'<div class="kpi"><div class="n">'+(l.subs_gained>=0?"+":"")+num(l.subs_gained)+'</div><div class="l">Subs</div></div>'
-      +'<div class="kpi"><div class="n">'+durTxt(l.avg_sec)+'</div><div class="l">Dur. media</div></div>'
+    // VALORES = canal COMPLETO (no 28 días): suscriptores, vistas totales, min vistos, videos.
+    h+='<div class="card"><div class="muted" style="font-size:12px;margin-bottom:8px">Tu canal completo</div><div class="row">'
+      +'<div class="kpi"><div class="n">'+num(tot.subs||0)+'</div><div class="l">Suscriptores</div></div>'
+      +'<div class="kpi"><div class="n">'+num(tot.views||0)+'</div><div class="l">Vistas</div></div>'
+      +'<div class="kpi"><div class="n">'+num(tot.watch_min||0)+'</div><div class="l">Min vistos</div></div>'
+      +'<div class="kpi"><div class="n">'+num(tot.videos||0)+'</div><div class="l">Videos</div></div>'
       +'</div>';
-    var daily=(a&&a.daily)||[];
+    // GRAFICA = últimos 7 días, con EJE Y numérico (vertical) para leer la escala.
+    var daily=((a&&a.daily)||[]).slice(-7);
     if(daily.length){
-      var mx=Math.max.apply(null, daily.map(function(x){return x.views;}).concat([1]));
-      var bars=daily.slice(-21).map(function(x){
-        var hh=Math.max(2, Math.round((x.views/mx)*44));
-        return '<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end"><div title="'+esc(x.d)+': '+x.views+' vistas" style="height:'+hh+'px;background:var(--cy);border-radius:2px"></div></div>';
+      var mx=Math.max.apply(null, daily.map(function(x){return x.views||0;}).concat([1]));
+      var CH=90; // alto del área de barras en px
+      // Eje Y: 3 marcas (max, mitad, 0)
+      var yl=[mx, Math.round(mx/2), 0].map(function(v){
+        return '<div style="flex:1;display:flex;align-items:flex-start;justify-content:flex-end;font-size:10px;color:var(--hint);line-height:1">'+num(v)+'</div>';
       }).join("");
-      h+='<div style="margin-top:12px"><div class="muted" style="font-size:11px;margin-bottom:4px">Vistas por día (últimos 21)</div><div style="display:flex;gap:2px;align-items:flex-end;height:48px">'+bars+'</div></div>';
-      // Histórico por día (tabla: fecha · vistas · minutos), lo más reciente arriba.
-      var drows=daily.slice(-30).reverse().map(function(x){
+      var bars=daily.map(function(x){
+        var v=x.views||0, hh=Math.max(2, Math.round((v/mx)*CH));
         var dd=x.d?String(x.d).slice(5).replace("-","/"):"";
-        return '<tr><td>'+esc(dd)+'</td><td style="text-align:right">'+num(x.views||0)+'</td><td style="text-align:right">'+num(x.min||0)+'</td></tr>';
+        return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px">'
+          +'<div style="font-size:10px;color:var(--txt);font-weight:600">'+num(v)+'</div>'
+          +'<div title="'+esc(x.d)+': '+v+' vistas" style="width:70%;height:'+hh+'px;background:var(--cy);border-radius:3px 3px 0 0"></div>'
+          +'<div style="font-size:9px;color:var(--hint)">'+esc(dd)+'</div></div>';
       }).join("");
-      h+='<div style="margin-top:10px"><div class="muted" style="font-size:11px;margin-bottom:4px">Histórico por día</div>'
-        +'<div style="max-height:200px;overflow:auto"><table style="font-size:12px;width:100%"><tr><th style="text-align:left">Día</th><th style="text-align:right">Vistas</th><th style="text-align:right">Min vist.</th></tr>'+drows+'</table></div></div>';
+      h+='<div style="margin-top:12px"><div class="muted" style="font-size:11px;margin-bottom:6px">Vistas por día — últimos 7 días</div>'
+        +'<div style="display:flex;gap:6px">'
+        +'<div style="display:flex;flex-direction:column;height:'+CH+'px;width:34px;text-align:right">'+yl+'</div>'
+        +'<div style="flex:1;display:flex;gap:4px;align-items:flex-end;border-left:1px solid rgba(255,255,255,.18);border-bottom:1px solid rgba(255,255,255,.18);padding:0 2px 0 6px;min-height:'+(CH+18)+'px">'+bars+'</div>'
+        +'</div></div>';
     } else if(ST.analytics_ok){
       h+='<div class="muted" style="font-size:11px;margin-top:10px">Aún no hay historial por día. YouTube lo llena en 1-2 días tras las primeras vistas públicas.</div>';
     }
     h+='</div>';
-    h+='<div class="card muted" style="font-size:11px">Tiempo reproducido total del canal: '+num(tot.watch_min||0)+' min · Los datos de YouTube Analytics tienen ~1-2 días de retraso.</div>';
+    h+='<div class="card muted" style="font-size:11px">Los datos de YouTube Analytics tienen ~1-2 días de retraso.</div>';
     return h;
   }
   function pendingThumbsHtml(){

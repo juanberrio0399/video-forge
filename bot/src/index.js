@@ -292,8 +292,12 @@ async function handleApi(request, env, url) {
     const fromLocal = schedLocal.filter((s) => s.publish_at && Date.parse(s.publish_at) > nowMs && !publicIds.has(s.video_id) && !ytIds.has(s.video_id));
     state.scheduled = [...fromYT, ...fromLocal].sort((a, b) => Date.parse(a.publish_at) - Date.parse(b.publish_at));
     state.totals = {
-      views: state.all_videos.reduce((s, v) => s + (v.views || 0), 0),
+      views: inv.total_views || state.all_videos.reduce((s, v) => s + (v.views || 0), 0),
       watch_min: state.all_videos.reduce((s, v) => s + (v.watch_min || 0), 0),
+      subs: inv.subs || 0,
+      videos: (inv.longs || []).length + (inv.shorts || []).length,
+      longs: (inv.longs || []).length,
+      shorts: (inv.shorts || []).length,
     };
     // ARBOL de Videos: cada LARGO con sus SHORTS anidados debajo (pestaña Videos, como la pidio Juan).
     // Mapeo short->padre: ledger persistente (channel/shorts_map.json) + el plan actual (for_video_id).
