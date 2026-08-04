@@ -8,11 +8,11 @@ on:
     inputs:
       video_id:
         description: "ID del video"
-        required: true
+        required: false
         default: ""
       publish_at:
         description: "Hora de publicacion (ISO UTC, ej 2026-08-03T16:00:00Z)"
-        required: true
+        required: false
         default: ""
 
 permissions:
@@ -45,7 +45,7 @@ jobs:
           node pipeline/youtube_schedule.mjs "$VID" "$PUB"
 
       - name: Avisar al chat
-        if: always()
+        if: ${{ always() && github.event.inputs.video_id != '' }}
         run: |
           if [ -f schedule_result.txt ]; then
             bash pipeline/notify_telegram.sh "$(cat schedule_result.txt)"$'\n\n'"👉 Míralo en la app (Control → 📅 Programados). Al publicarse, desaparece de esa lista."
