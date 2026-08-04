@@ -346,6 +346,10 @@ async function handleApi(request, env, url) {
     const forCurrent = !!(plan.for_video_id && latestPublic.video_id && plan.for_video_id === latestPublic.video_id);
     const anyToAct = sp.some((s) => s.state === "pending" || s.state === "approved");
     const allDone = sp.some((s) => s.state === "uploaded") && !anyToAct;
+    // ¿El VIDEO PADRE de estos shorts ya esta publico? No se deben publicar shorts de un video
+    // privado/programado (llevarian trafico a un video que nadie ve).
+    const parentVid = invAll.find((v) => v.video_id === plan.for_video_id);
+    const parentPublic = !!(parentVid && parentVid.privacy === "public");
     state.shorts_status = {
       total: sp.length,
       pending: sp.filter((s) => s.state === "pending").length,
@@ -353,6 +357,9 @@ async function handleApi(request, env, url) {
       uploaded: sp.filter((s) => s.state === "uploaded").length,
       all_done: allDone,
       for_current: forCurrent,
+      parent_id: plan.for_video_id || null,
+      parent_public: parentPublic,
+      parent_title: (parentVid && parentVid.title) || null,
       // Sugerir SOLO si YA hay un video PUBLICO, no hay nada por decidir/generar, y (no hay plan o es de otro video).
       can_suggest: !!latestPublic.video_id && !anyToAct && (sp.length === 0 || !forCurrent),
       latest_video_id: latestPublic.video_id || null,
