@@ -6,31 +6,33 @@ const { GH_TOKEN, GITHUB_REPOSITORY: REPO, TELEGRAM_BOT_TOKEN, OWNER_CHAT_ID } =
 const H = { Authorization: `Bearer ${GH_TOKEN}`, Accept: "application/vnd.github+json" };
 const MAX_MIN = 140; // colgada si pasa de 140 min (un render legitimo puede durar ~120: 2 intentos x 55 min)
 const now = Date.now();
+// fetch con timeout: una API de GitHub LENTA no debe consumir todo el job del watchdog.
+const tf = (u, o = {}, ms = 8000) => fetch(u, { ...o, signal: AbortSignal.timeout(ms) });
 
 async function tg(text) {
-  try { await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chat_id: OWNER_CHAT_ID, text }) }); } catch {}
+  try { await tf(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chat_id: OWNER_CHAT_ID, text }) }); } catch {}
 }
 async function dispatchRender() {
-  const d = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/render_phased.yml/dispatches`, { method: "POST", headers: H, body: JSON.stringify({ ref: "main" }) });
+  const d = await tf(`https://api.github.com/repos/${REPO}/actions/workflows/render_phased.yml/dispatches`, { method: "POST", headers: H, body: JSON.stringify({ ref: "main" }) });
   return d.ok;
 }
 
 // 1) COLGADAS
-const res = await fetch(`https://api.github.com/repos/${REPO}/actions/runs?status=in_progress&per_page=40`, { headers: H });
+const res = await tf(`https://api.github.com/repos/${REPO}/actions/runs?status=in_progress&per_page=40`, { headers: H });
 const inProgRuns = (res.ok ? (await res.json()).workflow_runs : []) || [];
 let cancelledHungRender = false;
 for (const run of inProgRuns) {
   if (/watchdog/i.test(run.name || "")) continue;
   const mins = Math.round((now - Date.parse(run.run_started_at || run.created_at)) / 60000);
   if (mins < MAX_MIN) continue;
-  await fetch(`https://api.github.com/repos/${REPO}/actions/runs/${run.id}/cancel`, { method: "POST", headers: H });
+  await tf(`https://api.github.com/repos/${REPO}/actions/runs/${run.id}/cancel`, { method: "POST", headers: H });
   console.log("cancelada colgada:", run.name, mins, "min");
   if (/render|fase/i.test(run.name || "")) cancelledHungRender = true;
   else await tg(`🛟 Watchdog: cancelé una corrida colgada (${run.name}, ${mins} min).`);
 }
 
 // 2) RENDER: reanudar si se DETUVO sin terminar (cancelado, fallado o cadena rota) -> NUNCA limbo.
-const rr = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/render_phased.yml/runs?per_page=10`, { headers: H });
+const rr = await tf(`https://api.github.com/repos/${REPO}/actions/workflows/render_phased.yml/runs?per_page=10`, { headers: H });
 const rruns = ((rr.ok ? (await rr.json()).workflow_runs : []) || []);
 const renderInProgress = rruns.some((x) => x.status !== "completed");
 const latest = rruns[0];
@@ -45,7 +47,7 @@ const stopped = latest && (latest.conclusion === "failure" || latest.conclusion 
 // (b) CADENA ROTA: la voz mas reciente terminó OK pero NO arrancó ningun render despues (produccion a medias).
 let chainBroken = false, voiceReason = "";
 try {
-  const vr = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/voice_parallel.yml/runs?per_page=5`, { headers: H });
+  const vr = await tf(`https://api.github.com/repos/${REPO}/actions/workflows/voice_parallel.yml/runs?per_page=5`, { headers: H });
   const vruns = ((vr.ok ? (await vr.json()).workflow_runs : []) || []);
   const lastVoice = vruns.find((x) => x.status === "completed" && x.conclusion === "success");
   if (lastVoice) {

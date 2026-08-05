@@ -5,9 +5,11 @@
 import fs from "node:fs";
 
 const out = process.argv[2] || "tools_health.json";
-const { GEMINI_API_KEY, PEXELS_API_KEY, YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN } = process.env;
+const { GEMINI_API_KEY, PEXELS_API_KEY, YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN, GH_TOKEN, GITHUB_REPOSITORY } = process.env;
 const tools = [];
 const add = (name, ok, detail, critical = false) => tools.push({ name, ok, detail, critical });
+// fetch con timeout: una API LENTA (no caida) no cuelga el job entero.
+const tf = (u, o = {}, ms = 8000) => fetch(u, { ...o, signal: AbortSignal.timeout(ms) });
 
 async function checkGeminiText() {
   if (!GEMINI_API_KEY) return add("Gemini (guion/SEO/IA)", false, "sin API key", true);
@@ -49,7 +51,18 @@ async function checkYouTube() {
   catch (e) { add("YouTube Analytics (métricas)", false, e.message, false); }
 }
 
-await Promise.all([checkGeminiText(), checkPollinations(), checkPexels(), checkKokoro(), checkYouTube()]);
+async function checkGitHub() {
+  // El PAT del que cuelga TODA la orquestacion (un workflow dispara al siguiente con gh workflow run).
+  if (!GH_TOKEN) return add("GitHub Actions (orquestacion)", false, "sin GH_TOKEN", true);
+  const repo = GITHUB_REPOSITORY || "juanberrio0399/video-forge";
+  try {
+    const r = await tf(`https://api.github.com/repos/${repo}`, { headers: { Authorization: `Bearer ${GH_TOKEN}`, Accept: "application/vnd.github+json" } });
+    if (r.status === 401) return add("GitHub Actions (orquestacion)", false, "PAT invalido/expirado — renuevalo (GH_TOKEN)", true);
+    add("GitHub Actions (orquestacion)", r.ok, r.ok ? "PAT OK" : `HTTP ${r.status}`, true);
+  } catch (e) { add("GitHub Actions (orquestacion)", false, e.name === "TimeoutError" ? "timeout" : e.message, true); }
+}
+
+await Promise.all([checkGeminiText(), checkPollinations(), checkPexels(), checkKokoro(), checkYouTube(), checkGitHub()]);
 const down = tools.filter((t) => !t.ok);
 fs.writeFileSync(out, JSON.stringify({ tools, ok: tools.length - down.length, total: tools.length, down: down.length, critical_down: down.filter((t) => t.critical).length, at: new Date().toISOString() }, null, 2));
 console.log(`Herramientas: ${tools.length - down.length}/${tools.length} OK.`);
