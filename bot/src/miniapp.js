@@ -757,7 +757,7 @@ export const APP_HTML = `<!doctype html>
       +'<div id="trendsOut"></div>'
       +'<h2>En cola (próximos temas)</h2><div class="card"><table><tr><th>#</th><th>Tema</th><th style="text-align:right">Fecha</th></tr>'+(prows||'<tr><td colspan="3" class="muted">No hay más temas en cola por ahora.</td></tr>')+'</table></div>'
       +'<div class="card muted">Cadencia objetivo: '+esc((ST.cadence&&ST.cadence.goal)||"1 video cada 2 días")+'.</div>'
-      +'<h2>✂️ Shorts</h2>'
+      +'<h2 id="shortsAnchor">✂️ Shorts</h2>'
       +shb;
 
     // ===== AGENDA =====
@@ -912,7 +912,7 @@ export const APP_HTML = `<!doctype html>
     api("/api/short",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({n:n,action:ok?"approve":"skip"})})
       .then(function(r){return r.json();}).then(function(j){toast(j.ok?(ok?"✅ Short aprobado":"❌ Short saltado"):"❌ no pude");setTimeout(load,500);});
   }
-  function goShorts(){ tab("shorts"); }
+  function goShorts(){ tab("producir"); var e=el("shortsAnchor"); if(e) e.scrollIntoView({behavior:"smooth",block:"start"}); }
   function runShortsPlan(notes){
     var vid=(ST.shorts_status&&ST.shorts_status.latest_video_id)||"";
     var inputs={}; if(vid)inputs.video_id=vid; if(notes)inputs.notes=notes;
@@ -968,7 +968,7 @@ export const APP_HTML = `<!doctype html>
     clearTimeout(refTimer);
     var ms=(ST.active&&ST.active.length)?9000:25000;
     // No refrescar si estás escribiendo (no borrar comentarios/textos a medias).
-    refTimer=setTimeout(function(){ if(curTab!=="crear" && !isTyping()) load(); else scheduleRefresh(); }, ms);
+    refTimer=setTimeout(function(){ if(curTab!=="mas" && !isTyping()) load(); else scheduleRefresh(); }, ms);
   }
   function load(){ api("/api/state").then(function(r){return r.json();}).then(function(j){ if(j.error){ el("hd").textContent = j.error==="no autorizado" ? "No autorizado" : ("⚠️ "+(j.detail||j.error)+" — reintentando…"); scheduleRefresh(); return; } ST=j; render(); scheduleRefresh(); }).catch(function(){el("hd").textContent="Sin conexión — reintentando…";scheduleRefresh();}); }
   load();
