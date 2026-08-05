@@ -52,15 +52,17 @@ jobs:
             echo "Pre-vuelo OK: herramientas al dia."
           else
             REASON="$(cat preflight_reason.txt 2>/dev/null || echo 'una herramienta critica esta caida')"
-            bash pipeline/notify_telegram.sh "🛑 NO produzco el video ahora: hay una herramienta crítica caída (reintenté y sigue mal):"$'\n\n'"${REASON}"$'\n\n'"El sistema reintenta solo (video diario / watchdog) cuando se restablezca. Así producción no arranca con errores."
+            bash pipeline/notify_telegram.sh "⏸️ Pospongo el video ahora: una herramienta está temporalmente caída (p. ej. cuota de Gemini):"$'\n\n'"${REASON}"$'\n\n'"NO es un error — el sistema reintenta solo (video diario / rescate) cuando se restablezca. Así producción no arranca con fallos."
             # Guardar el estado para verlo en la app.
             npx --yes wrangler@4 r2 object put "$BUCKET/channel/tools_health.json" --file=tools_health.json --remote --content-type application/json 2>/dev/null || true
-            exit 1
+            # SOFT: posponer (run verde, no 'error de fabrica'). PROCEED=no apaga los pasos siguientes.
+            echo "PROCEED=no" >> "$GITHUB_ENV"
           fi
           # Guardar salud de herramientas (todo OK) para la app.
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/tools_health.json" --file=tools_health.json --remote --content-type application/json 2>/dev/null || true
 
       - name: GUARDA anti-duplicados — no producir un tema que ya existe
+        if: ${{ env.PROCEED != 'no' }}
         run: |
           if node pipeline/dup_check.mjs "$TOPIC"; then
             echo "PROCEED=yes" >> "$GITHUB_ENV"
