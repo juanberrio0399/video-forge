@@ -47,6 +47,10 @@ export const APP_HTML = `<!doctype html>
   .nav button{flex:1;background:none;border:0;color:var(--hint);font-size:11px;font-weight:600;padding:5px 2px;cursor:pointer;border-radius:12px;margin:0 2px;transition:background .15s}
   .nav button .ic{font-size:20px;display:block;margin-bottom:2px}
   .nav button.on{color:var(--cy);background:rgba(34,211,238,.14)}
+  .chsel{display:flex;background:var(--bg);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:3px;gap:2px}
+  .chsel button{background:none;border:0;color:var(--hint);font-size:11px;font-weight:700;padding:5px 10px;border-radius:8px;cursor:pointer;white-space:nowrap}
+  .chsel button.on{background:var(--cy);color:#04121a}
+  .gauge{font-size:34px;font-weight:900;line-height:1}
   .hide{display:none}
   .muted{color:var(--hint);font-size:13px}
   #toast{position:fixed;bottom:78px;left:14px;right:14px;background:#111a2b;color:#fff;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:13px 16px;text-align:center;font-weight:600;transform:translateY(140px);transition:.25s;z-index:20;box-shadow:0 8px 30px rgba(0,0,0,.45)}
@@ -63,25 +67,32 @@ export const APP_HTML = `<!doctype html>
   .score{font-size:30px;font-weight:800;line-height:1}
 </style></head>
 <body>
-<header><h1>The Data Lens</h1><div class="sub" id="hd">Centro de control</div></header>
+<header>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+    <h1 id="chTitle">The Data Lens</h1>
+    <div class="chsel" id="chSel">
+      <button data-ch="data-lens" class="on">The Data Lens</button>
+      <button data-ch="auto2">Auto #2</button>
+    </div>
+  </div>
+  <div class="sub" id="hd">Centro de control</div>
+</header>
 <div class="wrap">
   <div id="tabHelp" class="muted" style="font-size:12px;margin:2px 2px 8px"></div>
   <div id="globalStatus"></div>
-  <div id="s-canal"></div>
-  <div id="s-videos" class="hide"></div>
+  <div id="s-inicio"></div>
+  <div id="s-producir" class="hide"></div>
   <div id="s-agenda" class="hide"></div>
-  <div id="s-plan" class="hide"></div>
-  <div id="s-shorts" class="hide"></div>
-  <div id="s-crear" class="hide"></div>
+  <div id="s-analitica" class="hide"></div>
+  <div id="s-mas" class="hide"></div>
 </div>
 <div id="toast"></div>
 <div class="nav">
-  <button data-t="canal" class="on"><span class="ic">📊</span>Canal</button>
-  <button data-t="videos"><span class="ic">🎬</span>Videos</button>
+  <button data-t="inicio" class="on"><span class="ic">🏠</span>Inicio</button>
+  <button data-t="producir"><span class="ic">🏭</span>Producir</button>
   <button data-t="agenda"><span class="ic">📅</span>Agenda</button>
-  <button data-t="plan"><span class="ic">🧭</span>Control</button>
-  <button data-t="shorts"><span class="ic">✂️</span>Shorts</button>
-  <button data-t="crear"><span class="ic">✨</span>Crear</button>
+  <button data-t="analitica"><span class="ic">📈</span>Analítica</button>
+  <button data-t="mas"><span class="ic">⚙️</span>Más</button>
 </div>
 <script>
   var tg = window.Telegram && window.Telegram.WebApp;
@@ -95,26 +106,27 @@ export const APP_HTML = `<!doctype html>
   function num(n){n=+n||0;return n>=1000?(n/1000).toFixed(n>=100000?0:1)+"k":String(n);}
   function durTxt(sec){ if(sec==null) return "—"; sec=+sec; if(sec>=60){var m=Math.floor(sec/60),s=sec%60;return m+":"+("0"+s).slice(-2);} return sec+"s"; }
 
-  var curTab="canal";
+  var curTab="inicio", curChannel="data-lens";
   var vSort="views";
   var lastInsights="";
   var TABHELP={
-    canal:"📊 Tu canal de un vistazo: seguidores, vistas y analytics — en vivo.",
-    videos:"🎥 Todos tus videos y shorts, con vistas y minutos vistos. Ordénalos y pide análisis.",
-    agenda:"📅 Tu calendario de publicación: qué sale cada día y a qué hora (mejores horas EEUU). Meta: 2/día.",
-    plan:"🧭 El centro de control: en qué paso va la producción y qué le falta a cada video.",
-    shorts:"✂️ Sugerir, aprobar y publicar shorts de tu último video.",
-    crear:"➕ Subir una foto para retocar, una receta o una nota de voz."
+    inicio:"🏠 Lo que necesita tu atención ahora + el pulso del canal.",
+    producir:"🏭 El flujo de cada video: producir, revisar, aprobar, publicar — y qué le falta a cada uno. Aquí también los shorts.",
+    agenda:"📅 Tu calendario de publicación (mejores horas EEUU) y lo programado.",
+    analitica:"📈 Análisis del canal: qué tan prometedor, reclamaciones, métricas, capacidad y tus videos.",
+    mas:"⚙️ Crear (foto/receta/voz), voz del canal, salud de herramientas y almacenamiento."
   };
   function setHelp(t){ var e=el("tabHelp"); if(e) e.textContent=TABHELP[t]||""; }
   function setVSort(s){ vSort=s; render(); }
   function tab(name){
     curTab=name;
-    ["canal","videos","agenda","plan","shorts","crear"].forEach(function(t){el("s-"+t).classList.toggle("hide",t!==name);});
+    ["inicio","producir","agenda","analitica","mas"].forEach(function(t){el("s-"+t).classList.toggle("hide",t!==name);});
     document.querySelectorAll(".nav button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-t")===name);});
     setHelp(name);
   }
+  function setChannel(ch){ curChannel=ch; document.querySelectorAll(".chsel button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-ch")===ch);}); render(); }
   document.querySelectorAll(".nav button").forEach(function(b){b.onclick=function(){tab(b.getAttribute("data-t"));};});
+  document.querySelectorAll(".chsel button").forEach(function(b){b.onclick=function(){setChannel(b.getAttribute("data-ch"));};});
 
   function pct(a,b){return Math.min(100,Math.round((( +a||0)/(b||1))*100));}
   function statusHtml(){
@@ -548,38 +560,194 @@ export const APP_HTML = `<!doctype html>
       +(ST.analytics_ok?'Cuando el canal tenga más datos, ajusto esto a la hora real en que TU audiencia se conecta.':'Con datos de audiencia lo personalizo a tu público real.')+'</div></div>';
   }
 
+  function auto2Html(){
+    return '<div class="card" style="text-align:center;padding:22px">'
+      +'<div style="font-size:34px">🏭</div>'
+      +'<div style="font-weight:800;font-size:17px;margin-top:6px">Canal automático — en construcción</div>'
+      +'<div class="muted" style="font-size:13px;margin-top:6px">Compilaciones legales, 3/día automáticas. Se activa en la Fase 2 (cuando conectes el 2º canal de YouTube). Aquí verás sus videos, minutos vistos y el radar de nichos.</div></div>'
+      +'<div class="card"><div class="row">'
+      +'<div class="kpi"><div class="n">0</div><div class="l">Videos</div></div>'
+      +'<div class="kpi"><div class="n">0</div><div class="l">Vistas</div></div>'
+      +'<div class="kpi"><div class="n">0</div><div class="l">Min vistos</div></div>'
+      +'<div class="kpi"><div class="n">—</div><div class="l">Estado</div></div>'
+      +'</div></div>'
+      +'<div class="card muted" style="font-size:12px">📡 Radar de nichos: aún sin datos. Cuando el canal produzca, aquí verás qué nicho rinde mejor cada semana.</div>';
+  }
+  function nextActionHtml(){
+    var p=ST.production||{}, sst=ST.shorts_status||{}, prob=(ST.problems||[]).length, active=ST.active&&ST.active.length;
+    function card(t,d,btn,act){ return '<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px">'+t+'</div><div class="muted" style="font-size:13px;margin:4px 0 8px">'+esc(d)+'</div><button class="btn" onclick="'+act+'">'+btn+'</button></div>'; }
+    if(p.render_pending) return card("🎬 Video listo por revisar","Un video renderizado espera tu aprobación.","Revisarlo","tab(\\'producir\\')");
+    if(p.seo && !p.approved && !p.done) return card("📦 SEO por aprobar","El video está subido; aprueba el SEO para agendarlo a la mejor hora.","Ir a aprobar","tab(\\'producir\\')");
+    if(p.approved && !p.done) return card("📅 Falta agendar","Aprobado; solo falta ponerle hora.","Programar","tab(\\'producir\\')");
+    if(sst.pending) return card("✂️ Shorts por aprobar",sst.pending+" short(s) sugerido(s) esperan tu OK.","Ver shorts","tab(\\'producir\\')");
+    if(prob) return card("⚠️ "+prob+" problema(s)","Algo falló. Revisa y reintenta.","Ir a Más","tab(\\'mas\\')");
+    if(active) return "";
+    var next=(ST.upcoming||[])[0];
+    if(next) return card("▶️ Producir el siguiente","#"+(next.n||"")+" · "+(next.topic||""),"Producir","tab(\\'producir\\')");
+    return '<div class="card muted">✅ Todo al día. Nada requiere tu atención ahora.</div>';
+  }
+  function promiseMiniHtml(){
+    var a=ST.analysis; if(!a) return "";
+    var col=a.promise>=66?"var(--gr)":a.promise>=40?"var(--cy)":"var(--am)";
+    return '<div class="card" onclick="tab(\\'analitica\\')" style="cursor:pointer;display:flex;align-items:center;gap:14px">'
+      +'<div style="text-align:center"><div class="gauge" style="color:'+col+'">'+a.promise+'</div><div class="muted" style="font-size:10px">/100</div></div>'
+      +'<div style="flex:1"><div style="font-weight:700">'+esc(a.label||"")+'</div><div class="muted" style="font-size:12px">Qué tan prometedor se ve el canal. Toca para el análisis completo.</div></div>'
+      +'<div style="color:var(--hint);font-size:20px">›</div></div>';
+  }
+  function healthLineHtml(){
+    var t=ST.tools_health||{}, prob=(ST.problems||[]).length, pieces=[];
+    if(t.tools&&t.tools.length) pieces.push(t.down>0?('🧰 '+t.ok+'/'+t.total+' herramientas'):'🧰 herramientas OK');
+    pieces.push(prob?('⚠️ '+prob+' problema(s)'):'✅ sin problemas');
+    var pr=(ST.analysis&&ST.analysis.problems)||[];
+    if(pr.length) pieces.push('🚩 '+pr.length+' reclamación(es)');
+    return '<div class="card muted" style="font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><span>'+pieces.join(' · ')+'</span><span onclick="tab(\\'mas\\')" style="color:var(--cy);cursor:pointer">detalle ›</span></div>';
+  }
+  function monetizationHtml(){
+    var mon=ST.monetization||{};
+    return '<h2>Monetización (YPP)</h2><div class="card">'
+      +'<div class="muted">Suscriptores '+(mon.subs||0)+' / 1000</div><div class="bar"><i style="width:'+pct(mon.subs,1000)+'%"></i></div>'
+      +'<div class="muted" style="margin-top:10px">Horas '+(mon.watch_hours!=null?mon.watch_hours:"—")+' / 4000</div><div class="bar"><i style="width:'+pct(mon.watch_hours,4000)+'%"></i></div>'
+      +'<div style="margin-top:12px" class="'+(mon.elegible?"":"muted")+'">'+(mon.elegible?"✅ Elegible para monetizar":"❌ Aún no elegible")+'</div></div>';
+  }
+  function analysisHtml(){
+    var a=ST.analysis; if(!a) return "";
+    var col=a.promise>=66?"var(--gr)":a.promise>=40?"var(--cy)":"var(--am)";
+    var f=a.factors||{};
+    function barRow(lbl,val,max){ var pp=Math.round((val/(max||1))*100); return '<div style="display:flex;align-items:center;gap:8px;margin:4px 0"><div class="muted" style="font-size:11px;width:96px">'+lbl+'</div><div class="bar" style="flex:1"><i style="width:'+pp+'%"></i></div><div class="muted" style="font-size:11px;width:40px;text-align:right">'+val+'/'+max+'</div></div>'; }
+    var h='<h2>🔬 Análisis del canal</h2><div class="card">'
+      +'<div style="display:flex;align-items:center;gap:14px">'
+      +'<div style="text-align:center"><div class="gauge" style="color:'+col+'">'+a.promise+'</div><div class="muted" style="font-size:10px">/100</div></div>'
+      +'<div><div style="font-weight:700">'+esc(a.label||"")+'</div><div class="muted" style="font-size:12px">Qué tan prometedor se ve el canal: crecimiento, retención, cadencia y avance a monetizar.</div></div></div>'
+      +'<div style="margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px">'
+      +barRow("Crecimiento",f.crecimiento||0,35)+barRow("Retención",f.retencion||0,30)+barRow("Cadencia",f.cadencia||0,20)+barRow("Monetización",f.ypp||0,15)
+      +'</div>'
+      +'<div class="muted" style="font-size:11px;margin-top:6px">Tendencia 7d: '+((a.trend_pct||0)>=0?"+":"")+(a.trend_pct||0)+'% · retención ~'+(a.retention_pct||0)+'% · '+(a.recent_14d||0)+' videos en 14 días</div>'
+      +(a.ai&&a.ai.assessment?'<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px;font-size:13px;white-space:pre-wrap">'+esc(a.ai.assessment)+'</div>':'')
+      +'</div>';
+    var pr=a.problems||[];
+    h+='<div class="card"'+(pr.length?' style="border:1px solid rgba(248,113,113,.45)"':'')+'>'
+      +'<div style="font-weight:700;font-size:13px">'+(pr.length?('🚩 Reclamaciones/problemas ('+pr.length+')'):'✅ Sin reclamaciones detectadas')+'</div>';
+    if(pr.length) h+=pr.map(function(v){return '<div style="border-top:1px solid rgba(255,255,255,.06);padding:5px 0;font-size:12px">'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,30))+'</a>':esc(v.title||""))+' — <span style="color:#f87171">'+esc(v.reason||"")+'</span></div>';}).join("");
+    h+='<div class="muted" style="font-size:10px;margin-top:6px">Según la API de YouTube (rechazos/estado de subida). Los reclamos de Content ID completos solo se ven en Studio.</div></div>';
+    return h;
+  }
   function render(){
     var ch = ST.channel||{}, cs = ST.channel_stats||{}, mon = ST.monetization||{};
-    var pub = ST.published||[], up = ST.upcoming||[], sh = (ST.shorts_list||[]);
+    var up = ST.upcoming||[];
     var liveTag = (ST.active&&ST.active.length) ? " · 🟢 en vivo" : "";
-    el("hd").textContent = "@TheDataLensHQ · act. "+ (ST.updated_at? String(ST.updated_at).slice(5,16).replace("T"," "):"—") + liveTag;
-
+    el("chTitle").textContent = curChannel==="auto2" ? "Auto #2" : "The Data Lens";
+    el("hd").textContent = (curChannel==="auto2"?"canal automático":"@TheDataLensHQ")+" · act. "+ (ST.updated_at? String(ST.updated_at).slice(5,16).replace("T"," "):"—") + liveTag;
     setHelp(curTab);
-    // Estado GLOBAL: cualquier proceso en marcha se ve arriba, en TODAS las pestañas.
     el("globalStatus").innerHTML = (ST.active&&ST.active.length) ? ('<h2>⚡ En proceso ahora</h2>'+statusHtml()) : "";
 
-    // CANAL
-    el("s-canal").innerHTML =
-      '<div class="card"><div class="row">'
-      + '<div class="kpi"><div class="n">'+num(cs.subs)+'</div><div class="l">Subs</div></div>'
-      + '<div class="kpi"><div class="n">'+num(cs.total_views)+'</div><div class="l">Vistas</div></div>'
-      + '<div class="kpi"><div class="n">'+(ST.long_count||0)+'</div><div class="l">Largos</div></div>'
-      + '<div class="kpi"><div class="n">'+(ST.shorts_count||0)+'</div><div class="l">Shorts</div></div>'
-      + '</div></div>'
-      + analyticsHtml()
-      + factoryHtml()
-      + '<h2>Monetización (YPP)</h2><div class="card">'
-      + '<div class="muted">Suscriptores '+(mon.subs||0)+' / 1000</div><div class="bar"><i style="width:'+pct(mon.subs,1000)+'%"></i></div>'
-      + '<div class="muted" style="margin-top:10px">Horas '+(mon.watch_hours!=null?mon.watch_hours:"—")+' / 4000</div><div class="bar"><i style="width:'+pct(mon.watch_hours,4000)+'%"></i></div>'
-      + '<div style="margin-top:12px" class="'+(mon.elegible?"":"muted")+'">'+(mon.elegible?"✅ Elegible para monetizar":"❌ Aún no elegible")+'</div>'
-      + '</div>'
-      + r2Html()
-      + toolsHealthHtml()
-      + problemsHtml()
-      + errorLearnHtml()
-      + '<button class="btn ghost" onclick="dispatch(\\'channel_report.yml\\',\\'Reporte de métricas\\')">🔄 Refrescar métricas</button>';
+    // CANAL AUTOMATICO #2: en construccion -> mismo placeholder en los 5 flujos.
+    if(curChannel==="auto2"){
+      var ph=auto2Html();
+      ["inicio","producir","agenda","analitica","mas"].forEach(function(t){el("s-"+t).innerHTML=ph;});
+      el("globalStatus").innerHTML="";
+      return;
+    }
 
-    // VIDEOS: ARBOL -> cada video LARGO con sus SHORTS anidados debajo + Vistas + Minutos + TOTAL.
+    // ===== INICIO ===== lo que necesita tu atencion + pulso del canal.
+    el("s-inicio").innerHTML =
+      nextActionHtml()
+      +'<div class="card"><div class="row">'
+      +'<div class="kpi"><div class="n">'+num(cs.subs)+'</div><div class="l">Subs</div></div>'
+      +'<div class="kpi"><div class="n">'+num(cs.total_views)+'</div><div class="l">Vistas</div></div>'
+      +'<div class="kpi"><div class="n">'+(ST.long_count||0)+'</div><div class="l">Largos</div></div>'
+      +'<div class="kpi"><div class="n">'+(ST.shorts_count||0)+'</div><div class="l">Shorts</div></div>'
+      +'</div></div>'
+      +promiseMiniHtml()
+      +healthLineHtml();
+
+    // ===== PRODUCIR ===== produccion + resultados + que pasa con cada video + shorts.
+    var next = up[0], rest = up.slice(1);
+    var producing = (ST.active||[]).some(function(r){return /Producir|guion|Render VIDEO|Voiceover/i.test(r.name||"");});
+    var prows = rest.map(function(u){return '<tr><td>#'+(u.n||"")+'</td><td>'+esc(u.topic||"")+'<div class="muted" style="font-size:11px">'+esc(u.why||"")+'</div></td><td style="text-align:right;white-space:nowrap">'+esc(u.target_date||"")+'</td></tr>';}).join("");
+    var prop = ST.shorts_proposal||[]; var sst = ST.shorts_status||{};
+    var pend=prop.filter(function(s){return s.state==="pending";});
+    var appr=prop.filter(function(s){return s.state==="approved";});
+    var upl=prop.filter(function(s){return s.state==="uploaded";});
+    var skip=prop.filter(function(s){return s.state==="skipped";});
+    var shb=""; var vid=sst.latest_video_id;
+    if(pend.length){
+      shb+='<h2>🤖 Sugerencias por aprobar ('+pend.length+')</h2>';
+      shb+=pend.map(function(s){
+        var moment = (vid && s.start!=null) ? 'https://youtu.be/'+vid+'?t='+s.start : null;
+        var mmss = (s.start!=null) ? (Math.floor(s.start/60)+':'+('0'+(s.start%60)).slice(-2)) : '';
+        return '<div class="card"><div style="font-weight:700">'+esc(s.title)+(s.dur?' · '+s.dur+'s':'')+'</div>'
+          +(mmss?'<div class="muted" style="font-size:11px">⏱️ desde el '+mmss+' del video</div>':'')
+          +(s.hook?'<div class="muted" style="font-size:12px;margin:3px 0">🪝 '+esc(s.hook)+'</div>':'')
+          +(s.caption?'<div style="font-size:13px;margin:3px 0">'+esc(s.caption)+'</div>':'')
+          +((s.hashtags&&s.hashtags.length)?'<div class="muted" style="font-size:11px">'+esc(s.hashtags.join(" "))+'</div>':'')
+          +'<div style="margin-top:8px">'
+          +(moment?'<a class="btn mini ghost" href="'+moment+'" target="_blank">▶️ Ver el momento</a> ':'')
+          +'<button class="btn mini" onclick="shortApprove('+s.n+',1)">✅ Aprobar</button> '
+          +'<button class="btn mini ghost" onclick="shortApprove('+s.n+',0)">❌ Saltar</button></div></div>';
+      }).join("");
+      shb+='<div class="card"><div class="muted" style="font-size:12px;margin-bottom:6px">¿No te convencen? Deja un comentario y la IA las rehace:</div>'
+        +'<textarea id="shNotes" placeholder="Ej: shorts más cortos, que empiecen con la cifra, usa el momento del minuto 3"></textarea>'
+        +'<button class="btn ghost" onclick="regenShorts()">🔁 Regenerar sugerencias con mis comentarios</button></div>';
+    }
+    if(appr.length){
+      shb+='<h2>✅ Aprobados ('+appr.length+') — listos para generar</h2><div class="card">'
+        +appr.map(function(s){return '<div style="margin:2px 0">• '+esc(s.title)+'</div>';}).join("")
+        +'<button class="btn" onclick="dispatch(\\'shorts_final.yml\\',\\'Generar los shorts aprobados\\')">🎬 Generar los aprobados</button></div>';
+    }
+    if(upl.length){
+      var parentPub = sst.parent_public;
+      shb+='<h2>🎬 Shorts hechos</h2>';
+      if(!parentPub){
+        shb+='<div class="card" style="border:1px solid rgba(245,158,11,.45)"><div style="font-weight:700;color:var(--am)">⏳ Esperando que se publique el video</div>'
+          +'<div class="muted" style="font-size:12px;margin-top:4px">Estos shorts son de <b>'+esc(sst.parent_title||"un video")+'</b>, que aún está privado/programado. Se publicarán cuando el video esté público (los shorts llevan gente al video — sin video público no sirven).</div></div>';
+      }
+      shb+='<div class="card"><table><tr><th>Short</th><th>Estado</th><th style="text-align:right">Acción</th></tr>'
+        +upl.map(function(s){var pv=s.privacy==="public";
+          var cell;
+          if(pv){ cell=num(s.views)+' vistas'; }
+          else if(s.publish_at){ cell='<span style="font-size:10px;color:var(--cy)">🕒 '+esc(fmtSlot(s.publish_at))+'</span>'; }
+          else if(parentPub){ cell='<button class="btn mini" onclick="scheduleShort(\\''+s.video_id+'\\')">📅 Programar</button>'; }
+          else { cell='<span class="muted" style="font-size:11px">⏳ tras el video</span>'; }
+          return '<tr><td>'+(s.video_id?'<a href="https://youtu.be/'+s.video_id+'" target="_blank">'+esc(s.title)+'</a>':esc(s.title))+'</td>'
+          +'<td><span class="tag '+(pv?"pub":"priv")+'">'+(s.publish_at&&!pv?"programado":esc(s.privacy||"?"))+'</span></td>'
+          +'<td style="text-align:right">'+cell+'</td></tr>';
+        }).join("")+'</table></div>';
+    }
+    if(skip.length) shb+='<div class="muted" style="font-size:12px;margin:6px 2px">Saltados: '+skip.length+'.</div>';
+    if(sst.can_suggest){
+      shb+='<button class="btn" onclick="suggestShorts()">🤖 Sugerir shorts del último video</button>'
+        +'<div class="muted" style="font-size:11px;margin-top:4px">La IA analiza el último video: cuántos shorts, de qué momentos y qué tan largos.</div>';
+    } else if(sst.all_done){
+      shb+='<div class="card muted">✓ Ya hiciste los shorts de este video. Cuando publiques uno nuevo, aquí podrás sugerir los suyos.</div>';
+    }
+    if(!shb) shb='<div class="card muted">Aún no hay shorts. Publica un video y dale a Sugerir.</div>';
+
+    el("s-producir").innerHTML=
+      pendingThumbsHtml()
+      +flowStepsHtml()
+      +productionHtml()
+      +nextStepHtml()
+      +matrixHtml()
+      +learningsHtml()
+      +craftHtml()
+      +(next
+        ? '<h2>Siguiente video</h2><div class="card"><div style="font-weight:800;font-size:16px">#'+(next.n||"")+' · '+esc(next.topic||"")+'</div>'
+          +'<div class="muted" style="margin:6px 0 12px">'+esc(next.why||"")+' · '+esc(next.target_date||"")+'</div>'
+          +(producing
+            ? '<div style="text-align:center;font-weight:700;color:var(--cy);padding:10px;background:rgba(34,211,238,.12);border-radius:12px">⏳ Produciendo… mira "En proceso ahora"</div>'
+            : '<button class="btn" onclick="produceVideo('+(next.n||0)+')">▶️ Producir este video</button>')
+          +'<button class="btn ghost" onclick="showTrends()">🔥 Analizar tendencias (¿alineado?)</button></div>'
+        : '<div class="card muted">🎉 Todo lo programado ya se produjo. Pídeme por el chat más temas cuando quieras.</div>')
+      +'<div id="trendsOut"></div>'
+      +'<h2>En cola (próximos temas)</h2><div class="card"><table><tr><th>#</th><th>Tema</th><th style="text-align:right">Fecha</th></tr>'+(prows||'<tr><td colspan="3" class="muted">No hay más temas en cola por ahora.</td></tr>')+'</table></div>'
+      +'<div class="card muted">Cadencia objetivo: '+esc((ST.cadence&&ST.cadence.goal)||"1 video cada 2 días")+'.</div>'
+      +'<h2>✂️ Shorts</h2>'
+      +shb;
+
+    // ===== AGENDA =====
+    el("s-agenda").innerHTML = calendarHtml()+scheduledHtml()+bestTimesHtml();
+
+    // ===== ANALITICA ===== canal completo + analisis + fabrica + tus videos.
     var tree=ST.video_tree||[], ung=ST.video_tree_ungrouped||[];
     var aok=ST.analytics_ok, gV=0, gW=0, rowsHtml="", li=0;
     function vcell(v,isPub){ return '<td style="text-align:right">'+(isPub?num(v.views):"🔒")+'</td>'
@@ -599,118 +767,39 @@ export const APP_HTML = `<!doctype html>
       });
     }
     var totalRow='<tr style="font-weight:900;border-top:2px solid rgba(255,255,255,.28)"><td>Total</td><td style="text-align:right">'+num(gV)+'</td><td style="text-align:right">'+(aok?num(gW):"—")+'</td></tr>';
-    el("s-videos").innerHTML='<h2>Videos</h2>'
+    var videosCard='<h2>Tus videos</h2>'
       +'<div class="card" style="padding:8px"><table style="font-size:13px;width:100%"><tr><th style="text-align:left">Video</th><th style="text-align:right">Vistas</th><th style="text-align:right">Min. vistos</th></tr>'
       +(rowsHtml||'<tr><td colspan="3" class="muted">Aún no hay videos.</td></tr>')+(rowsHtml?totalRow:'')+'</table></div>'
       +(aok?'':'<div class="muted" style="font-size:11px">⚠️ Los "min vistos" necesitan el permiso de YouTube Analytics (reautoriza el OAuth con el scope yt-analytics).</div>')
       +'<button class="btn" onclick="showInsights()">🧠 Analizar qué replicar (IA)</button>'
       +'<div id="insightsOut">'+lastInsights+'</div>'
       +'<div class="muted" style="font-size:11px;text-align:center">📹 largo · ↳🎬 sus shorts · 🔒 privado</div>';
+    el("s-analitica").innerHTML=
+      analyticsHtml()
+      +analysisHtml()
+      +factoryHtml()
+      +videosCard
+      +monetizationHtml();
 
-    // PLAN (panel de produccion): estado + siguiente con boton + pendientes + tendencias
-    var next = up[0];
-    var rest = up.slice(1);
-    var producing = (ST.active||[]).some(function(r){return /Producir|guion|Render VIDEO|Voiceover/i.test(r.name||"");});
-    var prows = rest.map(function(u){return '<tr><td>#'+(u.n||"")+'</td><td>'+esc(u.topic||"")+'<div class="muted" style="font-size:11px">'+esc(u.why||"")+'</div></td><td style="text-align:right;white-space:nowrap">'+esc(u.target_date||"")+'</td></tr>';}).join("");
-    el("s-plan").innerHTML=
-      pendingThumbsHtml()
-      +flowStepsHtml()
-      +productionHtml()
-      +nextStepHtml()
-      +matrixHtml()
-      +learningsHtml()
-      +craftHtml()
-      +problemsHtml()
-      +(next
-        ? '<h2>Siguiente video</h2><div class="card"><div style="font-weight:800;font-size:16px">#'+(next.n||"")+' · '+esc(next.topic||"")+'</div>'
-          +'<div class="muted" style="margin:6px 0 12px">'+esc(next.why||"")+' · '+esc(next.target_date||"")+'</div>'
-          +(producing
-            ? '<div style="text-align:center;font-weight:700;color:var(--cy);padding:10px;background:rgba(34,211,238,.12);border-radius:12px">⏳ Produciendo… mira "En proceso ahora"</div>'
-            : '<button class="btn" onclick="produceVideo('+(next.n||0)+')">▶️ Producir este video</button>')
-          +'<button class="btn ghost" onclick="showTrends()">🔥 Analizar tendencias (¿alineado?)</button></div>'
-        : '<div class="card muted">🎉 Todo lo programado ya se produjo. Pídeme por el chat más temas cuando quieras.</div>')
-      +'<div id="trendsOut"></div>'
-      +'<h2>Programados (pendientes)</h2><div class="card"><table><tr><th>#</th><th>Tema</th><th style="text-align:right">Fecha</th></tr>'+(prows||'<tr><td colspan="3" class="muted">No hay más temas en cola por ahora.</td></tr>')+'</table></div>'
-      +'<div class="card muted">Cadencia objetivo: '+esc((ST.cadence&&ST.cadence.goal)||"1 video cada 2 días")+'.</div>';
-
-    // AGENDA: calendario día a día + programados + mejores horas.
-    el("s-agenda").innerHTML = calendarHtml()+scheduledHtml()+bestTimesHtml();
-
-    // SHORTS: aprobar → generar → publicar, todo desde la app.
-    var prop = ST.shorts_proposal||[]; var sst = ST.shorts_status||{};
-    var pend=prop.filter(function(s){return s.state==="pending";});
-    var appr=prop.filter(function(s){return s.state==="approved";});
-    var upl=prop.filter(function(s){return s.state==="uploaded";});
-    var skip=prop.filter(function(s){return s.state==="skipped";});
-    var sh="";
-    var vid=sst.latest_video_id;
-    if(pend.length){
-      sh+='<h2>🤖 Sugerencias por aprobar ('+pend.length+')</h2>';
-      sh+=pend.map(function(s){
-        var moment = (vid && s.start!=null) ? 'https://youtu.be/'+vid+'?t='+s.start : null;
-        var mmss = (s.start!=null) ? (Math.floor(s.start/60)+':'+('0'+(s.start%60)).slice(-2)) : '';
-        return '<div class="card"><div style="font-weight:700">'+esc(s.title)+(s.dur?' · '+s.dur+'s':'')+'</div>'
-          +(mmss?'<div class="muted" style="font-size:11px">⏱️ desde el '+mmss+' del video</div>':'')
-          +(s.hook?'<div class="muted" style="font-size:12px;margin:3px 0">🪝 '+esc(s.hook)+'</div>':'')
-          +(s.caption?'<div style="font-size:13px;margin:3px 0">'+esc(s.caption)+'</div>':'')
-          +((s.hashtags&&s.hashtags.length)?'<div class="muted" style="font-size:11px">'+esc(s.hashtags.join(" "))+'</div>':'')
-          +'<div style="margin-top:8px">'
-          +(moment?'<a class="btn mini ghost" href="'+moment+'" target="_blank">▶️ Ver el momento</a> ':'')
-          +'<button class="btn mini" onclick="shortApprove('+s.n+',1)">✅ Aprobar</button> '
-          +'<button class="btn mini ghost" onclick="shortApprove('+s.n+',0)">❌ Saltar</button></div></div>';
-      }).join("");
-      // Rehacer las sugerencias con comentarios (como el SEO).
-      sh+='<div class="card"><div class="muted" style="font-size:12px;margin-bottom:6px">¿No te convencen? Deja un comentario y la IA las rehace:</div>'
-        +'<textarea id="shNotes" placeholder="Ej: shorts más cortos, que empiecen con la cifra, usa el momento del minuto 3"></textarea>'
-        +'<button class="btn ghost" onclick="regenShorts()">🔁 Regenerar sugerencias con mis comentarios</button></div>';
-    }
-    if(appr.length){
-      sh+='<h2>✅ Aprobados ('+appr.length+') — listos para generar</h2><div class="card">'
-        +appr.map(function(s){return '<div style="margin:2px 0">• '+esc(s.title)+'</div>';}).join("")
-        +'<button class="btn" onclick="dispatch(\\'shorts_final.yml\\',\\'Generar los shorts aprobados\\')">🎬 Generar los aprobados</button></div>';
-    }
-    if(upl.length){
-      // Los shorts NO se publican hasta que su video PADRE esté público (si no, llevan a un video que nadie ve).
-      var parentPub = sst.parent_public;
-      sh+='<h2>🎬 Shorts hechos</h2>';
-      if(!parentPub){
-        sh+='<div class="card" style="border:1px solid rgba(245,158,11,.45)"><div style="font-weight:700;color:var(--am)">⏳ Esperando que se publique el video</div>'
-          +'<div class="muted" style="font-size:12px;margin-top:4px">Estos shorts son de <b>'+esc(sst.parent_title||"un video")+'</b>, que aún está privado/programado. Se publicarán cuando el video esté público (los shorts llevan gente al video — sin video público no sirven).</div></div>';
-      }
-      sh+='<div class="card"><table><tr><th>Short</th><th>Estado</th><th style="text-align:right">Acción</th></tr>'
-        +upl.map(function(s){var pv=s.privacy==="public";
-          var cell;
-          if(pv){ cell=num(s.views)+' vistas'; }
-          else if(s.publish_at){ cell='<span style="font-size:10px;color:var(--cy)">🕒 '+esc(fmtSlot(s.publish_at))+'</span>'; }
-          else if(parentPub){ cell='<button class="btn mini" onclick="scheduleShort(\\''+s.video_id+'\\')">📅 Programar</button>'; }
-          else { cell='<span class="muted" style="font-size:11px">⏳ tras el video</span>'; }
-          return '<tr><td>'+(s.video_id?'<a href="https://youtu.be/'+s.video_id+'" target="_blank">'+esc(s.title)+'</a>':esc(s.title))+'</td>'
-          +'<td><span class="tag '+(pv?"pub":"priv")+'">'+(s.publish_at&&!pv?"programado":esc(s.privacy||"?"))+'</span></td>'
-          +'<td style="text-align:right">'+cell+'</td></tr>';
-        }).join("")+'</table></div>';
-    }
-    if(skip.length) sh+='<div class="muted" style="font-size:12px;margin:6px 2px">Saltados: '+skip.length+'.</div>';
-    if(sst.can_suggest){
-      sh+='<button class="btn" onclick="suggestShorts()">🤖 Sugerir shorts del último video</button>'
-        +'<div class="muted" style="font-size:11px;margin-top:4px">La IA analiza el último video: cuántos shorts, de qué momentos y qué tan largos.</div>';
-    } else if(sst.all_done){
-      sh+='<div class="card muted">✓ Ya hiciste los shorts de este video. Cuando publiques uno nuevo, aquí podrás sugerir los suyos.</div>';
-    }
-    el("s-shorts").innerHTML=sh||'<div class="card muted">Aún no hay shorts. Publica un video y dale a Sugerir.</div>';
-
-    // CREAR
-    el("s-crear").innerHTML=
-      voicePickerHtml()
-      +'<h2>Editar foto</h2><div class="card">'
+    // ===== MAS ===== crear contenido + sistema (voz, herramientas, problemas, errores, almacenamiento).
+    el("s-mas").innerHTML=
+      '<h2>Crear contenido</h2>'
+      +'<div class="card">'
       +'<label class="file" for="fPhoto">🖼️ Elegir foto para retocar</label><input id="fPhoto" type="file" accept="image/*" class="hide">'
       +'<input id="pPrompt" type="text" placeholder="Opcional: qué cambiar (ej: fondo blanco, más luz)"></div>'
-      +'<h2>Reel de receta</h2><div class="card">'
+      +'<div class="card">'
       +'<label class="file" for="fRecipe">🍳 Elegir fotos/videos de la receta</label><input id="fRecipe" type="file" accept="image/*,video/*" multiple class="hide">'
       +'<div id="recCount" class="muted"></div>'
       +'<textarea id="rText" placeholder="Texto de la receta (ingredientes y pasos)"></textarea>'
       +'<button class="btn" onclick="buildRecipe()">🍳 Armar el reel</button></div>'
-      +'<h2>Voz</h2><div class="card"><label class="file" for="fVoice">🎤 Subir nota de voz</label><input id="fVoice" type="file" accept="audio/*" class="hide">'
-      +'<input id="vName" type="text" placeholder="Nombre de la voz (ej: esposa)"></div>';
+      +'<div class="card"><label class="file" for="fVoice">🎤 Subir nota de voz</label><input id="fVoice" type="file" accept="audio/*" class="hide">'
+      +'<input id="vName" type="text" placeholder="Nombre de la voz (ej: esposa)"></div>'
+      +voicePickerHtml()
+      +toolsHealthHtml()
+      +problemsHtml()
+      +errorLearnHtml()
+      +r2Html()
+      +'<button class="btn ghost" onclick="dispatch(\\'channel_report.yml\\',\\'Reporte + análisis\\')">🔄 Refrescar métricas + análisis</button>';
 
     el("fPhoto").onchange=function(e){uploadPhoto(e.target.files[0]);};
     el("fRecipe").onchange=function(e){recFiles=Array.prototype.slice.call(e.target.files);el("recCount").textContent=recFiles.length+" archivo(s) elegido(s).";};
