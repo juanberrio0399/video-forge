@@ -14,6 +14,7 @@ Es semi-automática: **GitHub Actions** produce (guion → voz → render por fa
 | [docs/CAPACIDAD_Y_EXPERIMENTOS.md](docs/CAPACIDAD_Y_EXPERIMENTOS.md) | Capacidad diaria de la fábrica y la rampa de duración de los videos. |
 | [docs/CRECIMIENTO.md](docs/CRECIMIENTO.md) | Palancas de suscriptores: encadenar videos, CTA retador y tono configurable. |
 | [docs/CANAL_AUTOMATICO.md](docs/CANAL_AUTOMATICO.md) | Blueprint del 2º canal full-auto (compilaciones legales), nichos, tools y fases. |
+| [docs/SEGUNDO_CANAL_OAUTH.md](docs/SEGUNDO_CANAL_OAUTH.md) | Guía paso a paso para crear el 2º canal (Brand Account) + OAuth (`YT2_*`). |
 
 ## Cómo funciona (resumen)
 
