@@ -47,10 +47,10 @@ Se agregó `AbortSignal.timeout()` a los fetches externos que bloquean `/api/sta
 **7. Subida a YouTube sin reintento ante blips** — ✅ **RESUELTO**
 `youtube_upload.mjs` reintenta token + init + PUT hasta 3 veces con backoff en 429/5xx/corte; distingue error permanente (4xx de credenciales) de transitorio. (`invalidPublishAt` ya se manejaba soft ✅.)
 
-### ⚪ Menores
-- Un beat suelto de Kokoro mete 1 s de silencio en vez de reintentar (pasa QA si son pocos).
-- El cortacircuitos del watchdog reenvía el mismo aviso cada 15 min.
-- El Worker pide el token OAuth dos veces por request (1 subrequest evitable).
+### ⚪ Menores — ✅ todos resueltos (2026-08-05)
+- ~~Un beat suelto de Kokoro mete 1 s de silencio~~ → ahora **reintenta el beat 3 veces** antes de caer a silencio.
+- ~~El cortacircuitos del watchdog reenvía el mismo aviso cada 15 min~~ → ahora **avisa solo si el corte es reciente** (no repite por 2h).
+- ~~El Worker pide el token OAuth dos veces por request~~ → **token cacheado en memoria** (~50 min), compartido por `ytStatus` y `channelInventory`.
 
 ## Lo que ya estaba bien (confirmado)
 Multi-modelo Gemini (sin 404) · QA advisory (sin loop infinito) · `invalidPublishAt` soft · anti-huecos ("producido = publicado") · anti-limbo (salta tras 3 intentos) · checkpoints por fase + fallback ffmpeg · auth owner-only del Worker · `/api/*` en try/catch · `no-store` anti-cache de Telegram.

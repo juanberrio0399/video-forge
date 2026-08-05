@@ -26,10 +26,15 @@ for i, b in enumerate(chunk):
     text = (b.get("text") or "").strip()
     if not text:
         continue
-    try:
-        samples, sr = kokoro.create(text, voice=voice, speed=1.0, lang="en-us")
-    except Exception as e:
-        print("Kokoro fallo beat", offset + i, "->", e)
+    samples, sr = None, SR
+    for attempt in range(3):  # reintenta el beat: un fallo transitorio no debe dejar un hueco mudo
+        try:
+            samples, sr = kokoro.create(text, voice=voice, speed=1.0, lang="en-us")
+            break
+        except Exception as e:
+            print("Kokoro fallo beat", offset + i, "intento", attempt + 1, "->", e)
+            samples = None
+    if samples is None:  # ultimo recurso: silencio corto (no esconde el fallo, pero no rompe la union)
         samples, sr = np.zeros(SR, dtype=np.float32), SR
     pause = int(round(float(b.get("pause_after", 0.25)) * sr))
     seg = np.concatenate([np.asarray(samples, dtype=np.float32), np.zeros(pause, dtype=np.float32)])
