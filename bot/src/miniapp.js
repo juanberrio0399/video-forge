@@ -571,7 +571,23 @@ export const APP_HTML = `<!doctype html>
       +'<div class="kpi"><div class="n">0</div><div class="l">Min vistos</div></div>'
       +'<div class="kpi"><div class="n">—</div><div class="l">Estado</div></div>'
       +'</div></div>'
-      +'<div class="card muted" style="font-size:12px">📡 Radar de nichos: aún sin datos. Cuando el canal produzca, aquí verás qué nicho rinde mejor cada semana.</div>';
+      +nicheRadarHtml();
+  }
+  function nicheRadarHtml(){
+    var nr=ST.niche_radar;
+    var h='<h2>📡 Radar de nichos</h2>';
+    if(!nr) return h+'<div class="card muted" style="font-size:12px">Aún sin configurar. Se activa con el canal automático.</div>';
+    h+='<div class="card"><div style="font-size:13px;font-weight:600;margin-bottom:6px">'+esc(nr.recommendation||"")+'</div>';
+    var rk=nr.ranking||[];
+    if(rk.length){
+      h+=rk.map(function(r){return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid rgba(255,255,255,.06);padding:5px 0"><div style="font-size:12px"><b>#'+r.rank+'</b> '+esc(r.label)+'</div><div class="muted" style="font-size:11px;white-space:nowrap">'+num(r.avg_views)+'/video · '+r.videos+' vid</div></div>';}).join("");
+    } else {
+      h+='<div class="muted" style="font-size:11px;margin-bottom:2px">Portafolio en prueba (candidatos):</div>';
+      h+=(nr.portfolio||[]).map(function(p){return '<div style="border-top:1px solid rgba(255,255,255,.06);padding:5px 0"><div style="font-size:12px">🎯 '+esc(p.label)+'</div>'+(p.note?'<div class="muted" style="font-size:11px">'+esc(p.note)+'</div>':'')+'</div>';}).join("");
+    }
+    h+=(nr.updated_at?'<div class="muted" style="font-size:10px;margin-top:6px">Actualizado: '+esc(String(nr.updated_at).slice(0,16).replace("T"," "))+'</div>':'')
+      +'<button class="btn ghost" style="margin-top:8px" onclick="dispatch(\\'niche_radar.yml\\',\\'Radar de nichos\\')">🔄 Actualizar radar</button></div>';
+    return h;
   }
   function nextActionHtml(){
     var p=ST.production||{}, sst=ST.shorts_status||{}, prob=(ST.problems||[]).length, active=ST.active&&ST.active.length;

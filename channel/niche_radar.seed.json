@@ -1,0 +1,10 @@
+{
+  "portfolio": [
+    { "key": "satisfying", "label": "Satisfying / ASMR", "status": "candidato", "note": "Máx. vistas, ~$10-11 RPM, stock con licencia (bajo riesgo)" },
+    { "key": "narrativas", "label": "Narrativas (traición/venganza)", "status": "candidato", "note": "Crecimiento 21x, guion IA + b-roll stock" },
+    { "key": "ciencia_humor", "label": "Ciencia con humor", "status": "candidato", "note": "Crece 16x, cerca del ADN de datos" }
+  ],
+  "ranking": [],
+  "recommendation": "Aún sin datos: el radar se activa cuando el canal automático publique. Cada semana ranquea los nichos y recomienda SEGUIR, ESCALAR o PIVOTAR.",
+  "updated_at": null
+}

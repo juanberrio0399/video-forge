@@ -1,0 +1,51 @@
+name: Radar de nichos (canal auto - semanal)
+
+# Cada lunes ranquea los nichos del canal automatico por rendimiento y recomienda
+# seguir/escalar/pivotar. Si el canal auto aun no publica, queda en "recolectando datos".
+
+on:
+  schedule:
+    - cron: "0 11 * * 1"   # lunes 11:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      YT2_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+      YT2_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+      YT2_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Calcular el radar de nichos
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/niche_radar.json" --file=radar.json --remote 2>/dev/null || cp channel/niche_radar.seed.json radar.json
+          # Mapa video->nicho del canal auto (si ya existe): lo escribe la produccion del auto.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/niche_map.json" --file=niche_map.json --remote 2>/dev/null || true
+          node pipeline/niche_radar.mjs radar.json radar_out.json
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/niche_radar.json" --file=radar_out.json --remote --content-type application/json
+
+      - name: Avisar al chat (solo si ya hay ranking)
+        if: always()
+        run: |
+          HAS=$(node -e 'try{const r=JSON.parse(require("fs").readFileSync("radar_out.json","utf8"));process.stdout.write(String((r.ranking||[]).length))}catch(e){process.stdout.write("0")}')
+          if [ "${HAS:-0}" -gt 0 ]; then
+            REC=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("radar_out.json","utf8")).recommendation||"")}catch(e){}')
+            bash pipeline/notify_telegram.sh "📡 Radar de nichos (semanal):"$'\n\n'"${REC}"$'\n\n'"👉 Detalle en la app → canal Auto #2."
+          fi

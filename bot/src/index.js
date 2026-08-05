@@ -146,7 +146,7 @@ const APP_WORKFLOWS = new Set([
   "render_phased.yml", "voice_parallel.yml", "channel_report.yml", "shorts_plan.yml",
   "shorts_final.yml", "publish_youtube.yml", "set_privacy.yml", "recipe_reel.yml",
   "produce_video.yml", "seo_regen.yml", "thumbnail_only.yml", "voice_samples.yml",
-  "schedule_youtube.yml", "daily_video.yml", "channel_report.yml",
+  "schedule_youtube.yml", "daily_video.yml", "channel_report.yml", "niche_radar.yml",
 ]);
 
 // Voces disponibles para el canal (con su ejemplo en R2). engine/kvoice se usan en la voz.
@@ -395,6 +395,8 @@ async function handleApi(request, env, url) {
         problems, ai: (await r2json(env, "channel/analysis.json")) || null,
       };
     }
+    // RADAR DE NICHOS (canal auto #2): portafolio + ranking + recomendacion semanal.
+    state.niche_radar = (await r2json(env, "channel/niche_radar.json")) || null;
     // ARBOL de Videos: cada LARGO con sus SHORTS anidados debajo (pestaña Videos, como la pidio Juan).
     // Mapeo short->padre: ledger persistente (channel/shorts_map.json) + el plan actual (for_video_id).
     const shortsMap = (await r2json(env, "channel/shorts_map.json")) || {};
