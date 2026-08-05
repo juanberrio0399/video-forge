@@ -22,7 +22,7 @@ Severidad: 🔴 **Bloqueante** (rompe el 24/7) · 🟠 **Degrada** (limbo/pérdi
 **1. OAuth de YouTube caduca cada 7 días** — *acción manual de Juan*
 Si la app OAuth de Google está en modo **“Testing”**, Google revoca el refresh token cada 7 días. Muere subir/programar/privacidad/shorts, y la guarda del video diario congela toda la producción.
 **Solución:** Google Cloud Console → *APIs & Services → OAuth consent screen* → si dice *Testing*, botón **“PUBLISH APP → In production”**. Con eso los tokens dejan de expirar.
-**Estado:** ⏳ pendiente (solo lo puede hacer Juan).
+**Estado:** ✅ **RESUELTO** (2026-08-05) — la app ya está *In production*, el token no caduca.
 
 **2. El Worker revienta al crecer el canal (~20-25 videos)** — *código*
 `bot/src/index.js` — `video_matrix` hacía un `R2.head` por cada video largo, **sin cache, en cada `/api/state`**. En plan free (50 subrequests) eso rompía de forma permanente al acumular videos.
@@ -59,8 +59,10 @@ Toda la orquestación cuelga del `GH_TOKEN`; GitHub deshabilita crons tras 60 d�
 Multi-modelo Gemini (sin 404) · QA advisory (sin loop infinito) · `invalidPublishAt` soft · anti-huecos ("producido = publicado") · anti-limbo (salta tras 3 intentos) · checkpoints por fase + fallback ffmpeg · auth owner-only del Worker · `/api/*` en try/catch · `no-store` anti-cache de Telegram.
 
 ## Pendientes priorizados
-1. 🔴 **Juan:** pasar la app OAuth a “In production” (elimina la caída cada 7 días).
+1. ✅ ~~OAuth a “In production”~~ — **hecho** (la app ya está en producción).
 2. 🟠 Timeouts (`AbortSignal`) en fetches externos.
 3. 🟠 Check del PAT de GitHub + reintento de subida a YouTube.
+
+Con el OAuth ya resuelto, **no queda ningún bloqueante** del 24/7 — solo mejoras que degradan (no tumban).
 
 *Última auditoría: 2026-08-05.*
