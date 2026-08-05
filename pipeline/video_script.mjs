@@ -13,7 +13,7 @@ const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
 async function gemini(prompt) {
   // Reintenta con backoff en 429/503 (el guion corre al inicio; si Gemini esta saturado, espera).
   for (let round = 0; round < 3; round++) {
-    for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]) {
+    for (const m of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]) {
       try {
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${KEY}`, {
           method: "POST", headers: { "content-type": "application/json" },
