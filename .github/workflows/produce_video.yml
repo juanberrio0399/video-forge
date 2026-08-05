@@ -113,6 +113,10 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/experiments.json" --file=exp.json --remote 2>/dev/null || cp channel/experiments.seed.json exp.json 2>/dev/null || echo '{}' > exp.json
           export TARGET_MIN=$(node -e 'try{const d=JSON.parse(require("fs").readFileSync("exp.json","utf8")).duration||{};process.stdout.write(String((d.enabled!==false&&(d.ramp&&d.ramp[d.step||0]))||d.target_min||8))}catch(e){process.stdout.write("8")}')
           echo "Duracion objetivo: ${TARGET_MIN} min"
+          # Tono de crecimiento (CTA para conseguir suscriptores).
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/growth.json" --file=growth.json --remote 2>/dev/null || cp channel/growth.seed.json growth.json 2>/dev/null || echo '{}' > growth.json
+          export GROWTH_TONE=$(node -e 'try{const g=JSON.parse(require("fs").readFileSync("growth.json","utf8"));process.stdout.write(String((g.enabled!==false&&g.cta_tone)||"retador"))}catch(e){process.stdout.write("retador")}')
+          echo "Tono de crecimiento: ${GROWTH_TONE}"
           LEARNINGS="$(cat learnings.txt 2>/dev/null)" node pipeline/video_script.mjs "$TOPIC" voicemap.json
 
       - name: Guardar el guion en el SLOT del proyecto (R2)

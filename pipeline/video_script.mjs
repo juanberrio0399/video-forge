@@ -44,12 +44,22 @@ const TARGET_MIN = Math.max(4, parseInt(process.env.TARGET_MIN || "8", 10) || 8)
 const BEATS = Math.round(TARGET_MIN * 7);
 const BEATS_MIN = Math.max(28, BEATS - 8), BEATS_MAX = BEATS + 10;
 
+// TONO DE CRECIMIENTO (para conseguir SUSCRIPTORES): channel/growth.json -> GROWTH_TONE.
+const TONE = (process.env.GROWTH_TONE || "retador").toLowerCase();
+const TONES = {
+  retador: `El GANCHO inicial y el CTA final deben ser RETADORES CON AUTORIDAD: directos y punzantes, que reten al espectador ("quien siga de largo se queda sin saberlo") y lo empujen a SUSCRIBIRSE ya — SIN mentir ni clickbait falso; manten la credibilidad de un canal de datos.`,
+  provocador: `El GANCHO y el CTA deben ser PROVOCADORES/CONTRARIAN: postura audaz us-vs-them que prenda debate, empujando a suscribirse para "probar quien tiene razon", sin faltar a la verdad de los datos.`,
+  suave: `El CTA final invita a suscribirse de forma clara y amable.`,
+};
+const TONE_TXT = TONES[TONE] || TONES.retador;
+
 const prompt =
   `Eres guionista de un canal faceless de YouTube de DATOS/DINERO en INGLES (mercado EE.UU.), ` +
   `estilo documental cinematografico con ALTA RETENCION. Escribe el guion COMPLETO (~${TARGET_MIN} min) del video sobre: "${topic}".${learnBlock}\n` +
   `Reglas de retencion: gancho brutal en la 1a frase; promete algo al inicio y pagalo al final; ` +
   `escala cifras/datos de menor a mayor; una vuelta de tuerca ("twist") a mitad y al final; ` +
   `micro-ganchos entre secciones; cierra con CTA (suscribirse + el siguiente video de la serie). ` +
+  `${TONE_TXT} ` +
   `Para ${TARGET_MIN} min, manten la retencion ALTA todo el video (nada de relleno: cada beat aporta un dato o giro). ` +
   `Todo en INGLES natural (no robotico). Devuelve SOLO JSON:\n` +
   `{"title":"titulo en ingles","beats":[{"text":"1-3 frases en ingles","tipo":"hook|dato|contexto|reveal|cta|sintesis"}]}\n` +
