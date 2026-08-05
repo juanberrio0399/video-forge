@@ -423,9 +423,18 @@ jobs:
               for k in 0 1 2 3 4 5 6 7 8 9; do npx --yes wrangler@4 r2 object delete "$BUCKET/video/$PROJECT/phases/phase_${k}.mp4" --remote 2>/dev/null || true; done
               npx --yes wrangler@4 r2 object delete "$BUCKET/audio/$PROJECT/voiceover.mp3" --remote 2>/dev/null || true
               npx --yes wrangler@4 r2 object delete "$BUCKET/audio/$PROJECT/timing.json" --remote 2>/dev/null || true
-              gh workflow run voice_parallel.yml -f then_render=true -f engine=auto -R "$GITHUB_REPOSITORY" || true
+              # Relanzar la regeneracion con REINTENTOS (antes era "|| true": un blip dejaba el video en limbo).
+              RDISP=0
+              for i in 1 2 3 4; do
+                if gh workflow run voice_parallel.yml -f then_render=true -f engine=auto -R "$GITHUB_REPOSITORY"; then RDISP=1; break; fi
+                echo "no pude relanzar la regeneracion (intento $i); reintento"; sleep 12
+              done
               echo "QA_PASSED=0" >> "$GITHUB_ENV"
-              bash pipeline/notify_telegram.sh "🤖 QA RECHAZÓ el video: ${REASONS}."$'\n'"Regenerando automáticamente (intento ${NEXT}/${QA_MAX_ATTEMPTS}). No te muestro nada hasta que cumpla."
+              if [ "$RDISP" = "1" ]; then
+                bash pipeline/notify_telegram.sh "🤖 QA RECHAZÓ el video: ${REASONS}."$'\n'"Regenerando automáticamente (intento ${NEXT}/${QA_MAX_ATTEMPTS}). No te muestro nada hasta que cumpla."
+              else
+                bash pipeline/notify_telegram.sh "⚠️ QA rechazó el video y NO pude relanzar la regeneración (4 intentos). El video diario producirá otro; puedes reintentar manual desde la app."
+              fi
             else
               # CORTACIRCUITOS: tope de intentos O demasiados renders en 2h. NUNCA loop infinito.
               # Presento el mejor video que haya para revision MANUAL (no lo escondo).

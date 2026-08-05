@@ -147,7 +147,16 @@ jobs:
             TITLE=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("voicemap.json","utf8")).title||"")}catch(e){}')
             NB=$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync("voicemap.json","utf8")).beats.length))}catch(e){process.stdout.write("?")}')
             bash pipeline/notify_telegram.sh "✍️ Guion del video número ${N} listo: \"${TITLE}\" (${NB} beats). Ahora genero la voz (y al terminar, el render), automatico."
-            gh workflow run voice_parallel.yml -f then_render=true -R "$GITHUB_REPOSITORY" && echo "voz disparada (encadenara render)"
+            # Disparar la VOZ con REINTENTOS: el hop guion->voz no lo vigila el watchdog, asi que aqui
+            # nos aseguramos de que arranque (un blip del API de GitHub no puede dejar el guion huerfano).
+            DISP=0
+            for i in 1 2 3 4; do
+              if gh workflow run voice_parallel.yml -f then_render=true -R "$GITHUB_REPOSITORY"; then DISP=1; echo "voz disparada (encadenara render)"; break; fi
+              echo "no pude disparar la voz (intento $i); espero y reintento"; sleep 12
+            done
+            if [ "$DISP" != "1" ]; then
+              bash pipeline/notify_telegram.sh "⚠️ El guion del video ${N} quedó listo pero NO pude arrancar la voz (4 intentos). El video diario/watchdog lo retomará. Puedes reintentar manual desde la app."
+            fi
           else
             bash pipeline/notify_telegram.sh "❌ No pude escribir el guion del video número ${N}."
           fi

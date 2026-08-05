@@ -374,8 +374,8 @@ async function handleApi(request, env, url) {
     const planShortsDone = planApproved.length > 0 && planApproved.every((s) => s.video_id);
     state.video_matrix = await Promise.all((inv.longs || []).map(async (v) => {
       const st = (vledger[v.video_id] || {}).stages || {};
-      let thumbUrl = null;
-      try { const th = await env.R2.head(`video/0001-youtube-money/thumb_${v.video_id}.jpg`); if (th) thumbUrl = `/watch/video/0001-youtube-money/thumb_${v.video_id}.jpg`; } catch {}
+      // La miniatura ya viene resuelta en el inventario cacheado (evita 1 R2.head por video en CADA request).
+      const thumbUrl = v.thumb_url || null;
       const scheduled = !!(v.publish_at && Date.parse(v.publish_at) > Date.now());
       return {
         video_id: v.video_id, title: v.title, public: v.privacy === "public", scheduled, publish_at: v.publish_at || null,
@@ -807,24 +807,28 @@ async function channelInventory(env) {
         } catch {}
       }
     } catch {}
+    // Miniatura generada (para la app) — se resuelve UNA vez aqui (cacheado 10 min), NO en cada /api/state.
+    // Antes esto era 1 R2.head por video en cada request -> reventaba el limite de subrequests al crecer el canal.
+    for (const v of longs) {
+      try { const th = await env.R2.head(`video/0001-youtube-money/thumb_${v.video_id}.jpg`); v.thumb_url = th ? `/watch/video/0001-youtube-money/thumb_${v.video_id}.jpg` : null; } catch { v.thumb_url = null; }
+    }
     const inv = { longs, shorts, subs: +(((item.statistics || {}).subscriberCount) || 0), total_views: +(((item.statistics || {}).viewCount) || 0), analytics_ok: analyticsOk, analytics, at: new Date().toISOString() };
     await env.R2.put("channel/inventory_cache.json", JSON.stringify(inv), { httpMetadata: { contentType: "application/json" } });
     return inv;
   } catch { return cached || { longs: [], shorts: [], subs: 0, total_views: 0, at: null, stale: true }; }
 }
 
-// Lee un JSON de R2 (o null).
+// Lee un JSON de R2 (o null). Resiliente: un blip de red de R2 devuelve null, no tumba /api/state.
 async function r2json(env, key) {
   if (!env.R2) return null;
-  const o = await env.R2.get(key);
-  if (!o) return null;
-  try { return JSON.parse(await o.text()); } catch { return null; }
+  try { const o = await env.R2.get(key); if (!o) return null; return JSON.parse(await o.text()); } catch { return null; }
 }
 
-// Uso de almacenamiento R2 (para no pasar el limite gratis de 10 GB). Cacheado 30 min.
+// Uso de almacenamiento R2 (para no pasar el limite gratis de 10 GB). Cacheado 6h: cambia lento y el
+// loop de list() consume subrequests -> se recalcula pocas veces al dia, no en cada refresco de la app.
 async function r2Usage(env) {
   const cached = await r2json(env, "channel/r2usage.json");
-  if (cached && cached.at && (Date.now() - Date.parse(cached.at) < 30 * 60 * 1000)) return cached;
+  if (cached && cached.at && (Date.now() - Date.parse(cached.at) < 6 * 60 * 60 * 1000)) return cached;
   if (!env.R2) return cached || { bytes: 0, count: 0, at: null };
   try {
     let bytes = 0, count = 0, cursor, guard = 0;
@@ -832,7 +836,7 @@ async function r2Usage(env) {
       const res = await env.R2.list({ limit: 1000, cursor });
       for (const o of res.objects || []) { bytes += o.size || 0; count++; }
       cursor = res.truncated ? res.cursor : undefined;
-    } while (cursor && ++guard < 40);
+    } while (cursor && ++guard < 12);
     const usage = { bytes, count, at: new Date().toISOString() };
     await env.R2.put("channel/r2usage.json", JSON.stringify(usage), { httpMetadata: { contentType: "application/json" } });
     return usage;

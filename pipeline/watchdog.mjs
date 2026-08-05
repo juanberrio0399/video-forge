@@ -39,7 +39,8 @@ const fails2h = rruns.filter((x) => x.conclusion === "failure" && (now - Date.pa
 const renders2h = rruns.filter((x) => (now - Date.parse(x.created_at)) < 2 * 3600 * 1000).length;
 
 // (a) El ULTIMO render se detuvo sin terminar: FALLÓ o se CANCELÓ (esto era el limbo — el cancel no se reanudaba).
-const stopped = latest && (latest.conclusion === "failure" || latest.conclusion === "cancelled") && (now - Date.parse(latest.updated_at)) < 90 * 60000;
+// Ventana amplia (4h) para que un cron atrasado no deje el video sin rescate.
+const stopped = latest && (latest.conclusion === "failure" || latest.conclusion === "cancelled") && (now - Date.parse(latest.updated_at)) < 240 * 60000;
 
 // (b) CADENA ROTA: la voz mas reciente terminó OK pero NO arrancó ningun render despues (produccion a medias).
 let chainBroken = false, voiceReason = "";
@@ -51,7 +52,8 @@ try {
     const vt = Date.parse(lastVoice.updated_at);
     const noRenderAfter = !latest || Date.parse(latest.created_at) < vt; // ningun render creado despues de la voz
     const age = now - vt;
-    if (noRenderAfter && age > 8 * 60000 && age < 120 * 60000) { chainBroken = true; voiceReason = "cadena rota (voz lista sin render)"; }
+    // Ventana 8 min – 6 h: no abandonar un video "voz lista sin render" solo porque un cron llegó tarde.
+    if (noRenderAfter && age > 8 * 60000 && age < 360 * 60000) { chainBroken = true; voiceReason = "cadena rota (voz lista sin render)"; }
   }
 } catch {}
 
