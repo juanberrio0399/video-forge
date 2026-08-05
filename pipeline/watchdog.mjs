@@ -66,8 +66,10 @@ if (!renderInProgress && (cancelledHungRender || stopped || chainBroken)) {
     await tg(`🛟 Watchdog: el render ${reason}. Lo REANUDÉ automáticamente${ok ? "" : " (no pude disparar)"} — no quedará en limbo.`);
     console.log("render reanudado:", reason);
   } else {
-    await tg(`🛑 Watchdog: corté los reintentos de render (${fails2h} fallos / ${renders2h} renders en 2h) — para NO entrar en bucle. Revísalo manual en la app.`);
-    console.log("render: cortacircuitos activo (limite 2h)");
+    // Avisar SOLO si el corte es reciente (no repetir el mismo mensaje cada 15 min por 2h).
+    const fresh = latest && (now - Date.parse(latest.updated_at)) < 20 * 60000;
+    if (fresh) await tg(`🛑 Watchdog: corté los reintentos de render (${fails2h} fallos / ${renders2h} renders en 2h) — para NO entrar en bucle. Revísalo manual en la app.`);
+    console.log("render: cortacircuitos activo (limite 2h)" + (fresh ? " (avisado)" : " (silencioso, ya avisado)"));
   }
 } else {
   console.log(renderInProgress ? "render en curso, no toco" : "watchdog: todo OK");

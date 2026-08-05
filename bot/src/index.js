@@ -724,14 +724,9 @@ async function ytStatus(env, ids) {
   ids = [...new Set((ids || []).filter(Boolean))];
   if (!ids.length || !env.YT_REFRESH_TOKEN) return {};
   try {
-    const tr = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ client_id: env.YT_CLIENT_ID, client_secret: env.YT_CLIENT_SECRET, refresh_token: env.YT_REFRESH_TOKEN, grant_type: "refresh_token" }),
-      signal: AbortSignal.timeout(6000),
-    });
-    const tj = await tr.json();
-    if (!tj.access_token) return {};
-    const r = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=status,statistics&id=${ids.join(",")}`, { headers: { Authorization: `Bearer ${tj.access_token}` }, signal: AbortSignal.timeout(6000) });
+    const token = await ytToken(env); // token cacheado (evita pedirlo 2 veces por request)
+    if (!token) return {};
+    const r = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=status,statistics&id=${ids.join(",")}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(6000) });
     const j = await r.json();
     const out = {};
     for (const it of j.items || []) out[it.id] = {
@@ -748,9 +743,13 @@ function isoDurSec(d) {
   const m = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(d || "") || [];
   return (+(m[1] || 0)) * 3600 + (+(m[2] || 0)) * 60 + (+(m[3] || 0));
 }
-// Token OAuth de YouTube (refresh).
+// Token OAuth de YouTube (refresh). Cacheado en memoria ~50 min: varias funciones (ytStatus,
+// channelInventory) lo comparten dentro del mismo request (y entre requests del mismo isolate)
+// -> no se pide el token 2 veces por refresco de la app.
+let _ytTok = { token: null, exp: 0 };
 async function ytToken(env) {
   if (!env.YT_REFRESH_TOKEN) return null;
+  if (_ytTok.token && Date.now() < _ytTok.exp) return _ytTok.token;
   try {
     const tr = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -758,7 +757,8 @@ async function ytToken(env) {
       signal: AbortSignal.timeout(6000),
     });
     const tj = await tr.json();
-    return tj.access_token || null;
+    if (tj.access_token) { _ytTok = { token: tj.access_token, exp: Date.now() + 50 * 60 * 1000 }; return tj.access_token; }
+    return null;
   } catch { return null; }
 }
 // Inventario REAL del canal (largos vs shorts) + subs/vistas. Cacheado 10 min en R2 para
