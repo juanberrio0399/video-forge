@@ -1,37 +1,39 @@
 # video-forge
 
-Fabrica de videos para YouTube que corre **100% en la nube** — nada se renderiza
-en el PC. Escribes/generas la composicion, **GitHub Actions** la renderiza a MP4,
-y (proximamente) un **bot de Telegram** controla todo: pedir videos, revisar el
-preview y dar el OK para publicar en YouTube.
+Fábrica de videos para YouTube que corre **100% en la nube** — nada se renderiza en el PC. El canal **The Data Lens** (`@TheDataLensHQ`) publica solo: datos/dinero, faceless, en inglés, mercado EE.UU. Todo con herramientas **gratis**.
 
-Nicho del canal: **datos que explican el mundo** (faceless, en ingles).
+Es semi-automática: **GitHub Actions** produce (guion → voz → render por fases → control de calidad), un **Cloudflare Worker** + **Telegram Mini App** son el mando y control, y **Juan aprueba** con un toque — el sistema programa a la mejor hora de EE.UU. El **watchdog** vigila cada 15 min y reanuda lo que se caiga.
 
-## Estado
+## Documentación
 
-**Fase 0** — render en la nube funcionando. Ver [ROADMAP.md](ROADMAP.md) para el plan completo.
+| Doc | Qué contiene |
+|---|---|
+| [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md) | Componentes, flujo end-to-end (diagrama), estado en R2, crons, auto-recuperación. |
+| [docs/HISTORIAS_USUARIO.md](docs/HISTORIAS_USUARIO.md) | 35 historias de usuario con criterios de aceptación. |
+| [docs/CONFIABILIDAD_24_7.md](docs/CONFIABILIDAD_24_7.md) | Mapa de fallos, colapsos, soluciones y el veredicto 24/7. |
+| [docs/CAPACIDAD_Y_EXPERIMENTOS.md](docs/CAPACIDAD_Y_EXPERIMENTOS.md) | Capacidad diaria de la fábrica y la rampa de duración de los videos. |
 
-## Como se renderiza (sin PC)
+## Cómo funciona (resumen)
 
-1. La composicion vive en `index.html` (HTML + GSAP, formato HyperFrames).
-2. Al hacer push a `main` o disparar el workflow **Render video (cloud)** desde
-   la pestana *Actions*, GitHub Actions:
-   - instala FFmpeg + Chrome,
-   - corre `hyperframes render`,
-   - sube el MP4 como *artifact* descargable.
+1. **Cron** (`daily_video.yml`, 10:00 UTC + rescate 15:00) elige el próximo tema de la cola.
+2. **`produce_video.yml`** valida herramientas (preflight), evita duplicados, escribe el guion con IA y aplica los aprendizajes del canal.
+3. **`voice_parallel.yml`** genera la voz (Kokoro), y **`render_phased.yml`** renderiza por fases con control de calidad (QA).
+4. El video queda **pendiente de aprobar** en la Mini App. Juan lo aprueba → **`publish_youtube.yml`** lo sube privado con SEO + miniatura → **`schedule_youtube.yml`** lo programa a la mejor hora.
+5. Al publicarse, se pueden generar sus **shorts** (`shorts_plan` → `shorts_final`).
 
-Disparo manual: pestana **Actions -> Render video (cloud) -> Run workflow**.
+## Estructura
+
+- `bot/src/` — Cloudflare Worker: API `/api/*` + Telegram Mini App (`miniapp.js`).
+- `.github/workflows/` — los ~23 workflows (la fábrica).
+- `pipeline/` — scripts de producción, voz, render, YouTube y auto-recuperación (`watchdog.mjs`, `preflight.mjs`, `qa_check.mjs`).
+- `channel/` — semillas del estado del canal.
 
 ## Motores
 
-- **HyperFrames** (Apache 2.0, gratis) — motor base, HTML -> MP4.
-- **Remotion** (gratis para creador solo) — refuerzo, se integra en Fase 1.
+- **HyperFrames** (Apache 2.0, gratis) — HTML → MP4, render por fases.
+- **Kokoro TTS** (gratis, self-hosted) — voz sin límite de tasa.
+- **Gemini** (gratis) — guion, SEO, análisis (multi-modelo, sin 404).
 
-## Local (opcional, solo edicion)
+## Operación
 
-```bash
-npm run dev     # preview en el navegador
-npm run check   # validar la composicion
-```
-
-El render local requiere un FFmpeg funcional; el render de produccion es en la nube.
+Todo se controla desde la **Telegram Mini App** (pestañas: Canal, Videos, Agenda, Control, Shorts, Crear). No requiere PC ni sesión abierta: la fábrica corre sola en la nube y Juan aprueba desde el móvil.

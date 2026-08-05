@@ -8,6 +8,8 @@ name: Video diario automatico (cron)
 on:
   schedule:
     - cron: "0 10 * * *"   # 10:00 UTC diario (~5-6 AM ET): queda listo para aprobar y programar al pico de la tarde
+    - cron: "0 15 * * *"   # 15:00 UTC RESCATE: si la corrida de la manana fallo antes del render, reintenta el dia
+                           #   (las guardas evitan pisar: si ya hay video pendiente/produccion en curso, no hace nada)
   workflow_dispatch: {}
 
 permissions:
