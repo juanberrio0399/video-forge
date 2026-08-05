@@ -38,17 +38,14 @@ Solo vigilaba voz→render. La ventana de rescate se cerraba a los 120 min (aban
 Un solo cron de producción (10:00 UTC); un fallo antes del render perdía el día.
 **Solución aplicada:** ✅ **cron de rescate a las 15:00 UTC**. Las guardas (`render_pending` / producción en curso) evitan pisar: si la mañana dejó algo, el rescate no hace nada.
 
-**5. Sin timeout en fetches externos** — *código, pendiente*
-Ni el Worker ni los scripts usan `AbortController`. Una API **lenta** (no caída) arrastra `/api/state` o gasta el job.
-**Solución propuesta:** `AbortSignal.timeout()` en cada fetch externo. *(Degrada, no bloqueante — pendiente.)*
+**5. Sin timeout en fetches externos** — ✅ **RESUELTO**
+Se agregó `AbortSignal.timeout()` a los fetches externos que bloquean `/api/state` (Worker: `ghApi`, `ytToken`, `ytStatus`) y a los scripts (`watchdog.mjs`, `tools_health.mjs`). Una API lenta ya no arrastra la app ni gasta el job.
 
-**6. El PAT de GitHub / los crons pueden morir en silencio** — *código, pendiente*
-Toda la orquestación cuelga del `GH_TOKEN`; GitHub deshabilita crons tras 60 días de inactividad del repo (mitigado: el repo tiene actividad diaria).
-**Solución propuesta:** check de validez del PAT en `tools_health` con alarma de expiración. *(Pendiente.)*
+**6. El PAT de GitHub / los crons pueden morir en silencio** — ✅ **RESUELTO (check)**
+`tools_health.mjs` ahora valida el `GH_TOKEN` contra la API de GitHub y marca "PAT inválido/expirado" en la app si falla. (Los crons no se apagan: el repo tiene actividad diaria.)
 
-**7. Subida a YouTube sin reintento ante blips** — *código, pendiente*
-`youtube_upload.mjs` sube ~300 MB en un intento; un 429/corte transitorio falla. (`invalidPublishAt` ya se maneja soft ✅.)
-**Solución propuesta:** backoff en 429/5xx y reanudar el PUT desde `Range`.
+**7. Subida a YouTube sin reintento ante blips** — ✅ **RESUELTO**
+`youtube_upload.mjs` reintenta token + init + PUT hasta 3 veces con backoff en 429/5xx/corte; distingue error permanente (4xx de credenciales) de transitorio. (`invalidPublishAt` ya se manejaba soft ✅.)
 
 ### ⚪ Menores
 - Un beat suelto de Kokoro mete 1 s de silencio en vez de reintentar (pasa QA si son pocos).
@@ -60,9 +57,9 @@ Multi-modelo Gemini (sin 404) · QA advisory (sin loop infinito) · `invalidPubl
 
 ## Pendientes priorizados
 1. ✅ ~~OAuth a “In production”~~ — **hecho** (la app ya está en producción).
-2. 🟠 Timeouts (`AbortSignal`) en fetches externos.
-3. 🟠 Check del PAT de GitHub + reintento de subida a YouTube.
+2. ✅ ~~Timeouts (`AbortSignal`) en fetches externos~~ — **hecho**.
+3. ✅ ~~Check del PAT de GitHub + reintento de subida a YouTube~~ — **hecho**.
 
-Con el OAuth ya resuelto, **no queda ningún bloqueante** del 24/7 — solo mejoras que degradan (no tumban).
+**No queda ningún pendiente** del mapa 24/7: sin bloqueantes y con las mejoras de robustez aplicadas. Quedan solo los 3 detalles ⚪ menores (cosméticos).
 
 *Última auditoría: 2026-08-05.*

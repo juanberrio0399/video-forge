@@ -727,10 +727,11 @@ async function ytStatus(env, ids) {
     const tr = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ client_id: env.YT_CLIENT_ID, client_secret: env.YT_CLIENT_SECRET, refresh_token: env.YT_REFRESH_TOKEN, grant_type: "refresh_token" }),
+      signal: AbortSignal.timeout(6000),
     });
     const tj = await tr.json();
     if (!tj.access_token) return {};
-    const r = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=status,statistics&id=${ids.join(",")}`, { headers: { Authorization: `Bearer ${tj.access_token}` } });
+    const r = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=status,statistics&id=${ids.join(",")}`, { headers: { Authorization: `Bearer ${tj.access_token}` }, signal: AbortSignal.timeout(6000) });
     const j = await r.json();
     const out = {};
     for (const it of j.items || []) out[it.id] = {
@@ -754,6 +755,7 @@ async function ytToken(env) {
     const tr = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ client_id: env.YT_CLIENT_ID, client_secret: env.YT_CLIENT_SECRET, refresh_token: env.YT_REFRESH_TOKEN, grant_type: "refresh_token" }),
+      signal: AbortSignal.timeout(6000),
     });
     const tj = await tr.json();
     return tj.access_token || null;
@@ -1432,6 +1434,8 @@ function tg(env, method, payload) {
 function ghApi(env, path, init = {}) {
   return fetch(`https://api.github.com${path}`, {
     ...init,
+    // Timeout: una API de GitHub LENTA (no caida) no debe colgar /api/state.
+    signal: init.signal || AbortSignal.timeout(6000),
     headers: {
       Authorization: `Bearer ${env.GH_TOKEN}`,
       Accept: "application/vnd.github+json",

@@ -17,21 +17,27 @@ if (!fs.existsSync(videoPath)) { console.error("No existe el video: " + videoPat
 const pkg = fs.existsSync(pkgPath) ? JSON.parse(fs.readFileSync(pkgPath, "utf8")) : {};
 fs.mkdirSync("publish", { recursive: true });
 
-// 1) Access token a partir del refresh token
+const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
+
+// 1) Access token a partir del refresh token — con REINTENTOS (un blip de red no debe tumbar la subida).
 async function getAccessToken() {
-  const r = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: YT_CLIENT_ID,
-      client_secret: YT_CLIENT_SECRET,
-      refresh_token: YT_REFRESH_TOKEN,
-      grant_type: "refresh_token",
-    }),
-  });
-  const j = await r.json();
-  if (!j.access_token) { console.error("Error al refrescar token:", JSON.stringify(j)); process.exit(1); }
-  return j.access_token;
+  for (let i = 0; i < 4; i++) {
+    try {
+      const r = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ client_id: YT_CLIENT_ID, client_secret: YT_CLIENT_SECRET, refresh_token: YT_REFRESH_TOKEN, grant_type: "refresh_token" }),
+        signal: AbortSignal.timeout(15000),
+      });
+      const j = await r.json();
+      if (j.access_token) return j.access_token;
+      // 4xx de credenciales (no 429) = permanente -> no reintentar en vano.
+      if (r.status >= 400 && r.status < 500 && r.status !== 429) { console.error("Error de token (permanente):", JSON.stringify(j)); process.exit(1); }
+      console.error(`token intento ${i + 1}: HTTP ${r.status}`);
+    } catch (e) { console.error(`token intento ${i + 1}: ${e.message}`); }
+    await sleep(3000 * (i + 1));
+  }
+  console.error("No pude refrescar el token OAuth tras 4 intentos."); process.exit(1);
 }
 const token = await getAccessToken();
 
@@ -49,39 +55,55 @@ const status = {
   containsSyntheticMedia: true,      // disclosure: voz IA
 };
 
-// 3) Subida "resumable" en un solo PUT
+// 3) Subida "resumable" — con REINTENTOS ante 429/5xx/corte (antes fallaba a la primera).
 const size = fs.statSync(videoPath).size;
-const init = await fetch(
-  "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
-  {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "content-type": "application/json; charset=UTF-8",
-      "X-Upload-Content-Length": String(size),
-      "X-Upload-Content-Type": "video/mp4",
-    },
-    body: JSON.stringify({ snippet, status }),
-  }
-);
-if (!init.ok) { console.error("Error init upload:", init.status, (await init.text()).slice(0, 400)); process.exit(1); }
-const uploadUrl = init.headers.get("location");
-if (!uploadUrl) { console.error("No devolvio URL de subida."); process.exit(1); }
+const body = fs.readFileSync(videoPath);
 
-console.log(`Subiendo ${(size / 1e6).toFixed(1)} MB...`);
-const up = await fetch(uploadUrl, {
-  method: "PUT",
-  headers: { "content-type": "video/mp4", "content-length": String(size) },
-  body: fs.readFileSync(videoPath),
-});
-const res = await up.json();
-if (!res.id) { console.error("Error en la subida:", JSON.stringify(res).slice(0, 500)); process.exit(1); }
+async function uploadOnce() {
+  const init = await fetch(
+    "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "content-type": "application/json; charset=UTF-8",
+        "X-Upload-Content-Length": String(size),
+        "X-Upload-Content-Type": "video/mp4",
+      },
+      body: JSON.stringify({ snippet, status }),
+      signal: AbortSignal.timeout(20000),
+    }
+  );
+  if (!init.ok) return { retry: init.status === 429 || init.status >= 500, err: `init ${init.status}: ${(await init.text()).slice(0, 300)}` };
+  const uploadUrl = init.headers.get("location");
+  if (!uploadUrl) return { retry: true, err: "no devolvio URL de subida" };
+  const up = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "content-type": "video/mp4", "content-length": String(size) },
+    body,
+  });
+  let res = {}; try { res = await up.json(); } catch {}
+  if (res && res.id) return { id: res.id };
+  return { retry: up.status === 429 || up.status >= 500, err: `PUT ${up.status}: ${JSON.stringify(res).slice(0, 300)}` };
+}
 
-const url = `https://youtu.be/${res.id}`;
-console.log("VIDEO_ID=" + res.id);
+let videoId = null;
+for (let i = 0; i < 3; i++) {
+  console.log(`Subiendo ${(size / 1e6).toFixed(1)} MB (intento ${i + 1}/3)...`);
+  let out;
+  try { out = await uploadOnce(); } catch (e) { out = { retry: true, err: e.message }; }
+  if (out.id) { videoId = out.id; break; }
+  console.error(out.err);
+  if (!out.retry) break;           // error permanente -> no insistir
+  await sleep(5000 * (i + 1));
+}
+if (!videoId) { console.error("Subida a YouTube fallida tras reintentos."); process.exit(1); }
+
+const url = `https://youtu.be/${videoId}`;
+console.log("VIDEO_ID=" + videoId);
 console.log("VIDEO_URL=" + url);
 // Guarda el ID (para actualizar el SEO/metadata luego sin re-subir el video).
-fs.writeFileSync("publish/video_id.txt", res.id);
+fs.writeFileSync("publish/video_id.txt", videoId);
 fs.writeFileSync(
   "publish/youtube_result.txt",
   `✅ Subido a YouTube (PRIVADO, para tu revision):\n${url}\n\n🏷️ ${snippet.title}\n\nRevisalo y hazlo Publico cuando estes conforme (Studio → Contenido → Visibilidad).`
