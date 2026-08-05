@@ -69,6 +69,7 @@ export const APP_HTML = `<!doctype html>
   <div id="globalStatus"></div>
   <div id="s-canal"></div>
   <div id="s-videos" class="hide"></div>
+  <div id="s-agenda" class="hide"></div>
   <div id="s-plan" class="hide"></div>
   <div id="s-shorts" class="hide"></div>
   <div id="s-crear" class="hide"></div>
@@ -77,6 +78,7 @@ export const APP_HTML = `<!doctype html>
 <div class="nav">
   <button data-t="canal" class="on"><span class="ic">📊</span>Canal</button>
   <button data-t="videos"><span class="ic">🎬</span>Videos</button>
+  <button data-t="agenda"><span class="ic">📅</span>Agenda</button>
   <button data-t="plan"><span class="ic">🧭</span>Control</button>
   <button data-t="shorts"><span class="ic">✂️</span>Shorts</button>
   <button data-t="crear"><span class="ic">✨</span>Crear</button>
@@ -99,6 +101,7 @@ export const APP_HTML = `<!doctype html>
   var TABHELP={
     canal:"📊 Tu canal de un vistazo: seguidores, vistas y analytics — en vivo.",
     videos:"🎥 Todos tus videos y shorts, con vistas y minutos vistos. Ordénalos y pide análisis.",
+    agenda:"📅 Tu calendario de publicación: qué sale cada día y a qué hora (mejores horas EEUU). Meta: 2/día.",
     plan:"🧭 El centro de control: en qué paso va la producción y qué le falta a cada video.",
     shorts:"✂️ Sugerir, aprobar y publicar shorts de tu último video.",
     crear:"➕ Subir una foto para retocar, una receta o una nota de voz."
@@ -107,7 +110,7 @@ export const APP_HTML = `<!doctype html>
   function setVSort(s){ vSort=s; render(); }
   function tab(name){
     curTab=name;
-    ["canal","videos","plan","shorts","crear"].forEach(function(t){el("s-"+t).classList.toggle("hide",t!==name);});
+    ["canal","videos","agenda","plan","shorts","crear"].forEach(function(t){el("s-"+t).classList.toggle("hide",t!==name);});
     document.querySelectorAll(".nav button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-t")===name);});
     setHelp(name);
   }
@@ -394,13 +397,13 @@ export const APP_HTML = `<!doctype html>
         +'<textarea id="seoNotes" placeholder="Ej: título más directo, menos clickbait, menciona la cifra"></textarea>'
         +'<button class="btn ghost" onclick="regenSeo()">🔁 Regenerar SEO</button>';
       if(p.approved){
-        h+='<div style="text-align:center;font-weight:700;color:var(--gr);padding:8px;margin:8px 0;background:rgba(52,211,153,.12);border-radius:12px">✅ Descripción aprobada</div>'
+        h+='<div style="text-align:center;font-weight:700;color:var(--am);padding:8px;margin:8px 0;background:rgba(245,158,11,.12);border-radius:12px">✅ Aprobado · falta agendar</div>'
           +'<button class="btn" onclick="scheduleVideo()">📅 Programar en la mejor hora</button>'
-          +'<div class="muted" style="font-size:11px;margin:4px 0 8px">Recomendado: lo deja listo y YouTube lo publica solo en el mejor horario (EEUU). Lo verás en 📅 Programados.</div>'
+          +'<div class="muted" style="font-size:11px;margin:4px 0 8px">La auto-programación no encontró hora libre o falló. Toca aquí para reintentar. Lo verás en 📅 Agenda.</div>'
           +'<button class="btn ghost" onclick="publishVideo()">🌍 Publicar ahora</button>';
       } else {
-        h+='<button class="btn" onclick="approveSeo()">✅ Aprobar descripción</button>'
-          +'<div class="muted" style="font-size:11px;margin-top:4px">Paso 1: aprobar deja el SEO listo (el video sigue privado). Después aparece Publicar.</div>';
+        h+='<button class="btn" onclick="approveSeo()">✅ Aprobar y programar (mejor hora)</button>'
+          +'<div class="muted" style="font-size:11px;margin-top:4px">Un toque: aprueba el SEO y lo <b>agenda solo</b> en la próxima mejor hora (EEUU). Lo verás en 📅 Agenda. YouTube lo publica solo a esa hora.</div>';
       }
       h+='</div>';
     }
@@ -454,6 +457,29 @@ export const APP_HTML = `<!doctype html>
     }).join("");
     return '<h2>📅 Programados ('+s.length+')</h2>'
       +'<div class="card"><div class="muted" style="font-size:11px;margin-bottom:4px">Se publican solos en la mejor hora (EEUU). Al publicarse, desaparecen de aquí.</div>'+rows+'</div>';
+  }
+  function calendarHtml(){
+    // CALENDARIO día a día: cada día con sus 2 franjas (mejores horas EEUU), lleno o libre. Meta 2/día.
+    var cal=ST.calendar||[];
+    var h='<h2>📅 Calendario de publicación</h2>'
+      +'<div class="card muted" style="font-size:12px">Cada día tiene 2 franjas en las mejores horas (EEUU). Cuando <b>apruebas</b> un video o short, se agenda solo en la próxima franja libre. <b>Meta: 2/día.</b></div>';
+    if(!cal.length) return h+'<div class="card muted">Nada programado aún. Aprueba un video (Control) o un short (Shorts) y aparece aquí.</div>';
+    cal.forEach(function(d){
+      var filled=d.slots.filter(function(s){return s.filled;}).length;
+      var slots=d.slots.map(function(s){
+        if(s.filled){
+          return '<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid rgba(255,255,255,.06)">'
+            +'<div style="font-size:12px">'+(s.type==="short"?"🎬":"📹")+' '+esc((s.title||"Video").slice(0,32))+(s.off_slot?' <span class="muted" style="font-size:10px">(hora manual)</span>':'')+'</div>'
+            +'<div style="font-size:11px;color:var(--cy);white-space:nowrap">'+esc(s.time)+'</div></div>';
+        }
+        return '<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px dashed rgba(255,255,255,.10)">'
+          +'<div style="font-size:12px;color:var(--hint)">— Libre —</div>'
+          +'<div style="font-size:11px;color:var(--hint);white-space:nowrap">'+esc(s.time)+'</div></div>';
+      }).join("");
+      var badge=filled>=2?'<span style="color:var(--gr)">✔ '+filled+'</span>':'<span style="color:var(--am)">'+filled+'/2</span>';
+      h+='<div class="card" style="padding:10px 12px"><div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;text-transform:capitalize"><span>'+esc(d.label)+'</span>'+badge+'</div>'+slots+'</div>';
+    });
+    return h;
   }
   function bestTimesHtml(){
     // Mejores horas para PUBLICAR (audiencia EE.UU., canal de datos/dinero, faceless).
@@ -560,12 +586,10 @@ export const APP_HTML = `<!doctype html>
       pendingThumbsHtml()
       +flowStepsHtml()
       +productionHtml()
-      +scheduledHtml()
       +nextStepHtml()
       +matrixHtml()
       +learningsHtml()
       +craftHtml()
-      +bestTimesHtml()
       +problemsHtml()
       +(next
         ? '<h2>Siguiente video</h2><div class="card"><div style="font-weight:800;font-size:16px">#'+(next.n||"")+' · '+esc(next.topic||"")+'</div>'
@@ -578,6 +602,9 @@ export const APP_HTML = `<!doctype html>
       +'<div id="trendsOut"></div>'
       +'<h2>Programados (pendientes)</h2><div class="card"><table><tr><th>#</th><th>Tema</th><th style="text-align:right">Fecha</th></tr>'+(prows||'<tr><td colspan="3" class="muted">No hay más temas en cola por ahora.</td></tr>')+'</table></div>'
       +'<div class="card muted">Cadencia objetivo: '+esc((ST.cadence&&ST.cadence.goal)||"1 video cada 2 días")+'.</div>';
+
+    // AGENDA: calendario día a día + programados + mejores horas.
+    el("s-agenda").innerHTML = calendarHtml()+scheduledHtml()+bestTimesHtml();
 
     // SHORTS: aprobar → generar → publicar, todo desde la app.
     var prop = ST.shorts_proposal||[]; var sst = ST.shorts_status||{};
@@ -713,7 +740,12 @@ export const APP_HTML = `<!doctype html>
   }
   function approveSeo(){
     if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
-    api("/api/approve",{method:"POST"}).then(function(r){return r.json();}).then(function(j){toast(j.ok?"✅ Descripción aprobada. Ahora aparece Publicar.":"❌ no pude");setTimeout(load,600);});
+    api("/api/approve",{method:"POST"}).then(function(r){return r.json();}).then(function(j){
+      var msg="❌ no pude";
+      if(j.ok && j.scheduled) msg="✅ Aprobado y agendado"+(j.publish_at?" · "+fmtSlot(j.publish_at):"")+". Míralo en 📅 Agenda.";
+      else if(j.ok) msg="✅ Aprobado. No encontré hora libre — usa 📅 Programar. ("+(j.schedule_error||"")+")";
+      toast(msg);setTimeout(load,900);
+    });
   }
   function publishVideo(){
     var p=ST.production||{}; if(!p.video_id){toast("Aún no hay video subido");return;}

@@ -216,24 +216,78 @@ function etOffsetHours(d) {
     const m = s.match(/GMT([+-]?\d{1,2})/); return m ? parseInt(m[1], 10) : -4;
   } catch { return -4; }
 }
-// Mejor hora de publicacion (ET) por dia de semana: fin de semana 9AM, lunes 3PM, mar-vie 12PM.
-function bestHourET(dow) { if (dow === 0 || dow === 6) return 9; if (dow === 1) return 15; return 12; }
-// Proxima MEJOR hora (ET) libre, con >=2h de anticipacion, evitando slots ya ocupados (tol 1h).
-function nextBestSlot(occupiedMs) {
-  const now = Date.now(), minAhead = now + 2 * 3600 * 1000;
+// MEJORES horas de publicacion (ET) por dia de semana — DOS slots/dia para poder publicar >=2/dia:
+//  fin de semana: 9AM y 3PM · lunes: 3PM y 7PM · mar-vie: 12PM y 5PM.
+function bestHoursET(dow) { if (dow === 0 || dow === 6) return [9, 15]; if (dow === 1) return [15, 19]; return [12, 17]; }
+// Lista cronologica de TODOS los slots (mejor hora) de los proximos `days` dias, en ms UTC.
+function upcomingSlotList(days) {
+  const out = [], now = Date.now();
   const dowMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-  for (let day = 0; day < 21; day++) {
+  for (let day = 0; day < days; day++) {
     const probe = new Date(now + day * 86400 * 1000);
     const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" }).formatToParts(probe);
     const y = +parts.find((p) => p.type === "year").value, mo = +parts.find((p) => p.type === "month").value, da = +parts.find((p) => p.type === "day").value;
     const dow = dowMap[parts.find((p) => p.type === "weekday").value] ?? 2;
-    const hourET = bestHourET(dow), off = etOffsetHours(probe);
-    const slotMs = Date.UTC(y, mo - 1, da, hourET - off, 0, 0);
+    const off = etOffsetHours(probe);
+    for (const h of bestHoursET(dow)) out.push(Date.UTC(y, mo - 1, da, h - off, 0, 0));
+  }
+  return out.sort((a, b) => a - b);
+}
+// Proxima MEJOR hora (ET) libre, con >=2h de anticipacion, evitando slots ya ocupados (tol 1h).
+function nextBestSlot(occupiedMs) {
+  const minAhead = Date.now() + 2 * 3600 * 1000;
+  for (const slotMs of upcomingSlotList(21)) {
     if (slotMs < minAhead) continue;
     if (occupiedMs.some((o) => Math.abs(o - slotMs) < 3600 * 1000)) continue;
     return new Date(slotMs).toISOString();
   }
   return null;
+}
+// Calendario dia-a-dia: cada dia con sus slots (mejor hora), marcados LLENO (video programado) o LIBRE.
+function buildCalendar(scheduled, days) {
+  const now = Date.now();
+  const isoETDate = (ms) => { const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(ms)); return p.find((x) => x.type === "year").value + "-" + p.find((x) => x.type === "month").value + "-" + p.find((x) => x.type === "day").value; };
+  const fmtDay = (ms) => new Intl.DateTimeFormat("es-CO", { timeZone: "America/New_York", weekday: "short", day: "numeric", month: "short" }).format(new Date(ms));
+  const fmtTime = (ms) => new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ms));
+  const items = (scheduled || []).map((s) => ({ ms: Date.parse(s.publish_at), title: s.title, type: s.type, video_id: s.video_id })).filter((x) => x.ms > now).sort((a, b) => a.ms - b.ms);
+  const used = new Set(), daysMap = new Map();
+  for (const slotMs of upcomingSlotList(days)) {
+    if (slotMs < now - 30 * 60000) continue;
+    const dkey = isoETDate(slotMs);
+    if (!daysMap.has(dkey)) daysMap.set(dkey, { date: dkey, label: fmtDay(slotMs), slots: [] });
+    let match = null;
+    for (let i = 0; i < items.length; i++) { if (used.has(i)) continue; if (Math.abs(items[i].ms - slotMs) < 3600 * 1000) { match = items[i]; used.add(i); break; } }
+    daysMap.get(dkey).slots.push({ time: fmtTime(slotMs), filled: !!match, title: match ? match.title : null, type: match ? match.type : null });
+  }
+  // Programados en horas NO estandar (reprogramaciones manuales): mostrarlos igual, para no ocultar nada.
+  for (let i = 0; i < items.length; i++) {
+    if (used.has(i)) continue; const it = items[i]; const dkey = isoETDate(it.ms);
+    if (!daysMap.has(dkey)) daysMap.set(dkey, { date: dkey, label: fmtDay(it.ms), slots: [] });
+    daysMap.get(dkey).slots.push({ time: fmtTime(it.ms), filled: true, title: it.title, type: it.type, off_slot: true });
+  }
+  return [...daysMap.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+// Programa un video en la proxima mejor hora libre (usado por /api/schedule y /api/approve).
+async function doSchedule(env, vid, isProductionVideo) {
+  const inv = await channelInventory(env);
+  const occupied = [...(inv.longs || []), ...(inv.shorts || [])].filter((v) => v.publish_at && Date.parse(v.publish_at) > Date.now()).map((v) => Date.parse(v.publish_at));
+  // Contar tambien lo recien programado localmente, para no meter dos videos en el mismo slot.
+  const prevLocal = (await r2json(env, "channel/scheduled_local.json")) || [];
+  prevLocal.forEach((s) => { if (s.publish_at && s.video_id !== vid && Date.parse(s.publish_at) > Date.now()) occupied.push(Date.parse(s.publish_at)); });
+  const slot = nextBestSlot(occupied);
+  if (!slot) return { ok: false, error: "no encontré un horario libre" };
+  const r = await ghDispatch(env, "schedule_youtube.yml", { video_id: vid, publish_at: slot });
+  if (r.ok) {
+    if (isProductionVideo) {
+      for (const f of ["render_pending.json", "quality.json", "package.json", "seo_approved.json", "video_id.txt"]) { try { await env.R2.delete(`video/0001-youtube-money/${f}`); } catch {} }
+    }
+    const title = (inv.longs || []).concat(inv.shorts || []).find((v) => v.video_id === vid);
+    const rec = { video_id: vid, publish_at: slot, title: (title && title.title) || "Video", type: (title && (title.seconds || 0) <= 60) ? "short" : "long", at: new Date().toISOString() };
+    const merged = [...prevLocal.filter((s) => s.video_id !== vid), rec];
+    try { await env.R2.put("channel/scheduled_local.json", JSON.stringify(merged), { httpMetadata: { contentType: "application/json" } }); } catch {}
+    try { await env.R2.delete("channel/inventory_cache.json"); } catch {}
+  }
+  return { ok: r.ok, publish_at: slot };
 }
 
 async function handleApi(request, env, url) {
@@ -291,6 +345,8 @@ async function handleApi(request, env, url) {
     const ytIds = new Set(fromYT.map((v) => v.video_id));
     const fromLocal = schedLocal.filter((s) => s.publish_at && Date.parse(s.publish_at) > nowMs && !publicIds.has(s.video_id) && !ytIds.has(s.video_id));
     state.scheduled = [...fromYT, ...fromLocal].sort((a, b) => Date.parse(a.publish_at) - Date.parse(b.publish_at));
+    // CALENDARIO dia-a-dia (proximos 12 dias): mejores horas, marcadas lleno/libre. Meta: >=2/dia.
+    state.calendar = buildCalendar(state.scheduled, 12);
     state.totals = {
       views: inv.total_views || state.all_videos.reduce((s, v) => s + (v.views || 0), 0),
       watch_min: state.all_videos.reduce((s, v) => s + (v.watch_min || 0), 0),
@@ -535,39 +591,26 @@ async function handleApi(request, env, url) {
     const isProductionVideo = !vid; // sin video_id en el body = el VIDEO de produccion (slot activo). Con video_id = un SHORT u otro.
     if (!vid) { try { const ido = await env.R2.get("video/0001-youtube-money/video_id.txt"); if (ido) vid = (await ido.text()).trim(); } catch {} }
     if (!vid || !/^[A-Za-z0-9_-]{6,20}$/.test(vid)) return json({ error: "no encontré el video a programar" }, 400);
-    const inv = await channelInventory(env);
-    const occupied = [...(inv.longs || []), ...(inv.shorts || [])].filter((v) => v.publish_at && Date.parse(v.publish_at) > Date.now()).map((v) => Date.parse(v.publish_at));
-    const slot = nextBestSlot(occupied);
-    if (!slot) return json({ error: "no encontré un horario libre" }, 500);
-    const r = await ghDispatch(env, "schedule_youtube.yml", { video_id: vid, publish_at: slot });
-    if (r.ok) {
-      // Solo el VIDEO de produccion limpia el slot (para que desaparezca la tarjeta de aprobar/programar).
-      // Un SHORT (video_id explicito) NO toca el slot del video principal.
-      if (isProductionVideo) {
-        for (const f of ["render_pending.json", "quality.json", "package.json", "seo_approved.json", "video_id.txt"]) {
-          try { await env.R2.delete(`video/0001-youtube-money/${f}`); } catch {}
-        }
-      }
-      // Registrar la programacion localmente para que salga YA en "Programados" (antes de que el
-      // inventario de YouTube confirme el publishAt). Se limpia solo cuando el video ya es publico.
-      const sched = (await r2json(env, "channel/scheduled_local.json")) || [];
-      const title = (inv.longs || []).concat(inv.shorts || []).find((v) => v.video_id === vid);
-      const rec = { video_id: vid, publish_at: slot, title: (title && title.title) || "Video", type: (title && (title.seconds || 0) <= 60) ? "short" : "long", at: new Date().toISOString() };
-      const merged = [...sched.filter((s) => s.video_id !== vid), rec];
-      try { await env.R2.put("channel/scheduled_local.json", JSON.stringify(merged), { httpMetadata: { contentType: "application/json" } }); } catch {}
-      try { await env.R2.delete("channel/inventory_cache.json"); } catch {} // refrescar Programados
-    }
-    return json({ ok: r.ok, publish_at: slot });
+    const res = await doSchedule(env, vid, isProductionVideo);
+    if (!res.ok) return json({ error: res.error || "no pude programar" }, 500);
+    return json({ ok: true, publish_at: res.publish_at });
   }
 
   if (url.pathname === "/api/approve" && request.method === "POST") {
-    // Aprobar la descripcion/SEO (paso 1). NO publica; solo marca que quedo bueno.
+    // Aprobar la descripcion/SEO Y programar el video en la proxima mejor hora (EEUU), en un solo toque.
     const pkg = await r2json(env, "video/0001-youtube-money/package.json");
     const title = pkg ? pkg.title || "" : "";
     await env.R2.put("video/0001-youtube-money/seo_approved.json",
       JSON.stringify({ approved: true, title, at: new Date().toISOString() }),
       { httpMetadata: { contentType: "application/json" } });
-    return json({ ok: true, title });
+    // Tomar el video del slot activo y programarlo automaticamente a la mejor hora.
+    let vid = null;
+    try { const ido = await env.R2.get("video/0001-youtube-money/video_id.txt"); if (ido) vid = (await ido.text()).trim(); } catch {}
+    if (vid && /^[A-Za-z0-9_-]{6,20}$/.test(vid)) {
+      const res = await doSchedule(env, vid, true);
+      return json({ ok: true, title, scheduled: res.ok, publish_at: res.publish_at || null, schedule_error: res.ok ? null : (res.error || "no pude programar") });
+    }
+    return json({ ok: true, title, scheduled: false });
   }
 
   if (url.pathname === "/api/voice" && request.method === "POST") {
