@@ -42,10 +42,16 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/voicemap_full.json" --file=voicemap_active.json --remote 2>/dev/null && echo "guion de R2" || cp "projects/$PROJECT/voicemap_full.json" voicemap_active.json
           ls -la video.mp4
 
-      - name: Generar paquete SEO con IA (titulo/descripcion/tags/capitulos/subtitulos)
+      - name: Generar paquete SEO con IA (titulo/descripcion/tags/capitulos/subtitulos + watch-next + CTA)
         run: |
+          # Videos ANTERIORES publicos -> para encadenar el "watch next" que ELIGE la IA.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/inventory_cache.json" --file=inv.json --remote 2>/dev/null || echo '{}' > inv.json
+          node -e 'try{const inv=JSON.parse(require("fs").readFileSync("inv.json","utf8"));const p=(inv.longs||[]).filter(v=>v.privacy==="public").slice(0,8).map(v=>({title:v.title,video_id:v.video_id}));require("fs").writeFileSync("prev_videos.json",JSON.stringify(p))}catch(e){require("fs").writeFileSync("prev_videos.json","[]")}'
+          # Tono de crecimiento (CTA para suscriptores).
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/growth.json" --file=growth.json --remote 2>/dev/null || cp channel/growth.seed.json growth.json 2>/dev/null || echo '{}' > growth.json
+          export GROWTH_TONE=$(node -e 'try{const g=JSON.parse(require("fs").readFileSync("growth.json","utf8"));process.stdout.write(String((g.enabled!==false&&g.cta_tone)||"retador"))}catch(e){process.stdout.write("retador")}')
           TOPIC=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("voicemap_active.json","utf8")).title||"data video")}catch(e){process.stdout.write("data video")}')
-          echo "Tema para SEO: $TOPIC"
+          echo "Tema para SEO: $TOPIC · tono: ${GROWTH_TONE} · previos: $(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync("prev_videos.json","utf8")).length))}catch(e){process.stdout.write("0")}')"
           node pipeline/publish_package.mjs voicemap_active.json timing.json "$TOPIC" publish
 
       - name: Subir a YouTube (privado)

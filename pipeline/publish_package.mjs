@@ -64,16 +64,31 @@ async function gemini(prompt) {
   return null;
 }
 
+// --- TONO de crecimiento (para SUSCRIPTORES) + videos anteriores (encadenar "watch next" que ELIGE la IA) ---
+const TONE = (process.env.GROWTH_TONE || "retador").toLowerCase();
+const CTA_TONE = {
+  retador: "RETADOR CON AUTORIDAD: punzante, reta al espectador a suscribirse ('quien siga de largo se lo pierde'), SIN clickbait falso ni mentiras",
+  provocador: "PROVOCADOR/CONTRARIAN: postura audaz us-vs-them que invita a suscribirse para 'probar quien tiene razon', sin faltar a la verdad",
+  suave: "claro y amable",
+}[TONE] || "RETADOR CON AUTORIDAD (punzante, sin clickbait falso)";
+let prevVideos = [];
+try { prevVideos = JSON.parse(fs.readFileSync("prev_videos.json", "utf8")); } catch {}
+prevVideos = (Array.isArray(prevVideos) ? prevVideos : []).filter((v) => v && v.video_id).slice(0, 8);
+const prevBlock = prevVideos.length
+  ? `\n\nVIDEOS ANTERIORES del canal (elige el MAS RELACIONADO con este tema para recomendar como "watch next"):\n${prevVideos.map((v, i) => `${i + 1}. [${v.video_id}] ${v.title}`).join("\n")}`
+  : "";
+
 // --- 1) Generar el paquete de publicacion (SEO + CTR), en INGLES ---
 const pkgPrompt = `Eres experto en SEO y packaging de YouTube para un canal faceless de DATOS/DINERO, en INGLES, mercado EE.UU. Tema del video: "${topic}".
-Transcripcion del video: """${transcript.slice(0, 4500)}"""
-Devuelve SOLO un JSON con un paquete de publicacion OPTIMIZADO para VISTAS y descubrimiento, TODO en INGLES:
+Transcripcion del video: """${transcript.slice(0, 4500)}"""${prevBlock}
+Meta: VISTAS y SUSCRIPTORES. Devuelve SOLO un JSON con un paquete de publicacion OPTIMIZADO, TODO en INGLES:
 {
  "title": "titulo de alto CTR, <=90 caracteres, con la cifra o idea mas impactante; sin clickbait falso",
- "description": "descripcion SEO: 3-5 lineas (hook + que aprende el espectador + llamado a suscribirse). Deja una linea en blanco y agrega 'Chapters:' con la lista de capitulos (mm:ss - label). Al final agrega en linea aparte: 'This video uses an AI-generated voice.'",
+ "description": "descripcion SEO: 3-5 lineas (hook + que aprende el espectador + un LLAMADO A SUSCRIBIRSE con tono ${CTA_TONE}). Deja una linea en blanco y agrega 'Chapters:' con la lista de capitulos (mm:ss - label). Al final agrega en linea aparte: 'This video uses an AI-generated voice.'",
  "tags": ["10 a 15 tags/keywords relevantes en ingles"],
  "chapters": [{"time":"0:00","label":"Intro"}],
- "pinned_comment": "un comentario fijado que invite a comentar (pregunta abierta relacionada)",
+ "watch_next": {"video_id": "id del video anterior MAS relacionado de la lista (o null si ninguno encaja)", "line": "una linea corta en ingles que invite a verlo ahora"},
+ "pinned_comment": "un comentario fijado con tono ${CTA_TONE} que prenda debate (pregunta abierta polarizante pero honesta)",
  "thumbnail_text": "2 a 4 palabras GRANDES para la miniatura (impacto)",
  "hashtags": ["3 a 5 hashtags"],
  "category": "Education",
@@ -99,6 +114,13 @@ const links = [
   `▶️ Subscribe for more: ${SUB_URL}`,
   `📺 More videos: ${CHANNEL_URL}/videos`,
 ];
+// "WATCH NEXT" encadenado: la IA eligio el video anterior mas relacionado; si no, el mas reciente.
+const wn = pkg.watch_next || {};
+const wnId = (wn.video_id && prevVideos.some((v) => v.video_id === wn.video_id)) ? wn.video_id : ((prevVideos[0] || {}).video_id || null);
+if (wnId) {
+  const wnLine = String(wn.line || "Watch this next").replace(/\s+/g, " ").slice(0, 90);
+  links.splice(1, 0, `▶️ ${wnLine}: https://youtu.be/${wnId}`);
+}
 if (process.env.SOCIAL_TIKTOK) links.push(`🎵 TikTok: ${process.env.SOCIAL_TIKTOK}`);
 if (process.env.SOCIAL_IG) links.push(`📸 Instagram: ${process.env.SOCIAL_IG}`);
 const linkBlock = "\n\n— — —\n" + links.join("\n");
@@ -108,10 +130,10 @@ if (pkg && typeof pkg.description === "string" && !pkg.description.includes("Sub
 }
 
 // --- 2) VALIDAR el paquete (auditor de publicacion) ---
-const valPrompt = `Eres un auditor estricto de publicaciones de YouTube (meta: maximas vistas y descubrimiento). Valida este paquete: ${JSON.stringify(pkg)}.
+const valPrompt = `Eres un auditor estricto de publicaciones de YouTube (meta: maximas vistas Y SUSCRIPTORES). Valida este paquete: ${JSON.stringify(pkg)}.
 Devuelve SOLO JSON:
-{"ctr_titulo": X, "seo_descripcion": X, "tags_ok": true, "problemas": ["..."], "sugerencias": ["..."], "listo": true, "nota_global": X}
-donde X es 0-10. Se estricto: baja la nota si el titulo es debil, la descripcion no tiene keywords, faltan capitulos o los tags son genericos.`;
+{"ctr_titulo": X, "seo_descripcion": X, "sub_pull": X, "tags_ok": true, "problemas": ["..."], "sugerencias": ["..."], "listo": true, "nota_global": X}
+donde X es 0-10. "sub_pull" = que tan fuerte empuja a SUSCRIBIRSE (CTA retador + enganche + "watch next"). Se estricto: baja la nota si el titulo es debil, la descripcion no tiene keywords, el CTA es flojo/generico, faltan capitulos o los tags son genericos.`;
 const val = (await gemini(valPrompt)) || {};
 
 fs.writeFileSync(`${outDir}/package.json`, JSON.stringify({ topic, ...pkg, validation: val }, null, 2));
@@ -135,7 +157,7 @@ const summary = [
   `📌 Comentario fijado: ${pkg.pinned_comment || "-"}`,
   `🖼️ Miniatura (texto): ${pkg.thumbnail_text || "-"}`,
   ``,
-  `🔎 Validacion IA: CTR titulo ${val.ctr_titulo ?? "?"}/10 · SEO desc ${val.seo_descripcion ?? "?"}/10 · ${val.listo ? "✅ listo" : "⚠️ revisar"}`,
+  `🔎 Validacion IA: CTR titulo ${val.ctr_titulo ?? "?"}/10 · SEO desc ${val.seo_descripcion ?? "?"}/10 · 🧲 suscriptores ${val.sub_pull ?? "?"}/10 · ${val.listo ? "✅ listo" : "⚠️ revisar"}`,
   (val.problemas && val.problemas.length) ? `⚠️ Problemas: ${val.problemas.join("; ")}` : ``,
   (val.sugerencias && val.sugerencias.length) ? `💡 Sugerencias: ${val.sugerencias.join("; ")}` : ``,
   ``,

@@ -1,0 +1,5 @@
+{
+  "cta_tone": "retador",
+  "enabled": true,
+  "notes": "Tonos: 'retador' (por defecto, punzante con autoridad, sin clickbait falso), 'provocador' (contrarian, us-vs-them), 'suave' (clasico). La IA genera el CTA con este tono y mide que convierte."
+}

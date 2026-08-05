@@ -12,6 +12,7 @@ Es semi-automática: **GitHub Actions** produce (guion → voz → render por fa
 | [docs/HISTORIAS_USUARIO.md](docs/HISTORIAS_USUARIO.md) | 35 historias de usuario con criterios de aceptación. |
 | [docs/CONFIABILIDAD_24_7.md](docs/CONFIABILIDAD_24_7.md) | Mapa de fallos, colapsos, soluciones y el veredicto 24/7. |
 | [docs/CAPACIDAD_Y_EXPERIMENTOS.md](docs/CAPACIDAD_Y_EXPERIMENTOS.md) | Capacidad diaria de la fábrica y la rampa de duración de los videos. |
+| [docs/CRECIMIENTO.md](docs/CRECIMIENTO.md) | Palancas de suscriptores: encadenar videos, CTA retador y tono configurable. |
 
 ## Cómo funciona (resumen)
 
