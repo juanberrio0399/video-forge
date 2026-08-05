@@ -117,7 +117,14 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/growth.json" --file=growth.json --remote 2>/dev/null || cp channel/growth.seed.json growth.json 2>/dev/null || echo '{}' > growth.json
           export GROWTH_TONE=$(node -e 'try{const g=JSON.parse(require("fs").readFileSync("growth.json","utf8"));process.stdout.write(String((g.enabled!==false&&g.cta_tone)||"retador"))}catch(e){process.stdout.write("retador")}')
           echo "Tono de crecimiento: ${GROWTH_TONE}"
-          LEARNINGS="$(cat learnings.txt 2>/dev/null)" node pipeline/video_script.mjs "$TOPIC" voicemap.json
+          # Si Gemini esta sin cuota (429) y no da guion: POSPONER (no es un error de fabrica) -> PROCEED=no
+          # apaga los pasos siguientes, el run queda verde y el video diario/rescate reintenta al recuperar la cuota.
+          if LEARNINGS="$(cat learnings.txt 2>/dev/null)" node pipeline/video_script.mjs "$TOPIC" voicemap.json; then
+            echo "guion generado."
+          else
+            echo "PROCEED=no" >> "$GITHUB_ENV"
+            bash pipeline/notify_telegram.sh "⏸️ Pospongo el video ${N}: Gemini sin cuota ahora (429). No es un error — se reintenta solo en el próximo ciclo (video diario / rescate)." || true
+          fi
 
       - name: Guardar el guion en el SLOT del proyecto (R2)
         if: ${{ env.PROCEED != 'no' }}
