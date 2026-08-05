@@ -366,6 +366,35 @@ async function handleApi(request, env, url) {
       per_day: +(pub7.length / 7).toFixed(1),
       duration: exp.duration || null,
     };
+    // ANALISIS DEL CANAL: score "que tan prometedor" + problemas/reclamaciones (lo que la API expone) + narrativa IA.
+    {
+      const A = inv.analytics || {};
+      const daily = A.daily || [];
+      const sumV = (arr) => arr.reduce((s, x) => s + (x.views || 0), 0);
+      const last3 = sumV(daily.slice(-3)), prev3 = sumV(daily.slice(-6, -3));
+      const trend = prev3 > 0 ? (last3 - prev3) / prev3 : (last3 > 0 ? 1 : 0);
+      const avgSec = (A.last28 && A.last28.avg_sec) || 0;
+      const avgLen = (inv.longs || []).length ? ((inv.longs).reduce((s, v) => s + (v.seconds || 0), 0) / inv.longs.length) : 0;
+      const retention = avgLen > 0 ? Math.min(1, avgSec / avgLen) : 0;
+      const recent = invAll.filter((v) => v.published_at && (Date.now() - Date.parse(v.published_at)) < 14 * 86400 * 1000).length;
+      const watchHours = (state.totals.watch_min || 0) / 60;
+      const yppSubs = Math.min(1, (inv.subs || 0) / 1000), yppHours = Math.min(1, watchHours / 4000);
+      const gScore = Math.max(0, Math.min(1, (trend + 1) / 2)) * 35;
+      const rScore = retention * 30;
+      const cScore = Math.min(1, recent / 6) * 20;
+      const yScore = ((yppSubs + yppHours) / 2) * 15;
+      const promise = Math.round(gScore + rScore + cScore + yScore);
+      const label = promise >= 66 ? "Prometedor" : promise >= 40 ? "En construcción" : "Arrancando";
+      const problems = invAll
+        .filter((v) => v.rejection_reason || (v.upload_status && !["processed", "uploaded"].includes(v.upload_status)))
+        .map((v) => ({ video_id: v.video_id, title: v.title, reason: v.rejection_reason || v.upload_status }));
+      state.analysis = {
+        promise, label,
+        factors: { crecimiento: Math.round(gScore), retencion: Math.round(rScore), cadencia: Math.round(cScore), ypp: Math.round(yScore) },
+        trend_pct: Math.round(trend * 100), retention_pct: Math.round(retention * 100), recent_14d: recent,
+        problems, ai: (await r2json(env, "channel/analysis.json")) || null,
+      };
+    }
     // ARBOL de Videos: cada LARGO con sus SHORTS anidados debajo (pestaña Videos, como la pidio Juan).
     // Mapeo short->padre: ledger persistente (channel/shorts_map.json) + el plan actual (for_video_id).
     const shortsMap = (await r2json(env, "channel/shorts_map.json")) || {};
@@ -785,7 +814,8 @@ async function channelInventory(env) {
       const j = await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status,statistics,contentDetails&id=${ids.slice(i, i + 50).join(",")}`, { headers: H })).json();
       for (const v of j.items || []) {
         const secs = isoDurSec(v.contentDetails.duration);
-        const row = { video_id: v.id, title: v.snippet.title, privacy: v.status.privacyStatus, publish_at: (v.status && v.status.publishAt) || null, published_at: v.snippet.publishedAt.slice(0, 10), views: +((v.statistics || {}).viewCount || 0), likes: +((v.statistics || {}).likeCount || 0), seconds: secs };
+        const st = v.status || {};
+        const row = { video_id: v.id, title: v.snippet.title, privacy: st.privacyStatus, publish_at: st.publishAt || null, published_at: v.snippet.publishedAt.slice(0, 10), views: +((v.statistics || {}).viewCount || 0), likes: +((v.statistics || {}).likeCount || 0), seconds: secs, upload_status: st.uploadStatus || null, rejection_reason: st.rejectionReason || null };
         if (secs > 0 && secs <= 60) shorts.push(row); else longs.push(row);
       }
     }
