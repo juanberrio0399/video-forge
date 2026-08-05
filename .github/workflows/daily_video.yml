@@ -60,5 +60,14 @@ jobs:
           TOPIC=$(printf '%s' "$SEL" | cut -f2-)
           if [ -z "$SEL" ] || [ -z "$TOPIC" ]; then echo "Cola vacia -> nada que producir."; bash pipeline/notify_telegram.sh "⚠️ Video diario: la cola de ideas esta vacia. Genero mas en el proximo reporte." || true; exit 0; fi
           echo "Produciendo automatico: #$N - $TOPIC"
-          gh workflow run produce_video.yml -f topic="$TOPIC" -f n="$N" -R "$GITHUB_REPOSITORY"
-          bash pipeline/notify_telegram.sh "🏭 Video diario AUTOMATICO arrancado: #$N - $TOPIC. Sale solo; te aviso cuando este en Control para aprobar." || true
+          # Con REINTENTOS: si el API de GitHub tiene un blip, no perdemos el video del dia.
+          DISP=0
+          for i in 1 2 3 4; do
+            if gh workflow run produce_video.yml -f topic="$TOPIC" -f n="$N" -R "$GITHUB_REPOSITORY"; then DISP=1; break; fi
+            echo "no pude disparar produce_video (intento $i); reintento"; sleep 12
+          done
+          if [ "$DISP" = "1" ]; then
+            bash pipeline/notify_telegram.sh "🏭 Video diario AUTOMATICO arrancado: #$N - $TOPIC. Sale solo; te aviso cuando este en Control para aprobar." || true
+          else
+            bash pipeline/notify_telegram.sh "⚠️ No pude arrancar el video diario #$N (4 intentos al API de GitHub). Lo reintento en el próximo ciclo." || true
+          fi
