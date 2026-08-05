@@ -355,6 +355,17 @@ async function handleApi(request, env, url) {
       longs: (inv.longs || []).length,
       shorts: (inv.shorts || []).length,
     };
+    // FABRICA: capacidad/throughput real (publicados en 7 dias, GRATIS desde el inventario) + experimento de duracion.
+    const wk = Date.now() - 7 * 86400 * 1000;
+    const pub7 = invAll.filter((v) => v.published_at && Date.parse(v.published_at) >= wk);
+    const exp = (await r2json(env, "channel/experiments.json")) || {};
+    state.factory = {
+      pub_7d: pub7.length,
+      pub_7d_long: pub7.filter((v) => (v.seconds || 0) > 60).length,
+      pub_7d_short: pub7.filter((v) => (v.seconds || 0) <= 60).length,
+      per_day: +(pub7.length / 7).toFixed(1),
+      duration: exp.duration || null,
+    };
     // ARBOL de Videos: cada LARGO con sus SHORTS anidados debajo (pestaña Videos, como la pidio Juan).
     // Mapeo short->padre: ledger persistente (channel/shorts_map.json) + el plan actual (for_video_id).
     const shortsMap = (await r2json(env, "channel/shorts_map.json")) || {};

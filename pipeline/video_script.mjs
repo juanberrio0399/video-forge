@@ -38,15 +38,22 @@ const learnBlock = LEARN
   ? `\n\nAPRENDIZAJES DE ESTE CANAL (rendimiento real + tendencias) — APLÍCALOS en este guion (ángulo, tipo de gancho, formato de título, ritmo):\n${LEARN}\n`
   : "";
 
+// DURACION OBJETIVO (experimento de la fabrica): produce_video inyecta TARGET_MIN desde channel/experiments.json.
+// La fabrica sube la duracion poco a poco; el guionista apunta a esa duracion (~7 beats por minuto).
+const TARGET_MIN = Math.max(4, parseInt(process.env.TARGET_MIN || "8", 10) || 8);
+const BEATS = Math.round(TARGET_MIN * 7);
+const BEATS_MIN = Math.max(28, BEATS - 8), BEATS_MAX = BEATS + 10;
+
 const prompt =
   `Eres guionista de un canal faceless de YouTube de DATOS/DINERO en INGLES (mercado EE.UU.), ` +
-  `estilo documental cinematografico con ALTA RETENCION. Escribe el guion COMPLETO (~7-9 min) del video sobre: "${topic}".${learnBlock}\n` +
+  `estilo documental cinematografico con ALTA RETENCION. Escribe el guion COMPLETO (~${TARGET_MIN} min) del video sobre: "${topic}".${learnBlock}\n` +
   `Reglas de retencion: gancho brutal en la 1a frase; promete algo al inicio y pagalo al final; ` +
   `escala cifras/datos de menor a mayor; una vuelta de tuerca ("twist") a mitad y al final; ` +
   `micro-ganchos entre secciones; cierra con CTA (suscribirse + el siguiente video de la serie). ` +
+  `Para ${TARGET_MIN} min, manten la retencion ALTA todo el video (nada de relleno: cada beat aporta un dato o giro). ` +
   `Todo en INGLES natural (no robotico). Devuelve SOLO JSON:\n` +
   `{"title":"titulo en ingles","beats":[{"text":"1-3 frases en ingles","tipo":"hook|dato|contexto|reveal|cta|sintesis"}]}\n` +
-  `Usa 45 a 65 beats. El PRIMER beat es el gancho; el ULTIMO es CTA.`;
+  `Usa ${BEATS_MIN} a ${BEATS_MAX} beats. El PRIMER beat es el gancho; el ULTIMO es CTA.`;
 
 const scr = await gemini(prompt);
 if (!scr || !Array.isArray(scr.beats) || !scr.beats.length) { console.error("Gemini no devolvio guion"); process.exit(1); }

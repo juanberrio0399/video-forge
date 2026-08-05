@@ -415,6 +415,12 @@ jobs:
             setAtt 0; writeRP 1
             echo "QA_PASSED=1" >> "$GITHUB_ENV"
             bash pipeline/notify_telegram.sh "✅ Video LISTO y completo (${DUR}s). En la app (Control) puedes verlo ▶️, aprobarlo ✅, programarlo 📅 o regenerarlo 🔁."
+            # EXPERIMENTO DE DURACION: registrar resultado y decidir si subir el objetivo poco a poco.
+            npx --yes wrangler@4 r2 object get "$BUCKET/channel/experiments.json" --file=exp.json --remote 2>/dev/null || cp channel/experiments.seed.json exp.json 2>/dev/null || echo '{}' > exp.json
+            EN=$(npx --yes wrangler@4 r2 object get "$BUCKET/channel/active_n.json" --pipe --remote 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).n||""))}catch(e){}})')
+            node pipeline/experiment_step.mjs "${DUR:-0}" "${MIN_SCORE:-0}" 1 "${EN:-}" || true
+            npx --yes wrangler@4 r2 object put "$BUCKET/channel/experiments.json" --file=exp.json --remote --content-type application/json || true
+            [ -f experiment_msg.txt ] && bash pipeline/notify_telegram.sh "🏭 Fábrica (duración): $(cat experiment_msg.txt)" || true
           else
             NEXT=$((ATT+1))
             if [ "$NEXT" -le "$QA_MAX_ATTEMPTS" ] && [ "${RECENT:-99}" -lt "$QA_MAX_RENDERS_2H" ]; then

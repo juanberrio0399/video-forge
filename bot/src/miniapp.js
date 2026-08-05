@@ -262,6 +262,35 @@ export const APP_HTML = `<!doctype html>
     h+='<div class="card muted" style="font-size:11px">Los datos de YouTube Analytics tienen ~1-2 días de retraso.</div>';
     return h;
   }
+  function factoryHtml(){
+    // Capacidad diaria (throughput real) + experimento de duración (sube la duración poco a poco).
+    var f=ST.factory; if(!f) return "";
+    var d=f.duration||{}; var ramp=(d.ramp||[]); var step=d.step||0;
+    var rampHtml=ramp.map(function(m,i){
+      var on=i===step, done=i<step;
+      return '<span style="font-size:11px;padding:3px 9px;border-radius:20px;margin:2px 3px 2px 0;display:inline-block;'
+        +(on?'background:rgba(34,211,238,.18);color:var(--cy);font-weight:700':done?'background:rgba(52,211,153,.15);color:var(--gr)':'background:rgba(255,255,255,.06);color:var(--hint)')
+        +'">'+(done?'✓ ':'')+m+'m</span>';
+    }).join("");
+    var last=(d.history||[]).slice(-1)[0];
+    var h='<h2>🏭 Fábrica</h2><div class="card">'
+      +'<div class="muted" style="font-size:11px;margin-bottom:6px">Capacidad de publicación (últimos 7 días).</div>'
+      +'<div class="row">'
+      +'<div class="kpi"><div class="n">'+(f.pub_7d||0)+'</div><div class="l">Publicados 7d</div></div>'
+      +'<div class="kpi"><div class="n">'+(f.per_day!=null?f.per_day:0)+'</div><div class="l">Por día</div></div>'
+      +'<div class="kpi"><div class="n">'+(f.pub_7d_long||0)+'</div><div class="l">Largos</div></div>'
+      +'<div class="kpi"><div class="n">'+(f.pub_7d_short||0)+'</div><div class="l">Shorts</div></div>'
+      +'</div>';
+    if(ramp.length){
+      h+='<div style="margin-top:12px;border-top:1px solid rgba(255,255,255,.08);padding-top:10px">'
+        +'<div class="muted" style="font-size:12px;margin-bottom:5px">Experimento de duración — objetivo <b style="color:var(--cy)">'+(d.target_min||ramp[step]||8)+' min</b> (sube poco a poco con las pruebas):</div>'
+        +'<div>'+rampHtml+'</div>'
+        +(last?'<div class="muted" style="font-size:11px;margin-top:7px">Último video: '+(last.actual_min||0)+' min · QA '+(last.qa_passed?'✓':'✗')+' · racha '+(d.streak||0)+'/2 para subir de escalón</div>':'<div class="muted" style="font-size:11px;margin-top:7px">Aún sin videos medidos.</div>')
+        +'</div>';
+    }
+    h+='</div>';
+    return h;
+  }
   function pendingThumbsHtml(){
     var vm=ST.video_matrix||[];
     // Solo las que FALTAN aprobar; al aprobar, desaparece la tarjeta.
@@ -538,6 +567,7 @@ export const APP_HTML = `<!doctype html>
       + '<div class="kpi"><div class="n">'+(ST.shorts_count||0)+'</div><div class="l">Shorts</div></div>'
       + '</div></div>'
       + analyticsHtml()
+      + factoryHtml()
       + '<h2>Monetización (YPP)</h2><div class="card">'
       + '<div class="muted">Suscriptores '+(mon.subs||0)+' / 1000</div><div class="bar"><i style="width:'+pct(mon.subs,1000)+'%"></i></div>'
       + '<div class="muted" style="margin-top:10px">Horas '+(mon.watch_hours!=null?mon.watch_hours:"—")+' / 4000</div><div class="bar"><i style="width:'+pct(mon.watch_hours,4000)+'%"></i></div>'

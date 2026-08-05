@@ -1,0 +1,12 @@
+{
+  "duration": {
+    "enabled": true,
+    "target_min": 8,
+    "beats_per_min": 7,
+    "ramp": [8, 10, 12, 15],
+    "step": 0,
+    "streak": 0,
+    "advance_rule": "Sube al siguiente escalon cuando 2 videos seguidos llegan al objetivo (>=90% de la duracion) y pasan QA.",
+    "history": []
+  }
+}
