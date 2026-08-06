@@ -561,17 +561,30 @@ export const APP_HTML = `<!doctype html>
   }
 
   function auto2Html(){
-    return '<div class="card" style="text-align:center;padding:22px">'
-      +'<div style="font-size:34px">🏭</div>'
-      +'<div style="font-weight:800;font-size:17px;margin-top:6px">Canal automático — en construcción</div>'
-      +'<div class="muted" style="font-size:13px;margin-top:6px">Compilaciones legales, 3/día automáticas. Se activa en la Fase 2 (cuando conectes el 2º canal de YouTube). Aquí verás sus videos, minutos vistos y el radar de nichos.</div></div>'
-      +'<div class="card"><div class="row">'
-      +'<div class="kpi"><div class="n">0</div><div class="l">Videos</div></div>'
-      +'<div class="kpi"><div class="n">0</div><div class="l">Vistas</div></div>'
-      +'<div class="kpi"><div class="n">0</div><div class="l">Min vistos</div></div>'
-      +'<div class="kpi"><div class="n">—</div><div class="l">Estado</div></div>'
-      +'</div></div>'
-      +nicheRadarHtml();
+    var a=ST.auto2;
+    var refresh='<button class="btn ghost" onclick="dispatch(\\'report_auto2.yml\\',\\'Refrescar Oddly Loop\\')">🔄 Refrescar canal</button>';
+    if(!a){
+      return '<div class="card" style="text-align:center;padding:22px">'
+        +'<div style="font-size:34px">🏭</div>'
+        +'<div style="font-weight:800;font-size:17px;margin-top:6px">Oddly Loop — sin datos aún</div>'
+        +'<div class="muted" style="font-size:13px;margin-top:6px">Compilaciones ASMR/satisfying legales, automáticas. En cuanto haya un video, aquí verás sus vistas, minutos y el radar de nichos.</div></div>'
+        +refresh+nicheRadarHtml();
+    }
+    var h='<div class="card"><div class="muted" style="font-size:11px;margin-bottom:6px">'+esc(a.name||"Oddly Loop")+' · '+esc(a.handle||"@oddlyloophq")+'</div><div class="row">'
+      +'<div class="kpi"><div class="n">'+num(a.subs||0)+'</div><div class="l">Subs</div></div>'
+      +'<div class="kpi"><div class="n">'+num(a.total_views||0)+'</div><div class="l">Vistas</div></div>'
+      +'<div class="kpi"><div class="n">'+(a.videos||0)+'</div><div class="l">Videos</div></div>'
+      +'<div class="kpi"><div class="n">'+num(a.watch_min||0)+'</div><div class="l">Min vistos</div></div>'
+      +'</div></div>';
+    var list=a.list||[];
+    if(list.length){
+      h+='<h2>Videos</h2><div class="card" style="padding:8px"><table style="font-size:13px;width:100%"><tr><th style="text-align:left">Video</th><th>Estado</th><th style="text-align:right">Vistas</th></tr>'
+        +list.map(function(v){return '<tr><td>'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,30))+'</a>':esc(v.title||""))+'</td><td><span class="tag '+(v.privacy==="public"?"pub":"priv")+'">'+esc(v.privacy||"?")+'</span></td><td style="text-align:right">'+num(v.views||0)+'</td></tr>';}).join("")
+        +'</table></div>';
+    }
+    h+=nicheRadarHtml()+refresh
+      +(a.at?'<div class="muted" style="font-size:10px;text-align:center">Act. '+esc(String(a.at).slice(0,16).replace("T"," "))+'</div>':'');
+    return h;
   }
   function nicheRadarHtml(){
     var nr=ST.niche_radar;
