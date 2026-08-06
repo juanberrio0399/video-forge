@@ -103,8 +103,8 @@ const pkg = (await gemini(improve
 // --- Bloque de LINKS profesionales, SIEMPRE en la descripcion (canal, suscribir, redes) ---
 // Enlaces internos = mas vistas por sesion y canal mas profesional. Las redes se toman de
 // env (SOCIAL_TIKTOK / SOCIAL_IG) si existen; si no, no se ponen enlaces vacios.
-const CHANNEL_URL = "https://youtube.com/@TheDataLensHQ";
-const SUB_URL = "https://youtube.com/@TheDataLensHQ?sub_confirmation=1";
+const CHANNEL_URL = process.env.CHANNEL_URL || "https://youtube.com/@TheDataLensHQ";
+const SUB_URL = CHANNEL_URL.replace(/\/$/, "") + "?sub_confirmation=1";
 // Respaldo: si la IA no respondio, NO dejar un paquete vacio (titulo "-"). Usar el tema real.
 if (!pkg.title) pkg.title = topic;
 if (!pkg.description) pkg.description = `${topic}\n\nThe numbers behind how this really works — explained with data.\n\nThis video uses an AI-generated voice.`;
