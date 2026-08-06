@@ -1,0 +1,23 @@
+{
+  "rules": "SOLO fuentes con licencia comercial: stock (Pexels/Pixabay), CC-BY (con atribución), o dominio público. NUNCA clips ajenos sin licencia (Twitch/Kick/YouTube de terceros). Cada compilación DEBE agregar valor original (narración IA + edición + ranking) = transformador.",
+  "allow_licenses": ["pexels", "pixabay", "cc-by", "cc0", "public-domain"],
+  "deny_sources": ["youtube-reupload", "twitch-clip", "kick-clip", "tiktok-repost", "unknown"],
+  "niches": {
+    "satisfying": {
+      "label": "Satisfying / ASMR",
+      "stock_queries": ["satisfying", "soap cutting", "kinetic sand", "hydraulic press", "slime", "paint mixing"],
+      "sources": ["pexels", "pixabay"]
+    },
+    "narrativas": {
+      "label": "Narrativas (traición/venganza)",
+      "stock_queries": ["dramatic city night", "dark alley rain", "lonely road", "storm clouds", "empty office"],
+      "sources": ["pexels", "pixabay"]
+    },
+    "ciencia_humor": {
+      "label": "Ciencia con humor",
+      "stock_queries": ["space galaxy", "laboratory", "microscope", "chemistry reaction", "planets"],
+      "sources": ["pexels", "pixabay"]
+    }
+  },
+  "cc_youtube_channels": []
+}
