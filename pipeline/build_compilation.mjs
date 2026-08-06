@@ -43,7 +43,11 @@ console.log(`Perfil de "${niche}": sonido-clip=${profile.keepAudio ? "SÍ (ASMR/
 const vm = readJSON(voicemapPath, {});
 const beats = vm.beats || [];
 const timing = readJSON(timingPath, {});
-const durOf = (i) => { const b = (timing.beats || []).find((x) => x.index === i) || (timing.beats || [])[i]; return Math.max(profile.minClip, (b && b.dur ? +b.dur : 3.5)); };
+const isShort = vm.kind === "short"; // Short 9:16: duración por categoría (ASMR más largo, ciencia corto)
+const SHORT = nicheCfg.short || { clip_sec: 6 };
+const SHORT_CAP = 178; // tope duro de YouTube Shorts (<3 min); no lo pasamos
+// Duración de cada clip: la narración (timing) si existe; si no (ASMR puro), el clip_sec del nicho.
+const durOf = (i) => { const b = (timing.beats || []).find((x) => x.index === i) || (timing.beats || [])[i]; const base = (b && b.dur ? +b.dur : (isShort ? (SHORT.clip_sec || 6) : 3.5)); return Math.max(profile.minClip, base); };
 function hasAudio(p) { try { return execSync(`ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "${p}"`).toString().trim().length > 0; } catch { return false; } }
 
 // ¿Hay voz? (ASMR PURO no lleva narración -> voice.wav no existe). Define si la pieza es
@@ -121,6 +125,7 @@ async function makeClip(i) {
 
 const parts = [], durs = [];
 for (let i = 0; i < beats.length; i++) {
+  if (isShort && durs.reduce((a, b) => a + b, 0) > SHORT_CAP) { console.log(`  (short) tope de ${SHORT_CAP}s alcanzado, corto en ${durs.length} clips`); break; }
   try { const r = await makeClip(i); if (r) { parts.push(path.resolve(r.out).replace(/\\/g, "/")); durs.push(r.dur); console.log(`  clip ${i} (${manifest.clips[manifest.clips.length - 1].source}) ${r.dur}s`); } }
   catch (e) { console.log(`  error clip ${i}: ${e.message}`); }
 }
