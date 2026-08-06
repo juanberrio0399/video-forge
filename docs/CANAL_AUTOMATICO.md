@@ -59,7 +59,8 @@ Cada video se agrega a una **lista por nicho/serie** (`playlists.insert` + `play
 
 0. **Estructura** (este doc) ✅
 1. **App multi-canal** ✅ — app rediseñada por 5 flujos (Inicio/Producir/Agenda/Analítica/Más) + selector de canal (Data Lens / Auto #2) + pestaña **Análisis del canal** (score prometedor + reclamaciones vía API) + **radar de nichos** (workflow semanal `niche_radar.yml` + vista en Auto #2, en modo "recolectando datos" hasta que el auto publique).
-2. **Plomería del 2º canal** — OAuth/secrets (**Juan crea el canal**), namespacing en R2 (`channel/auto2/…`, `niche_map.json`), config por canal. *(Siguiente.)*
+2. **Plomería del 2º canal** — OAuth/secrets (**Juan crea el canal**), namespacing en R2 (`channel/auto2/…`, `niche_map.json`), config por canal. *(Siguiente — bloqueado por el OAuth.)*
+   - ✅ **Capa legal ya construida** (no depende del OAuth): `channel/auto2/sources.json` (lista blanca de fuentes con licencia por nicho) + `pipeline/compliance_check.mjs` (**puerta que BLOQUEA publicar** si un clip no está licenciado o la pieza no es transformadora). Probada: pasa stock/CC + narración; bloquea Twitch/Kick y lo sin narración.
 3. **Ingesta + ensamblador** — `yt-dlp` + compliance + `auto-editor` + compilación + playlists.
 4. **Producción full-auto** — 3/día en mejores horas + radar de nichos (cron semanal).
 5. **Análisis y mejora** — "¿está mejorando?" + iterar sobre el nicho ganador.
