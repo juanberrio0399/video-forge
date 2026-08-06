@@ -560,31 +560,35 @@ export const APP_HTML = `<!doctype html>
       +(ST.analytics_ok?'Cuando el canal tenga más datos, ajusto esto a la hora real en que TU audiencia se conecta.':'Con datos de audiencia lo personalizo a tu público real.')+'</div></div>';
   }
 
-  function auto2Html(){
+  function auto2KpisHtml(){
     var a=ST.auto2;
-    var refresh='<button class="btn ghost" onclick="dispatch(\\'report_auto2.yml\\',\\'Refrescar Oddly Loop\\')">🔄 Refrescar canal</button>';
-    if(!a){
-      return '<div class="card" style="text-align:center;padding:22px">'
-        +'<div style="font-size:34px">🏭</div>'
-        +'<div style="font-weight:800;font-size:17px;margin-top:6px">Oddly Loop — sin datos aún</div>'
-        +'<div class="muted" style="font-size:13px;margin-top:6px">Compilaciones ASMR/satisfying legales, automáticas. En cuanto haya un video, aquí verás sus vistas, minutos y el radar de nichos.</div></div>'
-        +refresh+nicheRadarHtml();
-    }
-    var h='<div class="card"><div class="muted" style="font-size:11px;margin-bottom:6px">'+esc(a.name||"Oddly Loop")+' · '+esc(a.handle||"@oddlyloophq")+'</div><div class="row">'
+    if(!a) return '<div class="card" style="text-align:center;padding:22px"><div style="font-size:34px">🏭</div>'
+      +'<div style="font-weight:800;font-size:17px;margin-top:6px">Oddly Loop — sin datos aún</div>'
+      +'<div class="muted" style="font-size:13px;margin-top:6px">Compilaciones ASMR/satisfying legales, automáticas. En cuanto haya un video, verás sus vistas y minutos.</div></div>';
+    return '<div class="card"><div class="muted" style="font-size:11px;margin-bottom:6px">'+esc(a.name||"Oddly Loop")+' · '+esc(a.handle||"@oddlyloophq")+'</div><div class="row">'
       +'<div class="kpi"><div class="n">'+num(a.subs||0)+'</div><div class="l">Subs</div></div>'
       +'<div class="kpi"><div class="n">'+num(a.total_views||0)+'</div><div class="l">Vistas</div></div>'
       +'<div class="kpi"><div class="n">'+(a.videos||0)+'</div><div class="l">Videos</div></div>'
       +'<div class="kpi"><div class="n">'+num(a.watch_min||0)+'</div><div class="l">Min vistos</div></div>'
       +'</div></div>';
-    var list=a.list||[];
-    if(list.length){
-      h+='<h2>Videos</h2><div class="card" style="padding:8px"><table style="font-size:13px;width:100%"><tr><th style="text-align:left">Video</th><th>Estado</th><th style="text-align:right">Vistas</th></tr>'
-        +list.map(function(v){return '<tr><td>'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,30))+'</a>':esc(v.title||""))+'</td><td><span class="tag '+(v.privacy==="public"?"pub":"priv")+'">'+esc(v.privacy||"?")+'</span></td><td style="text-align:right">'+num(v.views||0)+'</td></tr>';}).join("")
-        +'</table></div>';
-    }
-    h+=nicheRadarHtml()+refresh
-      +(a.at?'<div class="muted" style="font-size:10px;text-align:center">Act. '+esc(String(a.at).slice(0,16).replace("T"," "))+'</div>':'');
-    return h;
+  }
+  function auto2VideosHtml(){
+    var a=ST.auto2; var list=(a&&a.list)||[];
+    if(!list.length) return '<div class="card muted" style="font-size:12px">Aún sin videos en Oddly Loop.</div>';
+    return '<h2>Videos</h2><div class="card" style="padding:8px"><table style="font-size:13px;width:100%"><tr><th style="text-align:left">Video</th><th>Estado</th><th style="text-align:right">Vistas</th></tr>'
+      +list.map(function(v){return '<tr><td>'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,30))+'</a>':esc(v.title||""))+'</td><td><span class="tag '+(v.privacy==="public"?"pub":"priv")+'">'+esc(v.privacy||"?")+'</span></td><td style="text-align:right">'+num(v.views||0)+'</td></tr>';}).join("")
+      +'</table></div>';
+  }
+  function auto2ProduceCard(){
+    var niches=[["satisfying","Satisfying/ASMR"],["narrativas","Narrativas"],["ciencia_humor","Ciencia+humor"],["naturaleza_relax","Naturaleza"]];
+    return '<h2>🏭 Producir compilación</h2><div class="card"><div class="muted" style="font-size:12px;margin-bottom:8px">Genera una compilación legal ahora (queda PRIVADA para revisar). Elige el nicho:</div>'
+      +'<div class="chips">'+niches.map(function(n){return '<span class="chip" onclick="produceOddly(\\''+n[0]+'\\')">'+esc(n[1])+'</span>';}).join("")+'</div>'
+      +'<div class="muted" style="font-size:11px;margin-top:8px">Tarda ~15 min · te aviso al chat cuando esté.</div></div>';
+  }
+  function auto2RefreshBtn(){
+    var a=ST.auto2;
+    return '<button class="btn ghost" onclick="dispatch(\\'report_auto2.yml\\',\\'Refrescar Oddly Loop\\')">🔄 Refrescar canal</button>'
+      +(a&&a.at?'<div class="muted" style="font-size:10px;text-align:center">Act. '+esc(String(a.at).slice(0,16).replace("T"," "))+'</div>':'');
   }
   function nicheRadarHtml(){
     var nr=ST.niche_radar;
@@ -669,10 +673,21 @@ export const APP_HTML = `<!doctype html>
     setHelp(curTab);
     el("globalStatus").innerHTML = (ST.active&&ST.active.length) ? ('<h2>⚡ En proceso ahora</h2>'+statusHtml()) : "";
 
-    // CANAL AUTOMATICO #2: en construccion -> mismo placeholder en los 5 flujos.
+    // CANAL AUTOMATICO #2 (Oddly Loop): cada flujo con su contenido propio.
     if(curChannel==="auto2"){
-      var ph=auto2Html();
-      ["inicio","producir","agenda","analitica","mas"].forEach(function(t){el("s-"+t).innerHTML=ph;});
+      var producingA=(ST.active||[]).some(function(r){return /Oddly|compilaci|produce_oddly/i.test(r.name||"");});
+      var statusA=producingA?('<h2>⚡ Produciendo ahora</h2>'+statusHtml()):'';
+      // INICIO: pulso (KPIs + estado + producir + radar resumido)
+      el("s-inicio").innerHTML = auto2KpisHtml() + statusA + auto2ProduceCard() + nicheRadarHtml();
+      // PRODUCIR: controles de producción
+      el("s-producir").innerHTML = statusA + auto2ProduceCard()
+        + '<div class="card muted" style="font-size:12px">Oddly Loop es <b>full-auto</b>: cuando prendamos el cron, produce 3/día solo. Aquí también puedes disparar una manual.</div>';
+      // AGENDA: programación automática + mejores horas
+      el("s-agenda").innerHTML = '<h2>📅 Programación</h2><div class="card muted" style="font-size:12px">Oddly Loop se programa <b>solo</b> a las mejores horas (EEUU). Meta: 3/día.</div>' + bestTimesHtml();
+      // ANALITICA: KPIs + videos + radar de nichos
+      el("s-analitica").innerHTML = auto2KpisHtml() + auto2VideosHtml() + nicheRadarHtml();
+      // MAS: info + refrescar
+      el("s-mas").innerHTML = '<h2>⚙️ Canal automático</h2><div class="card muted" style="font-size:12px">Oddly Loop · @oddlyloophq · compilaciones ASMR/satisfying legales, automáticas. Solo fuentes con licencia (puerta de compliance).</div>' + auto2RefreshBtn();
       el("globalStatus").innerHTML="";
       return;
     }
@@ -924,6 +939,12 @@ export const APP_HTML = `<!doctype html>
     if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("light");
     api("/api/short",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({n:n,action:ok?"approve":"skip"})})
       .then(function(r){return r.json();}).then(function(j){toast(j.ok?(ok?"✅ Short aprobado":"❌ Short saltado"):"❌ no pude");setTimeout(load,500);});
+  }
+  function produceOddly(niche){
+    if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
+    api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"produce_oddly.yml",inputs:{niche:niche||"satisfying",format:"16:9",publish:"no"}})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?("🏭 Produciendo compilación ("+(niche||"satisfying")+")… ~15 min, te aviso al chat"):("❌ "+(j.error||"no pude")));setTimeout(load,3000);})
+      .catch(function(){toast("❌ Error de red");});
   }
   function goShorts(){ tab("producir"); var e=el("shortsAnchor"); if(e) e.scrollIntoView({behavior:"smooth",block:"start"}); }
   function runShortsPlan(notes){
