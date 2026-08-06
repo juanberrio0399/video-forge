@@ -16,10 +16,17 @@ try {
   const up = item.contentDetails && item.contentDetails.relatedPlaylists && item.contentDetails.relatedPlaylists.uploads;
   let ids = [], page = "";
   if (up) { do { const j = await (await tf(`https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId=${up}&pageToken=${page}`, { headers: H })).json(); ids.push(...(j.items || []).map((i) => i.contentDetails.videoId)); page = j.nextPageToken || ""; } while (page && ids.length < 200); }
+  // Mapa video->nicho (lo escribe la produccion) para mostrar DE QUE trata cada video.
+  let nicheMap = {};
+  try { nicheMap = JSON.parse(fs.readFileSync("niche_map.json", "utf8")); } catch {}
+  const NICHE_LABEL = { satisfying: "Satisfying / ASMR", narrativas: "Narrativas", ciencia_humor: "Ciencia + humor", naturaleza_relax: "Naturaleza / relax" };
   const list = [];
   for (let i = 0; i < ids.length; i += 50) {
     const j = await (await tf(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status,statistics&id=${ids.slice(i, i + 50).join(",")}`, { headers: H })).json();
-    for (const v of j.items || []) list.push({ video_id: v.id, title: v.snippet.title, privacy: v.status.privacyStatus, views: +((v.statistics || {}).viewCount || 0), published_at: v.snippet.publishedAt.slice(0, 10) });
+    for (const v of j.items || []) {
+      const nk = nicheMap[v.id];
+      list.push({ video_id: v.id, title: v.snippet.title, privacy: v.status.privacyStatus, views: +((v.statistics || {}).viewCount || 0), published_at: v.snippet.publishedAt.slice(0, 10), niche: nk || null, niche_label: NICHE_LABEL[nk] || null });
+    }
   }
   let watch_min = 0;
   try { const a = await tf("https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=2020-01-01&endDate=2035-01-01&metrics=estimatedMinutesWatched", { headers: H }); if (a.ok) { const aj = await a.json(); watch_min = Math.round((aj.rows && aj.rows[0] && aj.rows[0][0]) || 0); } } catch {}

@@ -579,6 +579,7 @@ export const APP_HTML = `<!doctype html>
       var pv=v.privacy==="public";
       var act=(withActions&&!pv&&v.video_id)?('<div style="margin-top:8px"><button class="btn mini" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'schedule\\')">📅 Programar (mejor hora)</button> <button class="btn mini ghost" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'public\\')">🌍 Publicar ahora</button></div>'):'';
       return '<div class="card"><div style="font-weight:700;font-size:13px">'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,42))+'</a>':esc(v.title||""))+'</div>'
+        +(v.niche_label?'<div style="font-size:12px;margin-top:3px">🎬 <b>'+esc(v.niche_label)+'</b></div>':'')
         +'<div class="muted" style="font-size:12px;margin-top:3px"><span class="tag '+(pv?"pub":"priv")+'">'+esc(v.privacy||"?")+'</span> · '+num(v.views||0)+' vistas'+(pv?'':' · privado, revísalo y publícalo')+'</div>'+act+'</div>';
     }).join("");
   }
