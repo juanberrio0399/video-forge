@@ -22,11 +22,11 @@ async function best(term) {
   const c = (j.results || []).filter((x) => x.previews && x.previews["preview-hq-mp3"]);
   return c.find((x) => (x.avg_rating || 0) >= 3.5) || c[0] || null;
 }
-async function grab(term, tag) {
+async function grab(term, tag, dir = "asmr_lib") {
   try {
     const h = await best(term);
     if (!h) return null;
-    const file = `asmr_lib/${tag}.mp3`;
+    const file = `${dir}/${tag}.mp3`;
     const pr = await tf(h.previews["preview-hq-mp3"], 25000);
     if (!pr.ok) return null;
     fs.writeFileSync(file, Buffer.from(await pr.arrayBuffer()));
@@ -55,4 +55,20 @@ for (const [niche, cfg] of Object.entries(sources.niches || {})) {
 }
 fs.writeFileSync("asmr_lib/manifest.json", JSON.stringify(manifest, null, 2));
 console.log(`Biblioteca ASMR lista: ${paletas} paletas, ${sonidos} sonidos CC0 -> asmr_lib/`);
+
+// --- PACK DE SFX DE EDICION (para el creador de videos del canal principal) ---
+// Whooshes/transiciones/pops CC0 para dar terminacion PRO a los videos de datos, sin
+// depender de material ajeno. Se sube aparte (sfx_edit.tgz) para que el render lo baje ligero.
+const EDIT = { whoosh: ["whoosh transition", "swoosh cinematic", "whoosh subtle"], pop: ["pop ui click"], riser: ["riser cinematic short"] };
+fs.mkdirSync("sfx_edit", { recursive: true });
+const editMan = { whoosh: [], pop: [], riser: [], credits: [] };
+for (const [cat, terms] of Object.entries(EDIT)) {
+  for (let i = 0; i < terms.length; i++) {
+    const g = await grab(terms[i], `edit_${cat}_${i}`, "sfx_edit");
+    if (g) { editMan[cat].push(g.file); editMan.credits.push(g); }
+  }
+}
+fs.writeFileSync("sfx_edit/manifest.json", JSON.stringify(editMan, null, 2));
+console.log(`Pack SFX edicion: ${editMan.whoosh.length} whoosh, ${editMan.pop.length} pop, ${editMan.riser.length} riser -> sfx_edit/`);
+
 if (!sonidos) process.exit(1);

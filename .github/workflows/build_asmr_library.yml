@@ -38,4 +38,10 @@ jobs:
           tar czf asmr_lib.tgz -C asmr_lib .
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/asmr_lib.tgz" --file=asmr_lib.tgz --remote --content-type application/gzip
           N=$(ls asmr_lib/*.mp3 2>/dev/null | wc -l)
-          bash pipeline/notify_telegram.sh "🎧 Biblioteca ASMR lista: ${N} sonidos CC0 curados subidos a R2. Los próximos videos ya la usan." || true
+          # Pack de SFX de edicion (whooshes) para el canal principal -> R2 (comun a todos los canales).
+          if [ -d sfx_edit ] && ls sfx_edit/*.mp3 >/dev/null 2>&1; then
+            tar czf sfx_edit.tgz -C sfx_edit .
+            npx --yes wrangler@4 r2 object put "$BUCKET/channel/common/sfx_edit.tgz" --file=sfx_edit.tgz --remote --content-type application/gzip
+            NE=$(ls sfx_edit/*.mp3 2>/dev/null | wc -l)
+          else NE=0; fi
+          bash pipeline/notify_telegram.sh "🎧 Biblioteca ASMR: ${N} sonidos + pack de edición: ${NE} SFX (whooshes) para el canal principal. Todo en R2." || true
