@@ -7,7 +7,7 @@
 // Env: GEMINI_API_KEY
 import fs from "node:fs";
 
-const [niche = "satisfying", out = "voicemap.json"] = process.argv.slice(2);
+const [niche = "satisfying", out = "voicemap.json", variant = "narrado"] = process.argv.slice(2);
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2, process.env.GEMINI_API_KEY3].filter(Boolean);
 const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
 const tf = (u, o = {}, ms = 30000) => fetch(u, { ...o, signal: AbortSignal.timeout(ms) });
@@ -47,6 +47,27 @@ async function gemini(prompt) {
     await sleep(15000); // todas las llaves/modelos saturados -> espero y reintento la ronda
   }
   return null;
+}
+
+// VARIANTE "puro" (ASMR sin voz): NO hay narración. Solo curamos clips (queries) + título.
+// Es lo más fiel al ASMR real: mandan el SONIDO y el VISUAL. Robusto: si Gemini no está,
+// armamos la lista con el pool del nicho -> la producción NO depende de la IA.
+if (variant === "puro") {
+  const scr = await gemini(
+    `Eres curador de un canal ASMR / "oddly satisfying" en YouTube (audiencia EEUU). ` +
+    `Elige 14 clips de stock MUY satisfying/ASMR (cortes limpios, agua, slime, arena cinética, prensa hidráulica, pintura, resina, etc.). ` +
+    `Inspírate en o elige de: ${pool}. Cada "query" = término de búsqueda de stock en INGLES. ` +
+    `Devuelve SOLO JSON: {"title":"título en inglés de alto CTR estilo 'Oddly Satisfying' (SIN datos, SIN clickbait falso)","beats":[{"query":"término stock en inglés","tipo":"clip"}]}`
+  );
+  const rawBeats = (scr && Array.isArray(scr.beats) && scr.beats.length) ? scr.beats : (nicheCfg.queries || ["satisfying"]).map((q) => ({ query: q, tipo: "clip" }));
+  const title = (scr && scr.title) || "The Most Oddly Satisfying Video to Melt Your Stress Away";
+  const voicemap = {
+    lang: "en", title, niche, variant, defaults: { pause_after: 0 },
+    beats: rawBeats.slice(0, 16).map((b) => ({ text: "", query: (b.query || nicheCfg.queries?.[0] || niche).trim(), tipo: b.tipo || "clip", pause_after: 0 })),
+  };
+  fs.writeFileSync(out, JSON.stringify(voicemap, null, 2));
+  console.log(`Guion ASMR PURO (sin voz): "${title}" · ${voicemap.beats.length} clips${scr ? "" : " (fallback pool, sin Gemini)"} -> ${out}`);
+  process.exit(0);
 }
 
 const prompt =

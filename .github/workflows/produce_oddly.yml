@@ -11,6 +11,9 @@ on:
       niche:
         description: "Nicho (satisfying / narrativas / ciencia_humor / naturaleza_relax)"
         default: "satisfying"
+      variant:
+        description: "puro = ASMR sin voz (solo sonido+visual) · narrado = con narración suave"
+        default: "puro"
       format:
         description: "16:9 o 9:16"
         default: "16:9"
@@ -44,6 +47,7 @@ jobs:
       CHANNEL_URL: "https://youtube.com/@oddlyloophq"
       YT_CATEGORY_ID: "24"  # Entertainment (Oddly Loop)
       NICHE: ${{ github.event.inputs.niche || 'satisfying' }}
+      VARIANT: ${{ github.event.inputs.variant || 'puro' }}
       FORMAT: ${{ github.event.inputs.format || '16:9' }}
       PUBLISH: ${{ github.event.inputs.publish || 'no' }}
       KVOICE: af_heart
@@ -65,7 +69,7 @@ jobs:
 
       - name: Guion de la compilacion (IA)
         run: |
-          if node pipeline/compilation_script.mjs "$NICHE" voicemap.json; then
+          if node pipeline/compilation_script.mjs "$NICHE" voicemap.json "$VARIANT"; then
             echo "guion ok"
           else
             bash pipeline/notify_telegram.sh "⏸️ Oddly Loop: pospongo — Gemini sin cuota (429). Reintento en el proximo ciclo." || true
@@ -73,7 +77,7 @@ jobs:
           fi
 
       - name: Voz Kokoro (narracion calmada)
-        if: ${{ env.SKIP != '1' }}
+        if: ${{ env.SKIP != '1' && env.VARIANT != 'puro' }}
         run: python pipeline/tts_kokoro.py voicemap.json voice.wav 0 1
 
       - name: Musica de fondo (calm)
