@@ -25,22 +25,26 @@
     "satisfying": {
       "label": "Satisfying / ASMR",
       "sources": ["pexels", "pixabay", "coverr", "mixkit", "videvo", "dareful"],
-      "queries": ["satisfying", "soap cutting", "kinetic sand", "hydraulic press", "slime", "paint mixing", "sand cutting", "glass blowing", "water drops slow motion", "honey pouring", "resin art", "domino chain", "cake icing", "pressure washing"]
+      "queries": ["satisfying", "soap cutting", "kinetic sand", "hydraulic press", "slime", "paint mixing", "sand cutting", "glass blowing", "water drops slow motion", "honey pouring", "resin art", "domino chain", "cake icing", "pressure washing"],
+      "short": { "min_beats": 8, "max_beats": 13, "clip_sec": 7 }
     },
     "narrativas": {
       "label": "Narrativas (traición/venganza, historias)",
       "sources": ["pexels", "pixabay", "coverr", "videvo", "archive_org"],
-      "queries": ["dramatic city night", "dark alley rain", "lonely road fog", "storm clouds timelapse", "empty office night", "train station departure", "old letters", "abandoned house", "silhouette window", "car headlights night", "cemetery fog", "clock ticking"]
+      "queries": ["dramatic city night", "dark alley rain", "lonely road fog", "storm clouds timelapse", "empty office night", "train station departure", "old letters", "abandoned house", "silhouette window", "car headlights night", "cemetery fog", "clock ticking"],
+      "short": { "min_beats": 6, "max_beats": 9, "clip_sec": 6 }
     },
     "ciencia_humor": {
       "label": "Ciencia con humor / datos",
       "sources": ["pexels", "pixabay", "nasa", "wikimedia", "archive_org", "coverr"],
-      "queries": ["space galaxy", "laboratory experiment", "microscope cells", "chemistry reaction", "planets solar system", "dna helix", "brain neurons", "volcano eruption", "ocean deep sea", "robot technology", "particle physics", "weather satellite"]
+      "queries": ["space galaxy", "laboratory experiment", "microscope cells", "chemistry reaction", "planets solar system", "dna helix", "brain neurons", "volcano eruption", "ocean deep sea", "robot technology", "particle physics", "weather satellite"],
+      "short": { "min_beats": 5, "max_beats": 7, "clip_sec": 5 }
     },
     "naturaleza_relax": {
       "label": "Naturaleza / relax (reserva)",
       "sources": ["pexels", "pixabay", "coverr", "dareful", "nasa", "noaa"],
-      "queries": ["forest waterfall", "ocean waves sunset", "mountain aerial", "rain forest", "northern lights", "flowers blooming timelapse", "snowfall calm", "river flowing", "clouds timelapse", "beach drone"]
+      "queries": ["forest waterfall", "ocean waves sunset", "mountain aerial", "rain forest", "northern lights", "flowers blooming timelapse", "snowfall calm", "river flowing", "clouds timelapse", "beach drone"],
+      "short": { "min_beats": 7, "max_beats": 10, "clip_sec": 7 }
     }
   }
 }

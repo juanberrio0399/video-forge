@@ -19,6 +19,9 @@ try { sources = JSON.parse(fs.readFileSync("channel/auto2/sources.seed.json", "u
 const nicheCfg = (sources.niches || {})[niche] || {};
 const label = nicheCfg.label || niche;
 const pool = (nicheCfg.queries || ["satisfying"]).join(", ");
+// Duración del SHORT por CATEGORÍA: ASMR aguanta más largo (retención alta); ciencia va corto.
+// Es un RANGO -> la IA/producción alarga solo si el material realmente engancha ("lo entretenido").
+const SHORT = nicheCfg.short || { min_beats: 6, max_beats: 8, clip_sec: 6 };
 
 const NICHE_STYLE = {
   satisfying: "compilación 'oddly satisfying' con narración CALMADA y suave (vibra ASMR/relax); cada clip trae un dato curioso corto sobre lo que se ve (por qué es satisfactorio / la ciencia detrás).",
@@ -64,7 +67,7 @@ if (variant === "puro") {
   const title = (scr && scr.title) || (isShort ? "Oddly Satisfying ASMR #Shorts" : "The Most Oddly Satisfying Video to Melt Your Stress Away");
   const voicemap = {
     lang: "en", title, niche, variant, kind, defaults: { pause_after: 0 },
-    beats: rawBeats.slice(0, isShort ? 7 : 16).map((b) => ({ text: "", query: (b.query || nicheCfg.queries?.[0] || niche).trim(), tipo: b.tipo || "clip", pause_after: 0 })),
+    beats: rawBeats.slice(0, isShort ? SHORT.max_beats : 16).map((b) => ({ text: "", query: (b.query || nicheCfg.queries?.[0] || niche).trim(), tipo: b.tipo || "clip", pause_after: 0 })),
   };
   fs.writeFileSync(out, JSON.stringify(voicemap, null, 2));
   console.log(`Guion ASMR PURO ${isShort ? "SHORT " : ""}(sin voz): "${title}" · ${voicemap.beats.length} clips${scr ? "" : " (fallback pool, sin Gemini)"} -> ${out}`);
@@ -80,7 +83,7 @@ const prompt =
   `Devuelve SOLO JSON:\n` +
   `{"title":"titulo en ingles de alto CTR (sin clickbait falso)${isShort ? " terminado en #Shorts" : ""}","beats":[{"text":"1-2 frases en ingles","query":"termino stock en ingles","tipo":"intro|clip|reveal|cta"}]}\n` +
   (isShort
-    ? `Es un SHORT vertical (<=45s): usa 5 a 7 beats, MUY punchy. El PRIMER beat engancha en 2s; el ULTIMO es un CTA de 3 palabras a suscribirse. Frases cortisimas.`
+    ? `Es un SHORT vertical: usa entre ${SHORT.min_beats} y ${SHORT.max_beats} beats. LO ENTRETENIDO manda: alarga (hacia ${SHORT.max_beats}) SOLO si cada clip realmente engancha; si no, corto (hacia ${SHORT.min_beats}). El PRIMER beat engancha en 2s; el ULTIMO es un CTA de 3 palabras a suscribirse. Frases cortisimas, sin relleno.`
     : `Usa 12 a 18 beats. El PRIMER beat engancha; el ULTIMO es un CTA suave a SUSCRIBIRSE. Nada de relleno.`);
 
 const scr = await gemini(prompt);
@@ -96,7 +99,7 @@ const voicemap = {
     query: (b.query || nicheCfg.queries?.[0] || niche).trim(),
     tipo: b.tipo || "clip",
     pause_after: isShort ? 0.15 : 0.35,
-  })).filter((b) => b.text).slice(0, isShort ? 7 : 18),
+  })).filter((b) => b.text).slice(0, isShort ? SHORT.max_beats : 18),
 };
 fs.writeFileSync(out, JSON.stringify(voicemap, null, 2));
 console.log(`Guion compilacion ${isShort ? "SHORT " : ""}(${niche}, ${variant}): "${voicemap.title}" · ${voicemap.beats.length} clips -> ${out}`);

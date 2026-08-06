@@ -597,7 +597,7 @@ export const APP_HTML = `<!doctype html>
     var niches=[["satisfying","Satisfying/ASMR"],["narrativas","Narrativas"],["ciencia_humor","Ciencia+humor"],["naturaleza_relax","Naturaleza"]];
     return '<h2>🏭 Producir</h2>'
       +'<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:2px">📱 Shorts ASMR <span class="muted" style="font-weight:400">— lo que más se ve</span></div>'
-      +'<div class="muted" style="font-size:12px;margin-bottom:8px">Vertical 9:16 (&lt;45s). Quedan PRIVADOS para revisar. ~8 min.</div>'
+      +'<div class="muted" style="font-size:12px;margin-bottom:8px">Vertical 9:16 · duración según categoría (ASMR aguanta más largo). PRIVADOS para revisar.</div>'
       +'<div class="chips">'
       +'<span class="chip" onclick="produceOddly(\\'satisfying\\',\\'short\\',\\'puro\\')">🔇 Short sin voz</span>'
       +'<span class="chip" onclick="produceOddly(\\'satisfying\\',\\'short\\',\\'narrado\\')">🎙️ Short con voz</span>'
