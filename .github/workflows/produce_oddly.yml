@@ -39,6 +39,7 @@ jobs:
       GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      FREESOUND_API_KEY: ${{ secrets.FREESOUND_API_KEY }}  # efectos ASMR CC0 (opcional; si falta usa el audio del clip)
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       # YT2 -> YT: asi youtube_upload/youtube_schedule suben a Oddly Loop sin tocar su codigo.

@@ -89,6 +89,35 @@ async function pixabay(q) {
 }
 async function getClip(q) { return (await pexels(q)) || (await pixabay(q)); }
 
+// --- EFECTOS ASMR curados (Freesound, solo CC0 = uso comercial libre, sin atribución) ---
+// Garantiza los "sonidos de ASMR que se ven en redes" sin depender de que el clip de stock
+// traiga audio. Mapea el término del clip al sonido correcto. Inactivo si no hay FREESOUND_API_KEY.
+const FREESOUND = process.env.FREESOUND_API_KEY || "";
+const SFX_MAP = {
+  "soap cutting": "soap cutting", "sand cutting": "sand cut crunch", "kinetic sand": "kinetic sand crunch",
+  "hydraulic press": "crush crunch", "slime": "slime squish", "paint mixing": "paint stir squish",
+  "glass blowing": "glass tap", "water drops slow motion": "water drop", "honey pouring": "thick liquid pour",
+  "resin art": "liquid pour", "domino chain": "domino falling", "cake icing": "squish frosting", "pressure washing": "water spray",
+  "satisfying": "asmr tapping", "forest waterfall": "waterfall", "ocean waves sunset": "ocean waves",
+  "rain forest": "rain", "river flowing": "river stream", "snowfall calm": "soft wind",
+};
+async function fetchSfx(q, dest) {
+  if (!FREESOUND) return null;
+  try {
+    const term = SFX_MAP[q] || (q + " asmr");
+    const params = new URLSearchParams({ query: term, filter: 'license:"Creative Commons 0" duration:[1 TO 40]', sort: "score", fields: "id,name,previews,username", page_size: "12", token: FREESOUND });
+    const r = await fetch(`https://freesound.org/apiv2/search/text/?${params}`, { signal: AbortSignal.timeout(12000) });
+    if (!r.ok) return null;
+    const j = await r.json();
+    const hit = (j.results || []).find((x) => x.previews && x.previews["preview-hq-mp3"]);
+    if (!hit) return null;
+    const pr = await fetch(hit.previews["preview-hq-mp3"], { signal: AbortSignal.timeout(20000) });
+    if (!pr.ok) return null;
+    fs.writeFileSync(dest, Buffer.from(await pr.arrayBuffer()));
+    return { id: hit.id, name: hit.name, user: hit.username };
+  } catch { return null; }
+}
+
 // Subtitulo quemado (caja legible abajo).
 function wrap(t, per) { const w = (t || "").split(/\s+/).filter(Boolean); const L = []; let c = ""; for (const x of w) { if ((c + " " + x).trim().length > per && c) { L.push(c); c = x; } else c = (c + " " + x).trim(); } if (c) L.push(c); return L.slice(0, 2).join("\n"); }
 function subFilter(i, text) {
@@ -120,13 +149,20 @@ async function makeClip(i) {
   }
   fs.rmSync(raw, { force: true });
   manifest.clips.push({ clip_id: `clip${i}`, source: got.source, license: got.license, url: got.url, query: q });
-  return { out, dur };
+  // Efecto ASMR curado para este clip (si hay key). Se documenta en el manifiesto (CC0).
+  let sfx = null;
+  if (profile.keepAudio && FREESOUND) {
+    const sp = `${work}/sfx${i}.mp3`;
+    const meta = await fetchSfx(q, sp);
+    if (meta) { sfx = sp; manifest.clips.push({ clip_id: `sfx${i}`, source: "freesound", license: "cc0", url: `https://freesound.org/s/${meta.id}/`, query: SFX_MAP[q] || q }); }
+  }
+  return { out, dur, sfx };
 }
 
-const parts = [], durs = [];
+const parts = [], durs = [], sfxs = [];
 for (let i = 0; i < beats.length; i++) {
   if (isShort && durs.reduce((a, b) => a + b, 0) > SHORT_CAP) { console.log(`  (short) tope de ${SHORT_CAP}s alcanzado, corto en ${durs.length} clips`); break; }
-  try { const r = await makeClip(i); if (r) { parts.push(path.resolve(r.out).replace(/\\/g, "/")); durs.push(r.dur); console.log(`  clip ${i} (${manifest.clips[manifest.clips.length - 1].source}) ${r.dur}s`); } }
+  try { const r = await makeClip(i); if (r) { parts.push(path.resolve(r.out).replace(/\\/g, "/")); durs.push(r.dur); sfxs.push(r.sfx || null); console.log(`  clip ${i} ${r.dur}s${r.sfx ? " + efecto ASMR" : ""}`); } }
   catch (e) { console.log(`  error clip ${i}: ${e.message}`); }
 }
 fs.writeFileSync("compilation_manifest.json", JSON.stringify(manifest, null, 2));
@@ -155,20 +191,28 @@ let ambient = null;
 if (profile.keepAudio) {
   try {
     ambient = `${work}/amb.m4a`;
-    const inputs = parts.map((p) => `-i "${p}"`).join(" ");
-    // dynaudnorm = nivela y REALZA el sonido ASMR del clip (corte/agua/slime), que en
-    // stock suele venir bajo, sin bombear. Es lo que hace que suene "como en redes".
+    // dynaudnorm = nivela y REALZA el sonido (corte/agua/slime) sin bombear -> suena "como en redes".
     const NORM = "dynaudnorm=f=200:g=6:p=0.9";
-    if (parts.length === 1) {
-      execSync(`ffmpeg -y -i "${parts[0]}" -vn -af "${NORM}" -c:a aac -b:a 160k "${ambient}"`, { stdio: "ignore" });
-    } else {
-      let f = "", acc = "[0:a]";
-      for (let i = 1; i < parts.length; i++) { f += `${acc}[${i}:a]acrossfade=d=${TD}[a${i}];`; acc = `[a${i}]`; }
-      f += `${acc}${NORM}[amx]`;
-      execSync(`ffmpeg -y ${inputs} -filter_complex "${f}" -map "[amx]" -c:a aac -b:a 160k "${ambient}"`, { stdio: "ignore" });
+    // Un segmento de audio por clip: EFECTO ASMR curado (Freesound CC0) si hubo match; si no,
+    // el audio original del clip. Ambos nivelados y del largo exacto del clip.
+    const segs = [];
+    for (let i = 0; i < parts.length; i++) {
+      const seg = `${work}/seg${i}.m4a`;
+      if (sfxs[i]) execSync(`ffmpeg -y -stream_loop -1 -i "${sfxs[i]}" -t ${durs[i]} -af "${NORM}" -ac 2 -ar 44100 -c:a aac -b:a 160k "${seg}"`, { stdio: "ignore" });
+      else execSync(`ffmpeg -y -i "${parts[i]}" -t ${durs[i]} -vn -af "${NORM}" -ac 2 -ar 44100 -c:a aac -b:a 160k "${seg}"`, { stdio: "ignore" });
+      segs.push(seg);
     }
-    console.log("  audio original de los clips conservado y realzado (ASMR).");
-  } catch (e) { console.log("  (aviso) no pude conservar el audio original: " + e.message); ambient = null; }
+    if (segs.length === 1) { fs.copyFileSync(segs[0], ambient); }
+    else {
+      const inputs = segs.map((p) => `-i "${p}"`).join(" ");
+      let f = "", acc = "[0:a]";
+      for (let i = 1; i < segs.length; i++) { f += `${acc}[${i}:a]acrossfade=d=${TD}[a${i}];`; acc = `[a${i}]`; }
+      f = f.replace(/;$/, "");
+      execSync(`ffmpeg -y ${inputs} -filter_complex "${f}" -map "${acc}" -c:a aac -b:a 160k "${ambient}"`, { stdio: "ignore" });
+    }
+    const nsfx = sfxs.filter(Boolean).length;
+    console.log(`  ambiente ASMR: ${nsfx}/${parts.length} con efecto curado (Freesound CC0)${nsfx < parts.length ? ", resto audio del clip" : ""}.`);
+  } catch (e) { console.log("  (aviso) ambiente ASMR falló: " + e.message); ambient = null; }
 }
 
 // Mezcla: voz (si hay) + música (si hay) + ambiente (si el nicho lo pide). normalize=0
