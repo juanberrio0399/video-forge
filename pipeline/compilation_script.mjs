@@ -7,7 +7,8 @@
 // Env: GEMINI_API_KEY
 import fs from "node:fs";
 
-const [niche = "satisfying", out = "voicemap.json", variant = "narrado"] = process.argv.slice(2);
+const [niche = "satisfying", out = "voicemap.json", variant = "narrado", kind = "video"] = process.argv.slice(2);
+const isShort = kind === "short"; // Short = 9:16, ~6-8 clips, punchy (lo que más se descubre)
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2, process.env.GEMINI_API_KEY3].filter(Boolean);
 const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
 const tf = (u, o = {}, ms = 30000) => fetch(u, { ...o, signal: AbortSignal.timeout(ms) });
@@ -60,13 +61,13 @@ if (variant === "puro") {
     `Devuelve SOLO JSON: {"title":"título en inglés de alto CTR estilo 'Oddly Satisfying' (SIN datos, SIN clickbait falso)","beats":[{"query":"término stock en inglés","tipo":"clip"}]}`
   );
   const rawBeats = (scr && Array.isArray(scr.beats) && scr.beats.length) ? scr.beats : (nicheCfg.queries || ["satisfying"]).map((q) => ({ query: q, tipo: "clip" }));
-  const title = (scr && scr.title) || "The Most Oddly Satisfying Video to Melt Your Stress Away";
+  const title = (scr && scr.title) || (isShort ? "Oddly Satisfying ASMR #Shorts" : "The Most Oddly Satisfying Video to Melt Your Stress Away");
   const voicemap = {
-    lang: "en", title, niche, variant, defaults: { pause_after: 0 },
-    beats: rawBeats.slice(0, 16).map((b) => ({ text: "", query: (b.query || nicheCfg.queries?.[0] || niche).trim(), tipo: b.tipo || "clip", pause_after: 0 })),
+    lang: "en", title, niche, variant, kind, defaults: { pause_after: 0 },
+    beats: rawBeats.slice(0, isShort ? 7 : 16).map((b) => ({ text: "", query: (b.query || nicheCfg.queries?.[0] || niche).trim(), tipo: b.tipo || "clip", pause_after: 0 })),
   };
   fs.writeFileSync(out, JSON.stringify(voicemap, null, 2));
-  console.log(`Guion ASMR PURO (sin voz): "${title}" · ${voicemap.beats.length} clips${scr ? "" : " (fallback pool, sin Gemini)"} -> ${out}`);
+  console.log(`Guion ASMR PURO ${isShort ? "SHORT " : ""}(sin voz): "${title}" · ${voicemap.beats.length} clips${scr ? "" : " (fallback pool, sin Gemini)"} -> ${out}`);
   process.exit(0);
 }
 
@@ -77,8 +78,10 @@ const prompt =
   `La narración da valor ORIGINAL (dato/curiosidad/comentario), no describe lo obvio. Tono acorde al nicho. ` +
   `El "query" de cada beat es un termino de busqueda de STOCK en ingles (elige de o inspirate en: ${pool}). ` +
   `Devuelve SOLO JSON:\n` +
-  `{"title":"titulo en ingles de alto CTR (sin clickbait falso)","beats":[{"text":"1-2 frases en ingles","query":"termino stock en ingles","tipo":"intro|clip|reveal|cta"}]}\n` +
-  `Usa 12 a 18 beats. El PRIMER beat engancha; el ULTIMO es un CTA suave a SUSCRIBIRSE. Nada de relleno.`;
+  `{"title":"titulo en ingles de alto CTR (sin clickbait falso)${isShort ? " terminado en #Shorts" : ""}","beats":[{"text":"1-2 frases en ingles","query":"termino stock en ingles","tipo":"intro|clip|reveal|cta"}]}\n` +
+  (isShort
+    ? `Es un SHORT vertical (<=45s): usa 5 a 7 beats, MUY punchy. El PRIMER beat engancha en 2s; el ULTIMO es un CTA de 3 palabras a suscribirse. Frases cortisimas.`
+    : `Usa 12 a 18 beats. El PRIMER beat engancha; el ULTIMO es un CTA suave a SUSCRIBIRSE. Nada de relleno.`);
 
 const scr = await gemini(prompt);
 if (!scr || !Array.isArray(scr.beats) || !scr.beats.length) { console.error("Gemini no devolvio guion de compilacion"); process.exit(1); }
@@ -86,14 +89,14 @@ if (!scr || !Array.isArray(scr.beats) || !scr.beats.length) { console.error("Gem
 const voicemap = {
   lang: "en",
   title: scr.title || `${label} compilation`,
-  niche,
-  defaults: { pause_after: 0.35 },
+  niche, variant, kind,
+  defaults: { pause_after: isShort ? 0.15 : 0.35 },
   beats: scr.beats.map((b) => ({
     text: (b.text || "").trim(),
     query: (b.query || nicheCfg.queries?.[0] || niche).trim(),
     tipo: b.tipo || "clip",
-    pause_after: 0.35,
-  })).filter((b) => b.text),
+    pause_after: isShort ? 0.15 : 0.35,
+  })).filter((b) => b.text).slice(0, isShort ? 7 : 18),
 };
 fs.writeFileSync(out, JSON.stringify(voicemap, null, 2));
-console.log(`Guion compilacion (${niche}): "${voicemap.title}" · ${voicemap.beats.length} clips -> ${out}`);
+console.log(`Guion compilacion ${isShort ? "SHORT " : ""}(${niche}, ${variant}): "${voicemap.title}" · ${voicemap.beats.length} clips -> ${out}`);

@@ -705,6 +705,11 @@ async function handleApi(request, env, url) {
     if (inputs.n != null && !/^\d{1,4}$/.test(String(inputs.n))) return json({ error: "n inválido" }, 400);
     if (inputs.notes != null) inputs.notes = String(inputs.notes).slice(0, 500);
     if (inputs.topic != null) inputs.topic = String(inputs.topic).slice(0, 300);
+    if (inputs.niche != null && !["satisfying", "narrativas", "ciencia_humor", "naturaleza_relax"].includes(String(inputs.niche))) return json({ error: "niche inválido" }, 400);
+    if (inputs.variant != null && !["puro", "narrado"].includes(String(inputs.variant))) return json({ error: "variant inválido" }, 400);
+    if (inputs.kind != null && !["video", "short"].includes(String(inputs.kind))) return json({ error: "kind inválido" }, 400);
+    if (inputs.format != null && !["16:9", "9:16"].includes(String(inputs.format))) return json({ error: "format inválido" }, 400);
+    if (inputs.mode != null && !["schedule", "public"].includes(String(inputs.mode))) return json({ error: "mode inválido" }, 400);
     const r = await ghDispatch(env, body.workflow, inputs);
     return json({ ok: r.ok, status: r.status });
   }

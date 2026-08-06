@@ -589,15 +589,28 @@ export const APP_HTML = `<!doctype html>
         if(withActions&&v.video_id) act='<div style="margin-top:8px"><button class="btn mini" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'schedule\\')">📅 Programar (mejor hora)</button> <button class="btn mini ghost" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'public\\')">🌍 Publicar ahora</button></div>';
       }
       return '<div class="card"><div style="font-weight:700;font-size:13px">'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,42))+'</a>':esc(v.title||""))+'</div>'
-        +(v.niche_label?'<div style="font-size:12px;margin-top:3px">🎬 <b>'+esc(v.niche_label)+'</b></div>':'')
+        +((v.niche_label||/#short/i.test(v.title||''))?'<div style="font-size:12px;margin-top:3px">'+(/#short/i.test(v.title||'')?'📱 <b>Short</b>':'🎬 <b>'+esc(v.niche_label)+'</b>')+'</div>':'')
         +'<div class="muted" style="font-size:12px;margin-top:3px">'+estado+' · '+num(v.views||0)+' vistas</div>'+act+'</div>';
     }).join("");
   }
   function auto2ProduceCard(){
     var niches=[["satisfying","Satisfying/ASMR"],["narrativas","Narrativas"],["ciencia_humor","Ciencia+humor"],["naturaleza_relax","Naturaleza"]];
-    return '<h2>🏭 Producir compilación</h2><div class="card"><div class="muted" style="font-size:12px;margin-bottom:8px">Genera una compilación legal ahora (queda PRIVADA para revisar). Elige el nicho:</div>'
-      +'<div class="chips">'+niches.map(function(n){return '<span class="chip" onclick="produceOddly(\\''+n[0]+'\\')">'+esc(n[1])+'</span>';}).join("")+'</div>'
-      +'<div class="muted" style="font-size:11px;margin-top:8px">Tarda ~15 min · te aviso al chat cuando esté.</div></div>';
+    return '<h2>🏭 Producir</h2>'
+      +'<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:2px">📱 Shorts ASMR <span class="muted" style="font-weight:400">— lo que más se ve</span></div>'
+      +'<div class="muted" style="font-size:12px;margin-bottom:8px">Vertical 9:16 (&lt;45s). Quedan PRIVADOS para revisar. ~8 min.</div>'
+      +'<div class="chips">'
+      +'<span class="chip" onclick="produceOddly(\\'satisfying\\',\\'short\\',\\'puro\\')">🔇 Short sin voz</span>'
+      +'<span class="chip" onclick="produceOddly(\\'satisfying\\',\\'short\\',\\'narrado\\')">🎙️ Short con voz</span>'
+      +'</div></div>'
+      +'<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:2px">🎬 Video largo (16:9)</div>'
+      +'<div class="muted" style="font-size:12px;margin-bottom:8px">Compilación completa. PRIVADO para revisar. ~15 min.</div>'
+      +'<div class="chips">'
+      +'<span class="chip" onclick="produceOddly(\\'satisfying\\',\\'video\\',\\'puro\\')">🔇 ASMR sin voz</span>'
+      +'<span class="chip" onclick="produceOddly(\\'satisfying\\',\\'video\\',\\'narrado\\')">🎙️ ASMR con voz</span>'
+      +'</div>'
+      +'<div class="muted" style="font-size:11px;margin-top:10px;margin-bottom:4px">Otros nichos (video con voz):</div>'
+      +'<div class="chips">'+niches.slice(1).map(function(n){return '<span class="chip ghost" onclick="produceOddly(\\''+n[0]+'\\',\\'video\\',\\'narrado\\')">'+esc(n[1])+'</span>';}).join("")+'</div>'
+      +'</div>';
   }
   function auto2RefreshBtn(){
     var a=ST.auto2;
@@ -957,10 +970,16 @@ export const APP_HTML = `<!doctype html>
     api("/api/short",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({n:n,action:ok?"approve":"skip"})})
       .then(function(r){return r.json();}).then(function(j){toast(j.ok?(ok?"✅ Short aprobado":"❌ Short saltado"):"❌ no pude");setTimeout(load,500);});
   }
-  function produceOddly(niche){
+  function produceOddly(niche,kind,variant){
+    kind=kind||"video"; variant=variant||"puro";
+    var fmt=(kind==="short")?"9:16":"16:9";
     if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
-    api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"produce_oddly.yml",inputs:{niche:niche||"satisfying",format:"16:9",publish:"no"}})})
-      .then(function(r){return r.json();}).then(function(j){toast(j.ok?("🏭 Produciendo compilación ("+(niche||"satisfying")+")… ~15 min, te aviso al chat"):("❌ "+(j.error||"no pude")));setTimeout(load,3000);})
+    api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"produce_oddly.yml",inputs:{niche:niche||"satisfying",variant:variant,kind:kind,format:fmt,publish:"no"}})})
+      .then(function(r){return r.json();}).then(function(j){
+        var pieza=(kind==="short")?"Short 📱":"video";
+        var voz=(variant==="puro")?"sin voz":"con voz";
+        toast(j.ok?("🏭 Produciendo "+pieza+" ASMR ("+voz+")… "+(kind==="short"?"~8":"~15")+" min, te aviso al chat"):("❌ "+(j.error||"no pude")));
+        setTimeout(load,3000);})
       .catch(function(){toast("❌ Error de red");});
   }
   function oddlyPublish(vid,mode){

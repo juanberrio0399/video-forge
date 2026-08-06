@@ -14,8 +14,11 @@ on:
       variant:
         description: "puro = ASMR sin voz (solo sonido+visual) · narrado = con narración suave"
         default: "puro"
+      kind:
+        description: "video = compilación larga · short = Short vertical <=45s (lo que más se descubre)"
+        default: "video"
       format:
-        description: "16:9 o 9:16"
+        description: "16:9 o 9:16 (short fuerza 9:16)"
         default: "16:9"
       publish:
         description: "no = privado para revisar · yes = programa a la mejor hora"
@@ -48,6 +51,7 @@ jobs:
       YT_CATEGORY_ID: "24"  # Entertainment (Oddly Loop)
       NICHE: ${{ github.event.inputs.niche || 'satisfying' }}
       VARIANT: ${{ github.event.inputs.variant || 'puro' }}
+      KIND: ${{ github.event.inputs.kind || 'video' }}
       FORMAT: ${{ github.event.inputs.format || '16:9' }}
       PUBLISH: ${{ github.event.inputs.publish || 'no' }}
       KVOICE: af_heart
@@ -67,9 +71,12 @@ jobs:
           curl -fL --retry 3 -o kokoro-v1.0.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
           curl -fL --retry 3 -o voices-v1.0.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
 
+      - name: Formato del Short (fuerza 9:16)
+        run: if [ "$KIND" = "short" ]; then echo "FORMAT=9:16" >> "$GITHUB_ENV"; fi
+
       - name: Guion de la compilacion (IA)
         run: |
-          if node pipeline/compilation_script.mjs "$NICHE" voicemap.json "$VARIANT"; then
+          if node pipeline/compilation_script.mjs "$NICHE" voicemap.json "$VARIANT" "$KIND"; then
             echo "guion ok"
           else
             bash pipeline/notify_telegram.sh "⏸️ Oddly Loop: pospongo — Gemini sin cuota (429). Reintento en el proximo ciclo." || true
@@ -104,6 +111,11 @@ jobs:
           TITLE=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("voicemap.json","utf8")).title||"Oddly Satisfying")}catch(e){process.stdout.write("Oddly Satisfying")}')
           GROWTH_TONE=suave node pipeline/publish_package.mjs voicemap.json voice.wav.timing.json "$TITLE" publish
 
+      - name: Marcar como Short (#Shorts)
+        if: ${{ env.SKIP != '1' && env.KIND == 'short' }}
+        run: |
+          node -e 'const fs=require("fs");const p="publish/package.json";const j=JSON.parse(fs.readFileSync(p,"utf8"));let t=(j.title||"Oddly Satisfying").replace(/#shorts/ig,"").trim();j.title=(t.slice(0,88)+" #Shorts").slice(0,100);j.description="#Shorts #ASMR #satisfying\n\n"+(j.description||"");if(Array.isArray(j.tags))j.tags=["shorts","asmr","satisfying","oddlysatisfying"].concat(j.tags).filter((v,i,a)=>a.indexOf(v)===i).slice(0,30);fs.writeFileSync(p,JSON.stringify(j,null,2));console.log("marcado #Shorts:",j.title)'
+
       - name: Subir a Oddly Loop (PRIVADO)
         if: ${{ env.SKIP != '1' }}
         run: node pipeline/youtube_upload.mjs compilation.mp4 publish/package.json
@@ -121,10 +133,11 @@ jobs:
           VID="$VID" NICHE="$NICHE" node -e 'const fs=require("fs");let m={};try{m=JSON.parse(fs.readFileSync("nm.json","utf8"))}catch(e){};m[process.env.VID]=process.env.NICHE;fs.writeFileSync("nm.json",JSON.stringify(m))'
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/niche_map.json" --file=nm.json --remote --content-type application/json || true
           # Publicar: programar a la mejor hora, o dejar privado para revisar.
+          PIEZA="compilacion"; [ "$KIND" = "short" ] && PIEZA="Short 📱"
           if [ "$PUBLISH" = "yes" ]; then
             SLOT=$(node pipeline/best_slot.mjs)
             node pipeline/youtube_schedule.mjs "$VID" "$SLOT" || true
-            bash pipeline/notify_telegram.sh "🎬 Oddly Loop: compilacion (${NICHE}) subida y PROGRAMADA para la mejor hora ($SLOT). $(cat publish/youtube_result.txt 2>/dev/null | head -2)"
+            bash pipeline/notify_telegram.sh "🎬 Oddly Loop: ${PIEZA} (${NICHE}/${VARIANT}) subida y PROGRAMADA para la mejor hora ($SLOT). $(cat publish/youtube_result.txt 2>/dev/null | head -2)"
           else
-            bash pipeline/notify_telegram.sh "🎬 Oddly Loop: primera compilacion (${NICHE}) subida como PRIVADO para que la revises 👀:"$'\n'"$(cat publish/youtube_result.txt 2>/dev/null | head -2)"$'\n\n'"Si te gusta, la siguiente corrida con publish=yes ya la programa sola."
+            bash pipeline/notify_telegram.sh "🎬 Oddly Loop: ${PIEZA} (${NICHE}/${VARIANT}) subida como PRIVADO para que la revises 👀:"$'\n'"$(cat publish/youtube_result.txt 2>/dev/null | head -2)"$'\n\n'"Si te gusta, la siguiente corrida con publish=yes ya la programa sola."
           fi
