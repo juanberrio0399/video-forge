@@ -103,11 +103,15 @@ async function fetchSfx(q, dest) {
   if (!FREESOUND) return null;
   try {
     const term = SFX_MAP[q] || (q + " asmr");
-    const params = new URLSearchParams({ query: term, filter: 'license:"Creative Commons 0" duration:[1 TO 40]', sort: "score", fields: "id,name,previews,username", page_size: "12", token: FREESOUND });
+    // CC0 (sin atribución) + duración usable + ordenado por MÁS DESCARGADOS (calidad validada
+    // por la comunidad) para traer los mejores sonidos, no cualquiera.
+    const params = new URLSearchParams({ query: term, filter: 'license:"Creative Commons 0" duration:[2 TO 60]', sort: "downloads_desc", fields: "id,name,previews,username,avg_rating,num_downloads", page_size: "15", token: FREESOUND });
     const r = await fetch(`https://freesound.org/apiv2/search/text/?${params}`, { signal: AbortSignal.timeout(12000) });
     if (!r.ok) return null;
     const j = await r.json();
-    const hit = (j.results || []).find((x) => x.previews && x.previews["preview-hq-mp3"]);
+    // Preferimos bien valorados; si no hay rating, el más descargado igual sirve.
+    const cands = (j.results || []).filter((x) => x.previews && x.previews["preview-hq-mp3"]);
+    const hit = cands.find((x) => (x.avg_rating || 0) >= 3.5) || cands[0];
     if (!hit) return null;
     const pr = await fetch(hit.previews["preview-hq-mp3"], { signal: AbortSignal.timeout(20000) });
     if (!pr.ok) return null;
