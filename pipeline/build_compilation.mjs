@@ -156,15 +156,18 @@ if (profile.keepAudio) {
   try {
     ambient = `${work}/amb.m4a`;
     const inputs = parts.map((p) => `-i "${p}"`).join(" ");
+    // dynaudnorm = nivela y REALZA el sonido ASMR del clip (corte/agua/slime), que en
+    // stock suele venir bajo, sin bombear. Es lo que hace que suene "como en redes".
+    const NORM = "dynaudnorm=f=200:g=6:p=0.9";
     if (parts.length === 1) {
-      execSync(`ffmpeg -y -i "${parts[0]}" -vn -c:a aac -b:a 160k "${ambient}"`, { stdio: "ignore" });
+      execSync(`ffmpeg -y -i "${parts[0]}" -vn -af "${NORM}" -c:a aac -b:a 160k "${ambient}"`, { stdio: "ignore" });
     } else {
       let f = "", acc = "[0:a]";
       for (let i = 1; i < parts.length; i++) { f += `${acc}[${i}:a]acrossfade=d=${TD}[a${i}];`; acc = `[a${i}]`; }
-      f = f.replace(/;$/, "");
-      execSync(`ffmpeg -y ${inputs} -filter_complex "${f}" -map "${acc}" -c:a aac -b:a 160k "${ambient}"`, { stdio: "ignore" });
+      f += `${acc}${NORM}[amx]`;
+      execSync(`ffmpeg -y ${inputs} -filter_complex "${f}" -map "[amx]" -c:a aac -b:a 160k "${ambient}"`, { stdio: "ignore" });
     }
-    console.log("  audio original de los clips conservado (ambiente ASMR).");
+    console.log("  audio original de los clips conservado y realzado (ASMR).");
   } catch (e) { console.log("  (aviso) no pude conservar el audio original: " + e.message); ambient = null; }
 }
 
