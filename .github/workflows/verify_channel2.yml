@@ -1,0 +1,29 @@
+name: Verificar canal 2 (Oddly Loop / YT2)
+
+# Confirma que el OAuth del 2do canal (YT2_*) lee el canal correcto (Oddly Loop).
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      YT2_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+      YT2_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+      YT2_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verificar el canal del token YT2
+        run: |
+          node pipeline/verify_yt2.mjs || true
+          if [ -f yt2_verify.txt ]; then bash pipeline/notify_telegram.sh "$(cat yt2_verify.txt)"; fi
