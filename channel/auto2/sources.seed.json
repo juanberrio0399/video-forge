@@ -1,23 +1,46 @@
 {
-  "rules": "SOLO fuentes con licencia comercial: stock (Pexels/Pixabay), CC-BY (con atribución), o dominio público. NUNCA clips ajenos sin licencia (Twitch/Kick/YouTube de terceros). Cada compilación DEBE agregar valor original (narración IA + edición + ranking) = transformador.",
-  "allow_licenses": ["pexels", "pixabay", "cc-by", "cc0", "public-domain"],
-  "deny_sources": ["youtube-reupload", "twitch-clip", "kick-clip", "tiktok-repost", "unknown"],
+  "rules": "SOLO fuentes con licencia comercial: stock gratis, CC-BY/CC0, o dominio público. NUNCA clips ajenos sin licencia (Twitch/Kick/YouTube de terceros/TikTok). CC-BY exige atribución. NO se aceptan CC-BY-SA (share-alike) ni CC-NC (no comercial). Cada compilación DEBE agregar valor original (narración IA + edición + ranking) = transformador.",
+  "allow_licenses": ["pexels", "pixabay", "coverr", "mixkit", "videvo-free", "mazwai", "vidsplay", "dareful", "cc0", "cc-by", "public-domain", "nasa"],
+  "deny_licenses": ["cc-by-sa", "cc-nc", "cc-nd", "unknown", ""],
+  "deny_sources": ["youtube-reupload", "twitch-clip", "kick-clip", "tiktok-repost", "instagram-repost", "unknown"],
+  "sources": [
+    { "key": "pexels", "name": "Pexels", "type": "stock", "license": "pexels", "access": "api", "api_key_env": "PEXELS_API_KEY", "free": true },
+    { "key": "pixabay", "name": "Pixabay", "type": "stock", "license": "pixabay", "access": "api", "api_key_env": "PIXABAY_API_KEY", "free": true },
+    { "key": "coverr", "name": "Coverr", "type": "stock", "license": "coverr", "access": "api", "api_key_env": "COVERR_API_KEY", "free": true },
+    { "key": "mixkit", "name": "Mixkit", "type": "stock", "license": "mixkit", "access": "download", "free": true },
+    { "key": "videvo", "name": "Videvo (free)", "type": "stock", "license": "videvo-free", "access": "download", "free": true },
+    { "key": "mazwai", "name": "Mazwai", "type": "stock", "license": "mazwai", "access": "download", "free": true },
+    { "key": "vidsplay", "name": "Vidsplay", "type": "stock", "license": "vidsplay", "access": "download", "free": true },
+    { "key": "dareful", "name": "Dareful (4K CC0)", "type": "stock", "license": "dareful", "access": "download", "free": true },
+    { "key": "archive_org", "name": "Internet Archive", "type": "public-domain", "license": "public-domain", "access": "yt-dlp", "free": true, "note": "Verificar dominio público / CC por ítem" },
+    { "key": "nasa", "name": "NASA", "type": "public-domain", "license": "nasa", "access": "api", "free": true, "note": "Material NASA = dominio público (salvo logos/terceros)" },
+    { "key": "noaa", "name": "NOAA", "type": "public-domain", "license": "public-domain", "access": "download", "free": true },
+    { "key": "loc", "name": "Library of Congress", "type": "public-domain", "license": "public-domain", "access": "download", "free": true },
+    { "key": "prelinger", "name": "Prelinger Archives", "type": "public-domain", "license": "public-domain", "access": "yt-dlp", "free": true },
+    { "key": "wikimedia", "name": "Wikimedia Commons", "type": "cc", "license": "per-file", "access": "api", "free": true, "note": "Solo aceptar el ítem si su licencia real es CC0/CC-BY/dominio público (la puerta lo valida)" },
+    { "key": "youtube_cc", "name": "YouTube (Creative Commons)", "type": "cc", "license": "cc-by", "access": "yt-dlp", "free": true, "note": "Filtrar por licencia CC-BY del creador; atribución obligatoria" },
+    { "key": "vimeo_cc", "name": "Vimeo (Creative Commons)", "type": "cc", "license": "per-file", "access": "yt-dlp", "free": true, "note": "Solo CC-BY/CC0; atribución" }
+  ],
   "niches": {
     "satisfying": {
       "label": "Satisfying / ASMR",
-      "stock_queries": ["satisfying", "soap cutting", "kinetic sand", "hydraulic press", "slime", "paint mixing"],
-      "sources": ["pexels", "pixabay"]
+      "sources": ["pexels", "pixabay", "coverr", "mixkit", "videvo", "dareful"],
+      "queries": ["satisfying", "soap cutting", "kinetic sand", "hydraulic press", "slime", "paint mixing", "sand cutting", "glass blowing", "water drops slow motion", "honey pouring", "resin art", "domino chain", "cake icing", "pressure washing"]
     },
     "narrativas": {
-      "label": "Narrativas (traición/venganza)",
-      "stock_queries": ["dramatic city night", "dark alley rain", "lonely road", "storm clouds", "empty office"],
-      "sources": ["pexels", "pixabay"]
+      "label": "Narrativas (traición/venganza, historias)",
+      "sources": ["pexels", "pixabay", "coverr", "videvo", "archive_org"],
+      "queries": ["dramatic city night", "dark alley rain", "lonely road fog", "storm clouds timelapse", "empty office night", "train station departure", "old letters", "abandoned house", "silhouette window", "car headlights night", "cemetery fog", "clock ticking"]
     },
     "ciencia_humor": {
-      "label": "Ciencia con humor",
-      "stock_queries": ["space galaxy", "laboratory", "microscope", "chemistry reaction", "planets"],
-      "sources": ["pexels", "pixabay"]
+      "label": "Ciencia con humor / datos",
+      "sources": ["pexels", "pixabay", "nasa", "wikimedia", "archive_org", "coverr"],
+      "queries": ["space galaxy", "laboratory experiment", "microscope cells", "chemistry reaction", "planets solar system", "dna helix", "brain neurons", "volcano eruption", "ocean deep sea", "robot technology", "particle physics", "weather satellite"]
+    },
+    "naturaleza_relax": {
+      "label": "Naturaleza / relax (reserva)",
+      "sources": ["pexels", "pixabay", "coverr", "dareful", "nasa", "noaa"],
+      "queries": ["forest waterfall", "ocean waves sunset", "mountain aerial", "rain forest", "northern lights", "flowers blooming timelapse", "snowfall calm", "river flowing", "clouds timelapse", "beach drone"]
     }
-  },
-  "cc_youtube_channels": []
+  }
 }
