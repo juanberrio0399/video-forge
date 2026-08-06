@@ -5,24 +5,31 @@
 import fs from "node:fs";
 
 const out = process.argv[2] || "tools_health.json";
-const { GEMINI_API_KEY, PEXELS_API_KEY, YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN, GH_TOKEN, GITHUB_REPOSITORY } = process.env;
+const { GEMINI_API_KEY, GEMINI_API_KEY2, PEXELS_API_KEY, YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN, GH_TOKEN, GITHUB_REPOSITORY } = process.env;
 const tools = [];
 const add = (name, ok, detail, critical = false) => tools.push({ name, ok, detail, critical });
 // fetch con timeout: una API LENTA (no caida) no cuelga el job entero.
 const tf = (u, o = {}, ms = 8000) => fetch(u, { ...o, signal: AbortSignal.timeout(ms) });
 
 async function checkGeminiText() {
-  if (!GEMINI_API_KEY) return add("Gemini (guion/SEO/IA)", false, "sin API key", true);
-  // Prueba VARIOS modelos (auto-adapta al que responda) -> no marca caido por un 404 de un nombre.
-  let saw429 = false;
-  for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-2.0-flash-lite"]) {
-    try {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI_API_KEY}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }) });
-      if (r.ok) return add("Gemini (guion/SEO/IA)", true, `OK (${m})`, true);
-      if (r.status === 429) saw429 = true;
-    } catch {}
+  // Prueba CADA llave (multi-llave = mas cuota). Cada llave prueba varios modelos (evita 404 de un nombre).
+  const keys = [GEMINI_API_KEY, GEMINI_API_KEY2].filter(Boolean);
+  if (!keys.length) return add("Gemini (guion/SEO/IA)", false, "sin API key", true);
+  const models = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"];
+  let okCount = 0; const bad = [];
+  for (let i = 0; i < keys.length; i++) {
+    let ok = false, why = "no responde";
+    for (const m of models) {
+      try {
+        const r = await tf(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${keys[i]}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }) });
+        if (r.ok) { ok = true; break; }
+        if (r.status === 429) why = "429 cuota";
+      } catch {}
+    }
+    if (ok) okCount++; else bad.push(`llave${i + 1}:${why}`);
   }
-  add("Gemini (guion/SEO/IA)", false, saw429 ? "429 — cuota/transitorio" : "ningun modelo respondio", true);
+  const total = keys.length;
+  add("Gemini (guion/SEO/IA)", okCount > 0, okCount === total ? `${okCount}/${total} llaves OK` : `${okCount}/${total} OK (${bad.join(", ")})`, true);
 }
 async function checkPollinations() {
   try { const r = await fetch("https://image.pollinations.ai/prompt/test?width=64&height=64&nologo=true&model=flux", { method: "GET" }); add("Pollinations (b-roll/miniaturas IA)", r.ok, r.ok ? "OK" : `HTTP ${r.status}`, false); }
