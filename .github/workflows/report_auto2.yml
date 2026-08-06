@@ -31,5 +31,6 @@ jobs:
           node-version: "22"
       - name: Estado de Oddly Loop
         run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/niche_map.json" --file=niche_map.json --remote 2>/dev/null || echo '{}' > niche_map.json
           node pipeline/report_auto2.mjs
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/state.json" --file=auto2_state.json --remote --content-type application/json
