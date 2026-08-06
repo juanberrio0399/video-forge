@@ -572,12 +572,15 @@ export const APP_HTML = `<!doctype html>
       +'<div class="kpi"><div class="n">'+num(a.watch_min||0)+'</div><div class="l">Min vistos</div></div>'
       +'</div></div>';
   }
-  function auto2VideosHtml(){
-    var a=ST.auto2; var list=(a&&a.list)||[];
-    if(!list.length) return '<div class="card muted" style="font-size:12px">Aún sin videos en Oddly Loop.</div>';
-    return '<h2>Videos</h2><div class="card" style="padding:8px"><table style="font-size:13px;width:100%"><tr><th style="text-align:left">Video</th><th>Estado</th><th style="text-align:right">Vistas</th></tr>'
-      +list.map(function(v){return '<tr><td>'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,30))+'</a>':esc(v.title||""))+'</td><td><span class="tag '+(v.privacy==="public"?"pub":"priv")+'">'+esc(v.privacy||"?")+'</span></td><td style="text-align:right">'+num(v.views||0)+'</td></tr>';}).join("")
-      +'</table></div>';
+  function auto2VideosHtml(withActions){
+    var list=(ST.auto2&&ST.auto2.list)||[];
+    if(!list.length) return '<h2>Videos de Oddly Loop</h2><div class="card muted" style="font-size:12px">Aún sin videos. Produce una compilación arriba 👆</div>';
+    return '<h2>Videos de Oddly Loop ('+list.length+')</h2>'+list.map(function(v){
+      var pv=v.privacy==="public";
+      var act=(withActions&&!pv&&v.video_id)?('<div style="margin-top:8px"><button class="btn mini" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'schedule\\')">📅 Programar (mejor hora)</button> <button class="btn mini ghost" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'public\\')">🌍 Publicar ahora</button></div>'):'';
+      return '<div class="card"><div style="font-weight:700;font-size:13px">'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,42))+'</a>':esc(v.title||""))+'</div>'
+        +'<div class="muted" style="font-size:12px;margin-top:3px"><span class="tag '+(pv?"pub":"priv")+'">'+esc(v.privacy||"?")+'</span> · '+num(v.views||0)+' vistas'+(pv?'':' · privado, revísalo y publícalo')+'</div>'+act+'</div>';
+    }).join("");
   }
   function auto2ProduceCard(){
     var niches=[["satisfying","Satisfying/ASMR"],["narrativas","Narrativas"],["ciencia_humor","Ciencia+humor"],["naturaleza_relax","Naturaleza"]];
@@ -677,15 +680,18 @@ export const APP_HTML = `<!doctype html>
     if(curChannel==="auto2"){
       var producingA=(ST.active||[]).some(function(r){return /Oddly|compilaci|produce_oddly/i.test(r.name||"");});
       var statusA=producingA?('<h2>⚡ Produciendo ahora</h2>'+statusHtml()):'';
-      // INICIO: pulso (KPIs + estado + producir + radar resumido)
-      el("s-inicio").innerHTML = auto2KpisHtml() + statusA + auto2ProduceCard() + nicheRadarHtml();
-      // PRODUCIR: controles de producción
-      el("s-producir").innerHTML = statusA + auto2ProduceCard()
-        + '<div class="card muted" style="font-size:12px">Oddly Loop es <b>full-auto</b>: cuando prendamos el cron, produce 3/día solo. Aquí también puedes disparar una manual.</div>';
+      // Aviso si hay videos privados por revisar (de este canal).
+      var privA=((ST.auto2&&ST.auto2.list)||[]).filter(function(v){return v.privacy!=="public";}).length;
+      var pendA=privA?('<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px">👀 '+privA+' video(s) por revisar</div><div class="muted" style="font-size:13px;margin:4px 0 8px">De Oddly Loop, privados. Revísalos y publica/programa en Producir.</div><button class="btn" onclick="tab(\\'producir\\')">Ir a revisar</button></div>'):'';
+      // INICIO: pulso (KPIs + estado + pendientes + producir + radar)
+      el("s-inicio").innerHTML = auto2KpisHtml() + statusA + pendA + auto2ProduceCard() + nicheRadarHtml();
+      // PRODUCIR: sus videos CON acciones (publicar/programar) + producir + nota
+      el("s-producir").innerHTML = statusA + auto2VideosHtml(true) + auto2ProduceCard()
+        + '<div class="card muted" style="font-size:12px">Oddly Loop es <b>full-auto</b>: cuando prendamos el cron, produce y programa 3/día solo. Aquí revisas/publicas los suyos y disparas manuales.</div>';
       // AGENDA: programación automática + mejores horas
       el("s-agenda").innerHTML = '<h2>📅 Programación</h2><div class="card muted" style="font-size:12px">Oddly Loop se programa <b>solo</b> a las mejores horas (EEUU). Meta: 3/día.</div>' + bestTimesHtml();
-      // ANALITICA: KPIs + videos + radar de nichos
-      el("s-analitica").innerHTML = auto2KpisHtml() + auto2VideosHtml() + nicheRadarHtml();
+      // ANALITICA: KPIs + videos (consulta) + radar de nichos
+      el("s-analitica").innerHTML = auto2KpisHtml() + auto2VideosHtml(false) + nicheRadarHtml();
       // MAS: info + refrescar
       el("s-mas").innerHTML = '<h2>⚙️ Canal automático</h2><div class="card muted" style="font-size:12px">Oddly Loop · @oddlyloophq · compilaciones ASMR/satisfying legales, automáticas. Solo fuentes con licencia (puerta de compliance).</div>' + auto2RefreshBtn();
       el("globalStatus").innerHTML="";
@@ -945,6 +951,13 @@ export const APP_HTML = `<!doctype html>
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"produce_oddly.yml",inputs:{niche:niche||"satisfying",format:"16:9",publish:"no"}})})
       .then(function(r){return r.json();}).then(function(j){toast(j.ok?("🏭 Produciendo compilación ("+(niche||"satisfying")+")… ~15 min, te aviso al chat"):("❌ "+(j.error||"no pude")));setTimeout(load,3000);})
       .catch(function(){toast("❌ Error de red");});
+  }
+  function oddlyPublish(vid,mode){
+    if(!vid){toast("sin video");return;}
+    var go=function(){ api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"publish_oddly.yml",inputs:{video_id:vid,mode:mode||"schedule"}})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?(mode==="public"?"🌍 Publicando en Oddly Loop…":"📅 Programando a la mejor hora…"):("❌ "+(j.error||"no pude")));setTimeout(load,3000);})
+      .catch(function(){toast("❌ Error de red");}); };
+    if(mode==="public"&&tg&&tg.showConfirm){ tg.showConfirm("¿Publicar este video de Oddly Loop AHORA (público)?",function(ok){if(ok)go();}); } else go();
   }
   function goShorts(){ tab("producir"); var e=el("shortsAnchor"); if(e) e.scrollIntoView({behavior:"smooth",block:"start"}); }
   function runShortsPlan(notes){
