@@ -1,0 +1,44 @@
+name: Publicar / programar en Oddly Loop (YT2)
+
+# Publica AHORA o PROGRAMA a la mejor hora un video del 2do canal (Oddly Loop).
+# Reusa youtube_privacy / youtube_schedule mapeando YT2_* -> YT_*.
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: "ID del video de Oddly Loop"
+        required: true
+      mode:
+        description: "public = publicar ahora · schedule = programar a la mejor hora"
+        default: "schedule"
+
+permissions:
+  contents: read
+
+jobs:
+  pub:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      YT_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      VID: ${{ github.event.inputs.video_id }}
+      MODE: ${{ github.event.inputs.mode || 'schedule' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Publicar o programar
+        run: |
+          if [ -z "$VID" ]; then echo "sin video_id"; exit 0; fi
+          if [ "$MODE" = "public" ]; then
+            node pipeline/youtube_privacy.mjs "$VID" public && bash pipeline/notify_telegram.sh "🌍 Oddly Loop: publiqué el video https://youtu.be/${VID}"
+          else
+            SLOT=$(node pipeline/best_slot.mjs)
+            node pipeline/youtube_schedule.mjs "$VID" "$SLOT" && bash pipeline/notify_telegram.sh "📅 Oddly Loop: programé el video para $SLOT (mejor hora). https://youtu.be/${VID}"
+          fi
