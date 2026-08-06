@@ -25,10 +25,26 @@ function readJSON(p, d) { try { return JSON.parse(fs.readFileSync(p, "utf8")); }
 const sources = readJSON("channel/auto2/sources.seed.json", {});
 const nicheCfg = ((sources.niches || {})[niche]) || {};
 const queryPool = nicheCfg.queries || ["nature", "city", "abstract"];
+
+// PERFIL POR NICHO — cada categoria tiene sus caracteristicas. Lo importante en
+// ASMR/satisfying es el SONIDO (audio original del clip mandando, musica casi nula);
+// en narrativas/ciencia la NARRACION manda (voz alta, musica de apoyo). Esto define
+// como se mezcla el audio y el ritmo. Se puede sobre-escribir por nicho en sources.seed.json ("profile").
+const PROFILES = {
+  //                 sonido-clip     ambVol  musicVol  voiceVol  grade                                                        clip-min
+  satisfying:      { keepAudio: true,  amb: 1.0,  music: 0.05, voice: 0.55, grade: "eq=brightness=0.02:saturation=1.18:contrast=1.06,unsharp=3:3:0.35", minClip: 2.2 },
+  naturaleza_relax:{ keepAudio: true,  amb: 0.85, music: 0.10, voice: 0.70, grade: "eq=brightness=0.01:saturation=1.10:contrast=1.03",                  minClip: 2.4 },
+  narrativas:      { keepAudio: false, amb: 0,    music: 0.14, voice: 1.0,  grade: "eq=brightness=-0.02:saturation=0.92:contrast=1.10",                 minClip: 1.8 },
+  ciencia_humor:   { keepAudio: false, amb: 0,    music: 0.12, voice: 1.0,  grade: GRADE,                                                              minClip: 1.6 },
+};
+const profile = { ...(PROFILES[niche] || { keepAudio: false, amb: 0, music: 0.12, voice: 1.0, grade: GRADE, minClip: 1.6 }), ...(nicheCfg.profile || {}) };
+const NGRADE = profile.grade || GRADE;
+console.log(`Perfil de "${niche}": sonido-clip=${profile.keepAudio ? "SÍ (ASMR/relax)" : "no"} · voz=${profile.voice} · música=${profile.music}${profile.keepAudio ? " · ambiente=" + profile.amb : ""}`);
 const vm = readJSON(voicemapPath, {});
 const beats = vm.beats || [];
 const timing = readJSON(timingPath, {});
-const durOf = (i) => { const b = (timing.beats || []).find((x) => x.index === i) || (timing.beats || [])[i]; return Math.max(1.6, (b && b.dur ? +b.dur : 3.5)); };
+const durOf = (i) => { const b = (timing.beats || []).find((x) => x.index === i) || (timing.beats || [])[i]; return Math.max(profile.minClip, (b && b.dur ? +b.dur : 3.5)); };
+function hasAudio(p) { try { return execSync(`ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "${p}"`).toString().trim().length > 0; } catch { return false; } }
 
 const work = "comp"; fs.mkdirSync(work, { recursive: true });
 const manifest = { niche, format, clips: [], transform: { narration: true, editing: true, original_script: true } };
@@ -75,12 +91,6 @@ function subFilter(i, text) {
   const fs2 = W >= H ? 40 : 52, y = W >= H ? "h-180" : "h-460";
   return `,drawtext=fontfile='${FONT}':textfile='${tf}':fontcolor=white:fontsize=${fs2}:line_spacing=8:box=1:boxcolor=black@0.55:boxborderw=22:x=(w-text_w)/2:y=${y}`;
 }
-// Número de ranking (transformación + engagement): "#N" arriba-izquierda.
-function rankFilter(n) {
-  if (!FONT) return "";
-  return `,drawtext=fontfile='${FONT}':text='#${n}':fontcolor=white:fontsize=${W >= H ? 72 : 96}:box=1:boxcolor=black@0.4:boxborderw=18:x=40:y=40`;
-}
-
 async function makeClip(i) {
   const dur = +(durOf(i) + TD).toFixed(2);
   const out = `${work}/clip${String(i).padStart(3, "0")}.mp4`;
@@ -89,8 +99,18 @@ async function makeClip(i) {
   if (!got) return null;
   const raw = `${work}/raw${i}.mp4`;
   await dl(got.url, raw);
-  const vf = `${COVER},${GRADE}${rankFilter(beats.length - i)}${subFilter(i, beats[i].text || beats[i].subtitle)}`;
-  execSync(`ffmpeg -y -stream_loop -1 -i "${raw}" -t ${dur} -vf "${vf}" -an -r ${FPS} -c:v libx264 -preset veryfast -pix_fmt yuv420p "${out}"`, { stdio: "ignore" });
+  const vf = `${COVER},${NGRADE}${subFilter(i, beats[i].text || beats[i].subtitle)}`;
+  if (profile.keepAudio) {
+    // Nichos de SONIDO (ASMR/relax): conservamos el audio original del clip. Si el clip no
+    // trae audio, le ponemos silencio para que todos los clips tengan pista (join uniforme).
+    if (hasAudio(raw)) {
+      execSync(`ffmpeg -y -stream_loop -1 -i "${raw}" -t ${dur} -vf "${vf}" -r ${FPS} -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -ar 44100 -ac 2 "${out}"`, { stdio: "ignore" });
+    } else {
+      execSync(`ffmpeg -y -stream_loop -1 -i "${raw}" -f lavfi -i anullsrc=r=44100:cl=stereo -t ${dur} -vf "${vf}" -map 0:v -map 1:a -r ${FPS} -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac "${out}"`, { stdio: "ignore" });
+    }
+  } else {
+    execSync(`ffmpeg -y -stream_loop -1 -i "${raw}" -t ${dur} -vf "${vf}" -an -r ${FPS} -c:v libx264 -preset veryfast -pix_fmt yuv420p "${out}"`, { stdio: "ignore" });
+  }
   fs.rmSync(raw, { force: true });
   manifest.clips.push({ clip_id: `clip${i}`, source: got.source, license: got.license, url: got.url, query: q });
   return { out, dur };
@@ -120,10 +140,36 @@ if (parts.length === 1) {
   execSync(`ffmpeg -y ${inputs} -filter_complex "${filter}" -map "${acc}" -r ${FPS} -c:v libx264 -preset veryfast -pix_fmt yuv420p "${silent}"`, { stdio: "inherit" });
 }
 
-// Mezclar narración + música (ducking) si hay music.mp3.
-if (fs.existsSync("music.mp3")) {
-  execSync(`ffmpeg -y -i "${silent}" -i "${voicePath}" -stream_loop -1 -i music.mp3 -filter_complex "[2:a]volume=0.12[m];[1:a][m]amix=inputs=2:duration=first:dropout_transition=0[a]" -map 0:v -map "[a]" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
+// Ambiente = audio ORIGINAL de los clips (solo nichos de sonido: ASMR/relax). Lo unimos
+// con acrossfade (misma duración TD que el xfade de video) para que quede en sync.
+// Best-effort: si algo falla, seguimos con narración+música y no rompemos la producción.
+let ambient = null;
+if (profile.keepAudio) {
+  try {
+    ambient = `${work}/amb.m4a`;
+    const inputs = parts.map((p) => `-i "${p}"`).join(" ");
+    if (parts.length === 1) {
+      execSync(`ffmpeg -y -i "${parts[0]}" -vn -c:a aac -b:a 160k "${ambient}"`, { stdio: "ignore" });
+    } else {
+      let f = "", acc = "[0:a]";
+      for (let i = 1; i < parts.length; i++) { f += `${acc}[${i}:a]acrossfade=d=${TD}[a${i}];`; acc = `[a${i}]`; }
+      f = f.replace(/;$/, "");
+      execSync(`ffmpeg -y ${inputs} -filter_complex "${f}" -map "${acc}" -c:a aac -b:a 160k "${ambient}"`, { stdio: "ignore" });
+    }
+    console.log("  audio original de los clips conservado (ambiente ASMR).");
+  } catch (e) { console.log("  (aviso) no pude conservar el audio original: " + e.message); ambient = null; }
+}
+
+// Mezcla: narración (voz) + música (si hay) + ambiente (si el nicho lo pide). normalize=0
+// respeta los volúmenes por nicho (en ASMR el ambiente manda, la voz va suave).
+const ins = [`-i "${silent}"`, `-i "${voicePath}"`];
+const mix = []; let fc = `[1:a]volume=${profile.voice}[vo];`; mix.push("[vo]"); let idx = 2;
+if (fs.existsSync("music.mp3")) { ins.push(`-stream_loop -1 -i music.mp3`); fc += `[${idx}:a]volume=${profile.music}[mu];`; mix.push("[mu]"); idx++; }
+if (ambient) { ins.push(`-i "${ambient}"`); fc += `[${idx}:a]volume=${profile.amb}[am];`; mix.push("[am]"); idx++; }
+if (mix.length === 1) {
+  execSync(`ffmpeg -y ${ins.join(" ")} -map 0:v -map "[vo]" -filter_complex "${fc.replace(/;$/, "")}" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
 } else {
-  execSync(`ffmpeg -y -i "${silent}" -i "${voicePath}" -map 0:v -map 1:a -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
+  fc += `${mix.join("")}amix=inputs=${mix.length}:duration=first:dropout_transition=0:normalize=0[a]`;
+  execSync(`ffmpeg -y ${ins.join(" ")} -filter_complex "${fc}" -map 0:v -map "[a]" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
 }
 console.log(`Compilación lista -> ${outPath} (${parts.length} clips ${format}, nicho ${niche}). Manifiesto: compilation_manifest.json`);

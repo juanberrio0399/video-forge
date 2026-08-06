@@ -46,7 +46,7 @@ const snippet = {
   title: (pkg.title || "The Data Lens").slice(0, 100),
   description: (pkg.description || "").slice(0, 4900),
   tags: Array.isArray(pkg.tags) ? pkg.tags.slice(0, 30) : [],
-  categoryId: "27", // Education
+  categoryId: process.env.YT_CATEGORY_ID || "27", // 27=Education (Data Lens) · 24=Entertainment (Oddly Loop)
   defaultLanguage: pkg.language || "en",
 };
 const status = {

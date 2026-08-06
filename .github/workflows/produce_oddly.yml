@@ -42,6 +42,7 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
       CHANNEL_URL: "https://youtube.com/@oddlyloophq"
+      YT_CATEGORY_ID: "24"  # Entertainment (Oddly Loop)
       NICHE: ${{ github.event.inputs.niche || 'satisfying' }}
       FORMAT: ${{ github.event.inputs.format || '16:9' }}
       PUBLISH: ${{ github.event.inputs.publish || 'no' }}
