@@ -1,0 +1,41 @@
+name: Biblioteca ASMR curada (Freesound CC0 -> R2)
+
+# Construye la biblioteca curada de sonidos ASMR (los mejores CC0 por paleta) y la sube a
+# R2 como asmr_lib.tgz. Cada video del canal auto la usa. Correr 1 vez (y cuando cambien
+# las paletas o quieras refrescar los sonidos).
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FREESOUND_API_KEY: ${{ secrets.FREESOUND_API_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Construir biblioteca (Freesound CC0)
+        run: |
+          if [ -z "$FREESOUND_API_KEY" ]; then
+            bash pipeline/notify_telegram.sh "⚠️ Biblioteca ASMR: falta el secreto FREESOUND_API_KEY. Créalo y reintenta." || true
+            echo "sin key"; exit 1
+          fi
+          node pipeline/build_asmr_library.mjs
+          tar czf asmr_lib.tgz -C asmr_lib .
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/asmr_lib.tgz" --file=asmr_lib.tgz --remote --content-type application/gzip
+          N=$(ls asmr_lib/*.mp3 2>/dev/null | wc -l)
+          bash pipeline/notify_telegram.sh "🎧 Biblioteca ASMR lista: ${N} sonidos CC0 curados subidos a R2. Los próximos videos ya la usan." || true

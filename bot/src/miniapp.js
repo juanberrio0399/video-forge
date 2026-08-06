@@ -610,7 +610,10 @@ export const APP_HTML = `<!doctype html>
       +'</div>'
       +'<div class="muted" style="font-size:11px;margin-top:10px;margin-bottom:4px">Otros nichos (video con voz):</div>'
       +'<div class="chips">'+niches.slice(1).map(function(n){return '<span class="chip ghost" onclick="produceOddly(\\''+n[0]+'\\',\\'video\\',\\'narrado\\')">'+esc(n[1])+'</span>';}).join("")+'</div>'
-      +'</div>';
+      +'</div>'
+      +'<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:2px">🎧 Biblioteca de sonidos ASMR</div>'
+      +'<div class="muted" style="font-size:12px;margin-bottom:8px">Los mejores sonidos CC0 curados por paleta (cama + acentos), guardados en la nube. Necesita la API key de Freesound.</div>'
+      +'<button class="btn ghost" onclick="dispatch(\\'build_asmr_library.yml\\',\\'Construir biblioteca ASMR\\')">🎧 Construir / refrescar biblioteca</button></div>';
   }
   function auto2RefreshBtn(){
     var a=ST.auto2;
