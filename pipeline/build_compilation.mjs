@@ -125,20 +125,30 @@ async function fetchSfx(q, dest) {
 // fondo continua y dominante + 1-2 ACENTOS suaves encima, con niveles controlados. Todo
 // Freesound CC0. Devuelve la pista o null (para caer al audio del clip).
 async function buildAsmrRelaxMix(totalDur) {
-  if (!FREESOUND) return null;
   const palettes = nicheCfg.palettes || [];
   if (!palettes.length) return null;
   const pal = palettes[Math.floor(Math.random() * palettes.length)]; // una paleta por video
-  const bedFile = `${work}/pal_bed.mp3`;
-  const bedMeta = await fetchSfx(pal.bed, bedFile);
-  if (!bedMeta) return null;
-  manifest.clips.push({ clip_id: "sfx_bed", source: "freesound", license: "cc0", url: `https://freesound.org/s/${bedMeta.id}/`, query: pal.bed });
-  const accents = [];
-  for (const a of (pal.accents || []).slice(0, 2)) {
-    const af = `${work}/pal_acc${accents.length}.mp3`;
-    const m = await fetchSfx(a, af);
-    if (m) { accents.push(af); manifest.clips.push({ clip_id: `sfx_acc${accents.length}`, source: "freesound", license: "cc0", url: `https://freesound.org/s/${m.id}/`, query: a }); }
-  }
+  let bedFile = null; const accents = [];
+  // 1) BIBLIOTECA CURADA (asmr_lib/, bajada de R2): sonidos ya elegidos por calidad.
+  const lib = readJSON("asmr_lib/manifest.json", null);
+  const libEntry = lib && lib[niche] && lib[niche][pal.name];
+  if (libEntry && libEntry.bed && fs.existsSync(libEntry.bed)) {
+    bedFile = libEntry.bed;
+    for (const f of (libEntry.accents || [])) if (fs.existsSync(f)) accents.push(f);
+    (libEntry.credits || []).forEach((c) => manifest.clips.push({ clip_id: `lib_${c.id}`, source: "freesound", license: "cc0", url: c.url, query: pal.name }));
+    console.log(`  🎧 Biblioteca curada -> paleta "${pal.name}".`);
+  } else if (FREESOUND) {
+    // 2) En vivo desde Freesound (si no hay biblioteca).
+    const bf = `${work}/pal_bed.mp3`; const bedMeta = await fetchSfx(pal.bed, bf);
+    if (!bedMeta) return null;
+    bedFile = bf; manifest.clips.push({ clip_id: "sfx_bed", source: "freesound", license: "cc0", url: `https://freesound.org/s/${bedMeta.id}/`, query: pal.bed });
+    for (const a of (pal.accents || []).slice(0, 2)) {
+      const af = `${work}/pal_acc${accents.length}.mp3`;
+      const m = await fetchSfx(a, af);
+      if (m) { accents.push(af); manifest.clips.push({ clip_id: `sfx_acc${accents.length}`, source: "freesound", license: "cc0", url: `https://freesound.org/s/${m.id}/`, query: a }); }
+    }
+  } else return null;
+  if (!bedFile) return null;
   const out = `${work}/relax_mix.m4a`;
   // Cama dominante y calmada (0.6) + acentos suaves (0.3/0.24). normalize=0 respeta los niveles.
   const ins = [`-stream_loop -1 -i "${bedFile}"`];
@@ -215,8 +225,8 @@ if (parts.length === 1) {
 let ambient = null;
 if (profile.keepAudio) {
   const totalDur = Math.max(4, durs.reduce((a, b) => a + b, 0) - Math.max(0, durs.length - 1) * TD);
-  // 1) LO PRINCIPAL: mezcla ASMR profesional por paleta (cama + acentos que combinan).
-  try { if (FREESOUND) ambient = await buildAsmrRelaxMix(totalDur); }
+  // 1) LO PRINCIPAL: mezcla ASMR profesional por paleta (biblioteca curada o Freesound en vivo).
+  try { ambient = await buildAsmrRelaxMix(totalDur); }
   catch (e) { console.log("  (aviso) mezcla ASMR falló: " + e.message); ambient = null; }
   // 2) Respaldo (sin key o si falla): el audio ORIGINAL de los clips, nivelado.
   if (!ambient) {

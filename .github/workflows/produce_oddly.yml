@@ -92,6 +92,13 @@ jobs:
         if: ${{ env.SKIP != '1' }}
         run: npx --yes wrangler@4 r2 object get "$BUCKET/music/cinematic.mp3" --file=music.mp3 --remote 2>/dev/null || echo "sin musica"
 
+      - name: Biblioteca ASMR curada (si existe en R2)
+        if: ${{ env.SKIP != '1' }}
+        run: |
+          if npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/asmr_lib.tgz" --file=asmr_lib.tgz --remote 2>/dev/null; then
+            mkdir -p asmr_lib && tar xzf asmr_lib.tgz -C asmr_lib && echo "biblioteca ASMR curada lista ($(ls asmr_lib/*.mp3 2>/dev/null | wc -l) sonidos)"
+          else echo "sin biblioteca curada -> usare Freesound en vivo o el audio del clip"; fi
+
       - name: Ensamblar la compilacion (clips LEGALES + narracion + ranking)
         if: ${{ env.SKIP != '1' }}
         run: node pipeline/build_compilation.mjs "$NICHE" voicemap.json voice.wav.timing.json voice.wav compilation.mp4 "$FORMAT"
