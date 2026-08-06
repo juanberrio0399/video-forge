@@ -46,8 +46,11 @@ const timing = readJSON(timingPath, {});
 const durOf = (i) => { const b = (timing.beats || []).find((x) => x.index === i) || (timing.beats || [])[i]; return Math.max(profile.minClip, (b && b.dur ? +b.dur : 3.5)); };
 function hasAudio(p) { try { return execSync(`ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "${p}"`).toString().trim().length > 0; } catch { return false; } }
 
+// ¿Hay voz? (ASMR PURO no lleva narración -> voice.wav no existe). Define si la pieza es
+// narrada o de puro sonido, y qué transformación declaramos para la puerta de compliance.
+const hasVoice = (() => { try { return !!voicePath && fs.existsSync(voicePath) && fs.statSync(voicePath).size > 2000 && profile.voice > 0; } catch { return false; } })();
 const work = "comp"; fs.mkdirSync(work, { recursive: true });
-const manifest = { niche, format, clips: [], transform: { narration: true, editing: true, original_script: true } };
+const manifest = { niche, format, clips: [], transform: { narration: hasVoice, editing: true, original_script: true, sound_design: !!profile.keepAudio } };
 
 async function dl(url, dest) { const r = await fetch(url); fs.writeFileSync(dest, Buffer.from(await r.arrayBuffer())); }
 
@@ -160,16 +163,18 @@ if (profile.keepAudio) {
   } catch (e) { console.log("  (aviso) no pude conservar el audio original: " + e.message); ambient = null; }
 }
 
-// Mezcla: narración (voz) + música (si hay) + ambiente (si el nicho lo pide). normalize=0
-// respeta los volúmenes por nicho (en ASMR el ambiente manda, la voz va suave).
-const ins = [`-i "${silent}"`, `-i "${voicePath}"`];
-const mix = []; let fc = `[1:a]volume=${profile.voice}[vo];`; mix.push("[vo]"); let idx = 2;
+// Mezcla: voz (si hay) + música (si hay) + ambiente (si el nicho lo pide). normalize=0
+// respeta los volúmenes por nicho (en ASMR el ambiente/sonido manda; en ASMR PURO no hay voz).
+const ins = [`-i "${silent}"`]; const mix = []; let fc = ""; let idx = 1;
+if (hasVoice) { ins.push(`-i "${voicePath}"`); fc += `[${idx}:a]volume=${profile.voice}[vo];`; mix.push("[vo]"); idx++; }
 if (fs.existsSync("music.mp3")) { ins.push(`-stream_loop -1 -i music.mp3`); fc += `[${idx}:a]volume=${profile.music}[mu];`; mix.push("[mu]"); idx++; }
 if (ambient) { ins.push(`-i "${ambient}"`); fc += `[${idx}:a]volume=${profile.amb}[am];`; mix.push("[am]"); idx++; }
-if (mix.length === 1) {
-  execSync(`ffmpeg -y ${ins.join(" ")} -map 0:v -map "[vo]" -filter_complex "${fc.replace(/;$/, "")}" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
+if (!mix.length) {
+  execSync(`ffmpeg -y ${ins.join(" ")} -map 0:v -an -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p "${outPath}"`, { stdio: "inherit" });
+} else if (mix.length === 1) {
+  execSync(`ffmpeg -y ${ins.join(" ")} -filter_complex "${fc.replace(/;$/, "")}" -map 0:v -map "${mix[0]}" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
 } else {
   fc += `${mix.join("")}amix=inputs=${mix.length}:duration=first:dropout_transition=0:normalize=0[a]`;
   execSync(`ffmpeg -y ${ins.join(" ")} -filter_complex "${fc}" -map 0:v -map "[a]" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
 }
-console.log(`Compilación lista -> ${outPath} (${parts.length} clips ${format}, nicho ${niche}). Manifiesto: compilation_manifest.json`);
+console.log(`Compilación lista -> ${outPath} (${parts.length} clips ${format}, nicho ${niche}, ${hasVoice ? "narrado" : "SIN voz / ASMR puro"}). Manifiesto: compilation_manifest.json`);

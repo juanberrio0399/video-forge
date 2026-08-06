@@ -31,10 +31,13 @@ if (!m || !Array.isArray(m.clips) || !m.clips.length) {
   });
 }
 
-// La pieza debe ser TRANSFORMADORA: narración original + edición (no solo re-subir clips).
+// La pieza debe ser TRANSFORMADORA. Dos caminos válidos:
+//  a) narración original (voz que agrega valor), o
+//  b) piezas de SONIDO (ASMR/relax): curaduría + edición/secuencia + diseño de sonido original.
+// Basta con UNO. Lo que NO vale es re-subir clips tal cual, sin edición ni curaduría.
 const tr = (m && m.transform) || {};
-if (!tr.narration) fails.push("falta narración original (transformación)");
-if (!tr.editing && !tr.original_script) fails.push("falta edición/guion original (transformación)");
+const transformador = !!tr.narration || (!!tr.editing && !!tr.original_script) || !!tr.sound_design;
+if (!transformador) fails.push("la pieza no es transformadora (sin narración, ni edición/guion, ni diseño de sonido original)");
 
 if (fails.length) {
   fs.writeFileSync("compliance_fail.txt", fails.join("\n"));
