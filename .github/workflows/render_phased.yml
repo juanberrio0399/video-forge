@@ -354,8 +354,19 @@ jobs:
             echo "Sin musica en R2 (music/cinematic.mp3); video con solo la voz."
           fi
           ls -la renders/video.mp4
+          # SFX de EDICION: whooshes SUTILES en las transiciones = terminacion PRO. Usa el pack CC0
+          # (channel/common/sfx_edit.tgz, lo arma la biblioteca ASMR). Best-effort: si no esta, sigue igual.
+          if npx --yes wrangler@4 r2 object get "$BUCKET/channel/common/sfx_edit.tgz" --file=sfx_edit.tgz --remote 2>/dev/null && [ -s sfx_edit.tgz ]; then
+            mkdir -p sfx_edit && tar xzf sfx_edit.tgz -C sfx_edit
+            npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing_full.json --remote 2>/dev/null || echo '{}' > timing_full.json
+            if node pipeline/add_edit_sfx.mjs renders/video.mp4 timing_full.json renders/video_sfx.mp4 && [ -s renders/video_sfx.mp4 ]; then
+              mv renders/video_sfx.mp4 renders/video.mp4
+              echo "✨ SFX de edicion (whooshes) añadidos."
+            else echo "SFX de edicion no aplico; dejo el video igual."; fi
+          else echo "Sin pack de SFX de edicion en R2 (opcional)."; fi
+          ls -la renders/video.mp4
           npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/video.mp4" --file=renders/video.mp4 --remote
-          echo "R2: video/$PROJECT/video.mp4 (unido de las fases + musica)"
+          echo "R2: video/$PROJECT/video.mp4 (unido de las fases + musica + edicion)"
         env:
           BUCKET: video-forge
           PROJECT: "0001-youtube-money"
