@@ -25,7 +25,14 @@
     "satisfying": {
       "label": "Satisfying / ASMR",
       "sources": ["pexels", "pixabay", "coverr", "mixkit", "videvo", "dareful"],
-      "queries": ["satisfying", "soap cutting", "kinetic sand", "hydraulic press", "slime", "paint mixing", "sand cutting", "glass blowing", "water drops slow motion", "honey pouring", "resin art", "domino chain", "cake icing", "pressure washing"],
+      "queries": ["soap cutting", "kinetic sand cutting", "slime poking", "crunchy slime", "hydraulic press crushing", "paint mixing", "sand cutting", "glass blowing", "water drops slow motion", "honey pouring", "resin pouring", "domino chain", "cake icing frosting", "pressure washing dirty", "foam cutting", "floral foam crumbling", "wax peeling", "clay carving", "dough kneading", "chalk cutting", "soap carving", "kinetic sand slicing", "makeup brush face", "powder blending", "water splash macro", "ice cracking", "candle wax melting", "bubble wrap popping", "sponge squeezing", "gel beads squishing", "nail filing", "brushing hair"],
+      "palettes": [
+        { "name": "Lluvia suave", "bed": "gentle rain loop", "accents": ["water dripping slow", "soft tapping"] },
+        { "name": "Agua y goteo", "bed": "calm stream water", "accents": ["water drops close", "gentle bubbles"] },
+        { "name": "Tapping y brushing", "bed": "soft rain ambience", "accents": ["gentle tapping wood", "makeup brush face"] },
+        { "name": "Fuego calido", "bed": "fireplace crackling", "accents": ["soft wind ambience"] },
+        { "name": "Cortes suaves", "bed": "soft ambient pad calm", "accents": ["soap cutting", "kinetic sand slice"] }
+      ],
       "short": { "min_beats": 8, "max_beats": 13, "clip_sec": 7 }
     },
     "narrativas": {
@@ -44,6 +51,11 @@
       "label": "Naturaleza / relax (reserva)",
       "sources": ["pexels", "pixabay", "coverr", "dareful", "nasa", "noaa"],
       "queries": ["forest waterfall", "ocean waves sunset", "mountain aerial", "rain forest", "northern lights", "flowers blooming timelapse", "snowfall calm", "river flowing", "clouds timelapse", "beach drone"],
+      "palettes": [
+        { "name": "Bosque", "bed": "forest ambience birds", "accents": ["stream water calm", "leaves rustling"] },
+        { "name": "Oceano", "bed": "ocean waves calm", "accents": ["seagulls distant", "soft wind ambience"] },
+        { "name": "Lluvia en ventana", "bed": "rain on window", "accents": ["distant thunder soft"] }
+      ],
       "short": { "min_beats": 7, "max_beats": 10, "clip_sec": 7 }
     }
   }
