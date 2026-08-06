@@ -109,6 +109,7 @@ export const APP_HTML = `<!doctype html>
   var curTab="inicio", curChannel="data-lens";
   var vSort="views";
   var lastInsights="";
+  var localSched={}; // video_id -> "schedule"|"public": marca optimista al programar/publicar (feedback inmediato aunque el reporte del canal tarde en refrescar)
   var TABHELP={
     inicio:"🏠 Lo que necesita tu atención ahora + el pulso del canal.",
     producir:"🏭 El flujo de cada video: producir, revisar, aprobar, publicar — y qué le falta a cada uno. Aquí también los shorts.",
@@ -577,10 +578,19 @@ export const APP_HTML = `<!doctype html>
     if(!list.length) return '<h2>Videos de Oddly Loop</h2><div class="card muted" style="font-size:12px">Aún sin videos. Produce una compilación arriba 👆</div>';
     return '<h2>Videos de Oddly Loop ('+list.length+')</h2>'+list.map(function(v){
       var pv=v.privacy==="public";
-      var act=(withActions&&!pv&&v.video_id)?('<div style="margin-top:8px"><button class="btn mini" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'schedule\\')">📅 Programar (mejor hora)</button> <button class="btn mini ghost" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'public\\')">🌍 Publicar ahora</button></div>'):'';
+      var loc=localSched[v.video_id]||""; // marca optimista de esta sesión
+      var schedAt=v.publish_at||""; var future=schedAt&&(new Date(schedAt)>new Date());
+      // Estado del video: publicado / programado / publicando / en revisión.
+      var estado, act='';
+      if(pv){ estado='<span class="tag pub">público</span>'; }
+      else if(loc==="public"){ estado='<span class="tag priv">🌍 publicando…</span>'; }
+      else if(loc==="schedule"||future){ estado='<span class="tag priv">📅 programado'+(future?' · '+esc(fmtSlot(schedAt)):' (mejor hora)')+'</span>'; }
+      else { estado='<span class="tag priv">🔎 en revisión</span>';
+        if(withActions&&v.video_id) act='<div style="margin-top:8px"><button class="btn mini" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'schedule\\')">📅 Programar (mejor hora)</button> <button class="btn mini ghost" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'public\\')">🌍 Publicar ahora</button></div>';
+      }
       return '<div class="card"><div style="font-weight:700;font-size:13px">'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,42))+'</a>':esc(v.title||""))+'</div>'
         +(v.niche_label?'<div style="font-size:12px;margin-top:3px">🎬 <b>'+esc(v.niche_label)+'</b></div>':'')
-        +'<div class="muted" style="font-size:12px;margin-top:3px"><span class="tag '+(pv?"pub":"priv")+'">'+esc(v.privacy||"?")+'</span> · '+num(v.views||0)+' vistas'+(pv?'':' · privado, revísalo y publícalo')+'</div>'+act+'</div>';
+        +'<div class="muted" style="font-size:12px;margin-top:3px">'+estado+' · '+num(v.views||0)+' vistas</div>'+act+'</div>';
     }).join("");
   }
   function auto2ProduceCard(){
@@ -955,9 +965,14 @@ export const APP_HTML = `<!doctype html>
   }
   function oddlyPublish(vid,mode){
     if(!vid){toast("sin video");return;}
-    var go=function(){ api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"publish_oddly.yml",inputs:{video_id:vid,mode:mode||"schedule"}})})
-      .then(function(r){return r.json();}).then(function(j){toast(j.ok?(mode==="public"?"🌍 Publicando en Oddly Loop…":"📅 Programando a la mejor hora…"):("❌ "+(j.error||"no pude")));setTimeout(load,3000);})
-      .catch(function(){toast("❌ Error de red");}); };
+    mode=mode||"schedule";
+    var go=function(){
+      if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
+      api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"publish_oddly.yml",inputs:{video_id:vid,mode:mode}})})
+      .then(function(r){return r.json();}).then(function(j){
+        if(j.ok){ localSched[vid]=mode; render(); toast(mode==="public"?"🌍 Publicando en Oddly Loop… te aviso al chat":"📅 Programado a la mejor hora ✓ te aviso al chat"); setTimeout(load,4000); }
+        else toast("❌ "+(j.error||"no pude"));
+      }).catch(function(){toast("❌ Error de red");}); };
     if(mode==="public"&&tg&&tg.showConfirm){ tg.showConfirm("¿Publicar este video de Oddly Loop AHORA (público)?",function(ok){if(ok)go();}); } else go();
   }
   function goShorts(){ tab("producir"); var e=el("shortsAnchor"); if(e) e.scrollIntoView({behavior:"smooth",block:"start"}); }

@@ -25,7 +25,7 @@ try {
     const j = await (await tf(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status,statistics&id=${ids.slice(i, i + 50).join(",")}`, { headers: H })).json();
     for (const v of j.items || []) {
       const nk = nicheMap[v.id];
-      list.push({ video_id: v.id, title: v.snippet.title, privacy: v.status.privacyStatus, views: +((v.statistics || {}).viewCount || 0), published_at: v.snippet.publishedAt.slice(0, 10), niche: nk || null, niche_label: NICHE_LABEL[nk] || null });
+      list.push({ video_id: v.id, title: v.snippet.title, privacy: v.status.privacyStatus, publish_at: (v.status || {}).publishAt || null, views: +((v.statistics || {}).viewCount || 0), published_at: v.snippet.publishedAt.slice(0, 10), niche: nk || null, niche_label: NICHE_LABEL[nk] || null });
     }
   }
   let watch_min = 0;
