@@ -8,7 +8,7 @@
 import fs from "node:fs";
 
 const [niche = "satisfying", out = "voicemap.json"] = process.argv.slice(2);
-const KEY = process.env.GEMINI_API_KEY;
+const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2, process.env.GEMINI_API_KEY3].filter(Boolean);
 const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
 const tf = (u, o = {}, ms = 30000) => fetch(u, { ...o, signal: AbortSignal.timeout(ms) });
 
@@ -27,21 +27,24 @@ const NICHE_STYLE = {
 }[niche] || "narración calmada con un dato curioso por clip.";
 
 async function gemini(prompt) {
-  if (!KEY) return null;
+  if (!KEYS.length) return null;
   for (let round = 0; round < 3; round++) {
-    for (const m of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]) {
-      try {
-        const r = await tf(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${KEY}`, {
-          method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } }),
-        });
-        if (r.status === 429 || r.status === 503) { console.error(`${m}: ${r.status} (espero 15s)`); await sleep(15000); continue; }
-        if (!r.ok) { console.error(`${m}: ${r.status}`); continue; }
-        const j = await r.json();
-        const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
-        return JSON.parse(t);
-      } catch (e) { console.error(`${m}: ${e.message}`); }
+    for (let k = 0; k < KEYS.length; k++) {           // prueba cada API key (respaldo = doble cuota)
+      for (const m of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]) {
+        try {
+          const r = await tf(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${KEYS[k]}`, {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } }),
+          });
+          if (r.status === 429 || r.status === 503) { console.error(`key${k + 1}/${m}: ${r.status}`); continue; }
+          if (!r.ok) { console.error(`key${k + 1}/${m}: ${r.status}`); continue; }
+          const j = await r.json();
+          const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
+          if (t) return JSON.parse(t);
+        } catch (e) { console.error(`key${k + 1}/${m}: ${e.message}`); }
+      }
     }
+    await sleep(15000); // todas las llaves/modelos saturados -> espero y reintento la ronda
   }
   return null;
 }

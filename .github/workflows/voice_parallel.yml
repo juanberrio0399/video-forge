@@ -45,6 +45,7 @@ jobs:
         id: e
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
           VOICE: Charon
         run: |
           npx --yes wrangler@4 r2 object get "video-forge/channel/voice_choice.json" --file=vc.json --remote 2>/dev/null || echo '{}' > vc.json
@@ -99,6 +100,7 @@ jobs:
       - name: Sintetizar pedazo (Gemini locutor o Kokoro de respaldo)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
           VOICE: Charon
           KVOICE: ${{ needs.decide.outputs.kvoice || 'am_michael' }}
         run: |

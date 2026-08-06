@@ -8,7 +8,7 @@
 import fs from "node:fs";
 
 const [voicemapPath, timingPath, topic = "video de datos", outDir = "publish"] = process.argv.slice(2);
-const KEY = process.env.GEMINI_API_KEY;
+const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2, process.env.GEMINI_API_KEY3].filter(Boolean);
 fs.mkdirSync(outDir, { recursive: true });
 
 function readJSON(p) { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; } }
@@ -44,21 +44,24 @@ fs.writeFileSync(`${outDir}/captions.srt`, srt);
 const MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"];
 const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
 async function gemini(prompt) {
-  if (!KEY) return null;
+  if (!KEYS.length) return null;
   for (let round = 0; round < 3; round++) {
-    for (const m of MODELS) {
-      try {
-        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${KEY}`, {
-          method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } }),
-        });
-        if (r.status === 429 || r.status === 503) { console.error(`gemini ${m}: ${r.status} (espero y reintento)`); await sleep(15000); continue; }
-        if (!r.ok) { console.error(`gemini ${m}: ${r.status}`); continue; }
-        const j = await r.json();
-        const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
-        return JSON.parse(t);
-      } catch (e) { console.error(`gemini ${m}: ${e.message}`); }
+    for (let k = 0; k < KEYS.length; k++) {          // multi-llave = doble cuota
+      for (const m of MODELS) {
+        try {
+          const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${KEYS[k]}`, {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } }),
+          });
+          if (r.status === 429 || r.status === 503) { console.error(`key${k + 1}/${m}: ${r.status}`); continue; }
+          if (!r.ok) { console.error(`key${k + 1}/${m}: ${r.status}`); continue; }
+          const j = await r.json();
+          const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
+          if (t) return JSON.parse(t);
+        } catch (e) { console.error(`key${k + 1}/${m}: ${e.message}`); }
+      }
     }
+    await sleep(15000);
   }
   console.error("Gemini no respondio tras varios reintentos.");
   return null;
