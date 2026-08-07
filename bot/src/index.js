@@ -553,7 +553,7 @@ async function handleApi(request, env, url) {
         else if (total && done === total) step = "cerrando…";
       }
       const exp = expectedMin(r.name);
-      state.active.push({ name: r.name, status: r.status, step, pct: r.status === "queued" ? 0 : Math.min(99, Math.round((mins / exp) * 100)), eta: Math.max(0, exp - mins) });
+      state.active.push({ name: r.name, wf: (r.path || "").split("/").pop(), status: r.status, step, pct: r.status === "queued" ? 0 : Math.min(99, Math.round((mins / exp) * 100)), eta: Math.max(0, exp - mins) });
     }
     // PROBLEMAS sin repetir: solo la ULTIMA corrida por workflow, y solo si esa fallo
     // (asi cada error sale UNA vez y se limpia solo cuando reintentas con exito).

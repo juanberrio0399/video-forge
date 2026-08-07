@@ -39,6 +39,7 @@ jobs:
           if [ "$MODE" = "public" ]; then
             node pipeline/youtube_privacy.mjs "$VID" public && bash pipeline/notify_telegram.sh "🌍 Oddly Loop: publiqué el video https://youtu.be/${VID}"
           else
-            SLOT=$(node pipeline/best_slot.mjs)
-            node pipeline/youtube_schedule.mjs "$VID" "$SLOT" && bash pipeline/notify_telegram.sh "📅 Oddly Loop: programé el video para $SLOT (mejor hora). https://youtu.be/${VID}"
+            OCC=$(node pipeline/scheduled_times.mjs)
+            SLOT=$(node pipeline/best_slot.mjs "$OCC")
+            node pipeline/youtube_schedule.mjs "$VID" "$SLOT" && bash pipeline/notify_telegram.sh "📅 Oddly Loop: programé el video para $SLOT (siguiente franja libre). https://youtu.be/${VID}"
           fi

@@ -130,8 +130,12 @@ export const APP_HTML = `<!doctype html>
   document.querySelectorAll(".chsel button").forEach(function(b){b.onclick=function(){setChannel(b.getAttribute("data-ch"));};});
 
   function pct(a,b){return Math.min(100,Math.round((( +a||0)/(b||1))*100));}
-  function statusHtml(){
-    var a=ST.active||[];
+  // Clasifica una ejecución por canal: Auto (Oddly Loop) vs The Data Lens.
+  var AUTO_WF=/^(produce_oddly|publish_oddly|report_auto2|build_asmr_library|niche_radar)\.yml$/;
+  function isAutoRun(r){ return AUTO_WF.test(r.wf||"") || /Oddly|compilaci|ASMR|autom[aá]tic/i.test(r.name||""); }
+  function activeFor(ch){ var a=ST.active||[]; return ch==="auto2"?a.filter(isAutoRun):a.filter(function(r){return !isAutoRun(r);}); }
+  function statusHtml(ch){
+    var a=ch?activeFor(ch):(ST.active||[]);
     if(!a.length) return '<div class="card muted">✅ Nada en proceso ahora.</div>';
     return a.map(function(r){
       return '<div class="card"><div style="font-weight:700"><span class="live"></span> '+esc(r.name)+'</div>'
@@ -584,7 +588,11 @@ export const APP_HTML = `<!doctype html>
       var estado, act='';
       if(pv){ estado='<span class="tag pub">público</span>'; }
       else if(loc==="public"){ estado='<span class="tag priv">🌍 publicando…</span>'; }
-      else if(loc==="schedule"||future){ estado='<span class="tag priv">📅 programado'+(future?' · '+esc(fmtSlot(schedAt)):' (mejor hora)')+'</span>'; }
+      else if(loc==="schedule"||future){
+        estado='<span class="tag priv">📅 programado'+(future?' · '+esc(fmtSlot(schedAt)):' (mejor hora)')+'</span>';
+        // Ya programado, pero SIEMPRE con acciones: reprogramar (a otra franja libre) o publicar ya.
+        if(withActions&&v.video_id) act='<div style="margin-top:8px"><button class="btn mini ghost" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'schedule\\')">🔁 Reprogramar</button> <button class="btn mini ghost" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'public\\')">🌍 Publicar ya</button></div>';
+      }
       else { estado='<span class="tag priv">🔎 en revisión</span>';
         if(withActions&&v.video_id) act='<div style="margin-top:8px"><button class="btn mini" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'schedule\\')">📅 Programar (mejor hora)</button> <button class="btn mini ghost" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'public\\')">🌍 Publicar ahora</button></div>';
       }
@@ -731,16 +739,16 @@ export const APP_HTML = `<!doctype html>
   function render(){
     var ch = ST.channel||{}, cs = ST.channel_stats||{}, mon = ST.monetization||{};
     var up = ST.upcoming||[];
-    var liveTag = (ST.active&&ST.active.length) ? " · 🟢 en vivo" : "";
+    var liveTag = (activeFor(curChannel).length) ? " · 🟢 en vivo" : "";
     el("chTitle").textContent = curChannel==="auto2" ? "Auto #2" : "The Data Lens";
     el("hd").textContent = (curChannel==="auto2"?"canal automático":"@TheDataLensHQ")+" · act. "+ (ST.updated_at? String(ST.updated_at).slice(5,16).replace("T"," "):"—") + liveTag;
     setHelp(curTab);
-    el("globalStatus").innerHTML = (ST.active&&ST.active.length) ? ('<h2>⚡ En proceso ahora</h2>'+statusHtml()) : "";
+    el("globalStatus").innerHTML = (activeFor("data-lens").length) ? ('<h2>⚡ En proceso ahora</h2>'+statusHtml("data-lens")) : "";
 
     // CANAL AUTOMATICO #2 (Oddly Loop): cada flujo con su contenido propio.
     if(curChannel==="auto2"){
-      var producingA=(ST.active||[]).some(function(r){return /Oddly|compilaci|produce_oddly/i.test(r.name||"");});
-      var statusA=producingA?('<h2>⚡ Produciendo ahora</h2>'+statusHtml()):'';
+      var producingA=activeFor("auto2").length>0;
+      var statusA=producingA?('<h2>⚡ Produciendo en Oddly Loop</h2>'+statusHtml("auto2")):'';
       // Aviso si hay videos privados por revisar (de este canal).
       var privA=((ST.auto2&&ST.auto2.list)||[]).filter(function(v){return v.privacy!=="public";}).length;
       var pendA=privA?('<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px">👀 '+privA+' video(s) por revisar</div><div class="muted" style="font-size:13px;margin:4px 0 8px">De Oddly Loop, privados. Revísalos y publica/programa en Producir.</div><button class="btn" onclick="tab(\\'producir\\')">Ir a revisar</button></div>'):'';
