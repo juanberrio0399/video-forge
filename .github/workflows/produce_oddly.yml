@@ -143,7 +143,8 @@ jobs:
           # Publicar: programar a la mejor hora, o dejar privado para revisar.
           PIEZA="compilacion"; [ "$KIND" = "short" ] && PIEZA="Short 📱"
           if [ "$PUBLISH" = "yes" ]; then
-            SLOT=$(node pipeline/best_slot.mjs)
+            OCC=$(node pipeline/scheduled_times.mjs)
+            SLOT=$(node pipeline/best_slot.mjs "$OCC")
             node pipeline/youtube_schedule.mjs "$VID" "$SLOT" || true
             bash pipeline/notify_telegram.sh "🎬 Oddly Loop: ${PIEZA} (${NICHE}/${VARIANT}) subida y PROGRAMADA para la mejor hora ($SLOT). $(cat publish/youtube_result.txt 2>/dev/null | head -2)"
           else
