@@ -27,11 +27,11 @@
       "sources": ["pexels", "pixabay", "coverr", "mixkit", "videvo", "dareful"],
       "queries": ["soap cutting", "kinetic sand cutting", "slime poking", "crunchy slime", "hydraulic press crushing", "paint mixing", "sand cutting", "glass blowing", "water drops slow motion", "honey pouring", "resin pouring", "domino chain", "cake icing frosting", "pressure washing dirty", "foam cutting", "floral foam crumbling", "wax peeling", "clay carving", "dough kneading", "chalk cutting", "soap carving", "kinetic sand slicing", "makeup brush face", "powder blending", "water splash macro", "ice cracking", "candle wax melting", "bubble wrap popping", "sponge squeezing", "gel beads squishing", "nail filing", "brushing hair"],
       "palettes": [
-        { "name": "Lluvia suave", "bed": "gentle rain loop", "accents": ["water dripping slow", "soft tapping"] },
-        { "name": "Agua y goteo", "bed": "calm stream water", "accents": ["water drops close", "gentle bubbles"] },
-        { "name": "Tapping y brushing", "bed": "soft rain ambience", "accents": ["gentle tapping wood", "makeup brush face"] },
-        { "name": "Fuego calido", "bed": "fireplace crackling", "accents": ["soft wind ambience"] },
-        { "name": "Cortes suaves", "bed": "soft ambient pad calm", "accents": ["soap cutting", "kinetic sand slice"] }
+        { "name": "Cortes ASMR", "bed": "gentle rain background", "accents": ["soap cutting asmr", "knife chopping vegetables", "kinetic sand crunch"] },
+        { "name": "Crunch ASMR", "bed": "soft rain ambience", "accents": ["crunchy slime", "kinetic sand crunch", "foam crunch"] },
+        { "name": "Agua ASMR", "bed": "calm water stream", "accents": ["water dripping close", "water pouring", "bubbles underwater"] },
+        { "name": "Tapping ASMR", "bed": "soft rain background", "accents": ["wood tapping asmr", "glass tapping", "fingernail tapping"] },
+        { "name": "Fuego y crackle", "bed": "fireplace crackling", "accents": ["wood crackling fire", "paper crumpling", "match strike"] }
       ],
       "short": { "min_beats": 8, "max_beats": 13, "clip_sec": 7 }
     },
