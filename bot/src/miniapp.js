@@ -620,6 +620,40 @@ export const APP_HTML = `<!doctype html>
     return '<button class="btn ghost" onclick="dispatch(\\'report_auto2.yml\\',\\'Refrescar Oddly Loop\\')">🔄 Refrescar canal</button>'
       +(a&&a.at?'<div class="muted" style="font-size:10px;text-align:center">Act. '+esc(String(a.at).slice(0,16).replace("T"," "))+'</div>':'');
   }
+  // AGENDA del canal auto: próximos a publicar (programados), en revisión por programar, y estado del automático.
+  function auto2AgendaHtml(){
+    var list=(ST.auto2&&ST.auto2.list)||[];
+    var now=new Date();
+    var isFuture=function(v){ return (v.publish_at&&(new Date(v.publish_at)>now))||localSched[v.video_id]==="schedule"; };
+    var prog=list.filter(isFuture).sort(function(a,b){ return (a.publish_at||"9")<(b.publish_at||"9")?-1:1; });
+    var enRev=list.filter(function(v){ return v.privacy!=="public" && !isFuture(v) && localSched[v.video_id]!=="public"; });
+    var pubCount=list.filter(function(v){ return v.privacy==="public"; }).length;
+    var h='<h2>📅 Programación de Oddly Loop</h2>';
+    // Próximos a publicar (programados)
+    h+='<div class="card"><div style="font-weight:800;font-size:14px;margin-bottom:6px">🗓️ Próximos a publicar ('+prog.length+')</div>';
+    if(prog.length){
+      h+=prog.map(function(v){
+        var when=v.publish_at?fmtSlot(v.publish_at):"mejor hora";
+        return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid rgba(255,255,255,.06);padding:7px 0">'
+          +'<div style="font-size:13px">'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,34))+'</a>':esc(v.title||""))
+          +(v.niche_label?'<div class="muted" style="font-size:11px">🎬 '+esc(v.niche_label)+'</div>':'')+'</div>'
+          +'<div style="font-size:11px;color:var(--cy);white-space:nowrap;text-align:right">🕒 '+esc(when)+'</div></div>';
+      }).join("");
+    } else {
+      h+='<div class="muted" style="font-size:12px">Nada programado aún. En <b>Producir</b>, a un video privado dale <b>📅 Programar</b> y aparece aquí con su fecha.</div>';
+    }
+    h+='</div>';
+    // En revisión (por programar)
+    if(enRev.length){
+      h+='<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:14px;margin-bottom:4px">👀 En revisión — por programar ('+enRev.length+')</div>'
+        +'<div class="muted" style="font-size:12px;margin-bottom:8px">Privados, esperando que los revises y les pongas hora.</div>'
+        +enRev.slice(0,6).map(function(v){ return '<div style="font-size:12px;border-top:1px solid rgba(255,255,255,.06);padding:5px 0">• '+esc((v.title||"").slice(0,40))+(v.niche_label?' <span class="muted">('+esc(v.niche_label)+')</span>':'')+'</div>'; }).join("")
+        +'<button class="btn" style="margin-top:8px" onclick="tab(\\'producir\\')">Ir a programar</button></div>';
+    }
+    // Estado del automático (cron)
+    h+='<div class="card muted" style="font-size:12px">⚙️ <b>Automático:</b> ahora en <b>modo revisión</b> (tú apruebas cada uno). Cuando activemos el cron, Oddly Loop <b>programa solo 3/día</b> a las mejores horas y verás aquí los próximos sin tocar nada. Publicados hasta hoy: '+pubCount+'.</div>';
+    return h+bestTimesHtml();
+  }
   function nicheRadarHtml(){
     var nr=ST.niche_radar;
     var h='<h2>📡 Radar de nichos</h2>';
@@ -715,8 +749,8 @@ export const APP_HTML = `<!doctype html>
       // PRODUCIR: sus videos CON acciones (publicar/programar) + producir + nota
       el("s-producir").innerHTML = statusA + auto2VideosHtml(true) + auto2ProduceCard()
         + '<div class="card muted" style="font-size:12px">Oddly Loop es <b>full-auto</b>: cuando prendamos el cron, produce y programa 3/día solo. Aquí revisas/publicas los suyos y disparas manuales.</div>';
-      // AGENDA: programación automática + mejores horas
-      el("s-agenda").innerHTML = '<h2>📅 Programación</h2><div class="card muted" style="font-size:12px">Oddly Loop se programa <b>solo</b> a las mejores horas (EEUU). Meta: 3/día.</div>' + bestTimesHtml();
+      // AGENDA: próximos a publicar (programados) + en revisión + estado del automático + mejores horas
+      el("s-agenda").innerHTML = auto2AgendaHtml();
       // ANALITICA: KPIs + videos (consulta) + radar de nichos
       el("s-analitica").innerHTML = auto2KpisHtml() + auto2VideosHtml(false) + nicheRadarHtml();
       // MAS: info + refrescar
