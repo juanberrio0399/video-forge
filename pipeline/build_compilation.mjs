@@ -142,7 +142,7 @@ async function buildAsmrRelaxMix(totalDur) {
     const bf = `${work}/pal_bed.mp3`; const bedMeta = await fetchSfx(pal.bed, bf);
     if (!bedMeta) return null;
     bedFile = bf; manifest.clips.push({ clip_id: "sfx_bed", source: "freesound", license: "cc0", url: `https://freesound.org/s/${bedMeta.id}/`, query: pal.bed });
-    for (const a of (pal.accents || []).slice(0, 2)) {
+    for (const a of (pal.accents || []).slice(0, 3)) {
       const af = `${work}/pal_acc${accents.length}.mp3`;
       const m = await fetchSfx(a, af);
       if (m) { accents.push(af); manifest.clips.push({ clip_id: `sfx_acc${accents.length}`, source: "freesound", license: "cc0", url: `https://freesound.org/s/${m.id}/`, query: a }); }
@@ -150,11 +150,14 @@ async function buildAsmrRelaxMix(totalDur) {
   } else return null;
   if (!bedFile) return null;
   const out = `${work}/relax_mix.m4a`;
-  // Cama dominante y calmada (0.6) + acentos suaves (0.3/0.24). normalize=0 respeta los niveles.
+  // En ASMR los TRIGGERS mandan: acentos (corte/tap/agua) PROTAGONISTAS y nítidos; la cama solo
+  // pega de fondo, suave. Hasta 3 acentos. dynaudnorm realza; el loudnorm final sube todo al nivel.
+  const accVol = [0.9, 0.65, 0.5];
+  const useAcc = accents.slice(0, 3);
   const ins = [`-stream_loop -1 -i "${bedFile}"`];
-  let fc = `[0:a]dynaudnorm=f=250:g=4,volume=0.6[bed];`; const mix = ["[bed]"]; let idx = 1;
-  for (const af of accents) { ins.push(`-stream_loop -1 -i "${af}"`); fc += `[${idx}:a]dynaudnorm=f=250:g=4,volume=${idx === 1 ? 0.3 : 0.24}[a${idx}];`; mix.push(`[a${idx}]`); idx++; }
-  fc += `${mix.join("")}amix=inputs=${mix.length}:duration=first:dropout_transition=0:normalize=0,dynaudnorm=f=200:g=5[mx]`;
+  let fc = `[0:a]dynaudnorm=f=250:g=5,volume=0.3[bed];`; const mix = ["[bed]"]; let idx = 1;
+  for (const af of useAcc) { ins.push(`-stream_loop -1 -i "${af}"`); fc += `[${idx}:a]dynaudnorm=f=200:g=7,volume=${accVol[idx - 1] || 0.45}[a${idx}];`; mix.push(`[a${idx}]`); idx++; }
+  fc += `${mix.join("")}amix=inputs=${mix.length}:duration=first:dropout_transition=0:normalize=0,dynaudnorm=f=200:g=6[mx]`;
   execSync(`ffmpeg -y ${ins.join(" ")} -filter_complex "${fc}" -map "[mx]" -t ${totalDur} -c:a aac -b:a 160k "${out}"`, { stdio: "ignore" });
   console.log(`  🎧 Mezcla ASMR pro "${pal.name}": cama=${pal.bed} + ${accents.length} acento(s), ${Math.round(totalDur)}s.`);
   return out;
@@ -258,12 +261,14 @@ const ins = [`-i "${silent}"`]; const mix = []; let fc = ""; let idx = 1;
 if (hasVoice) { ins.push(`-i "${voicePath}"`); fc += `[${idx}:a]volume=${profile.voice}[vo];`; mix.push("[vo]"); idx++; }
 if (fs.existsSync("music.mp3")) { ins.push(`-stream_loop -1 -i music.mp3`); fc += `[${idx}:a]volume=${profile.music}[mu];`; mix.push("[mu]"); idx++; }
 if (ambient) { ins.push(`-i "${ambient}"`); fc += `[${idx}:a]volume=${profile.amb}[am];`; mix.push("[am]"); idx++; }
+const LN = "loudnorm=I=-14:TP=-1.5:LRA=11"; // loudness estándar de YouTube: ni bajo ni saturado
 if (!mix.length) {
   execSync(`ffmpeg -y ${ins.join(" ")} -map 0:v -an -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p "${outPath}"`, { stdio: "inherit" });
 } else if (mix.length === 1) {
-  execSync(`ffmpeg -y ${ins.join(" ")} -filter_complex "${fc.replace(/;$/, "")}" -map 0:v -map "${mix[0]}" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
+  const single = fc + `${mix[0]}${LN}[aout]`;
+  execSync(`ffmpeg -y ${ins.join(" ")} -filter_complex "${single}" -map 0:v -map "[aout]" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
 } else {
-  fc += `${mix.join("")}amix=inputs=${mix.length}:duration=first:dropout_transition=0:normalize=0[a]`;
-  execSync(`ffmpeg -y ${ins.join(" ")} -filter_complex "${fc}" -map 0:v -map "[a]" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
+  fc += `${mix.join("")}amix=inputs=${mix.length}:duration=first:dropout_transition=0:normalize=0,${LN}[aout]`;
+  execSync(`ffmpeg -y ${ins.join(" ")} -filter_complex "${fc}" -map 0:v -map "[aout]" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
 }
 console.log(`Compilación lista -> ${outPath} (${parts.length} clips ${format}, nicho ${niche}, ${hasVoice ? "narrado" : "SIN voz / ASMR puro"}). Manifiesto: compilation_manifest.json`);
