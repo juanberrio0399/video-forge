@@ -127,11 +127,20 @@ async function fetchSfx(q, dest) {
 async function buildAsmrRelaxMix(totalDur) {
   const palettes = nicheCfg.palettes || [];
   if (!palettes.length) return null;
-  const pal = palettes[Math.floor(Math.random() * palettes.length)]; // una paleta por video
-  let bedFile = null; const accents = [];
-  // 1) BIBLIOTECA CURADA (asmr_lib/, bajada de R2): sonidos ya elegidos por calidad.
+  // 1) BIBLIOTECA CURADA (asmr_lib/, bajada de R2). Preferimos la paleta MÁS RICA (cama + más
+  // acentos) para que el ASMR suene lleno, no una paleta pobre (1 solo sonido).
   const lib = readJSON("asmr_lib/manifest.json", null);
-  const libEntry = lib && lib[niche] && lib[niche][pal.name];
+  const libN = lib && lib[niche];
+  let pal, libEntry;
+  if (libN) {
+    const ranked = palettes
+      .map((p) => ({ p, e: libN[p.name] }))
+      .filter((x) => x.e && x.e.bed && fs.existsSync(x.e.bed) && (x.e.accents || []).some((f) => fs.existsSync(f)))
+      .sort((a, b) => ((b.e.accents || []).length) - ((a.e.accents || []).length));
+    if (ranked.length) { const top = ranked.slice(0, 3); const pick = top[Math.floor(Math.random() * top.length)]; pal = pick.p; libEntry = pick.e; }
+  }
+  if (!pal) pal = palettes[Math.floor(Math.random() * palettes.length)];
+  let bedFile = null; const accents = [];
   if (libEntry && libEntry.bed && fs.existsSync(libEntry.bed)) {
     bedFile = libEntry.bed;
     for (const f of (libEntry.accents || [])) if (fs.existsSync(f)) accents.push(f);
