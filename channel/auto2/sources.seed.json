@@ -38,19 +38,23 @@
     "narrativas": {
       "label": "Narrativas (traición/venganza, historias)",
       "sources": ["pexels", "pixabay", "coverr", "videvo", "archive_org"],
-      "queries": ["dramatic city night", "dark alley rain", "lonely road fog", "storm clouds timelapse", "empty office night", "train station departure", "old letters", "abandoned house", "silhouette window", "car headlights night", "cemetery fog", "clock ticking"],
+      "queries": ["dramatic city night", "dark alley rain", "lonely road fog", "storm clouds timelapse", "empty office night", "train station departure", "old letters handwriting", "abandoned house interior", "silhouette window backlit", "car headlights night highway", "cemetery fog", "clock ticking macro", "rain on window sad", "candle flame dark", "footsteps corridor", "phone ringing desk", "shattered glass slow motion", "lightning storm night", "man walking away rain", "burning photograph"],
+      "sound": { "bed": "dark ambient drone suspense", "stingers": ["cinematic impact hit", "suspense riser whoosh", "deep boom hit"] },
+      "music_mood": "dark cinematic tension",
       "short": { "min_beats": 6, "max_beats": 9, "clip_sec": 6 }
     },
     "ciencia_humor": {
       "label": "Ciencia con humor / datos",
       "sources": ["pexels", "pixabay", "nasa", "wikimedia", "archive_org", "coverr"],
-      "queries": ["space galaxy", "laboratory experiment", "microscope cells", "chemistry reaction", "planets solar system", "dna helix", "brain neurons", "volcano eruption", "ocean deep sea", "robot technology", "particle physics", "weather satellite"],
+      "queries": ["space galaxy stars", "laboratory experiment", "microscope cells moving", "chemistry reaction colorful", "planets solar system", "dna helix animation", "brain neurons firing", "volcano eruption lava", "ocean deep sea creatures", "robot technology future", "particle physics collision", "weather satellite earth", "bacteria petri dish", "lightning tesla coil", "black hole space", "coral reef fish", "human heart beating", "electric spark macro", "aurora borealis", "meteor shower night"],
+      "sound": { "bed": "", "stingers": ["positive notification ding", "whoosh transition clean", "pop ui click", "bright success chime"] },
+      "music_mood": "quirky upbeat curious",
       "short": { "min_beats": 5, "max_beats": 7, "clip_sec": 5 }
     },
     "naturaleza_relax": {
       "label": "Naturaleza / relax (reserva)",
       "sources": ["pexels", "pixabay", "coverr", "dareful", "nasa", "noaa"],
-      "queries": ["forest waterfall", "ocean waves sunset", "mountain aerial", "rain forest", "northern lights", "flowers blooming timelapse", "snowfall calm", "river flowing", "clouds timelapse", "beach drone"],
+      "queries": ["forest waterfall", "ocean waves sunset", "mountain aerial drone", "rain forest green", "northern lights aurora", "flowers blooming timelapse", "snowfall calm winter", "river flowing rocks", "clouds timelapse sky", "beach drone tropical", "misty forest morning", "lavender field wind", "autumn leaves falling", "desert dunes sunset", "lake reflection calm", "cherry blossom petals"],
       "palettes": [
         { "name": "Bosque", "bed": "forest ambience birds", "accents": ["stream water calm", "leaves rustling"] },
         { "name": "Oceano", "bed": "ocean waves calm", "accents": ["seagulls distant", "soft wind ambience"] },
