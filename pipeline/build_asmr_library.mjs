@@ -38,8 +38,10 @@ const manifest = {};
 let sonidos = 0, paletas = 0;
 for (const [niche, cfg] of Object.entries(sources.niches || {})) {
   const pals = cfg.palettes || [];
-  if (!pals.length) continue;
+  const snd = cfg.sound;
+  if (!pals.length && !snd) continue;
   manifest[niche] = {};
+  // Nichos ASMR/relax: paletas (cama + acentos que combinan).
   for (const pal of pals) {
     const entry = { bed: null, accents: [], credits: [] };
     const bed = await grab(pal.bed, `${niche}_${slug(pal.name)}_bed`);
@@ -51,6 +53,17 @@ for (const [niche, cfg] of Object.entries(sources.niches || {})) {
     manifest[niche][pal.name] = entry;
     paletas++;
     console.log(`  ${niche}/${pal.name}: cama ${entry.bed ? "ok" : "—"} + ${entry.accents.length} acentos`);
+  }
+  // Nichos narrados (narrativas/ciencia): cama atmosférica opcional + STINGERS de énfasis.
+  if (snd) {
+    const entry = { bed: null, stingers: [], credits: [] };
+    if (snd.bed) { const b = await grab(snd.bed, `${niche}_narr_bed`); if (b) { entry.bed = b.file; entry.credits.push(b); sonidos++; } }
+    for (let i = 0; i < (snd.stingers || []).length; i++) {
+      const g = await grab(snd.stingers[i], `${niche}_narr_st${i}`);
+      if (g) { entry.stingers.push(g.file); entry.credits.push(g); sonidos++; }
+    }
+    manifest[niche]._sound = entry;
+    console.log(`  ${niche}/_sound: cama ${entry.bed ? "ok" : "—"} + ${entry.stingers.length} stingers`);
   }
 }
 fs.writeFileSync("asmr_lib/manifest.json", JSON.stringify(manifest, null, 2));

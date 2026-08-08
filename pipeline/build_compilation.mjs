@@ -34,8 +34,8 @@ const PROFILES = {
   //                 sonido-clip     ambVol  musicVol  voiceVol  grade                                                        clip-min
   satisfying:      { keepAudio: true,  amb: 1.0,  music: 0.05, voice: 0.55, grade: "eq=brightness=0.02:saturation=1.18:contrast=1.06,unsharp=3:3:0.35", minClip: 2.2 },
   naturaleza_relax:{ keepAudio: true,  amb: 0.85, music: 0.10, voice: 0.70, grade: "eq=brightness=0.01:saturation=1.10:contrast=1.03",                  minClip: 2.4 },
-  narrativas:      { keepAudio: false, amb: 0,    music: 0.14, voice: 1.0,  grade: "eq=brightness=-0.02:saturation=0.92:contrast=1.10",                 minClip: 1.8 },
-  ciencia_humor:   { keepAudio: false, amb: 0,    music: 0.12, voice: 1.0,  grade: GRADE,                                                              minClip: 1.6 },
+  narrativas:      { keepAudio: false, amb: 0.9,  music: 0.14, voice: 1.0,  grade: "eq=brightness=-0.02:saturation=0.92:contrast=1.10",                 minClip: 1.8 },
+  ciencia_humor:   { keepAudio: false, amb: 0.9,  music: 0.12, voice: 1.0,  grade: GRADE,                                                              minClip: 1.6 },
 };
 const profile = { ...(PROFILES[niche] || { keepAudio: false, amb: 0, music: 0.12, voice: 1.0, grade: GRADE, minClip: 1.6 }), ...(nicheCfg.profile || {}) };
 const NGRADE = profile.grade || GRADE;
@@ -172,6 +172,34 @@ async function buildAsmrRelaxMix(totalDur) {
   return out;
 }
 
+// 🎬 SONIDO DE NICHOS NARRADOS (narrativas/ciencia) — identidad propia igual que el ASMR:
+// una CAMA atmosférica MUY baja bajo la narración (tensión/ambiente) + STINGERS de énfasis
+// (impacto/whoosh/ding) en algunos beats. Todo CC0 desde la biblioteca. Devuelve pista o null.
+async function buildNarrationSound(totalDur, durs) {
+  const lib = readJSON("asmr_lib/manifest.json", null);
+  const snd = lib && lib[niche] && lib[niche]._sound;
+  if (!snd) return null;
+  const bed = snd.bed && fs.existsSync(snd.bed) ? snd.bed : null;
+  const stg = (snd.stingers || []).filter((f) => fs.existsSync(f));
+  if (!bed && !stg.length) return null;
+  const out = `${work}/narr_sound.m4a`;
+  // Base silenciosa del largo del video (para que amix dure todo el video).
+  const ins = [`-f lavfi -t ${totalDur} -i anullsrc=r=44100:cl=stereo`];
+  let fc = ""; const mix = ["[0:a]"]; let idx = 1;
+  if (bed) { ins.push(`-stream_loop -1 -i "${bed}"`); fc += `[${idx}:a]dynaudnorm=f=250:g=4,volume=0.16[bed];`; mix.push("[bed]"); idx++; }
+  // Stingers en el primer beat y ~cada 3 beats (reveal), hasta 16.
+  if (stg.length && durs.length) {
+    let acc = 0; const times = [];
+    for (let i = 0; i < durs.length; i++) { if (i === 0 || i % 3 === 0) times.push(acc); acc += durs[i] - TD; }
+    times.slice(0, 16).forEach((t, k) => { ins.push(`-i "${stg[k % stg.length]}"`); const ms = Math.max(0, Math.round(t * 1000)); fc += `[${idx}:a]adelay=${ms}|${ms},volume=0.33[st${idx}];`; mix.push(`[st${idx}]`); idx++; });
+  }
+  if (mix.length <= 1 && !bed) return null;
+  fc += `${mix.join("")}amix=inputs=${mix.length}:duration=first:dropout_transition=0:normalize=0[mx]`;
+  execSync(`ffmpeg -y ${ins.join(" ")} -filter_complex "${fc}" -map "[mx]" -t ${totalDur} -c:a aac -b:a 160k "${out}"`, { stdio: "ignore" });
+  console.log(`  🎬 Sonido de "${niche}": cama ${bed ? "sí" : "no"} + ${stg.length} stinger(s) en beats.`);
+  return out;
+}
+
 // Subtitulo quemado (caja legible abajo).
 function wrap(t, per) { const w = (t || "").split(/\s+/).filter(Boolean); const L = []; let c = ""; for (const x of w) { if ((c + " " + x).trim().length > per && c) { L.push(c); c = x; } else c = (c + " " + x).trim(); } if (c) L.push(c); return L.slice(0, 2).join("\n"); }
 function subFilter(i, text) {
@@ -262,6 +290,11 @@ if (profile.keepAudio) {
       console.log("  (sin key Freesound) uso el audio original de los clips, realzado.");
     } catch (e) { console.log("  (aviso) ambiente falló: " + e.message); ambient = null; }
   }
+} else {
+  // Nichos NARRADOS (narrativas/ciencia): su propia identidad de sonido (cama + stingers).
+  const totalDur = Math.max(4, durs.reduce((a, b) => a + b, 0) - Math.max(0, durs.length - 1) * TD);
+  try { ambient = await buildNarrationSound(totalDur, durs); }
+  catch (e) { console.log("  (aviso) sonido de narrativa falló: " + e.message); ambient = null; }
 }
 
 // Mezcla: voz (si hay) + música (si hay) + ambiente (si el nicho lo pide). normalize=0
