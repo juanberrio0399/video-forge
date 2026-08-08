@@ -406,14 +406,15 @@ async function handleApi(request, env, url) {
     if (plan.for_video_id) (plan.shorts || []).forEach((s) => { if (s.video_id) shortsMap[s.video_id] = plan.for_video_id; });
     const byParent = {};
     (inv.shorts || []).forEach((sh) => { const p = shortsMap[sh.video_id]; if (p) (byParent[p] = byParent[p] || []).push(sh); });
-    const slimV = (v) => ({ video_id: v.video_id, title: (v.title || "").replace(/ #Shorts$/, ""), privacy: v.privacy, views: v.views || 0, watch_min: v.watch_min || 0 });
+    // Ledger de la fabrica (channel/videos.json): lo que NO esta aqui = subido MANUALMENTE por Juan.
+    const vledger = (await r2json(env, "channel/videos.json")) || {};
+    const slimV = (v) => ({ video_id: v.video_id, title: (v.title || "").replace(/ #Shorts$/, ""), privacy: v.privacy, views: v.views || 0, watch_min: v.watch_min || 0, manual: !vledger[v.video_id] });
     state.video_tree = (inv.longs || []).map((l) => ({ ...slimV(l), shorts: (byParent[l.video_id] || []).map(slimV) }));
     const groupedIds = new Set(Object.values(byParent).flat().map((s) => s.video_id));
     state.video_tree_ungrouped = (inv.shorts || []).filter((sh) => !groupedIds.has(sh.video_id)).map(slimV);
     // MATRIZ de control por video largo: check de lo hecho + acciones posibles.
     // publicado = en vivo del canal; miniatura = registro; shorts = registro O el plan
     // (si el plan es de este video y sus shorts aprobados ya estan subidos) -> auto-corrige.
-    const vledger = (await r2json(env, "channel/videos.json")) || {};
     const planFor = plan.for_video_id;
     const planApproved = (plan.shorts || []).filter((s) => s.approved);
     const planShortsDone = planApproved.length > 0 && planApproved.every((s) => s.video_id);
@@ -424,7 +425,7 @@ async function handleApi(request, env, url) {
       const scheduled = !!(v.publish_at && Date.parse(v.publish_at) > Date.now());
       return {
         video_id: v.video_id, title: v.title, public: v.privacy === "public", scheduled, publish_at: v.publish_at || null,
-        views: v.views, watch_min: v.watch_min || 0,
+        views: v.views, watch_min: v.watch_min || 0, manual: !vledger[v.video_id],
         thumb_url: thumbUrl, thumb_approved: !!st.thumb_approved,
         stages: {
           // "publicado" = ya gestionado: público EN VIVO o PROGRAMADO (se publica solo a su hora).

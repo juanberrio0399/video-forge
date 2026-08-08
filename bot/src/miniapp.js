@@ -597,7 +597,7 @@ export const APP_HTML = `<!doctype html>
         if(withActions&&v.video_id) act='<div style="margin-top:8px"><button class="btn mini" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'schedule\\')">📅 Programar (mejor hora)</button> <button class="btn mini ghost" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'public\\')">🌍 Publicar ahora</button></div>';
       }
       return '<div class="card"><div style="font-weight:700;font-size:13px">'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,42))+'</a>':esc(v.title||""))+'</div>'
-        +((v.niche_label||/#short/i.test(v.title||''))?'<div style="font-size:12px;margin-top:3px">'+(/#short/i.test(v.title||'')?'📱 <b>Short</b>':'🎬 <b>'+esc(v.niche_label)+'</b>')+'</div>':'')
+        +(v.manual?'<div style="font-size:12px;margin-top:3px">✋ <b>Subido a mano</b>'+(/#short/i.test(v.title||'')?' · 📱 Short':'')+'</div>':((v.niche_label||/#short/i.test(v.title||''))?'<div style="font-size:12px;margin-top:3px">'+(/#short/i.test(v.title||'')?'📱 <b>Short</b>':'🎬 <b>'+esc(v.niche_label)+'</b>')+'</div>':''))
         +'<div class="muted" style="font-size:12px;margin-top:3px">'+estado+' · '+num(v.views||0)+' vistas</div>'+act+'</div>';
     }).join("");
   }
@@ -871,7 +871,8 @@ export const APP_HTML = `<!doctype html>
     var aok=ST.analytics_ok, gV=0, gW=0, rowsHtml="", li=0;
     function vcell(v,isPub){ return '<td style="text-align:right">'+(isPub?num(v.views):"🔒")+'</td>'
       +'<td style="text-align:right">'+(aok?num(v.watch_min||0):"—")+'</td>'; }
-    function link(v){ return v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,30))+'</a>':esc(v.title||""); }
+    function man(v){ return v.manual?' <span style="color:var(--am);font-size:10px;white-space:nowrap">✋ manual</span>':''; }
+    function link(v){ return (v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,30))+'</a>':esc(v.title||""))+man(v); }
     tree.forEach(function(l){ li++;
       var pv=l.privacy==="public"; gV+=l.views||0; gW+=l.watch_min||0;
       rowsHtml+='<tr style="font-weight:700;border-top:1px solid rgba(255,255,255,.10)"><td>📹 <span class="muted" style="font-weight:400">#'+li+'</span> '+link(l)+'</td>'+vcell(l,pv)+'</tr>';
