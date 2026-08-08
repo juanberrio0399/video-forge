@@ -23,12 +23,15 @@ const pool = (nicheCfg.queries || ["satisfying"]).join(", ");
 // Es un RANGO -> la IA/producción alarga solo si el material realmente engancha ("lo entretenido").
 const SHORT = nicheCfg.short || { min_beats: 6, max_beats: 8, clip_sec: 6 };
 
+// ESTILO EXPERTO por nicho (destilado de investigación de canales faceless que funcionan).
 const NICHE_STYLE = {
   satisfying: "compilación 'oddly satisfying' con narración CALMADA y suave (vibra ASMR/relax); cada clip trae un dato curioso corto sobre lo que se ve (por qué es satisfactorio / la ciencia detrás).",
-  narrativas: "historia narrada con tensión (giros), con b-roll atmosférico; cada beat avanza la historia.",
-  ciencia_humor: "datos de ciencia explicados con humor ligero; cada beat un hecho asombroso.",
-  naturaleza_relax: "naturaleza relajante con narración calmada y datos de la naturaleza.",
+  narrativas: "HISTORIA con tensión real: gancho de intriga en 2s (giro/pregunta/afirmación contraintuitiva), narración TENSA y ajustada (frases cortas, ritmo), cada beat sube la apuesta con un giro, y un FINAL con vuelta de tuerca que da ganas de compartir. Recontrata la atención a la mitad con un cambio (revelación). Nada de relleno.",
+  ciencia_humor: "DATO asombroso + HUMOR: estructura de chiste (montaje serio o predecible -> giro absurdo/inesperado = punchline). Timing: una pausa antes del remate. Observacional y relatable, no forzado. Ágil y punchy. Cada beat = un hecho que sorprende + un toque de humor seco.",
+  naturaleza_relax: "naturaleza relajante con narración calmada y datos de la naturaleza; ritmo lento, cada beat una imagen bella con un dato asombroso.",
 }[niche] || "narración calmada con un dato curioso por clip.";
+// Reglas de RETENCIÓN que aplican a todo guion narrado (lo que separa lo pro de lo genérico).
+const EXPERT_RULES = "REGLAS DE RETENCIÓN: (1) el PRIMER beat engancha en los primeros 2 segundos (pattern interrupt / brecha de curiosidad / algo contraintuitivo); NADA de 'in this video'. (2) Frases CORTAS y rítmicas, aptas para voz. (3) A la mitad, un cambio que re-engancha. (4) El ÚLTIMO beat cierra fuerte (giro, remate o CTA de 3 palabras). (5) Cero relleno: si un beat no sube la apuesta, va fuera.";
 
 async function gemini(prompt) {
   if (!KEYS.length) return null;
@@ -75,8 +78,8 @@ if (variant === "puro") {
 }
 
 const prompt =
-  `Eres guionista de un canal faceless de YouTube en INGLES (audiencia EEUU) tipo "${label}". ` +
-  `Estilo: ${NICHE_STYLE}\n` +
+  `Eres guionista EXPERTO de un canal faceless de YouTube en INGLES (audiencia EEUU) tipo "${label}". ` +
+  `Estilo: ${NICHE_STYLE}\n${EXPERT_RULES}\n` +
   `Escribe el guion de UNA compilación con ALTA RETENCION. Cada "beat" = un clip de stock con su narración corta. ` +
   `La narración da valor ORIGINAL (dato/curiosidad/comentario), no describe lo obvio. Tono acorde al nicho. ` +
   `El "query" de cada beat es un termino de busqueda de STOCK en ingles (elige de o inspirate en: ${pool}). ` +
