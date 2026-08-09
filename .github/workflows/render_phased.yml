@@ -337,7 +337,7 @@ jobs:
             if(!lines.length){ console.error("Sin fases para unir"); process.exit(1); }
           '
           # Re-encode al unir (las fases pueden variar levemente) y comprimir para R2 (<300MB).
-          ffmpeg -y -f concat -safe 0 -i list.txt -c:v libx264 -crf 23 -preset medium -pix_fmt yuv420p -c:a aac -b:a 128k renders/video.mp4
+          ffmpeg -y -f concat -safe 0 -i list.txt -c:v libx264 -crf 26 -preset medium -pix_fmt yuv420p -c:a aac -b:a 128k renders/video.mp4
           ls -la renders/video.mp4
           # MUSICA DE FONDO con DUCKING: baja sola cuando habla la voz. Un video con musica se siente
           # MUCHO mas pro que uno mudo. La musica ya esta en R2 (music/cinematic.mp3); si falla, sigue sin musica.
@@ -364,6 +364,21 @@ jobs:
               echo "✨ SFX de edicion (whooshes) añadidos."
             else echo "SFX de edicion no aplico; dejo el video igual."; fi
           else echo "Sin pack de SFX de edicion en R2 (opcional)."; fi
+          ls -la renders/video.mp4
+          # GUARDA DE TAMAÑO: wrangler/R2 topa en 300 MiB. Si el video se pasa (videos largos),
+          # lo recomprimo hasta que quepa; ultimo recurso, lo bajo a 720p. Asi NUNCA falla la subida.
+          MAX=$((295*1024*1024))
+          for CRF in 28 32; do
+            SZ=$(stat -c%s renders/video.mp4)
+            [ "$SZ" -le "$MAX" ] && break
+            echo "Video $((SZ/1024/1024)) MiB > 295 -> recomprimo (crf $CRF)."
+            ffmpeg -y -i renders/video.mp4 -c:v libx264 -crf $CRF -preset medium -pix_fmt yuv420p -c:a aac -b:a 128k renders/video_fit.mp4 && [ -s renders/video_fit.mp4 ] && mv renders/video_fit.mp4 renders/video.mp4
+          done
+          SZ=$(stat -c%s renders/video.mp4)
+          if [ "$SZ" -gt "$MAX" ]; then
+            echo "Aun $((SZ/1024/1024)) MiB -> escalo a 720p."
+            ffmpeg -y -i renders/video.mp4 -vf "scale=-2:720" -c:v libx264 -crf 30 -preset medium -pix_fmt yuv420p -c:a aac -b:a 128k renders/video_720.mp4 && [ -s renders/video_720.mp4 ] && mv renders/video_720.mp4 renders/video.mp4
+          fi
           ls -la renders/video.mp4
           npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/video.mp4" --file=renders/video.mp4 --remote
           echo "R2: video/$PROJECT/video.mp4 (unido de las fases + musica + edicion)"
