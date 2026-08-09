@@ -658,8 +658,10 @@ export const APP_HTML = `<!doctype html>
         +enRev.slice(0,6).map(function(v){ return '<div style="font-size:12px;border-top:1px solid rgba(255,255,255,.06);padding:5px 0">• '+esc((v.title||"").slice(0,40))+(v.niche_label?' <span class="muted">('+esc(v.niche_label)+')</span>':'')+'</div>'; }).join("")
         +'<button class="btn" style="margin-top:8px" onclick="tab(\\'producir\\')">Ir a programar</button></div>';
     }
-    // Estado del automático (cron)
-    h+='<div class="card muted" style="font-size:12px">⚙️ <b>Automático:</b> ahora en <b>modo revisión</b> (tú apruebas cada uno). Cuando activemos el cron, Oddly Loop <b>programa solo 3/día</b> a las mejores horas y verás aquí los próximos sin tocar nada. Publicados hasta hoy: '+pubCount+'.</div>';
+    // Cadencia diaria por categoría (cron)
+    h+='<div class="card"><div style="font-weight:800;font-size:14px;margin-bottom:4px">⚙️ Cadencia diaria (automática)</div>'
+      +'<div class="muted" style="font-size:12px;margin-bottom:8px"><b>1 video por categoría al día = 4/día</b>, cada uno a su mejor hora libre:<br>🎬 Satisfying/ASMR · 🎬 Narrativas · 🎬 Ciencia+humor · 🎬 Naturaleza. <br>Escalable cuando quieras. Publicados hasta hoy: '+pubCount+'.</div>'
+      +'<button class="btn ghost" onclick="dispatch(\\'daily_oddly.yml\\',\\'Lanzar la cadencia de hoy\\')">▶️ Lanzar la tanda de hoy ahora</button></div>';
     return h+bestTimesHtml();
   }
   function nicheRadarHtml(){

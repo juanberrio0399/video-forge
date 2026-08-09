@@ -7,7 +7,8 @@ const occupied = (process.argv[2] || "").split(",").filter(Boolean).map((s) => D
 function etOffsetHours(d) {
   try { const s = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", timeZoneName: "shortOffset" }).formatToParts(d).find((p) => p.type === "timeZoneName").value; const m = s.match(/GMT([+-]?\d{1,2})/); return m ? parseInt(m[1], 10) : -4; } catch { return -4; }
 }
-function bestHoursET(dow) { if (dow === 0 || dow === 6) return [9, 15]; if (dow === 1) return [15, 19]; return [12, 17]; }
+// Franjas (ET) por día. 4/día para la cadencia ramp (1 por categoría); pico tarde/noche EEUU.
+function bestHoursET(dow) { if (dow === 0 || dow === 6) return [9, 12, 15, 18]; if (dow === 1) return [12, 15, 18, 21]; return [11, 14, 17, 20]; }
 
 const now = Date.now(), minAhead = now + 2 * 3600 * 1000;
 const dowMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
