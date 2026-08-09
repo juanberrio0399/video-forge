@@ -22,10 +22,10 @@ for (let day = 0; day < 21; day++) {
   for (const h of bestHoursET(dow)) slots.push(Date.UTC(y, mo - 1, da, h - off, 0, 0));
 }
 slots.sort((a, b) => a - b);
-for (const s of slots) {
-  if (s < minAhead) continue;
-  if (occupied.some((o) => Math.abs(o - s) < 3600 * 1000)) continue;
-  process.stdout.write(new Date(s).toISOString());
-  process.exit(0);
-}
+// Cuantos ya programados caen en la MISMA hora (±30 min) de esta franja.
+const nearCount = (s) => occupied.filter((o) => Math.abs(o - s) < 30 * 60 * 1000).length;
+// Pase 1: primera franja futura VACÍA -> reparte uniforme (1 por hora mientras haya huecos).
+for (const s of slots) { if (s < minAhead) continue; if (nearCount(s) === 0) { process.stdout.write(new Date(s).toISOString()); process.exit(0); } }
+// Pase 2: si TODAS las franjas ya tienen 1, uso la primera con menos de 2 (TOPE = 2 por hora).
+for (const s of slots) { if (s < minAhead) continue; if (nearCount(s) < 2) { process.stdout.write(new Date(s).toISOString()); process.exit(0); } }
 process.stdout.write(new Date(now + 3 * 3600 * 1000).toISOString());
