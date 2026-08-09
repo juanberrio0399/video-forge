@@ -1,0 +1,16 @@
+{
+  "_nota": "Cuántos videos por categoría al día programa Oddly Loop. RAMP inicial = 1 c/u (4/día). Para escalar, sube los números (o pídemelo). Cada video se nombra con su categoría (niche_map + la app muestra 🎬).",
+  "per_category_per_day": {
+    "satisfying": 1,
+    "narrativas": 1,
+    "ciencia_humor": 1,
+    "naturaleza_relax": 1
+  },
+  "variant": {
+    "satisfying": "puro",
+    "naturaleza_relax": "puro",
+    "narrativas": "narrado",
+    "ciencia_humor": "narrado"
+  },
+  "kind": "video"
+}

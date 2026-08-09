@@ -1,0 +1,58 @@
+name: Cadencia diaria de Oddly Loop (por categoria)
+
+# Cada dia produce y PROGRAMA N videos por categoria (segun channel/auto2/cadence.json o el
+# seed). RAMP inicial = 1 por categoria (4/dia): Satisfying, Narrativas, Ciencia+humor, Naturaleza.
+# Cada uno se nombra con su categoria (niche_map) y se programa a la siguiente mejor hora libre.
+# Escala subiendo los numeros en cadence.json. Dispara produce_oddly con el PAT (GH_TOKEN).
+
+on:
+  schedule:
+    - cron: "30 12 * * *"   # 12:30 UTC diario
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  fanout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Producir y programar 1 por categoria (nombrando la categoria)
+        run: |
+          # Cadencia: R2 (channel/auto2/cadence.json) si existe; si no, el seed del repo.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/cadence.json" --file=cadence.json --remote 2>/dev/null || cp channel/auto2/cadence.seed.json cadence.json
+          # Arma el plan del dia: una linea "niche variant kind" por cada video a producir.
+          node -e '
+            const c=JSON.parse(require("fs").readFileSync("cadence.json","utf8"));
+            const per=c.per_category_per_day||{}, va=c.variant||{}, kind=c.kind||"video";
+            const out=[];
+            for(const [niche,n] of Object.entries(per)){ for(let i=0;i<(+n||0);i++){ out.push(niche+" "+(va[niche]||"narrado")+" "+kind); } }
+            require("fs").writeFileSync("plan.txt", out.join("\n")+"\n");
+            console.log("Plan de hoy ("+out.length+" videos):\n"+out.map(l=>"  - "+l).join("\n"));
+          '
+          LABEL() { case "$1" in satisfying) echo "Satisfying/ASMR";; narrativas) echo "Narrativas";; ciencia_humor) echo "Ciencia+humor";; naturaleza_relax) echo "Naturaleza";; *) echo "$1";; esac; }
+          FIRST=1
+          while read -r NICHE VARIANT KIND; do
+            [ -z "$NICHE" ] && continue
+            # Espacio ~12 min entre disparos para que las horas queden ESCALONADAS (no todas juntas).
+            if [ "$FIRST" = "0" ]; then sleep 720; fi
+            FIRST=0
+            echo "▶ Categoria: $(LABEL "$NICHE") ($VARIANT, $KIND)"
+            gh workflow run produce_oddly.yml -f niche="$NICHE" -f variant="$VARIANT" -f kind="$KIND" -f publish=yes -R "$GITHUB_REPOSITORY" || echo "no pude disparar $NICHE"
+          done < plan.txt
+          N=$(grep -c . plan.txt)
+          bash pipeline/notify_telegram.sh "🗓️ Oddly Loop — cadencia diaria: lancé ${N} videos, 1 por categoria (Satisfying/ASMR, Narrativas, Ciencia+humor, Naturaleza). Cada uno se programa a su mejor hora libre." || true
