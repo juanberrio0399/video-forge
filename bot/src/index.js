@@ -219,7 +219,7 @@ function etOffsetHours(d) {
 }
 // MEJORES horas de publicacion (ET) por dia de semana — DOS slots/dia para poder publicar >=2/dia:
 //  fin de semana: 9AM y 3PM · lunes: 3PM y 7PM · mar-vie: 12PM y 5PM.
-function bestHoursET(dow) { if (dow === 0 || dow === 6) return [9, 15]; if (dow === 1) return [15, 19]; return [12, 17]; }
+function bestHoursET(dow) { if (dow === 0 || dow === 6) return [9, 12, 15, 18]; if (dow === 1) return [12, 15, 18, 21]; return [11, 14, 17, 20]; }
 // Lista cronologica de TODOS los slots (mejor hora) de los proximos `days` dias, en ms UTC.
 function upcomingSlotList(days) {
   const out = [], now = Date.now();
@@ -234,14 +234,14 @@ function upcomingSlotList(days) {
   }
   return out.sort((a, b) => a - b);
 }
-// Proxima MEJOR hora (ET) libre, con >=2h de anticipacion, evitando slots ya ocupados (tol 1h).
+// Proxima MEJOR hora (ET) libre (>=2h de anticipacion). Reparte: primero franjas VACIAS; si todas
+// tienen 1, permite una 2a en la misma hora (TOPE 2/hora). Solo mira las ocupadas de ESTE canal.
 function nextBestSlot(occupiedMs) {
   const minAhead = Date.now() + 2 * 3600 * 1000;
-  for (const slotMs of upcomingSlotList(21)) {
-    if (slotMs < minAhead) continue;
-    if (occupiedMs.some((o) => Math.abs(o - slotMs) < 3600 * 1000)) continue;
-    return new Date(slotMs).toISOString();
-  }
+  const near = (s) => occupiedMs.filter((o) => Math.abs(o - s) < 30 * 60 * 1000).length;
+  const slots = upcomingSlotList(21);
+  for (const s of slots) { if (s < minAhead) continue; if (near(s) === 0) return new Date(s).toISOString(); }
+  for (const s of slots) { if (s < minAhead) continue; if (near(s) < 2) return new Date(s).toISOString(); }
   return null;
 }
 // Calendario dia-a-dia: cada dia con sus slots (mejor hora), marcados LLENO (video programado) o LIBRE.
