@@ -52,6 +52,7 @@ for (const v of state.published || []) {
   if (it) {
     v.privacy = it.status?.privacyStatus || v.privacy;
     v.title = it.snippet?.title || v.title;
+    v.published_at = it.snippet?.publishedAt || v.published_at;
     v.stats = {
       views: +it.statistics?.viewCount || 0,
       likes: +it.statistics?.likeCount || 0,
@@ -88,6 +89,22 @@ try {
   }
 } catch {}
 state.shorts = shortsInfo;
+
+// APRENDER de los datos: velocidad (vistas/día), TOP videos y MEJORES HORAS por datos del canal
+// (para replicar lo que jala y programar donde rinde). Sin señal suficiente -> horas research.
+const nowMs = Date.now();
+const etHour = (iso) => { try { return +new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", hour12: false }).format(new Date(iso)); } catch { return null; } };
+const pubv = (state.published || []).filter((v) => v.privacy === "public" && v.published_at && v.stats);
+for (const v of pubv) { const days = Math.max(0.5, (nowMs - Date.parse(v.published_at)) / 86400000); v.vpd = +((v.stats.views || 0) / days).toFixed(1); }
+state.top = [...pubv].sort((a, b) => (b.vpd || 0) - (a.vpd || 0)).slice(0, 5).map((v) => ({ video_id: v.video_id, title: v.title, views: v.stats.views, vpd: v.vpd }));
+let bestHours = null;
+if (pubv.length >= 6) {
+  const byH = {}; for (const v of pubv) { const h = etHour(v.published_at); if (h == null) continue; byH[h] = (byH[h] || 0) + (v.vpd || 0); }
+  const ranked = Object.entries(byH).map(([h, s]) => [+h, s]).sort((a, b) => b[1] - a[1]);
+  if (ranked.length >= 3) bestHours = { hours: ranked.slice(0, 4).map((r) => r[0]).sort((a, b) => a - b), data_driven: true, based_on: pubv.length };
+}
+state.best_hours = bestHours;
+try { fs.writeFileSync("best_hours.json", JSON.stringify(bestHours || {}, null, 2)); } catch {}
 
 state.channel_stats = { subs, total_views: totalViews, videos: vids };
 state.updated_at = new Date().toISOString();

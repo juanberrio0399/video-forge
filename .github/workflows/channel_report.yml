@@ -79,7 +79,10 @@ jobs:
           fi
 
       - name: Guardar el estado actualizado en R2
-        run: npx --yes wrangler@4 r2 object put "$BUCKET/channel/state.json" --file=state_final.json --remote
+        run: |
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/state.json" --file=state_final.json --remote
+          # Mejores horas por datos (si el reporte las calculó) -> para el agendado del Worker.
+          [ -s best_hours.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/best_hours.json" --file=best_hours.json --remote --content-type application/json || true
 
       - name: Enviar el reporte al chat
         if: always()

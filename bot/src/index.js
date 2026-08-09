@@ -221,7 +221,7 @@ function etOffsetHours(d) {
 //  fin de semana: 9AM y 3PM · lunes: 3PM y 7PM · mar-vie: 12PM y 5PM.
 function bestHoursET(dow) { if (dow === 0 || dow === 6) return [9, 12, 15, 18]; if (dow === 1) return [12, 15, 18, 21]; return [11, 14, 17, 20]; }
 // Lista cronologica de TODOS los slots (mejor hora) de los proximos `days` dias, en ms UTC.
-function upcomingSlotList(days) {
+function upcomingSlotList(days, dataHours) {
   const out = [], now = Date.now();
   const dowMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
   for (let day = 0; day < days; day++) {
@@ -230,16 +230,16 @@ function upcomingSlotList(days) {
     const y = +parts.find((p) => p.type === "year").value, mo = +parts.find((p) => p.type === "month").value, da = +parts.find((p) => p.type === "day").value;
     const dow = dowMap[parts.find((p) => p.type === "weekday").value] ?? 2;
     const off = etOffsetHours(probe);
-    for (const h of bestHoursET(dow)) out.push(Date.UTC(y, mo - 1, da, h - off, 0, 0));
+    for (const h of ((dataHours && dataHours.length) ? dataHours : bestHoursET(dow))) out.push(Date.UTC(y, mo - 1, da, h - off, 0, 0));
   }
   return out.sort((a, b) => a - b);
 }
 // Proxima MEJOR hora (ET) libre (>=2h de anticipacion). Reparte: primero franjas VACIAS; si todas
 // tienen 1, permite una 2a en la misma hora (TOPE 2/hora). Solo mira las ocupadas de ESTE canal.
-function nextBestSlot(occupiedMs) {
+function nextBestSlot(occupiedMs, dataHours) {
   const minAhead = Date.now() + 2 * 3600 * 1000;
   const near = (s) => occupiedMs.filter((o) => Math.abs(o - s) < 30 * 60 * 1000).length;
-  const slots = upcomingSlotList(21);
+  const slots = upcomingSlotList(21, dataHours);
   for (const s of slots) { if (s < minAhead) continue; if (near(s) === 0) return new Date(s).toISOString(); }
   for (const s of slots) { if (s < minAhead) continue; if (near(s) < 2) return new Date(s).toISOString(); }
   return null;
@@ -275,7 +275,10 @@ async function doSchedule(env, vid, isProductionVideo) {
   // Contar tambien lo recien programado localmente, para no meter dos videos en el mismo slot.
   const prevLocal = (await r2json(env, "channel/scheduled_local.json")) || [];
   prevLocal.forEach((s) => { if (s.publish_at && s.video_id !== vid && Date.parse(s.publish_at) > Date.now()) occupied.push(Date.parse(s.publish_at)); });
-  const slot = nextBestSlot(occupied);
+  // Horas por DATOS del canal (las que más rinden) si el reporte las calculó; si no, research.
+  const bh = await r2json(env, "channel/best_hours.json");
+  const dataHours = bh && Array.isArray(bh.hours) && bh.hours.length ? bh.hours : null;
+  const slot = nextBestSlot(occupied, dataHours);
   if (!slot) return { ok: false, error: "no encontré un horario libre" };
   const r = await ghDispatch(env, "schedule_youtube.yml", { video_id: vid, publish_at: slot });
   if (r.ok) {

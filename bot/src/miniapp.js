@@ -595,6 +595,16 @@ export const APP_HTML = `<!doctype html>
     else h+='<div class="card muted" style="font-size:12px">🕐 Horas de publicación: por ahora las de mejor resultado según investigación (pico tarde/noche EEUU). Se afinan solas cuando haya datos de tu canal.</div>';
     return h;
   }
+  // The Data Lens: top videos (vistas/día) + mejores horas por datos. Vacío si aún no hay señal.
+  function dataLensTopHtml(){
+    var top=ST.top||[]; var bh=ST.best_hours; var h='';
+    if(top.length){
+      h+='<h2>🔥 Lo que más rinde (para replicar)</h2><div class="card"><div class="muted" style="font-size:12px;margin-bottom:6px">Videos que más jalan (vistas/día):</div>'
+        +top.map(function(v){return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid rgba(255,255,255,.06);padding:5px 0"><div style="font-size:12px">'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,30))+'</a>':esc(v.title||""))+'</div><div style="font-size:11px;color:var(--cy);white-space:nowrap">'+num(v.views)+' · '+(v.vpd||0)+'/día</div></div>';}).join("")+'</div>';
+    }
+    if(bh&&bh.hours&&bh.hours.length) h+='<div class="card muted" style="font-size:12px">🕐 <b>Mejores horas (por tus datos):</b> '+bh.hours.map(function(x){return x+':00';}).join(", ")+' ET · programando ahí. (Basado en '+bh.based_on+' videos.)</div>';
+    return h;
+  }
   function auto2VideosHtml(withActions){
     var list=(ST.auto2&&ST.auto2.list)||[];
     if(!list.length) return '<h2>Videos de Oddly Loop</h2><div class="card muted" style="font-size:12px">Aún sin videos. Produce una compilación arriba 👆</div>';
@@ -916,6 +926,7 @@ export const APP_HTML = `<!doctype html>
       +'<div class="muted" style="font-size:11px;text-align:center">📹 largo · ↳🎬 sus shorts · 🔒 privado</div>';
     el("s-analitica").innerHTML=
       analyticsHtml()
+      +dataLensTopHtml()
       +analysisHtml()
       +factoryHtml()
       +videosCard
