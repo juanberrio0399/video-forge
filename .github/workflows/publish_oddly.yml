@@ -24,6 +24,9 @@ jobs:
       YT_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
       YT_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
       YT_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      BUCKET: video-forge
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
       VID: ${{ github.event.inputs.video_id }}
@@ -39,6 +42,7 @@ jobs:
           if [ "$MODE" = "public" ]; then
             node pipeline/youtube_privacy.mjs "$VID" public && bash pipeline/notify_telegram.sh "🌍 Oddly Loop: publiqué el video https://youtu.be/${VID}"
           else
+            npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/best_hours.json" --file=best_hours.json --remote 2>/dev/null || true
             OCC=$(node pipeline/scheduled_times.mjs)
             SLOT=$(node pipeline/best_slot.mjs "$OCC")
             node pipeline/youtube_schedule.mjs "$VID" "$SLOT" && bash pipeline/notify_telegram.sh "📅 Oddly Loop: programé el video para $SLOT (siguiente franja libre). https://youtu.be/${VID}"

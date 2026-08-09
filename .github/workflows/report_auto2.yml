@@ -34,3 +34,5 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/niche_map.json" --file=niche_map.json --remote 2>/dev/null || echo '{}' > niche_map.json
           node pipeline/report_auto2.mjs
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/state.json" --file=auto2_state.json --remote --content-type application/json
+          # Mejores horas por datos (si el reporte las calculó) -> para el agendado.
+          [ -s best_hours.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/best_hours.json" --file=best_hours.json --remote --content-type application/json || true

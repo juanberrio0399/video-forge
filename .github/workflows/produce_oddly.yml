@@ -143,6 +143,7 @@ jobs:
           # Publicar: programar a la mejor hora, o dejar privado para revisar.
           PIEZA="compilacion"; [ "$KIND" = "short" ] && PIEZA="Short 📱"
           if [ "$PUBLISH" = "yes" ]; then
+            npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/best_hours.json" --file=best_hours.json --remote 2>/dev/null || true
             OCC=$(node pipeline/scheduled_times.mjs)
             SLOT=$(node pipeline/best_slot.mjs "$OCC")
             node pipeline/youtube_schedule.mjs "$VID" "$SLOT" || true

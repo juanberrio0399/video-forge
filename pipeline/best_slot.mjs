@@ -1,8 +1,13 @@
-// best_slot.mjs — imprime la PROXIMA mejor hora (ET) libre como ISO UTC, para programar
-// publicaciones del canal auto. Mismas franjas que el canal 1 (2/dia). Evita chocar con
-// horas ya ocupadas si se pasan por argumento (ISOs separados por coma).
+// best_slot.mjs — imprime la PROXIMA mejor hora (ET) libre como ISO UTC, para programar.
+// Horas: si existe best_hours.json (lo escribe el reporte con las horas que MÁS RINDEN por
+// datos del canal), usa esas; si no, las horas investigadas por defecto. Evita chocar con las
+// ocupadas (arg CSV), reparte en huecos y topa 2 por hora.
 // Uso: node pipeline/best_slot.mjs [ocupadas_iso_csv]
+import fs from "node:fs";
 const occupied = (process.argv[2] || "").split(",").filter(Boolean).map((s) => Date.parse(s)).filter((n) => !isNaN(n));
+// Horas por DATOS del propio canal (best_hours.json) si las hay; si no, null -> research.
+let DATA_HOURS = null;
+try { const bh = JSON.parse(fs.readFileSync("best_hours.json", "utf8")); if (bh && Array.isArray(bh.hours) && bh.hours.length) DATA_HOURS = bh.hours; } catch {}
 
 function etOffsetHours(d) {
   try { const s = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", timeZoneName: "shortOffset" }).formatToParts(d).find((p) => p.type === "timeZoneName").value; const m = s.match(/GMT([+-]?\d{1,2})/); return m ? parseInt(m[1], 10) : -4; } catch { return -4; }
@@ -19,7 +24,7 @@ for (let day = 0; day < 21; day++) {
   const y = +parts.find((p) => p.type === "year").value, mo = +parts.find((p) => p.type === "month").value, da = +parts.find((p) => p.type === "day").value;
   const dow = dowMap[parts.find((p) => p.type === "weekday").value] ?? 2;
   const off = etOffsetHours(probe);
-  for (const h of bestHoursET(dow)) slots.push(Date.UTC(y, mo - 1, da, h - off, 0, 0));
+  for (const h of (DATA_HOURS || bestHoursET(dow))) slots.push(Date.UTC(y, mo - 1, da, h - off, 0, 0));
 }
 slots.sort((a, b) => a - b);
 // Cuantos ya programados caen en la MISMA hora (±30 min) de esta franja.
