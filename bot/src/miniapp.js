@@ -577,6 +577,24 @@ export const APP_HTML = `<!doctype html>
       +'<div class="kpi"><div class="n">'+num(a.watch_min||0)+'</div><div class="l">Min vistos</div></div>'
       +'</div></div>';
   }
+  // Lo que MÁS RINDE (por vistas/día) para replicar ese tipo de contenido + categoría ganadora.
+  function auto2TopHtml(){
+    var a=ST.auto2||{}; var top=a.top||[]; var nr=a.niche_ranking||[];
+    if(!top.length && !nr.length) return '<h2>🔥 Lo que más rinde</h2><div class="card muted" style="font-size:12px">Aún sin datos de vistas. Cuando los videos acumulen vistas, aquí verás qué categoría y qué videos jalan más — para replicar.</div>';
+    var h='<h2>🔥 Lo que más rinde (para replicar)</h2>';
+    if(nr.length){
+      h+='<div class="card"><div class="muted" style="font-size:12px;margin-bottom:6px">Categoría por vistas/día — produce más de la de arriba 👑:</div>'
+        +nr.slice(0,4).map(function(r,i){return '<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,.06);padding:5px 0"><div style="font-size:12px">'+(i===0?'👑 ':'')+'<b>'+esc(r.label)+'</b></div><div class="muted" style="font-size:11px;white-space:nowrap">'+r.avg_vpd+'/día · '+r.videos+' vid</div></div>';}).join("")+'</div>';
+    }
+    if(top.length){
+      h+='<div class="card"><div class="muted" style="font-size:12px;margin-bottom:6px">Videos que más jalan (vistas/día):</div>'
+        +top.map(function(v){return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid rgba(255,255,255,.06);padding:5px 0"><div style="font-size:12px">'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,28))+'</a>':esc(v.title||""))+(v.niche_label?' <span class="muted">('+esc(v.niche_label)+')</span>':'')+'</div><div style="font-size:11px;color:var(--cy);white-space:nowrap">'+num(v.views)+' · '+(v.vpd||0)+'/día</div></div>';}).join("")+'</div>';
+    }
+    var bh=a.best_hours;
+    if(bh&&bh.hours&&bh.hours.length) h+='<div class="card muted" style="font-size:12px">🕐 <b>Mejores horas (por tus datos):</b> '+bh.hours.map(function(x){return x+':00';}).join(", ")+' ET · programando ahí. (Basado en '+bh.based_on+' videos.)</div>';
+    else h+='<div class="card muted" style="font-size:12px">🕐 Horas de publicación: por ahora las de mejor resultado según investigación (pico tarde/noche EEUU). Se afinan solas cuando haya datos de tu canal.</div>';
+    return h;
+  }
   function auto2VideosHtml(withActions){
     var list=(ST.auto2&&ST.auto2.list)||[];
     if(!list.length) return '<h2>Videos de Oddly Loop</h2><div class="card muted" style="font-size:12px">Aún sin videos. Produce una compilación arriba 👆</div>';
@@ -755,14 +773,14 @@ export const APP_HTML = `<!doctype html>
       var privA=((ST.auto2&&ST.auto2.list)||[]).filter(function(v){return v.privacy!=="public";}).length;
       var pendA=privA?('<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px">👀 '+privA+' video(s) por revisar</div><div class="muted" style="font-size:13px;margin:4px 0 8px">De Oddly Loop, privados. Revísalos y publica/programa en Producir.</div><button class="btn" onclick="tab(\\'producir\\')">Ir a revisar</button></div>'):'';
       // INICIO: pulso (KPIs + estado + pendientes + producir + radar)
-      el("s-inicio").innerHTML = auto2KpisHtml() + statusA + pendA + auto2ProduceCard() + nicheRadarHtml();
+      el("s-inicio").innerHTML = auto2KpisHtml() + statusA + pendA + auto2TopHtml() + auto2ProduceCard() + nicheRadarHtml();
       // PRODUCIR: sus videos CON acciones (publicar/programar) + producir + nota
       el("s-producir").innerHTML = statusA + auto2VideosHtml(true) + auto2ProduceCard()
         + '<div class="card muted" style="font-size:12px">Oddly Loop es <b>full-auto</b>: cuando prendamos el cron, produce y programa 3/día solo. Aquí revisas/publicas los suyos y disparas manuales.</div>';
       // AGENDA: próximos a publicar (programados) + en revisión + estado del automático + mejores horas
       el("s-agenda").innerHTML = auto2AgendaHtml();
       // ANALITICA: KPIs + videos (consulta) + radar de nichos
-      el("s-analitica").innerHTML = auto2KpisHtml() + auto2VideosHtml(false) + nicheRadarHtml();
+      el("s-analitica").innerHTML = auto2KpisHtml() + auto2TopHtml() + auto2VideosHtml(false) + nicheRadarHtml();
       // MAS: info + refrescar
       el("s-mas").innerHTML = '<h2>⚙️ Canal automático</h2><div class="card muted" style="font-size:12px">Oddly Loop · @oddlyloophq · compilaciones ASMR/satisfying legales, automáticas. Solo fuentes con licencia (puerta de compliance).</div>' + auto2RefreshBtn();
       el("globalStatus").innerHTML="";
