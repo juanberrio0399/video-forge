@@ -1,15 +1,15 @@
 name: Video diario automatico (cron)
 
-# ROBUSTEZ / AUTONOMIA: produce 1 video al dia SOLO, sin que Juan ni nadie lo dispare.
+# ROBUSTEZ / AUTONOMIA por INACTIVIDAD: revisa cada 6h y produce SOLO si hace +18h que no hay
+# video nuevo (lo suba Juan a mano o la fabrica) Y hay menos de 3 pendientes por aprobar.
+# Asi: si Juan no produce en 18h, la fabrica saca uno; en ~2 dias ya hay un par LISTOS para
+# aprobar; nunca produce 'a lo loco'. Juan siempre aprueba (los videos quedan PRIVADOS).
 # Corre en la nube de GitHub -> no depende de Telegram ni de ninguna sesion abierta.
-# Guardas: NO produce si ya hay un video sin aprobar (render_pending) o si hay una produccion/render
-# en curso -> asi no pisa el slot ni encima trabajo. Juan aprueba cuando pueda; al dia siguiente sigue.
 
 on:
   schedule:
-    - cron: "0 10 * * *"   # 10:00 UTC diario (~5-6 AM ET): queda listo para aprobar y programar al pico de la tarde
-    - cron: "0 15 * * *"   # 15:00 UTC RESCATE: si la corrida de la manana fallo antes del render, reintenta el dia
-                           #   (las guardas evitan pisar: si ya hay video pendiente/produccion en curso, no hace nada)
+    - cron: "0 */6 * * *"  # cada 6h: revisa inactividad. Produce SOLO si hace +18h que no hay video
+                           #   (manual o auto) Y hay menos de 3 pendientes por aprobar -> nunca 'a lo loco'.
   workflow_dispatch: {}
 
 permissions:
@@ -28,6 +28,9 @@ jobs:
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,10 +39,18 @@ jobs:
 
       - name: Producir el proximo video (con guardas)
         run: |
-          # GUARDA 1: ¿hay un video sin aprobar esperando? -> no pisar, salir.
-          if npx --yes wrangler@4 r2 object get "$BUCKET/video/0001-youtube-money/render_pending.json" --file=rp.json --remote 2>/dev/null && [ -s rp.json ]; then
-            echo "Hay un video sin aprobar (render_pending) -> hoy no produzco para no pisarlo."
-            bash pipeline/notify_telegram.sh "⏸️ Video diario en pausa: tienes un video sin aprobar en Control. Apruébalo/prográmalo y mañana sigo con el siguiente." || true
+          # GUARDA 1 (INACTIVIDAD): solo trabaja si hace +18h que NO hay video (manual o auto) Y hay
+          # menos de 3 pendientes por aprobar. Asi: si Juan no produce en 18h, la fabrica saca uno; en
+          # 2 dias ya hay un par LISTOS para aprobar; nunca produce 'a lo loco'. Juan sigue aprobando.
+          IP=$(node pipeline/idle_check.mjs); IDLE=$(printf '%s' "$IP" | cut -d' ' -f1); PEND=$(printf '%s' "$IP" | cut -d' ' -f2)
+          echo "Inactividad: ${IDLE}h desde el ultimo video · pendientes por aprobar: ${PEND}"
+          CAP=3
+          if [ "${PEND:-0}" -ge "$CAP" ]; then
+            echo "Ya hay ${PEND} videos listos para aprobar (tope ${CAP}) -> no acumulo mas."
+            exit 0
+          fi
+          if [ "${IDLE:-999}" -lt 18 ]; then
+            echo "Hace ${IDLE}h que hubo un video (<18h) -> aun no hace falta; espero."
             exit 0
           fi
           # GUARDA 2: ¿hay una produccion o render en curso? -> no encimar.
