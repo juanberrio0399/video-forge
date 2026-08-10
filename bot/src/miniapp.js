@@ -205,11 +205,14 @@ export const APP_HTML = `<!doctype html>
   function nextStepHtml(){
     var p=ST.production||{}, sst=ST.shorts_status||{};
     if(!p.done) return ""; // aún en revisión/publicación del video: manda la tarjeta de producción
-    // Video ya publicado → el siguiente paso son los shorts.
+    var prop=ST.shorts_proposal||[];
+    var uplPend=prop.filter(function(s){return s.state==="uploaded" && s.privacy!=="public" && !s.publish_at;}); // shorts hechos que FALTAN publicar/programar
+    var anyUploaded=prop.some(function(s){return s.state==="uploaded";});
+    // Video ya publicado → el siguiente paso son los shorts (solo si faltan; lo hecho/programado queda oculto).
     if(sst.pending) return '<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700">🎬 Siguiente: aprobar shorts</div><div class="muted" style="font-size:12px;margin:4px 0">Hay '+sst.pending+' short(s) sugerido(s) esperando tu aprobación.</div><button class="btn" onclick="goShorts()">Ver shorts para aprobar</button></div>';
     if(sst.approved_pend) return '<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700">🎬 Siguiente: generar shorts</div><div class="muted" style="font-size:12px;margin:4px 0">'+sst.approved_pend+' aprobado(s), listos para generar.</div><button class="btn" onclick="goShorts()">Ir a Shorts</button></div>';
-    if(sst.uploaded && !sst.all_done) return '<div class="card"><button class="btn" onclick="goShorts()">🎬 Ver / publicar shorts</button></div>';
-    if(sst.can_suggest) return '<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700">🎬 Siguiente: sugerir shorts</div><div class="muted" style="font-size:12px;margin:4px 0">El video quedó publicado. Ahora sus shorts.</div><button class="btn" onclick="goShorts()">Ir a Shorts</button></div>';
+    if(uplPend.length) return '<div class="card"><button class="btn" onclick="goShorts()">🎬 Publicar/programar shorts ('+uplPend.length+')</button></div>';
+    if(sst.can_suggest && !anyUploaded) return '<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700">🎬 Siguiente: sugerir shorts</div><div class="muted" style="font-size:12px;margin:4px 0">El video quedó publicado. Ahora sus shorts.</div><button class="btn" onclick="goShorts()">Ir a Shorts</button></div>';
     return '';
   }
   function voicePickerHtml(){
@@ -326,9 +329,12 @@ export const APP_HTML = `<!doctype html>
     }).join("");
   }
   function matrixHtml(){
+    // ¿El video YA tiene shorts? (del árbol, incluye los PROGRAMADOS) -> no marcar "falta shorts".
+    var hasShorts={}; (ST.video_tree||[]).forEach(function(l){ if((l.shorts||[]).length) hasShorts[l.video_id]=true; });
+    var shDone=function(v){ return (v.stages||{}).shorts || hasShorts[v.video_id]; };
     // Solo videos producidos con ALGO pendiente; los que ya tienen todo ✓ NO salen, y los YA
     // PROGRAMADOS tampoco (ya se ven en 📅 Agenda; no repetir la nota aquí).
-    var vm=(ST.video_matrix||[]).filter(function(v){var s=v.stages||{};return !v.scheduled && !(s.publicado && s.miniatura && s.shorts);});
+    var vm=(ST.video_matrix||[]).filter(function(v){var s=v.stages||{};return !v.scheduled && !(s.publicado && s.miniatura && shDone(v));});
     if(!(ST.video_matrix||[]).length) return "";
     if(!vm.length) return '<h2>📋 Control por video</h2><div class="card muted">✅ Todos los videos están al día: publicados, con miniatura y shorts.</div>';
     var head='<tr><th style="text-align:left">Video</th><th>🌍 Público</th><th>🖼️ Miniatura</th><th>🎬 Shorts</th></tr>';
@@ -352,9 +358,9 @@ export const APP_HTML = `<!doctype html>
       } else {
         miniCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="thumbRow(\\''+vid+'\\')">＋ Hacer</span></td>';
       }
-      // Shorts: solo se pueden hacer del video YA PUBLICADO (público). Antes de eso, "⏳ al publicar".
+      // Shorts: ✓ si ya tiene (aunque estén PROGRAMADOS). Si no, ＋Hacer (solo si el video ya es público).
       var shortsCell;
-      if(s.shorts){ shortsCell='<td style="text-align:center;color:#34d399;font-size:16px">✓</td>'; }
+      if(shDone(v)){ shortsCell='<td style="text-align:center;color:#34d399;font-size:16px">✓</td>'; }
       else if(v.public){ shortsCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="goShorts()">＋ Hacer</span></td>'; }
       else { shortsCell='<td style="text-align:center"><span style="color:var(--hint);font-size:11px">⏳ al publicar</span></td>'; }
       return '<tr><td>'+(vid?'<a href="https://youtu.be/'+vid+'" target="_blank">'+esc((v.title||"").slice(0,20))+'</a>':esc((v.title||"").slice(0,20)))+'</td>'
@@ -617,7 +623,11 @@ export const APP_HTML = `<!doctype html>
   function auto2VideosHtml(withActions){
     var list=(ST.auto2&&ST.auto2.list)||[];
     if(!list.length) return '<h2>Videos de Oddly Loop</h2><div class="card muted" style="font-size:12px">Aún sin videos. Produce una compilación arriba 👆</div>';
-    return '<h2>Videos de Oddly Loop ('+list.length+')</h2>'+list.map(function(v){
+    // Lo YA HECHO (público o programado) queda OCULTO; solo mostramos lo que falta REVISAR.
+    var now2=new Date();
+    list=list.filter(function(v){ var pv=v.privacy==="public"; var loc=localSched[v.video_id]; var future=v.publish_at&&(new Date(v.publish_at)>now2); return !pv && !future && loc!=="schedule" && loc!=="public"; });
+    if(!list.length) return '<h2>Videos de Oddly Loop</h2><div class="card muted" style="font-size:12px">✅ Todo al día. Lo público y lo programado está hecho (lo ves en 📅 Agenda). Cuando produzcas uno nuevo, aparece aquí para revisar.</div>';
+    return '<h2>Por revisar ('+list.length+')</h2>'+list.map(function(v){
       var pv=v.privacy==="public";
       var loc=localSched[v.video_id]||""; // marca optimista de esta sesión
       var schedAt=v.publish_at||""; var future=schedAt&&(new Date(schedAt)>new Date());
