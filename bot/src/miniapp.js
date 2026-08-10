@@ -326,8 +326,9 @@ export const APP_HTML = `<!doctype html>
     }).join("");
   }
   function matrixHtml(){
-    // Solo videos producidos con ALGO pendiente; los que ya tienen todo ✓ no salen.
-    var vm=(ST.video_matrix||[]).filter(function(v){var s=v.stages||{};return !(s.publicado && s.miniatura && s.shorts);});
+    // Solo videos producidos con ALGO pendiente; los que ya tienen todo ✓ NO salen, y los YA
+    // PROGRAMADOS tampoco (ya se ven en 📅 Agenda; no repetir la nota aquí).
+    var vm=(ST.video_matrix||[]).filter(function(v){var s=v.stages||{};return !v.scheduled && !(s.publicado && s.miniatura && s.shorts);});
     if(!(ST.video_matrix||[]).length) return "";
     if(!vm.length) return '<h2>📋 Control por video</h2><div class="card muted">✅ Todos los videos están al día: publicados, con miniatura y shorts.</div>';
     var head='<tr><th style="text-align:left">Video</th><th>🌍 Público</th><th>🖼️ Miniatura</th><th>🎬 Shorts</th></tr>';
@@ -587,9 +588,12 @@ export const APP_HTML = `<!doctype html>
         +nr.slice(0,4).map(function(r,i){return '<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,.06);padding:5px 0"><div style="font-size:12px">'+(i===0?'👑 ':'')+'<b>'+esc(r.label)+'</b></div><div class="muted" style="font-size:11px;white-space:nowrap">'+r.avg_vpd+'/día · '+r.videos+' vid</div></div>';}).join("")+'</div>';
     }
     if(top.length){
-      h+='<div class="card"><div class="muted" style="font-size:12px;margin-bottom:6px">Videos que más jalan (vistas/día):</div>'
-        +top.map(function(v){return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid rgba(255,255,255,.06);padding:5px 0"><div style="font-size:12px">'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,28))+'</a>':esc(v.title||""))+(v.niche_label?' <span class="muted">('+esc(v.niche_label)+')</span>':'')+'</div><div style="font-size:11px;color:var(--cy);white-space:nowrap">'+num(v.views)+' · '+(v.vpd||0)+'/día</div></div>';}).join("")+'</div>';
+      h+='<div class="card"><div class="muted" style="font-size:12px;margin-bottom:6px">🏆 Top 3 (vistas/día):</div>'
+        +top.slice(0,3).map(function(v,i){return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid rgba(255,255,255,.06);padding:5px 0"><div style="font-size:12px">'+["🥇","🥈","🥉"][i]+' '+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,26))+'</a>':esc(v.title||""))+(v.niche_label?' <span class="muted">('+esc(v.niche_label)+')</span>':'')+'</div><div style="font-size:11px;color:var(--cy);white-space:nowrap">'+num(v.views)+' · '+(v.vpd||0)+'/día</div></div>';}).join("")+'</div>';
     }
+    var zero=((a.list)||[]).filter(function(v){return v.privacy==="public"&&(v.views||0)===0;}).length;
+    var pubN=((a.list)||[]).filter(function(v){return v.privacy==="public";}).length;
+    if(pubN) h+='<div class="card muted" style="font-size:12px">👁️ Sin ni una vista: <b>'+zero+'</b> de '+pubN+' públicos.'+(zero?' Revisa título/miniatura/hora de esos.':' ')+'</div>';
     var bh=a.best_hours;
     if(bh&&bh.hours&&bh.hours.length) h+='<div class="card muted" style="font-size:12px">🕐 <b>Mejores horas (por tus datos):</b> '+bh.hours.map(function(x){return x+':00';}).join(", ")+' ET · programando ahí. (Basado en '+bh.based_on+' videos.)</div>';
     else h+='<div class="card muted" style="font-size:12px">🕐 Horas de publicación: por ahora las de mejor resultado según investigación (pico tarde/noche EEUU). Se afinan solas cuando haya datos de tu canal.</div>';
@@ -599,9 +603,14 @@ export const APP_HTML = `<!doctype html>
   function dataLensTopHtml(){
     var top=ST.top||[]; var bh=ST.best_hours; var h='';
     if(top.length){
-      h+='<h2>🔥 Lo que más rinde (para replicar)</h2><div class="card"><div class="muted" style="font-size:12px;margin-bottom:6px">Videos que más jalan (vistas/día):</div>'
-        +top.map(function(v){return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid rgba(255,255,255,.06);padding:5px 0"><div style="font-size:12px">'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,30))+'</a>':esc(v.title||""))+'</div><div style="font-size:11px;color:var(--cy);white-space:nowrap">'+num(v.views)+' · '+(v.vpd||0)+'/día</div></div>';}).join("")+'</div>';
+      h+='<h2>🔥 Lo que más rinde (para replicar)</h2><div class="card"><div class="muted" style="font-size:12px;margin-bottom:6px">🏆 Top 3 (vistas/día):</div>'
+        +top.slice(0,3).map(function(v,i){return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid rgba(255,255,255,.06);padding:5px 0"><div style="font-size:12px">'+["🥇","🥈","🥉"][i]+' '+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,28))+'</a>':esc(v.title||""))+'</div><div style="font-size:11px;color:var(--cy);white-space:nowrap">'+num(v.views)+' · '+(v.vpd||0)+'/día</div></div>';}).join("")+'</div>';
     }
+    // Videos públicos sin ni una vista (de todo el árbol: largos + shorts).
+    var all=[]; (ST.video_tree||[]).forEach(function(l){ all.push(l); (l.shorts||[]).forEach(function(s){all.push(s);}); }); (ST.video_tree_ungrouped||[]).forEach(function(s){all.push(s);});
+    var pubN=all.filter(function(v){return v.privacy==="public";}).length;
+    var zero=all.filter(function(v){return v.privacy==="public"&&(v.views||0)===0;}).length;
+    if(pubN) h+='<div class="card muted" style="font-size:12px">👁️ Sin ni una vista: <b>'+zero+'</b> de '+pubN+' públicos.'+(zero?' Revisa título/miniatura/hora de esos.':'')+'</div>';
     if(bh&&bh.hours&&bh.hours.length) h+='<div class="card muted" style="font-size:12px">🕐 <b>Mejores horas (por tus datos):</b> '+bh.hours.map(function(x){return x+':00';}).join(", ")+' ET · programando ahí. (Basado en '+bh.based_on+' videos.)</div>';
     return h;
   }
@@ -789,8 +798,8 @@ export const APP_HTML = `<!doctype html>
         + '<div class="card muted" style="font-size:12px">Oddly Loop es <b>full-auto</b>: cuando prendamos el cron, produce y programa 3/día solo. Aquí revisas/publicas los suyos y disparas manuales.</div>';
       // AGENDA: próximos a publicar (programados) + en revisión + estado del automático + mejores horas
       el("s-agenda").innerHTML = auto2AgendaHtml();
-      // ANALITICA: KPIs + videos (consulta) + radar de nichos
-      el("s-analitica").innerHTML = auto2KpisHtml() + auto2TopHtml() + auto2VideosHtml(false) + nicheRadarHtml();
+      // ANALITICA: KPIs + top 3 + sin-vistas + radar (sin listar todos los videos)
+      el("s-analitica").innerHTML = auto2KpisHtml() + auto2TopHtml() + nicheRadarHtml();
       // MAS: info + refrescar
       el("s-mas").innerHTML = '<h2>⚙️ Canal automático</h2><div class="card muted" style="font-size:12px">Oddly Loop · @oddlyloophq · compilaciones ASMR/satisfying legales, automáticas. Solo fuentes con licencia (puerta de compliance).</div>'
         + '<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:2px">🎨 Marca del canal</div><div class="muted" style="font-size:12px;margin-bottom:8px">Aplica el banner, la descripción y los tags por API. El avatar te lo mando por Telegram para que lo subas en Studio (la API no lo permite).</div><button class="btn ghost" onclick="dispatch(\\'set_oddly_branding.yml\\',\\'Aplicar marca del canal\\')">🎨 Aplicar marca del canal</button></div>'
@@ -819,6 +828,9 @@ export const APP_HTML = `<!doctype html>
     var pend=prop.filter(function(s){return s.state==="pending";});
     var appr=prop.filter(function(s){return s.state==="approved";});
     var upl=prop.filter(function(s){return s.state==="uploaded";});
+    // Shorts YA PROGRAMADOS: fuera del listado (se ven en 📅 Agenda). Solo mostramos los que faltan.
+    var uplSched=upl.filter(function(s){return s.publish_at && s.privacy!=="public";});
+    var uplShow=upl.filter(function(s){return !(s.publish_at && s.privacy!=="public");});
     var skip=prop.filter(function(s){return s.state==="skipped";});
     var shb=""; var vid=sst.latest_video_id;
     if(pend.length){
@@ -845,15 +857,16 @@ export const APP_HTML = `<!doctype html>
         +appr.map(function(s){return '<div style="margin:2px 0">• '+esc(s.title)+'</div>';}).join("")
         +'<button class="btn" onclick="dispatch(\\'shorts_final.yml\\',\\'Generar los shorts aprobados\\')">🎬 Generar los aprobados</button></div>';
     }
-    if(upl.length){
+    if(uplSched.length) shb+='<div class="muted" style="font-size:12px;margin:6px 2px">📅 '+uplSched.length+' short(s) ya programado(s) — en la Agenda.</div>';
+    if(uplShow.length){
       var parentPub = sst.parent_public;
-      shb+='<h2>🎬 Shorts hechos</h2>';
+      shb+='<h2>🎬 Shorts (por publicar/programar)</h2>';
       if(!parentPub){
         shb+='<div class="card" style="border:1px solid rgba(245,158,11,.45)"><div style="font-weight:700;color:var(--am)">⏳ Esperando que se publique el video</div>'
           +'<div class="muted" style="font-size:12px;margin-top:4px">Estos shorts son de <b>'+esc(sst.parent_title||"un video")+'</b>, que aún está privado/programado. Se publicarán cuando el video esté público (los shorts llevan gente al video — sin video público no sirven).</div></div>';
       }
       shb+='<div class="card"><table><tr><th>Short</th><th>Estado</th><th style="text-align:right">Acción</th></tr>'
-        +upl.map(function(s){var pv=s.privacy==="public";
+        +uplShow.map(function(s){var pv=s.privacy==="public";
           var cell;
           if(pv){ cell=num(s.views)+' vistas'; }
           else if(s.publish_at){ cell='<span style="font-size:10px;color:var(--cy)">🕒 '+esc(fmtSlot(s.publish_at))+'</span>'; }
@@ -865,11 +878,11 @@ export const APP_HTML = `<!doctype html>
         }).join("")+'</table></div>';
     }
     if(skip.length) shb+='<div class="muted" style="font-size:12px;margin:6px 2px">Saltados: '+skip.length+'.</div>';
-    if(sst.can_suggest){
+    if(sst.can_suggest && !upl.length){
       shb+='<button class="btn" onclick="suggestShorts()">🤖 Sugerir shorts del último video</button>'
         +'<div class="muted" style="font-size:11px;margin-top:4px">La IA analiza el último video: cuántos shorts, de qué momentos y qué tan largos.</div>';
-    } else if(sst.all_done){
-      shb+='<div class="card muted">✓ Ya hiciste los shorts de este video. Cuando publiques uno nuevo, aquí podrás sugerir los suyos.</div>';
+    } else if((sst.all_done || uplSched.length) && !uplShow.length){
+      shb+='<div class="card muted">✓ Los shorts de este video ya están hechos'+(uplSched.length?' y programados':'')+'. Cuando publiques uno nuevo, aquí podrás sugerir los suyos.</div>';
     }
     if(!shb) shb='<div class="card muted">Aún no hay shorts. Publica un video y dale a Sugerir.</div>';
 
@@ -931,7 +944,6 @@ export const APP_HTML = `<!doctype html>
       +dataLensTopHtml()
       +analysisHtml()
       +factoryHtml()
-      +videosCard
       +monetizationHtml();
 
     // ===== MAS ===== crear contenido + sistema (voz, herramientas, problemas, errores, almacenamiento).
