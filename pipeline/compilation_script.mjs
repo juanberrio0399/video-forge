@@ -31,7 +31,7 @@ const NICHE_STYLE = {
   naturaleza_relax: "naturaleza relajante con narración calmada y datos de la naturaleza; ritmo lento, cada beat una imagen bella con un dato asombroso.",
 }[niche] || "narración calmada con un dato curioso por clip.";
 // Reglas de RETENCIÓN que aplican a todo guion narrado (lo que separa lo pro de lo genérico).
-const EXPERT_RULES = "REGLAS DE RETENCIÓN: (1) el PRIMER beat engancha en los primeros 2 segundos (pattern interrupt / brecha de curiosidad / algo contraintuitivo); NADA de 'in this video'. (2) Frases CORTAS y rítmicas, aptas para voz. (3) A la mitad, un cambio que re-engancha. (4) El ÚLTIMO beat cierra fuerte (giro, remate o CTA de 3 palabras). (5) Cero relleno: si un beat no sube la apuesta, va fuera.";
+const EXPERT_RULES = "REGLAS DE RETENCIÓN: (1) el PRIMER beat engancha en los primeros 2 segundos (pattern interrupt / brecha de curiosidad / algo contraintuitivo); NADA de 'in this video'. (2) Frases CORTAS y rítmicas, aptas para voz. (3) A la mitad, un cambio que re-engancha. (4) El ÚLTIMO beat cierra fuerte (giro, remate o CTA de 3 palabras). (5) Cero relleno: si un beat no sube la apuesta, va fuera. (6) EDITA COMO CINE: piensa como EDITOR CINEMATOGRÁFICO — planifica VARIEDAD de planos (general → detalle → macro), RITMO que corta con el sonido, CONTRASTE visual entre beats consecutivos, y un ARCO emocional (calma → clímax → cierre). Elige queries de tomas con MOVIMIENTO y TEXTURA (cámara lenta, macro, dron), nunca estáticas ni genéricas.";
 
 async function gemini(prompt) {
   if (!KEYS.length) return null;

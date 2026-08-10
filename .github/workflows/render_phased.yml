@@ -336,8 +336,9 @@ jobs:
             console.log("orden de union:\n"+lines.join("\n"));
             if(!lines.length){ console.error("Sin fases para unir"); process.exit(1); }
           '
-          # Re-encode al unir (las fases pueden variar levemente) y comprimir para R2 (<300MB).
-          ffmpeg -y -f concat -safe 0 -i list.txt -c:v libx264 -crf 26 -preset medium -pix_fmt yuv420p -c:a aac -b:a 128k renders/video.mp4
+          # Re-encode al unir (las fases pueden variar levemente) + ACABADO CINEMATOGRAFICO sutil
+          # (viñeta fílmica) y comprimir para R2 (<300MB).
+          ffmpeg -y -f concat -safe 0 -i list.txt -vf "vignette=a=PI/8" -c:v libx264 -crf 26 -preset medium -pix_fmt yuv420p -c:a aac -b:a 128k renders/video.mp4
           ls -la renders/video.mp4
           # MUSICA DE FONDO con DUCKING: baja sola cuando habla la voz. Un video con musica se siente
           # MUCHO mas pro que uno mudo. La musica ya esta en R2 (music/cinematic.mp3); si falla, sigue sin musica.
