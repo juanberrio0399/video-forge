@@ -219,7 +219,7 @@ function etOffsetHours(d) {
 }
 // MEJORES horas de publicacion (ET) por dia de semana — DOS slots/dia para poder publicar >=2/dia:
 //  fin de semana: 9AM y 3PM · lunes: 3PM y 7PM · mar-vie: 12PM y 5PM.
-function bestHoursET(dow) { if (dow === 0 || dow === 6) return [9, 12, 15, 18]; if (dow === 1) return [12, 15, 18, 21]; return [11, 14, 17, 20]; }
+function bestHoursET(dow) { if (dow === 0 || dow === 6) return [9, 11, 13, 15, 18, 20]; if (dow === 1) return [11, 13, 15, 17, 19, 21]; return [10, 12, 14, 16, 18, 20]; }
 // Lista cronologica de TODOS los slots (mejor hora) de los proximos `days` dias, en ms UTC.
 function upcomingSlotList(days, dataHours) {
   const out = [], now = Date.now();

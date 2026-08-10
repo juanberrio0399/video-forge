@@ -707,7 +707,7 @@ export const APP_HTML = `<!doctype html>
     }
     // Cadencia diaria por categoría (cron)
     h+='<div class="card"><div style="font-weight:800;font-size:14px;margin-bottom:4px">⚙️ Cadencia diaria (automática)</div>'
-      +'<div class="muted" style="font-size:12px;margin-bottom:8px"><b>1 video por categoría al día = 4/día</b>, cada uno a su mejor hora libre:<br>🎬 Satisfying/ASMR · 🎬 Narrativas · 🎬 Ciencia+humor · 🎬 Naturaleza. <br>Escalable cuando quieras. Publicados hasta hoy: '+pubCount+'.</div>'
+      +'<div class="muted" style="font-size:12px;margin-bottom:8px">🚀 <b>Blitz de Shorts:</b> 2 Shorts por categoría (8/día) + 1 largo/día, cada uno a su mejor hora libre (tope 2/hora). Vía rápida a monetizar (10M vistas de Shorts/90d).<br>🎬 Satisfying/ASMR · 🎬 Narrativas · 🎬 Ciencia+humor · 🎬 Naturaleza. <br>Ajustable en cadence.json. Publicados hasta hoy: '+pubCount+'.</div>'
       +'<button class="btn ghost" onclick="dispatch(\\'daily_oddly.yml\\',\\'Lanzar la cadencia de hoy\\')">▶️ Lanzar la tanda de hoy ahora</button></div>';
     return h+bestTimesHtml();
   }
