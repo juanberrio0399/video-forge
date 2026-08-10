@@ -66,6 +66,7 @@ Cada canal maneja sus estados, procesos, producción, agendado y credenciales **
 
 | Doc | Qué contiene |
 |---|---|
+| [docs/FLUJOS.md](docs/FLUJOS.md) | **Todos los flujos con diagramas** (producción de cada canal, agendado, estado/app, sonido, auto-recuperación). |
 | [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md) | Componentes, flujo end-to-end, estado en R2, crons, auto-recuperación. |
 | [docs/CANAL_AUTOMATICO.md](docs/CANAL_AUTOMATICO.md) | Blueprint de Oddly Loop (compilaciones legales), nichos, sonido, fases. |
 | [docs/EXPERTO_POR_CATEGORIA.md](docs/EXPERTO_POR_CATEGORIA.md) | Proceso para trabajar cada categoría a nivel experto + editor de cine. |
