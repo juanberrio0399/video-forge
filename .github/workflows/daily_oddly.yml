@@ -31,28 +31,37 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Producir y programar 1 por categoria (nombrando la categoria)
+      - name: Blitz de Shorts + largo del dia (nombrando la categoria)
         run: |
           # Cadencia: R2 (channel/auto2/cadence.json) si existe; si no, el seed del repo.
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/cadence.json" --file=cadence.json --remote 2>/dev/null || cp channel/auto2/cadence.seed.json cadence.json
-          # Arma el plan del dia: una linea "niche variant kind" por cada video a producir.
+          export DOY=$(date -u +%j)   # dia del anio -> rota el nicho del largo
+          # Arma el plan: N Shorts por categoria + long_per_day largos (rotando nicho). Compatible
+          # con el formato viejo (per_category_per_day + kind).
           node -e '
             const c=JSON.parse(require("fs").readFileSync("cadence.json","utf8"));
-            const per=c.per_category_per_day||{}, va=c.variant||{}, kind=c.kind||"video";
-            const out=[];
-            for(const [niche,n] of Object.entries(per)){ for(let i=0;i<(+n||0);i++){ out.push(niche+" "+(va[niche]||"narrado")+" "+kind); } }
+            const va=c.variant||{}; const out=[];
+            if(c.shorts_per_category){
+              for(const [niche,n] of Object.entries(c.shorts_per_category)){ for(let i=0;i<(+n||0);i++) out.push(niche+" "+(va[niche]||"narrado")+" short"); }
+              const rot=c.long_rotation||Object.keys(c.shorts_per_category);
+              const doy=parseInt(process.env.DOY||"0",10);
+              for(let i=0;i<(+c.long_per_day||0);i++){ const niche=rot[(doy+i)%rot.length]; out.push(niche+" "+(va[niche]||"narrado")+" video"); }
+            } else {
+              const per=c.per_category_per_day||{}, kind=c.kind||"video";
+              for(const [niche,n] of Object.entries(per)){ for(let i=0;i<(+n||0);i++) out.push(niche+" "+(va[niche]||"narrado")+" "+kind); }
+            }
             require("fs").writeFileSync("plan.txt", out.join("\n")+"\n");
-            console.log("Plan de hoy ("+out.length+" videos):\n"+out.map(l=>"  - "+l).join("\n"));
+            console.log("Plan de hoy ("+out.length+" piezas):\n"+out.map(l=>"  - "+l).join("\n"));
           '
           LABEL() { case "$1" in satisfying) echo "Satisfying/ASMR";; narrativas) echo "Narrativas";; ciencia_humor) echo "Ciencia+humor";; naturaleza_relax) echo "Naturaleza";; *) echo "$1";; esac; }
           FIRST=1
           while read -r NICHE VARIANT KIND; do
             [ -z "$NICHE" ] && continue
-            # Espacio ~12 min entre disparos para que las horas queden ESCALONADAS (no todas juntas).
-            if [ "$FIRST" = "0" ]; then sleep 720; fi
+            # ~5 min entre disparos para que el agendado quede ESCALONADO (best_slot reparte + tope 2/hora).
+            if [ "$FIRST" = "0" ]; then sleep 300; fi
             FIRST=0
-            echo "▶ Categoria: $(LABEL "$NICHE") ($VARIANT, $KIND)"
+            echo "▶ $(LABEL "$NICHE") ($VARIANT, $KIND)"
             gh workflow run produce_oddly.yml -f niche="$NICHE" -f variant="$VARIANT" -f kind="$KIND" -f publish=yes -R "$GITHUB_REPOSITORY" || echo "no pude disparar $NICHE"
           done < plan.txt
-          N=$(grep -c . plan.txt)
-          bash pipeline/notify_telegram.sh "🗓️ Oddly Loop — cadencia diaria: lancé ${N} videos, 1 por categoria (Satisfying/ASMR, Narrativas, Ciencia+humor, Naturaleza). Cada uno se programa a su mejor hora libre." || true
+          N=$(grep -c . plan.txt); SH=$(grep -c " short$" plan.txt); LO=$(grep -c " video$" plan.txt)
+          bash pipeline/notify_telegram.sh "🚀 Oddly Loop — blitz del día: lancé ${N} piezas (${SH} Shorts + ${LO} largo), en las 4 categorías. Cada una se programa a su mejor hora libre (tope 2/hora)." || true

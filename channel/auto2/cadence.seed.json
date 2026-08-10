@@ -1,16 +1,17 @@
 {
-  "_nota": "Cuántos videos por categoría al día programa Oddly Loop. RAMP inicial = 1 c/u (4/día). Para escalar, sube los números (o pídemelo). Cada video se nombra con su categoría (niche_map + la app muestra 🎬).",
-  "per_category_per_day": {
-    "satisfying": 1,
-    "narrativas": 1,
-    "ciencia_humor": 1,
-    "naturaleza_relax": 1
+  "_nota": "BLITZ DE SHORTS (audaz) para monetizar rápido: 10M vistas de Shorts en 90 días = YPP. shorts_per_category = Shorts/día por categoría; long_per_day = largos/día (rotando el nicho por día) para watch-hours. Sube/baja los números para dialar la agresividad. Cada uno se programa a su mejor hora, tope 2/hora.",
+  "shorts_per_category": {
+    "satisfying": 2,
+    "narrativas": 2,
+    "ciencia_humor": 2,
+    "naturaleza_relax": 2
   },
+  "long_per_day": 1,
+  "long_rotation": ["satisfying", "naturaleza_relax", "ciencia_humor", "narrativas"],
   "variant": {
     "satisfying": "puro",
     "naturaleza_relax": "puro",
     "narrativas": "narrado",
     "ciencia_humor": "narrado"
-  },
-  "kind": "video"
+  }
 }
