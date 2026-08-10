@@ -4,6 +4,8 @@ name: Reporte del canal (seguimiento + programacion)
 # video publicado, actualiza el estado del canal en R2 y manda el reporte al chat.
 
 on:
+  schedule:
+    - cron: "20 */6 * * *"   # cada 6h: mantiene FRESCO el estado de The Data Lens (vistas, top, mejores horas)
   workflow_dispatch:
 
 permissions:
