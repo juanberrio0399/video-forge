@@ -751,7 +751,8 @@ export const APP_HTML = `<!doctype html>
     return '<h2>Monetización (YPP)</h2><div class="card">'
       +'<div class="muted">Suscriptores '+(mon.subs||0)+' / 1000</div><div class="bar"><i style="width:'+pct(mon.subs,1000)+'%"></i></div>'
       +'<div class="muted" style="margin-top:10px">Horas '+(mon.watch_hours!=null?mon.watch_hours:"—")+' / 4000</div><div class="bar"><i style="width:'+pct(mon.watch_hours,4000)+'%"></i></div>'
-      +'<div style="margin-top:12px" class="'+(mon.elegible?"":"muted")+'">'+(mon.elegible?"✅ Elegible para monetizar":"❌ Aún no elegible")+'</div></div>';
+      +'<div style="margin-top:12px" class="'+(mon.elegible?"":"muted")+'">'+(mon.elegible?"✅ Elegible para monetizar":"❌ Aún no elegible")+'</div>'
+      +'<div class="muted" style="font-size:10px;margin-top:6px">⏱️ Las horas/minutos vistos vienen de YouTube Analytics, que va ~2-3 días atrasado (normal, no es error). Las <b>vistas</b> sí son casi al día.</div></div>';
   }
   function analysisHtml(){
     var a=ST.analysis; if(!a) return "";
