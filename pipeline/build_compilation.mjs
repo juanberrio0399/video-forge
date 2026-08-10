@@ -38,7 +38,15 @@ const PROFILES = {
   ciencia_humor:   { keepAudio: false, amb: 0.9,  music: 0.12, voice: 1.0,  grade: GRADE,                                                              minClip: 1.6 },
 };
 const profile = { ...(PROFILES[niche] || { keepAudio: false, amb: 0, music: 0.12, voice: 1.0, grade: GRADE, minClip: 1.6 }), ...(nicheCfg.profile || {}) };
-const NGRADE = profile.grade || GRADE;
+// ACABADO CINEMATOGRÁFICO (como un colorista de cine): viñeta suave + grano fílmico + micro-contraste,
+// por nicho. Sutil en satisfying/naturaleza (limpio y nítido); fuerte y frío en narrativas (drama).
+const CINE = {
+  satisfying: "vignette=a=PI/7",
+  naturaleza_relax: "vignette=a=PI/7",
+  ciencia_humor: "vignette=a=PI/6,noise=alls=4:allf=t",
+  narrativas: "vignette=a=PI/5,noise=alls=8:allf=t,curves=preset=medium_contrast",
+};
+const NGRADE = (profile.grade || GRADE) + "," + (CINE[niche] || "vignette=a=PI/7");
 console.log(`Perfil de "${niche}": sonido-clip=${profile.keepAudio ? "SÍ (ASMR/relax)" : "no"} · voz=${profile.voice} · música=${profile.music}${profile.keepAudio ? " · ambiente=" + profile.amb : ""}`);
 const vm = readJSON(voicemapPath, {});
 const beats = vm.beats || [];

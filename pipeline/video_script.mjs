@@ -62,6 +62,7 @@ const prompt =
   `Reglas de retencion: gancho brutal en la 1a frase; promete algo al inicio y pagalo al final; ` +
   `escala cifras/datos de menor a mayor; una vuelta de tuerca ("twist") a mitad y al final; ` +
   `micro-ganchos entre secciones; cierra con CTA (suscribirse + el siguiente video de la serie). ` +
+  `PIENSA COMO EDITOR CINEMATOGRAFICO: construye un ARCO emocional (calma -> tension -> clímax -> resolución), varia el RITMO (frases cortas para tension, pausas para peso), y estructura por escenas con transiciones motivadas (cada beat prepara el siguiente). Momentos de SILENCIO/pausa antes de un dato fuerte. ` +
   `${TONE_TXT} ` +
   `Para ${TARGET_MIN} min, manten la retencion ALTA todo el video (nada de relleno: cada beat aporta un dato o giro). ` +
   `Todo en INGLES natural (no robotico). Devuelve SOLO JSON:\n` +

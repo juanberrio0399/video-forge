@@ -15,6 +15,17 @@ Ninguna categoría se da por lista con lo "básico". Este es el proceso repetibl
 5. **Producir demo privado**, escuchar/ver, **afinar** (volúmenes, stingers, ritmo) y repetir.
 6. **Documentar** aquí lo aprendido del nicho.
 
+## Pensar y editar como EDITOR CINEMATOGRÁFICO (todo, siempre)
+
+Toda la producción (guion + ensamblaje) piensa como un editor de cine pro:
+- **Arco emocional**: calma → tensión → clímax → resolución. Cada beat prepara el siguiente (transiciones motivadas).
+- **Ritmo**: varía la duración de los planos y el largo de las frases; pausas/silencio antes de un momento fuerte; corta con el sonido.
+- **Planos**: variedad (general → detalle → macro), tomas con movimiento y textura (cámara lenta, macro, dron), nunca estáticas ni genéricas. Contraste visual entre beats consecutivos.
+- **Color (look fílmico)**: viñeta suave + micro-contraste + grano sutil; frío/dramático en narrativas, limpio y nítido en satisfying/naturaleza. En `build_compilation.mjs` (mapa `CINE` por nicho) y viñeta sutil en el render del canal principal.
+- **Sonido**: diseño por nicho (paletas ASMR / cama+stingers), silencio estratégico, risers hacia los reveals.
+
+Está encodado en los prompts (`compilation_script.mjs` EXPERT_RULES · `video_script.mjs`) y en el grade del ensamblador.
+
 ## Reglas de retención (todo guion narrado)
 
 - **Primeros 2 s**: pattern interrupt / brecha de curiosidad / algo contraintuitivo. Nunca "in this video".
