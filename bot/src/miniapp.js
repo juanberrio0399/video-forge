@@ -792,7 +792,9 @@ export const APP_HTML = `<!doctype html>
       // ANALITICA: KPIs + videos (consulta) + radar de nichos
       el("s-analitica").innerHTML = auto2KpisHtml() + auto2TopHtml() + auto2VideosHtml(false) + nicheRadarHtml();
       // MAS: info + refrescar
-      el("s-mas").innerHTML = '<h2>⚙️ Canal automático</h2><div class="card muted" style="font-size:12px">Oddly Loop · @oddlyloophq · compilaciones ASMR/satisfying legales, automáticas. Solo fuentes con licencia (puerta de compliance).</div>' + auto2RefreshBtn();
+      el("s-mas").innerHTML = '<h2>⚙️ Canal automático</h2><div class="card muted" style="font-size:12px">Oddly Loop · @oddlyloophq · compilaciones ASMR/satisfying legales, automáticas. Solo fuentes con licencia (puerta de compliance).</div>'
+        + '<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:2px">🎨 Marca del canal</div><div class="muted" style="font-size:12px;margin-bottom:8px">Aplica el banner, la descripción y los tags por API. El avatar te lo mando por Telegram para que lo subas en Studio (la API no lo permite).</div><button class="btn ghost" onclick="dispatch(\\'set_oddly_branding.yml\\',\\'Aplicar marca del canal\\')">🎨 Aplicar marca del canal</button></div>'
+        + auto2RefreshBtn();
       el("globalStatus").innerHTML="";
       return;
     }

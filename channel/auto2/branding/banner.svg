@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="1152" viewBox="0 0 2048 1152">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#EEF3FC"/>
+      <stop offset="0.55" stop-color="#C7D6F1"/>
+      <stop offset="1" stop-color="#A6BEE8"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.55">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="2048" height="1152" fill="url(#bg)"/>
+  <rect width="2048" height="1152" fill="url(#glow)"/>
+  <!-- Ripples decorativos suaves a los costados (fuera de la zona segura) -->
+  <g fill="none" stroke="#3F4E86" stroke-opacity="0.10" stroke-width="10">
+    <circle cx="150" cy="576" r="120"/><circle cx="150" cy="576" r="200"/><circle cx="150" cy="576" r="280"/>
+    <circle cx="1898" cy="576" r="120"/><circle cx="1898" cy="576" r="200"/><circle cx="1898" cy="576" r="280"/>
+  </g>
+  <!-- ZONA SEGURA (centro ~1546x423): marca + wordmark + tagline -->
+  <g>
+    <g fill="none" stroke="#3F4E86" stroke-linecap="round">
+      <circle cx="760" cy="576" r="92" stroke-opacity="0.18" stroke-width="8"/>
+      <circle cx="760" cy="576" r="60" stroke-opacity="0.4" stroke-width="9"/>
+    </g>
+    <circle cx="760" cy="576" r="26" fill="#3F4E86"/>
+    <circle cx="760" cy="576" r="11" fill="#EEF3FC"/>
+    <text x="900" y="560" font-family="Arial, Helvetica, sans-serif" font-size="150" font-weight="700" letter-spacing="1" fill="#2E3B6B">Oddly Loop</text>
+    <text x="904" y="650" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="400" letter-spacing="6" fill="#4A5A93">oddly satisfying · asmr · relax</text>
+  </g>
+</svg>

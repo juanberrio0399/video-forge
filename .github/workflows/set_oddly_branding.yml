@@ -1,0 +1,47 @@
+name: Marca del canal Oddly Loop (banner + descripcion + tags)
+
+# Rasteriza el logo y el banner (SVG -> PNG con rsvg), aplica por API (YT2): sube el BANNER y
+# fija descripcion + keywords + pais + idioma. El AVATAR no se puede por API -> te lo mando por
+# Telegram para que lo subas en YouTube Studio. Correr a mano (workflow_dispatch).
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  brand:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      YT_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Rasterizar SVG -> PNG
+        run: |
+          sudo apt-get update && sudo apt-get install -y librsvg2-bin fonts-liberation
+          rsvg-convert -w 800 -h 800 channel/auto2/branding/logo.svg -o logo.png
+          rsvg-convert -w 2048 -h 1152 channel/auto2/branding/banner.svg -o banner.png
+          ls -la logo.png banner.png
+      - name: Aplicar marca por API (banner + descripcion + tags)
+        run: node pipeline/set_channel_branding.mjs channel/auto2/branding/channel.json banner.png
+      - name: Guardar PNGs en R2 + mandarte el avatar
+        if: always()
+        run: |
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/branding/logo.png" --file=logo.png --remote --content-type image/png || true
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/branding/banner.png" --file=banner.png --remote --content-type image/png || true
+          # El avatar NO se puede por API -> te lo mando para que lo subas en Studio.
+          curl -s -F chat_id="$TELEGRAM_CHAT_ID" -F photo=@logo.png -F caption="🎨 Avatar de Oddly Loop. Súbelo en YouTube Studio → Personalización → Imagen → Foto de perfil (la API no permite el avatar). El banner, descripción y tags ya quedaron aplicados por el bot." "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto" >/dev/null || true
