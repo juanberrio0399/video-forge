@@ -212,7 +212,7 @@ export const APP_HTML = `<!doctype html>
     if(sst.pending) return '<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700">🎬 Siguiente: aprobar shorts</div><div class="muted" style="font-size:12px;margin:4px 0">Hay '+sst.pending+' short(s) sugerido(s) esperando tu aprobación.</div><button class="btn" onclick="goShorts()">Ver shorts para aprobar</button></div>';
     if(sst.approved_pend) return '<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700">🎬 Siguiente: generar shorts</div><div class="muted" style="font-size:12px;margin:4px 0">'+sst.approved_pend+' aprobado(s), listos para generar.</div><button class="btn" onclick="goShorts()">Ir a Shorts</button></div>';
     if(uplPend.length) return '<div class="card"><button class="btn" onclick="goShorts()">🎬 Publicar/programar shorts ('+uplPend.length+')</button></div>';
-    if(sst.can_suggest && !anyUploaded) return '<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700">🎬 Siguiente: sugerir shorts</div><div class="muted" style="font-size:12px;margin:4px 0">El video quedó publicado. Ahora sus shorts.</div><button class="btn" onclick="goShorts()">Ir a Shorts</button></div>';
+    if(sst.can_suggest) return '<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700">🎬 Siguiente: generar shorts</div><div class="muted" style="font-size:12px;margin:4px 0">El video quedó publicado y aún no tiene shorts. Genéralos (más alcance → más gente al video).</div><button class="btn" onclick="goShorts()">Ir a Shorts</button></div>';
     return '';
   }
   function voicePickerHtml(){
@@ -883,9 +883,10 @@ export const APP_HTML = `<!doctype html>
         }).join("")+'</table></div>';
     }
     if(skip.length) shb+='<div class="muted" style="font-size:12px;margin:6px 2px">Saltados: '+skip.length+'.</div>';
-    if(sst.can_suggest && !upl.length){
-      shb+='<button class="btn" onclick="suggestShorts()">🤖 Sugerir shorts del último video</button>'
-        +'<div class="muted" style="font-size:11px;margin-top:4px">La IA analiza el último video: cuántos shorts, de qué momentos y qué tan largos.</div>';
+    if(sst.can_suggest){
+      shb+='<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700;font-size:13px;margin-bottom:4px">🎬 Generar los shorts de este video</div>'
+        +'<div class="muted" style="font-size:12px;margin-bottom:8px">El video ya está público y aún no tiene shorts. La IA analiza el video: cuántos shorts, de qué momentos y qué tan largos, y te los propone para aprobar.</div>'
+        +'<button class="btn" onclick="suggestShorts()">🤖 Sugerir shorts del último video</button></div>';
     } else if((sst.all_done || uplSched.length) && !uplShow.length){
       shb+='<div class="card muted">✓ Los shorts de este video ya están hechos'+(uplSched.length?' y programados':'')+'. Cuando publiques uno nuevo, aquí podrás sugerir los suyos.</div>';
     }
