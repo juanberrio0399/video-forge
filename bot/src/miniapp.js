@@ -649,26 +649,20 @@ export const APP_HTML = `<!doctype html>
     }).join("");
   }
   function auto2ProduceCard(){
-    var niches=[["satisfying","Satisfying/ASMR"],["narrativas","Narrativas"],["ciencia_humor","Ciencia+humor"],["naturaleza_relax","Naturaleza"]];
-    return '<h2>🏭 Producir</h2>'
-      +'<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:2px">📱 Shorts ASMR <span class="muted" style="font-weight:400">— lo que más se ve</span></div>'
-      +'<div class="muted" style="font-size:12px;margin-bottom:8px">Vertical 9:16 · duración según categoría (ASMR aguanta más largo). PRIVADOS para revisar.</div>'
-      +'<div class="chips">'
-      +'<span class="chip" onclick="produceOddly(\\'satisfying\\',\\'short\\',\\'puro\\')">🔇 Short sin voz</span>'
-      +'<span class="chip" onclick="produceOddly(\\'satisfying\\',\\'short\\',\\'narrado\\')">🎙️ Short con voz</span>'
-      +'</div></div>'
-      +'<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:2px">🎬 Video largo (16:9)</div>'
-      +'<div class="muted" style="font-size:12px;margin-bottom:8px">Compilación completa. PRIVADO para revisar. ~15 min.</div>'
-      +'<div class="chips">'
-      +'<span class="chip" onclick="produceOddly(\\'satisfying\\',\\'video\\',\\'puro\\')">🔇 ASMR sin voz</span>'
-      +'<span class="chip" onclick="produceOddly(\\'satisfying\\',\\'video\\',\\'narrado\\')">🎙️ ASMR con voz</span>'
-      +'</div>'
-      +'<div class="muted" style="font-size:11px;margin-top:10px;margin-bottom:4px">Otros nichos (video con voz):</div>'
-      +'<div class="chips">'+niches.slice(1).map(function(n){return '<span class="chip ghost" onclick="produceOddly(\\''+n[0]+'\\',\\'video\\',\\'narrado\\')">'+esc(n[1])+'</span>';}).join("")+'</div>'
-      +'</div>'
-      +'<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:2px">🎧 Biblioteca de sonidos ASMR</div>'
-      +'<div class="muted" style="font-size:12px;margin-bottom:8px">Los mejores sonidos CC0 curados por paleta (cama + acentos), guardados en la nube. Necesita la API key de Freesound.</div>'
-      +'<button class="btn ghost" onclick="dispatch(\\'build_asmr_library.yml\\',\\'Construir biblioteca ASMR\\')">🎧 Construir / refrescar biblioteca</button></div>';
+    // TODAS las categorías POR IGUAL: cada una con su Short y su Video (variante natural del nicho).
+    var niches=[["satisfying","Satisfying / ASMR","puro"],["narrativas","Narrativas","narrado"],["ciencia_humor","Ciencia + humor","narrado"],["naturaleza_relax","Naturaleza / relax","puro"]];
+    var h='<h2>🏭 Producir</h2><div class="muted" style="font-size:12px;margin:0 2px 8px">Las 4 categorías por igual. Queda PRIVADO para revisar.</div>';
+    h+=niches.map(function(n){
+      return '<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:6px">🎬 '+esc(n[1])+' <span class="muted" style="font-weight:400;font-size:11px">('+(n[2]==="puro"?"sin voz":"con voz")+')</span></div>'
+        +'<div class="chips">'
+        +'<span class="chip" onclick="produceOddly(\\''+n[0]+'\\',\\'short\\',\\''+n[2]+'\\')">📱 Short</span>'
+        +'<span class="chip ghost" onclick="produceOddly(\\''+n[0]+'\\',\\'video\\',\\''+n[2]+'\\')">🎬 Video largo</span>'
+        +'</div></div>';
+    }).join("");
+    h+='<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:2px">🎧 Biblioteca de sonidos</div>'
+      +'<div class="muted" style="font-size:12px;margin-bottom:8px">Los mejores sonidos CC0 curados por categoría (cama + acentos / stingers), en la nube. Necesita la API key de Freesound.</div>'
+      +'<button class="btn ghost" onclick="dispatch(\\'build_asmr_library.yml\\',\\'Construir biblioteca de sonidos\\')">🎧 Construir / refrescar biblioteca</button></div>';
+    return h;
   }
   function auto2RefreshBtn(){
     var a=ST.auto2;
