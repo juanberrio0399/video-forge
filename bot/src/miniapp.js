@@ -110,6 +110,7 @@ export const APP_HTML = `<!doctype html>
   var vSort="views";
   var lastInsights="";
   var localSched={}; // video_id -> "schedule"|"public": marca optimista al programar/publicar (feedback inmediato aunque el reporte del canal tarde en refrescar)
+  var shortsTargetVid=""; // video del que Juan quiere generar shorts (el que tocó ＋Hacer), no siempre "el último"
   var TABHELP={
     inicio:"🏠 Lo que necesita tu atención ahora + el pulso del canal.",
     producir:"🏭 El flujo de cada video: producir, revisar, aprobar, publicar — y qué le falta a cada uno. Aquí también los shorts.",
@@ -361,7 +362,7 @@ export const APP_HTML = `<!doctype html>
       // Shorts: ✓ si ya tiene (aunque estén PROGRAMADOS). Si no, ＋Hacer (solo si el video ya es público).
       var shortsCell;
       if(shDone(v)){ shortsCell='<td style="text-align:center;color:#34d399;font-size:16px">✓</td>'; }
-      else if(v.public){ shortsCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="goShorts()">＋ Hacer</span></td>'; }
+      else if(v.public){ shortsCell='<td style="text-align:center"><span style="cursor:pointer;color:var(--cy);font-weight:800" onclick="goShorts(\\''+vid+'\\')">＋ Hacer</span></td>'; }
       else { shortsCell='<td style="text-align:center"><span style="color:var(--hint);font-size:11px">⏳ al publicar</span></td>'; }
       return '<tr><td>'+(vid?'<a href="https://youtu.be/'+vid+'" target="_blank">'+esc((v.title||"").slice(0,20))+'</a>':esc((v.title||"").slice(0,20)))+'</td>'
         +pubCell
@@ -883,9 +884,16 @@ export const APP_HTML = `<!doctype html>
         }).join("")+'</table></div>';
     }
     if(skip.length) shb+='<div class="muted" style="font-size:12px;margin:6px 2px">Saltados: '+skip.length+'.</div>';
-    if(sst.can_suggest){
+    if(shortsTargetVid){
+      // Juan tocó ＋Hacer en un video ESPECÍFICO -> generamos los shorts de ESE video.
+      shb+='<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700;font-size:13px;margin-bottom:4px">🎬 Generar shorts de:</div>'
+        +'<div style="font-size:13px;margin-bottom:2px">'+esc(vidTitle(shortsTargetVid).slice(0,44))+'</div>'
+        +'<div class="muted" style="font-size:12px;margin:4px 0 8px">La IA analiza ESTE video: cuántos shorts, de qué momentos y qué tan largos, y te los propone para aprobar.</div>'
+        +'<button class="btn" onclick="suggestShorts()">🤖 Sugerir shorts de este video</button> '
+        +'<button class="btn ghost mini" onclick="clearShortsTarget()">Cancelar</button></div>';
+    } else if(sst.can_suggest){
       shb+='<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700;font-size:13px;margin-bottom:4px">🎬 Generar los shorts de este video</div>'
-        +'<div class="muted" style="font-size:12px;margin-bottom:8px">El video ya está público y aún no tiene shorts. La IA analiza el video: cuántos shorts, de qué momentos y qué tan largos, y te los propone para aprobar.</div>'
+        +'<div class="muted" style="font-size:12px;margin-bottom:8px">El último video público aún no tiene shorts. La IA analiza el video: cuántos shorts, de qué momentos y qué tan largos, y te los propone para aprobar.</div>'
         +'<button class="btn" onclick="suggestShorts()">🤖 Sugerir shorts del último video</button></div>';
     } else if((sst.all_done || uplSched.length) && !uplShow.length){
       shb+='<div class="card muted">✓ Los shorts de este video ya están hechos'+(uplSched.length?' y programados':'')+'. Cuando publiques uno nuevo, aquí podrás sugerir los suyos.</div>';
@@ -1091,13 +1099,15 @@ export const APP_HTML = `<!doctype html>
       }).catch(function(){toast("❌ Error de red");}); };
     if(mode==="public"&&tg&&tg.showConfirm){ tg.showConfirm("¿Publicar este video de Oddly Loop AHORA (público)?",function(ok){if(ok)go();}); } else go();
   }
-  function goShorts(){ tab("producir"); var e=el("shortsAnchor"); if(e) e.scrollIntoView({behavior:"smooth",block:"start"}); }
+  function goShorts(vid){ if(vid) shortsTargetVid=vid; tab("producir"); render(); var e=el("shortsAnchor"); if(e) setTimeout(function(){e.scrollIntoView({behavior:"smooth",block:"start"});},60); }
+  function clearShortsTarget(){ shortsTargetVid=""; render(); }
+  function vidTitle(id){ var all=(ST.video_matrix||[]).concat(ST.video_tree||[]); for(var i=0;i<all.length;i++){ if(all[i].video_id===id) return all[i].title||id; } return id; }
   function runShortsPlan(notes){
-    var vid=(ST.shorts_status&&ST.shorts_status.latest_video_id)||"";
+    var vid=shortsTargetVid||(ST.shorts_status&&ST.shorts_status.latest_video_id)||"";
     var inputs={}; if(vid)inputs.video_id=vid; if(notes)inputs.notes=notes;
     if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"shorts_plan.yml",inputs:inputs})})
-      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"🤖 Analizando el video para (re)sugerir shorts…":"❌ "+(j.error||"no pude"));setTimeout(load,2500);});
+      .then(function(r){return r.json();}).then(function(j){ shortsTargetVid=""; toast(j.ok?("🤖 Analizando el video para sugerir shorts…"):("❌ "+(j.error||"no pude")));setTimeout(load,2500);});
   }
   function suggestShorts(){ runShortsPlan(""); }
   function regenShorts(){ runShortsPlan((el("shNotes")&&el("shNotes").value)||""); }
