@@ -1,0 +1,75 @@
+name: Clipear short de dominio público (Archive.org -> Oddly Loop)
+
+# Prueba/producción del clipeador: toma un video LARGO de DOMINIO PÚBLICO, la IA elige el mejor
+# momento y arma un SHORT 9:16 (con NUESTRO audio), pasa la puerta de compliance y lo sube a
+# Oddly Loop (YT2) como PRIVADO para revisar (o programado si publish=yes).
+
+on:
+  workflow_dispatch:
+    inputs:
+      title:
+        description: "Título de la película de dominio público (Archive.org)"
+        default: "Steamboat Bill Jr"
+      niche:
+        description: "categoría (graciosos / cine_clasico)"
+        default: "graciosos"
+      publish:
+        description: "no = privado para revisar · yes = programa a la mejor hora"
+        default: "no"
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  clip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      YT_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+      YT_CATEGORY_ID: "24"
+      CHANNEL_URL: "https://youtube.com/@oddlyloophq"
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      TITLE: ${{ github.event.inputs.title || 'Steamboat Bill Jr' }}
+      NICHE: ${{ github.event.inputs.niche || 'graciosos' }}
+      PUBLISH: ${{ github.event.inputs.publish || 'no' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Instalar ffmpeg + fuentes
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation
+      - name: Música de fondo (opcional)
+        run: npx --yes wrangler@4 r2 object get "$BUCKET/music/cinematic.mp3" --file=music.mp3 --remote 2>/dev/null || echo "sin musica"
+      - name: Clipear el mejor momento -> short 9:16
+        run: node pipeline/clip_pd_short.mjs "$TITLE" "$NICHE" short.mp4
+      - name: PUERTA de compliance (fuente con licencia)
+        run: |
+          if node pipeline/compliance_check.mjs clip_manifest.json channel/auto2/sources.seed.json; then echo "compliance ok"; else
+            bash pipeline/notify_telegram.sh "🚫 Clip PD: la puerta rechazó el material:"$'\n'"$(cat compliance_fail.txt 2>/dev/null)" || true; exit 1; fi
+      - name: Subir a Oddly Loop (PRIVADO) + niche_map
+        run: |
+          node pipeline/youtube_upload.mjs short.mp4 publish/package.json
+          if [ ! -f publish/video_id.txt ]; then bash pipeline/notify_telegram.sh "❌ Clip PD: falló la subida." || true; exit 1; fi
+          VID=$(cat publish/video_id.txt)
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/niche_map.json" --file=nm.json --remote 2>/dev/null || echo '{}' > nm.json
+          VID="$VID" NICHE="$NICHE" node -e 'const fs=require("fs");let m={};try{m=JSON.parse(fs.readFileSync("nm.json","utf8"))}catch(e){};m[process.env.VID]=process.env.NICHE;fs.writeFileSync("nm.json",JSON.stringify(m))'
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/niche_map.json" --file=nm.json --remote --content-type application/json || true
+          if [ "$PUBLISH" = "yes" ]; then
+            npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/best_hours.json" --file=best_hours.json --remote 2>/dev/null || true
+            OCC=$(node pipeline/scheduled_times.mjs); SLOT=$(node pipeline/best_slot.mjs "$OCC")
+            node pipeline/youtube_schedule.mjs "$VID" "$SLOT" || true
+            bash pipeline/notify_telegram.sh "🎬 Clip PD (${NICHE}) subido y PROGRAMADO ($SLOT). $(cat publish/youtube_result.txt 2>/dev/null | head -2)"
+          else
+            bash pipeline/notify_telegram.sh "🎬 Clip PD (${NICHE}) — PRIMER short de prueba, PRIVADO para que lo revises 👀:"$'\n'"$(cat publish/youtube_result.txt 2>/dev/null | head -2)"
+          fi
