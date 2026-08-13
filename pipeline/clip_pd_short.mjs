@@ -82,8 +82,11 @@ console.log(`Momento elegido: ${Math.round(start)}s · "${pick.title}"`);
 // 6) Cortar + 9:16 PROFESIONAL: LLENA la pantalla (escala a lo alto y recorta al centro) =
 // tamaño completo, bien centrado, SIN barras ni subtítulos. Grade cine + viñeta sutil. Audio nuestro.
 const vf = `scale=-2:${H}:flags=lanczos,crop=${W}:${H},eq=contrast=1.07:saturation=1.06:brightness=0.01,unsharp=3:3:0.3,vignette=a=PI/7`;
+// Corte PRECISO: seek rápido a un keyframe antes + seek fino exacto -> primer fotograma NÍTIDO
+// (evita el frame ampliado/borroso de arrancar a mitad de GOP).
+const pre = Math.max(0, start - 3), fine = (start - pre).toFixed(2);
 const silent = `${work}/silent.mp4`;
-execSync(`ffmpeg -y -ss ${start} -t ${CLIP} -i "${film}" -vf "${vf}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${silent}"`, { stdio: "inherit" });
+execSync(`ffmpeg -y -ss ${pre} -i "${film}" -ss ${fine} -t ${CLIP} -vf "${vf}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${silent}"`, { stdio: "inherit" });
 if (fs.existsSync("music.mp3")) execSync(`ffmpeg -y -i "${silent}" -stream_loop -1 -i music.mp3 -filter_complex "[1:a]volume=0.5,afade=t=in:st=0:d=1[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
 else execSync(`ffmpeg -y -i "${silent}" -map 0:v -an -c:v copy "${outPath}"`, { stdio: "inherit" });
 
