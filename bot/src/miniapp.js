@@ -668,6 +668,11 @@ export const APP_HTML = `<!doctype html>
         +'<span class="chip ghost" onclick="produceOddly(\\''+n[0]+'\\',\\'video\\',\\''+n[2]+'\\')">🎬 Video largo</span>'
         +'</div></div>';
     }).join("");
+    h+='<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:2px">😹 Clips graciosos (fails · audio real)</div>'
+      +'<div class="muted" style="font-size:12px;margin-bottom:8px">Toma un video gracioso LEGAL (Archive.org CC) y arma un Short con su audio original. Queda PRIVADO para revisar aquí abajo.</div>'
+      +'<div class="chips">'
+      +["funny fails","funny animals","epic fail","bloopers","skate fails","funny cats"].map(function(t){return '<span class="chip" onclick="dispatchTopic(\\'clip_archive_cc.yml\\',\\''+t+'\\',\\'Clip gracioso: '+t+'\\')">😹 '+t+'</span>';}).join("")
+      +'</div></div>';
     h+='<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:2px">🎧 Biblioteca de sonidos</div>'
       +'<div class="muted" style="font-size:12px;margin-bottom:8px">Los mejores sonidos CC0 curados por categoría (cama + acentos / stingers), en la nube. Necesita la API key de Freesound.</div>'
       +'<button class="btn ghost" onclick="dispatch(\\'build_asmr_library.yml\\',\\'Construir biblioteca de sonidos\\')">🎧 Construir / refrescar biblioteca</button></div>';
@@ -1001,6 +1006,12 @@ export const APP_HTML = `<!doctype html>
     if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("light");
     api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:workflow})})
       .then(function(r){return r.json();}).then(function(j){toast(j.ok?("✅ "+label+" — en marcha, mira ⚡ arriba el progreso"):("❌ "+(j.error||"no pude")));if(j.ok)setTimeout(load,3000);})
+      .catch(function(){toast("❌ Error de red");});
+  }
+  function dispatchTopic(workflow, topic, label){
+    if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("light");
+    api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:workflow,inputs:{topic:topic}})})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?("✅ "+label+" — en marcha, mira ⚡ arriba"):("❌ "+(j.error||"no pude")));if(j.ok)setTimeout(load,3000);})
       .catch(function(){toast("❌ Error de red");});
   }
   function retry(wf){
