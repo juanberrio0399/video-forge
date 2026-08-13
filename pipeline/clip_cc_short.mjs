@@ -41,7 +41,10 @@ const attribution = `${src.title} · ${src.channel} · https://youtu.be/${src.id
 const film = `${work}/film.mp4`;
 const url = `https://www.youtube.com/watch?v=${src.id}`;
 const ck = fs.existsSync("cookies.txt") ? "--cookies cookies.txt " : "";
-console.log("Descargando (yt-dlp" + (ck ? " + cookies" : "") + ")…");
+// Proxy RESIDENCIAL (secret YT_PROXY) — cambia la IP a una "de casa" y salta el filtro de reputación
+// de datacenter que niega los formatos. Formato: http://user:pass@host:puerto (o socks5://...).
+const px = process.env.YT_PROXY ? `--proxy "${process.env.YT_PROXY}" ` : "";
+console.log("Descargando (yt-dlp" + (ck ? " + cookies" : "") + (px ? " + proxy" : "") + ")…");
 // YouTube niega formatos a IPs de nube (solo storyboards) aun con cookies. Clave: --impersonate
 // (falsea la huella TLS/JA3 de un navegador real, vía curl-cffi) + cliente TV. Cascada de intentos.
 const FMT = `-f "bv*[height<=1080]+ba/bv*+ba/b/b*" --merge-output-format mp4`;
@@ -55,11 +58,11 @@ const attempts = [
 ];
 let ok = false;
 for (const a of attempts) {
-  try { execSync(`yt-dlp -q --no-warnings ${ck}${a} ${FMT} -o "${film}" "${url}"`, { stdio: "inherit" }); if (fs.existsSync(film)) { ok = true; console.log("Bajado con: " + a); break; } } catch {}
+  try { execSync(`yt-dlp -q --no-warnings ${ck}${px}${a} ${FMT} -o "${film}" "${url}"`, { stdio: "inherit" }); if (fs.existsSync(film)) { ok = true; console.log("Bajado con: " + a); break; } } catch {}
 }
 if (!ok) {
   console.error("yt-dlp no pudo bajar el video. Formatos que YouTube ofrece a esta IP (con impersonate+TV):");
-  try { execSync(`yt-dlp --no-warnings ${ck}--impersonate chrome --extractor-args "youtube:player_client=tv" --list-formats "${url}"`, { stdio: "inherit" }); } catch (e) { console.error("(ni --list-formats respondió: " + e.message + ")"); }
+  try { execSync(`yt-dlp --no-warnings ${ck}${px}--impersonate chrome --extractor-args "youtube:player_client=tv" --list-formats "${url}"`, { stdio: "inherit" }); } catch (e) { console.error("(ni --list-formats respondió: " + e.message + ")"); }
   console.error(ck ? "Con cookies el bot pasó, pero YouTube sigue sin dar formatos. Prueba cookies FRESCAS en incógnito." : "Sin cookies: añade cookies.txt.");
   process.exit(2);
 }
