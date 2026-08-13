@@ -39,6 +39,7 @@ jobs:
       CHANNEL_URL: "https://youtube.com/@oddlyloophq"
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
       TOPIC: ${{ github.event.inputs.topic || 'funny animals' }}
       NICHE: ${{ github.event.inputs.niche || 'graciosos' }}
       PUBLISH: ${{ github.event.inputs.publish || 'no' }}
@@ -75,3 +76,9 @@ jobs:
           else
             bash pipeline/notify_telegram.sh "🎬 Clip Archive CC (${NICHE}) — PRIVADO para revisar 👀:"$'\n'"$(cat publish/youtube_result.txt 2>/dev/null | head -2)"
           fi
+      - name: Refrescar inventario de Oddly (para que aparezca YA en la app)
+        if: ${{ github.event.inputs.publish != 'yes' }}
+        run: |
+          # El clip quedó PRIVADO -> refrescar el inventario para que salga en "Por revisar" sin esperar 6h.
+          sleep 25   # dar un momento a que YouTube registre el video privado en la API
+          gh workflow run report_auto2.yml -R "$GITHUB_REPOSITORY" || echo "no pude refrescar el inventario"
