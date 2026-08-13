@@ -91,7 +91,7 @@ const vf = smartCropVf(W, H, srcW, srcH, sx, "eq=contrast=1.07:saturation=1.06:b
 const pre = Math.max(0, start - 3), fine = (start - pre).toFixed(2);
 const raw = `${work}/raw.mp4`;
 // Corte conservando el audio original si existe (sin -an); si es mudo, no habrá pista.
-execSync(`ffmpeg -y -ss ${pre} -i "${film}" -ss ${fine} -t ${CLIP} -vf "${vf}" -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 160k "${raw}"`, { stdio: "inherit" });
+execSync(`ffmpeg -y -ss ${pre} -i "${film}" -ss ${fine} -t ${CLIP} -vf "${vf}" -r 30 -c:v libx264 -preset medium -crf 19 -pix_fmt yuv420p -profile:v high -c:a aac -b:a 160k "${raw}"`, { stdio: "inherit" });
 const hadAudio = finishClip(raw, outPath);
 console.log("audio original: " + (hadAudio ? "sí" : "no (solo música)"));
 

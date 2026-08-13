@@ -65,3 +65,16 @@ jobs:
           done < plan.txt
           N=$(grep -c . plan.txt); SH=$(grep -c " short$" plan.txt); LO=$(grep -c " video$" plan.txt)
           bash pipeline/notify_telegram.sh "🚀 Oddly Loop — blitz del día: lancé ${N} piezas (${SH} Shorts + ${LO} largo), en las 4 categorías. Cada una se programa a su mejor hora libre (tope 2/hora)." || true
+      - name: Clips graciosos del día (Archive.org CC, rotación de fails) → PRIVADOS
+        run: |
+          # Rotación de temas de fails/graciosos por día del año. Van PRIVADOS para que Juan apruebe en la app.
+          TOPICS=("funny fails" "epic fail" "funny animals" "bloopers" "skate fails" "funny cats" "funny dogs" "gaming fails" "sports fails" "funny moments" "animal fails" "fail compilation")
+          DOY=$(date -u +%j); NT=${#TOPICS[@]}
+          T1="${TOPICS[$((10#$DOY % NT))]}"
+          T2="${TOPICS[$(((10#$DOY + 5) % NT))]}"
+          for T in "$T1" "$T2"; do
+            echo "▶ Clip gracioso (Archive CC): $T"
+            gh workflow run clip_archive_cc.yml -f topic="$T" -f niche="graciosos" -f publish=no -R "$GITHUB_REPOSITORY" || echo "no pude disparar $T"
+            sleep 60
+          done
+          bash pipeline/notify_telegram.sh "😹 Oddly Loop — clips graciosos del día (Archive CC): «$T1» y «$T2» → PRIVADOS para revisar y aprobar en la app." || true
