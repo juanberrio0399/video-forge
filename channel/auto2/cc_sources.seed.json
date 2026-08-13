@@ -1,0 +1,25 @@
+{
+  "_nota": "Fuentes VETADAS para clipear shorts (video largo -> mejores momentos por segundos). SOLO CC0, CC-BY (con atribución) o DOMINIO PÚBLICO, verificadas una por una. NUNCA películas/series/deportes con derechos ni videos ajenos 'todos los derechos reservados'. Cada entrada debe tener licencia confirmada; CC-BY exige author + attribution (la puerta de compliance lo valida).",
+  "categories": {
+    "cine_clasico": {
+      "label": "Cine clásico (dominio público)",
+      "sources": []
+    },
+    "graciosos": {
+      "label": "Graciosos (CC-BY / CC0)",
+      "sources": []
+    },
+    "deporte_momentos": {
+      "label": "Deporte / momentos (CC-BY / dominio público)",
+      "sources": []
+    }
+  },
+  "_ejemplo_de_fuente": {
+    "url": "https://archive.org/details/xxxx  (o youtube/vimeo CC-BY)",
+    "title": "Título original",
+    "license": "public-domain | cc0 | cc-by",
+    "author": "Nombre del creador (obligatorio si cc-by)",
+    "attribution": "Título · Autor · link fuente · link licencia · 'modificado' (obligatorio si cc-by)",
+    "verified_by_juan": true
+  }
+}
