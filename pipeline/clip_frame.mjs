@@ -12,11 +12,11 @@ export function finishClip(rawClip, outPath) {
   const hasMusic = fs.existsSync("music.mp3");
   const LN = "loudnorm=I=-14:TP=-1.5";
   if (hasAudio && hasMusic) {
-    execSync(`ffmpeg -y -i "${rawClip}" -stream_loop -1 -i music.mp3 -filter_complex "[0:a]volume=1.0[o];[1:a]volume=0.10[m];[o][m]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,${LN}[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
+    execSync(`ffmpeg -y -i "${rawClip}" -stream_loop -1 -i music.mp3 -filter_complex "[0:a]volume=1.0[o];[1:a]volume=0.10[m];[o][m]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,${LN}[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 160k -movflags +faststart -shortest "${outPath}"`, { stdio: "inherit" });
   } else if (hasAudio) {
-    execSync(`ffmpeg -y -i "${rawClip}" -filter_complex "[0:a]${LN}[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
+    execSync(`ffmpeg -y -i "${rawClip}" -filter_complex "[0:a]${LN}[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 160k -movflags +faststart -shortest "${outPath}"`, { stdio: "inherit" });
   } else if (hasMusic) {
-    execSync(`ffmpeg -y -i "${rawClip}" -stream_loop -1 -i music.mp3 -filter_complex "[1:a]volume=0.5,afade=t=in:st=0:d=1,${LN}[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
+    execSync(`ffmpeg -y -i "${rawClip}" -stream_loop -1 -i music.mp3 -filter_complex "[1:a]volume=0.5,afade=t=in:st=0:d=1,${LN}[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 160k -movflags +faststart -shortest "${outPath}"`, { stdio: "inherit" });
   } else {
     execSync(`ffmpeg -y -i "${rawClip}" -map 0:v -an -c:v copy "${outPath}"`, { stdio: "inherit" });
   }
