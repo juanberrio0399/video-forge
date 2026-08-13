@@ -795,7 +795,10 @@ export const APP_HTML = `<!doctype html>
       var producingA=activeFor("auto2").length>0;
       var statusA=producingA?('<h2>⚡ Produciendo en Oddly Loop</h2>'+statusHtml("auto2")):'';
       // Aviso si hay videos privados por revisar (de este canal).
-      var privA=((ST.auto2&&ST.auto2.list)||[]).filter(function(v){return v.privacy!=="public";}).length;
+      // "Por revisar" = privados que NO están programados (los programados ya se ven en Agenda) -> el
+      // contador coincide con la lista de Producir (antes decía 23 pero no mostraba nada).
+      var nowR=new Date();
+      var privA=((ST.auto2&&ST.auto2.list)||[]).filter(function(v){ var future=v.publish_at&&(new Date(v.publish_at)>nowR); var loc=localSched[v.video_id]; return v.privacy!=="public" && !future && loc!=="schedule" && loc!=="public"; }).length;
       var pendA=privA?('<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px">👀 '+privA+' video(s) por revisar</div><div class="muted" style="font-size:13px;margin:4px 0 8px">De Oddly Loop, privados. Revísalos y publica/programa en Producir.</div><button class="btn" onclick="tab(\\'producir\\')">Ir a revisar</button></div>'):'';
       // INICIO: pulso (KPIs + estado + pendientes + producir + radar)
       el("s-inicio").innerHTML = auto2KpisHtml() + statusA + pendA + auto2TopHtml() + auto2ProduceCard() + nicheRadarHtml();
