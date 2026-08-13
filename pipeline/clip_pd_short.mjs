@@ -61,7 +61,7 @@ if (!thumbs.length) { console.error("no pude sacar miniaturas"); process.exit(1)
 // 5) La IA MIRA las miniaturas y elige el mejor momento + título/subtítulo.
 async function pickMoment() {
   if (!KEYS.length) return null;
-  const parts = [{ text: `Eres editor de SHORTS virales. Estas ${thumbs.length} miniaturas son de la película muda de DOMINIO PÚBLICO "${title}" (categoría: ${niche}). Cada una trae su timestamp en segundos. Elige el MEJOR momento para un Short vertical (gag visual claro / escena impactante). Devuelve SOLO JSON: {"start": <segundos, del timestamp elegido menos 3>, "title": "título en INGLÉS de alto CTR (<=60 chars)", "caption": "1 frase en inglés"}.` }];
+  const parts = [{ text: `Eres editor de SHORTS virales. Estas ${thumbs.length} miniaturas son de la película muda de DOMINIO PÚBLICO "${title}" (categoría: ${niche}). Cada una trae su timestamp en segundos. Elige el momento MÁS ICÓNICO y VIRAL: el gag/escena más famoso e impactante que la gente COMPARTIRÍA hoy — NADA aburrido ni de relleno; prioriza acción/movimiento/sorpresa clara y con el sujeto BIEN CENTRADO en el encuadre. Devuelve SOLO JSON: {"start": <segundos, del timestamp elegido menos 4>, "title": "título en INGLÉS de alto CTR (<=60 chars)"}.` }];
   thumbs.forEach((th) => { parts.push({ text: `t=${th.t}s` }); parts.push({ inline_data: { mime_type: "image/jpeg", data: fs.readFileSync(th.p).toString("base64") } }); });
   for (let round = 0; round < 2; round++) for (const k of KEYS) for (const m of ["gemini-flash-latest", "gemini-2.5-flash"]) {
     try {
@@ -79,14 +79,11 @@ if (!pick || !isFinite(+pick.start)) { const t = thumbs[Math.floor(thumbs.length
 let start = Math.max(a0, Math.min(+pick.start, dur - CLIP - 2));
 console.log(`Momento elegido: ${Math.round(start)}s · "${pick.title}"`);
 
-// 6) Cortar + 9:16 (fondo desenfocado + film centrado) + música + subtítulo + crédito PD + grade cine.
-const credit = `${title} (dominio público)`;
-const subFile = `${work}/cap.txt`; fs.writeFileSync(subFile, (pick.caption || "").slice(0, 90).replace(/\\/g, "").replace(/:/g, " "));
-const cred = FONT ? `,drawtext=fontfile='${FONT}':text='${credit.replace(/'/g, "")}':fontcolor=white@0.7:fontsize=26:x=(w-text_w)/2:y=h-70` : "";
-const cap = (FONT && pick.caption) ? `,drawtext=fontfile='${FONT}':textfile='${subFile.replace(/\\/g, "/")}':fontcolor=white:fontsize=54:box=1:boxcolor=black@0.5:boxborderw=22:x=(w-text_w)/2:y=h-360` : "";
-const vf = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=22:4,eq=brightness=-0.06[bg];[0:v]scale=${W}:-2:flags=lanczos,eq=contrast=1.06:saturation=1.05[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,vignette=a=PI/6${cap}${cred}[v]`;
+// 6) Cortar + 9:16 PROFESIONAL: LLENA la pantalla (escala a lo alto y recorta al centro) =
+// tamaño completo, bien centrado, SIN barras ni subtítulos. Grade cine + viñeta sutil. Audio nuestro.
+const vf = `scale=-2:${H}:flags=lanczos,crop=${W}:${H},eq=contrast=1.07:saturation=1.06:brightness=0.01,unsharp=3:3:0.3,vignette=a=PI/7`;
 const silent = `${work}/silent.mp4`;
-execSync(`ffmpeg -y -ss ${start} -t ${CLIP} -i "${film}" -filter_complex "${vf}" -map "[v]" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${silent}"`, { stdio: "inherit" });
+execSync(`ffmpeg -y -ss ${start} -t ${CLIP} -i "${film}" -vf "${vf}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${silent}"`, { stdio: "inherit" });
 if (fs.existsSync("music.mp3")) execSync(`ffmpeg -y -i "${silent}" -stream_loop -1 -i music.mp3 -filter_complex "[1:a]volume=0.5,afade=t=in:st=0:d=1[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
 else execSync(`ffmpeg -y -i "${silent}" -map 0:v -an -c:v copy "${outPath}"`, { stdio: "inherit" });
 
