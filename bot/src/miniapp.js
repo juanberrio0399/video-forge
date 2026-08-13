@@ -409,10 +409,18 @@ export const APP_HTML = `<!doctype html>
         hr+='<div class="muted" style="font-size:12px;margin:2px">✅ Video completo (duración'+mmss+'). Míralo y decide.</div>';
       }
       if(p.watch_url) hr+='<a class="btn" href="'+esc(location.origin+p.watch_url)+'" target="_blank">▶️ Ver el video</a>';
+      // CALIFICACIÓN COMPLETA (nota + fases) ANTES de aprobar/regenerar, junto al video.
       if(ms>0){
+        var phr=(q2.phases||[]).map(function(f){
+          return '<div style="flex:1;text-align:center"><div class="bar" style="height:8px"><i style="width:'+Math.round((f.score/10)*100)+'%;background:'+scoreColor(f.score)+'"></i></div><div class="muted" style="font-size:10px;margin-top:3px">'+esc(f.phase)+'·'+f.score+'</div></div>';
+        }).join("");
         hr+='<div class="card"><div style="display:flex;align-items:center;gap:12px">'
           +'<div class="score" style="color:'+scoreColor(ms)+'">'+ms+'<span style="font-size:13px;color:var(--hint)">/10</span></div>'
-          +'<div><div style="font-weight:700">Nota IA del video</div><div class="muted" style="font-size:12px">'+(ms>=7?"✅ Buena":"Puedes regenerar si quieres subirla")+'</div></div></div></div>';
+          +'<div><div style="font-weight:700">Calificación IA del video</div><div class="muted" style="font-size:12px">'+(q2.passed?"✅ Pasó el mínimo (7.5)":"⚠️ Bajo 7.5 — puedes regenerar antes de subirlo")+'</div></div></div>'
+          +(phr?'<div style="display:flex;gap:8px;margin-top:12px">'+phr+'</div>':'')
+          +'<div class="muted" style="font-size:11px;margin-top:8px">Míralo, revisa la nota por fases y decide: apruébalo o regenéralo.</div></div>';
+      } else {
+        hr+='<div class="card muted" style="font-size:12px">⏳ La calificación IA aún se está calculando… recarga en unos segundos.</div>';
       }
       hr+='<button class="btn" onclick="approveRender()">✅ Aprobar (subir y preparar el SEO)</button>'
         +'<button class="btn ghost" onclick="regenRender()">🔁 Regenerar el video</button>';
