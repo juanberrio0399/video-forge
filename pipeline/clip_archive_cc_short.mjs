@@ -27,12 +27,17 @@ function licFromUrl(u) {
   return null;
 }
 
-// 1) Buscar en Archive.org SOLO ítems con licencia Creative Commons, ordenados por DESCARGAS (populares).
+// 1) Buscar en Archive.org SOLO ítems con licencia Creative Commons. Primero por TÍTULO (más
+// relevante: evita que un match de texto suelto traiga cine viejo), luego texto amplio de respaldo.
 console.log(`Buscando CC en Archive.org: "${topic}"…`);
-const q = encodeURIComponent(`(${topic}) AND mediatype:movies AND licenseurl:(*creativecommons*)`);
-const searchUrl = `https://archive.org/advancedsearch.php?q=${q}&fl[]=identifier&fl[]=title&fl[]=licenseurl&fl[]=creator&sort[]=downloads+desc&rows=50&output=json`;
-const j = await (await tf(searchUrl)).json();
-const docs = (j.response && j.response.docs) || [];
+async function search(qstr) {
+  const u = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(qstr)}&fl[]=identifier&fl[]=title&fl[]=licenseurl&fl[]=creator&sort[]=downloads+desc&rows=60&output=json`;
+  try { const jj = await (await tf(u)).json(); return (jj.response && jj.response.docs) || []; } catch { return []; }
+}
+// Excluir colecciones de cine viejo/archivo clásico -> nos quedamos con subidas de COMUNIDAD (recientes).
+const cc = `mediatype:movies AND licenseurl:(*creativecommons* OR *publicdomain*) AND NOT collection:(feature_films OR classic_tv OR sci-fi_horror OR film_noir OR silent_films OR classic_cartoons OR prelinger OR animationandcartoons OR classic_you_tube)`;
+let docs = await search(`title:(${topic}) AND ${cc}`);        // 1º: el tema en el TÍTULO (relevante)
+if (docs.length < 5) docs = docs.concat(await search(`(${topic}) AND ${cc}`)); // respaldo: texto amplio
 if (!docs.length) { console.error("Archive.org CC: sin resultados para ese tema"); process.exit(1); }
 
 // 2) Elegir el primer ítem con licencia USABLE + un mp4 descargable de tamaño razonable.
