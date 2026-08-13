@@ -1,0 +1,81 @@
+name: Clipear short Vimeo CC (-> Oddly Loop)
+
+# Toma un video CC (by/cc0) de Vimeo, la IA elige el mejor momento y arma un SHORT 9:16 con
+# nuestro audio + atribución. Sube a YT2 privado. Requiere el secreto VIMEO_ACCESS_TOKEN (gratis).
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Tema CC en Vimeo (ej: skateboard, nature, timelapse)"
+        default: "nature"
+      niche:
+        description: "categoría"
+        default: "naturaleza_relax"
+      publish:
+        description: "no = privado · yes = programa"
+        default: "no"
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  clip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+      VIMEO_ACCESS_TOKEN: ${{ secrets.VIMEO_ACCESS_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      YT_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+      YT_CATEGORY_ID: "24"
+      CHANNEL_URL: "https://youtube.com/@oddlyloophq"
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      TOPIC: ${{ github.event.inputs.topic || 'nature' }}
+      NICHE: ${{ github.event.inputs.niche || 'naturaleza_relax' }}
+      PUBLISH: ${{ github.event.inputs.publish || 'no' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Instalar ffmpeg + yt-dlp
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation
+          sudo curl -fL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && sudo chmod a+rx /usr/local/bin/yt-dlp
+      - name: Música de fondo (opcional)
+        run: npx --yes wrangler@4 r2 object get "$BUCKET/music/cinematic.mp3" --file=music.mp3 --remote 2>/dev/null || echo "sin musica"
+      - name: Clipear el mejor momento Vimeo CC -> short 9:16
+        run: |
+          set +e
+          node pipeline/clip_vimeo_short.mjs "$TOPIC" "$NICHE" short.mp4; RC=$?
+          if [ "$RC" = "3" ]; then bash pipeline/notify_telegram.sh "⚠️ Clip Vimeo: falta el secreto VIMEO_ACCESS_TOKEN (créalo gratis en developer.vimeo.com)." || true; exit 1; fi
+          [ "$RC" != "0" ] && exit 1 || true
+      - name: PUERTA de compliance
+        run: |
+          if node pipeline/compliance_check.mjs clip_manifest.json channel/auto2/sources.seed.json; then echo "ok"; else
+            bash pipeline/notify_telegram.sh "🚫 Clip Vimeo rechazado:"$'\n'"$(cat compliance_fail.txt 2>/dev/null)" || true; exit 1; fi
+      - name: Subir a Oddly Loop (PRIVADO) + niche_map + (programar)
+        run: |
+          node pipeline/youtube_upload.mjs short.mp4 publish/package.json
+          [ ! -f publish/video_id.txt ] && { bash pipeline/notify_telegram.sh "❌ Clip Vimeo: falló la subida." || true; exit 1; }
+          VID=$(cat publish/video_id.txt)
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/niche_map.json" --file=nm.json --remote 2>/dev/null || echo '{}' > nm.json
+          VID="$VID" NICHE="$NICHE" node -e 'const fs=require("fs");let m={};try{m=JSON.parse(fs.readFileSync("nm.json","utf8"))}catch(e){};m[process.env.VID]=process.env.NICHE;fs.writeFileSync("nm.json",JSON.stringify(m))'
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/niche_map.json" --file=nm.json --remote --content-type application/json || true
+          if [ "$PUBLISH" = "yes" ]; then
+            npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/best_hours.json" --file=best_hours.json --remote 2>/dev/null || true
+            OCC=$(node pipeline/scheduled_times.mjs); SLOT=$(node pipeline/best_slot.mjs "$OCC")
+            node pipeline/youtube_schedule.mjs "$VID" "$SLOT" || true
+            bash pipeline/notify_telegram.sh "🎬 Clip Vimeo CC (${NICHE}) subido y PROGRAMADO ($SLOT)."
+          else
+            bash pipeline/notify_telegram.sh "🎬 Clip Vimeo CC (${NICHE}) — PRIVADO para revisar 👀:"$'\n'"$(cat publish/youtube_result.txt 2>/dev/null | head -2)"
+          fi
