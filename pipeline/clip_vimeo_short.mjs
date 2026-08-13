@@ -20,17 +20,40 @@ if (!VT) { console.error("Falta VIMEO_ACCESS_TOKEN (créalo gratis en developer.
 // 1) Buscar CC en Vimeo (aceptar by / cc0; rechazar sa/nc/nd).
 console.log(`Buscando CC en Vimeo: "${topic}"…`);
 const s = await (await tf(`https://api.vimeo.com/videos?query=${encodeURIComponent(topic)}&filter=CC&per_page=25&sort=plays&direction=desc`, { headers: { Authorization: `bearer ${VT}`, Accept: "application/vnd.vimeo.*+json;version=3.4" } })).json();
-const cands = (s.data || []).map((v) => ({ link: v.link, name: v.name, user: (v.user || {}).name || "", lic: (v.license || "").toLowerCase(), dur: v.duration || 0 })).filter((v) => (v.lic === "by" || v.lic === "cc0") && v.dur >= 30 && v.dur <= 1200);
+const cands = (s.data || []).map((v) => ({ uri: v.uri || "", link: v.link, name: v.name, user: (v.user || {}).name || "", lic: (v.license || "").toLowerCase(), dur: v.duration || 0 })).filter((v) => (v.lic === "by" || v.lic === "cc0") && v.dur >= 30 && v.dur <= 1200);
 if (!cands.length) { console.error("Vimeo: sin candidatos CC (by/cc0) usables"); process.exit(1); }
 const src = cands[0];
 const licKey = src.lic === "cc0" ? "cc0" : "cc-by";
 const attribution = `${src.name} · ${src.user} · ${src.link} · CC ${src.lic.toUpperCase()}`;
 console.log(`Elegido: "${src.name}" · ${src.user} · CC-${src.lic}`);
 
-// 2) Descargar con yt-dlp.
+// 2) Descargar. Preferir la API oficial de Vimeo (link mp4 directo si el dueño permite descarga
+// o si el token da acceso a los archivos); yt-dlp queda solo como respaldo.
 const film = `${work}/film.mp4`;
-try { execSync(`yt-dlp -q --no-warnings -f "best[height<=1080][ext=mp4]/best[ext=mp4]/best" -o "${film}" "${src.link}"`, { stdio: "inherit" }); } catch (e) { console.error("yt-dlp/Vimeo falló: " + e.message); process.exit(2); }
-if (!fs.existsSync(film)) { console.error("no se descargó"); process.exit(2); }
+const vid = (src.uri || "").split("/").pop();
+async function apiDirect() {
+  if (!vid) return null;
+  try {
+    const m = await (await tf(`https://api.vimeo.com/videos/${vid}?fields=download,files`, { headers: { Authorization: `bearer ${VT}`, Accept: "application/vnd.vimeo.*+json;version=3.4" } })).json();
+    const pool = [...(m.download || []), ...(m.files || [])]
+      .filter((f) => f && f.link && !/hls|dash|m3u8/i.test(`${f.quality || ""}${f.type || ""}${f.link}`))
+      .map((f) => ({ link: f.link, w: +(f.width || 0), size: +(f.size || 0) }));
+    console.log(`API Vimeo: ${pool.length} archivo(s) mp4 directo(s) disponibles.`);
+    if (!pool.length) return null;
+    const le1080 = pool.filter((f) => f.w && f.w <= 1080).sort((a, b) => b.w - a.w);
+    return (le1080[0] || pool.sort((a, b) => (b.w || b.size) - (a.w || a.size))[0]).link;
+  } catch (e) { console.log("API Vimeo no dio link directo: " + e.message); return null; }
+}
+const direct = await apiDirect();
+if (direct) {
+  const r = await tf(direct, {}, 600000);
+  if (r.ok) { fs.writeFileSync(film, Buffer.from(await r.arrayBuffer())); console.log("Descargado por API directa."); }
+}
+if (!fs.existsSync(film)) {
+  console.log("Sin link directo -> intento yt-dlp (respaldo)…");
+  try { execSync(`yt-dlp -q --no-warnings -f "best[height<=1080][ext=mp4]/best[ext=mp4]/best" -o "${film}" "${src.link}"`, { stdio: "inherit" }); } catch (e) { console.error("yt-dlp/Vimeo falló: " + e.message); }
+}
+if (!fs.existsSync(film)) { console.error("no se descargó (ni API ni yt-dlp). El dueño no habilitó descarga y el token no da acceso a archivos."); process.exit(2); }
 const dur = parseFloat(sh(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${film}"`).trim()) || 0;
 if (dur < 20) { console.error("video ilegible"); process.exit(1); }
 
