@@ -49,12 +49,11 @@ console.log("Descargando (yt-dlp" + (ck ? " + cookies" : "") + (px ? " + proxy" 
 // (falsea la huella TLS/JA3 de un navegador real, vía curl-cffi) + cliente TV. Cascada de intentos.
 const FMT = `-f "bv*[height<=1080]+ba/bv*+ba/b/b*" --merge-output-format mp4`;
 const attempts = [
-  `--force-ipv6 --impersonate chrome --extractor-args "youtube:player_client=tv"`, // IPv6 relaja el filtro de reputación en algunos datacenters
-  `--force-ipv6 --extractor-args "youtube:player_client=default,tv,android,ios"`,
+  `--extractor-args "youtube:player_client=default"`,               // web+tv con PO token del provider local
+  `--extractor-args "youtube:player_client=web,mweb,tv"`,           // clientes que usan PO token
+  `--impersonate chrome --extractor-args "youtube:player_client=default"`,
   `--impersonate chrome --extractor-args "youtube:player_client=tv"`,
-  `--impersonate chrome --extractor-args "youtube:player_client=default,tv,android,ios"`,
-  `--impersonate safari --extractor-args "youtube:player_client=tv,mweb"`,
-  `--extractor-args "youtube:player_client=default,android,ios,tv"`, // sin impersonate (respaldo)
+  `--extractor-args "youtube:player_client=android,ios,tv"`,        // respaldo sin PO token
 ];
 let ok = false;
 for (const a of attempts) {
