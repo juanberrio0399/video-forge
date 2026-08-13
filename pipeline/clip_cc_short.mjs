@@ -41,7 +41,7 @@ const attribution = `${src.title} · ${src.channel} · https://youtu.be/${src.id
 const film = `${work}/film.mp4`;
 const ck = fs.existsSync("cookies.txt") ? "--cookies cookies.txt " : "";
 console.log("Descargando (yt-dlp" + (ck ? " + cookies" : "") + ")…");
-try { execSync(`yt-dlp -q --no-warnings ${ck}-f "best[height<=1080][ext=mp4]/best[ext=mp4]/best" -o "${film}" "https://www.youtube.com/watch?v=${src.id}"`, { stdio: "inherit" }); } catch (e) { console.error("yt-dlp falló" + (ck ? " (incluso con cookies — pueden estar vencidas)" : " (YouTube bloquea la descarga desde la nube; añade cookies.txt)") + ": " + e.message); process.exit(2); }
+try { execSync(`yt-dlp -q --no-warnings ${ck}-f "bv*[height<=1080]+ba/b[height<=1080]/b" --merge-output-format mp4 -o "${film}" "https://www.youtube.com/watch?v=${src.id}"`, { stdio: "inherit" }); } catch (e) { console.error("yt-dlp falló" + (ck ? " (incluso con cookies — pueden estar vencidas)" : " (YouTube bloquea la descarga desde la nube; añade cookies.txt)") + ": " + e.message); process.exit(2); }
 if (!fs.existsSync(film)) { console.error("no se descargó el video"); process.exit(2); }
 const dur = parseFloat(sh(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${film}"`).trim()) || 0;
 if (dur < 30) { console.error("video ilegible"); process.exit(1); }
