@@ -53,8 +53,9 @@ const start = Math.max(0, Math.min(+mo.start, dur - clipLen));
 
 // 3) 9:16 profesional + música.
 const vf = `scale=-2:${H}:flags=lanczos,crop=${W}:${H},eq=contrast=1.05:saturation=1.08,unsharp=3:3:0.3,vignette=a=PI/8`;
+const pre = Math.max(0, start - 3), fine = (start - pre).toFixed(2);
 const silent = `${work}/silent.mp4`;
-execSync(`ffmpeg -y -ss ${start} -t ${clipLen} -i "${film}" -vf "${vf}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${silent}"`, { stdio: "inherit" });
+execSync(`ffmpeg -y -ss ${pre} -i "${film}" -ss ${fine} -t ${clipLen} -vf "${vf}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${silent}"`, { stdio: "inherit" });
 if (fs.existsSync("music.mp3")) execSync(`ffmpeg -y -i "${silent}" -stream_loop -1 -i music.mp3 -filter_complex "[1:a]volume=0.5,afade=t=in:st=0:d=1[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
 else execSync(`ffmpeg -y -i "${silent}" -map 0:v -an -c:v copy "${outPath}"`, { stdio: "inherit" });
 
