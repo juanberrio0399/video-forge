@@ -39,9 +39,23 @@ const attribution = `${src.title} · ${src.channel} · https://youtu.be/${src.id
 // 3) Descargar con yt-dlp (la licencia CC-BY permite el reuso). Si hay cookies.txt (sesión de una
 // cuenta de YouTube), se pasan para saltar el "confirma que no eres un bot" de la nube.
 const film = `${work}/film.mp4`;
+const url = `https://www.youtube.com/watch?v=${src.id}`;
 const ck = fs.existsSync("cookies.txt") ? "--cookies cookies.txt " : "";
 console.log("Descargando (yt-dlp" + (ck ? " + cookies" : "") + ")…");
-try { execSync(`yt-dlp -q --no-warnings ${ck}-f "bv*[height<=1080]+ba/b[height<=1080]/b" --merge-output-format mp4 -o "${film}" "https://www.youtube.com/watch?v=${src.id}"`, { stdio: "inherit" }); } catch (e) { console.error("yt-dlp falló" + (ck ? " (incluso con cookies — pueden estar vencidas)" : " (YouTube bloquea la descarga desde la nube; añade cookies.txt)") + ": " + e.message); process.exit(2); }
+// YouTube bloquea el cliente "web" desde IPs de nube (formatos vacíos aun con cookies). Probar
+// varios player_client (android/ios/tv suelen devolver formatos). Formato: mejor video+audio, merge mp4.
+const EA = `--extractor-args "youtube:player_client=default,android,ios,tv,web_safari"`;
+let ok = false;
+try { execSync(`yt-dlp -q --no-warnings ${ck}${EA} -f "bv*[height<=1080]+ba/bv*+ba/b" --merge-output-format mp4 -o "${film}" "${url}"`, { stdio: "inherit" }); ok = fs.existsSync(film); } catch {}
+if (!ok) { // Fallback: cualquier mejor formato disponible.
+  try { execSync(`yt-dlp -q --no-warnings ${ck}${EA} -f "b/bv*+ba" --merge-output-format mp4 -o "${film}" "${url}"`, { stdio: "inherit" }); ok = fs.existsSync(film); } catch {}
+}
+if (!ok) {
+  console.error("yt-dlp no pudo bajar el video. Formatos que YouTube ofrece a esta IP:");
+  try { execSync(`yt-dlp --no-warnings ${ck}${EA} --list-formats "${url}"`, { stdio: "inherit" }); } catch (e) { console.error("(ni --list-formats respondió: " + e.message + ")"); }
+  console.error(ck ? "Con cookies el bot pasó, pero YouTube no entrega formatos a la nube. Puede ser throttling temporal o cookies vencidas." : "Sin cookies: añade cookies.txt.");
+  process.exit(2);
+}
 if (!fs.existsSync(film)) { console.error("no se descargó el video"); process.exit(2); }
 const dur = parseFloat(sh(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${film}"`).trim()) || 0;
 if (dur < 30) { console.error("video ilegible"); process.exit(1); }
