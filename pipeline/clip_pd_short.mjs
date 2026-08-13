@@ -9,6 +9,7 @@
 // Env: GEMINI_API_KEY(,2). music.mp3 opcional en el cwd.
 import fs from "node:fs";
 import { execSync } from "node:child_process";
+import { sourceWH, smartCropVf } from "./clip_frame.mjs";
 
 const [title, niche = "graciosos", outPath = "short.mp4"] = process.argv.slice(2);
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
@@ -61,7 +62,7 @@ if (!thumbs.length) { console.error("no pude sacar miniaturas"); process.exit(1)
 // 5) La IA MIRA las miniaturas y elige el mejor momento + título/subtítulo.
 async function pickMoment() {
   if (!KEYS.length) return null;
-  const parts = [{ text: `Eres editor de SHORTS virales. Estas ${thumbs.length} miniaturas son de la película muda de DOMINIO PÚBLICO "${title}" (categoría: ${niche}). Cada una trae su timestamp en segundos. Elige el momento MÁS ICÓNICO y VIRAL: el gag/escena más famoso e impactante que la gente COMPARTIRÍA hoy — NADA aburrido ni de relleno; prioriza acción/movimiento/sorpresa clara y con el sujeto BIEN CENTRADO en el encuadre. Devuelve SOLO JSON: {"start": <segundos, del timestamp elegido menos 4>, "title": "título en INGLÉS de alto CTR (<=60 chars)"}.` }];
+  const parts = [{ text: `Eres editor de SHORTS virales. Estas ${thumbs.length} miniaturas son de la película muda de DOMINIO PÚBLICO "${title}" (categoría: ${niche}). Cada una trae su timestamp en segundos. Elige el momento MÁS ICÓNICO y VIRAL: el gag/escena más famoso e impactante que la gente COMPARTIRÍA hoy — NADA aburrido ni de relleno; prioriza acción/movimiento/sorpresa clara. Devuelve SOLO JSON: {"start": <segundos, del timestamp elegido menos 4>, "title": "título en INGLÉS de alto CTR (<=60 chars)", "subject_x": <0.0 a 1.0: posición horizontal del sujeto/acción principal en ese fotograma; 0=izquierda, 0.5=centro, 1=derecha>}.` }];
   thumbs.forEach((th) => { parts.push({ text: `t=${th.t}s` }); parts.push({ inline_data: { mime_type: "image/jpeg", data: fs.readFileSync(th.p).toString("base64") } }); });
   for (let round = 0; round < 2; round++) for (const k of KEYS) for (const m of ["gemini-flash-latest", "gemini-2.5-flash"]) {
     try {
@@ -79,9 +80,11 @@ if (!pick || !isFinite(+pick.start)) { const t = thumbs[Math.floor(thumbs.length
 let start = Math.max(a0, Math.min(+pick.start, dur - CLIP - 2));
 console.log(`Momento elegido: ${Math.round(start)}s · "${pick.title}"`);
 
-// 6) Cortar + 9:16 PROFESIONAL: LLENA la pantalla (escala a lo alto y recorta al centro) =
-// tamaño completo, bien centrado, SIN barras ni subtítulos. Grade cine + viñeta sutil. Audio nuestro.
-const vf = `scale=-2:${H}:flags=lanczos,crop=${W}:${H},eq=contrast=1.07:saturation=1.06:brightness=0.01,unsharp=3:3:0.3,vignette=a=PI/7`;
+// 6) Cortar + 9:16 PROFESIONAL con SUJETO CENTRADO (smart crop): llena la pantalla, tamaño completo,
+// sin barras ni subtítulos, y la ventana 9:16 sigue al sujeto (no lo corta). Grade cine. Audio nuestro.
+const { w: srcW, h: srcH } = sourceWH(film);
+const sx = isFinite(+pick.subject_x) ? +pick.subject_x : 0.5;
+const vf = smartCropVf(W, H, srcW, srcH, sx, "eq=contrast=1.07:saturation=1.06:brightness=0.01");
 // Corte PRECISO: seek rápido a un keyframe antes + seek fino exacto -> primer fotograma NÍTIDO
 // (evita el frame ampliado/borroso de arrancar a mitad de GOP).
 const pre = Math.max(0, start - 3), fine = (start - pre).toFixed(2);

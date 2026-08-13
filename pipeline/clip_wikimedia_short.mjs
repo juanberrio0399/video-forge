@@ -6,6 +6,7 @@
 // Env: GEMINI_API_KEY(,2). music.mp3 opcional.
 import fs from "node:fs";
 import { execSync } from "node:child_process";
+import { sourceWH, smartCropVf } from "./clip_frame.mjs";
 
 const [topic, niche = "graciosos", outPath = "short.mp4"] = process.argv.slice(2);
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
@@ -50,7 +51,7 @@ const a0 = dur * 0.06, a1 = Math.max(a0 + 1, dur * 0.9), N = Math.min(14, Math.m
 for (let i = 0; i < N; i++) { const t = Math.round(a0 + i * step), p = `${work}/th${i}.jpg`; try { execSync(`ffmpeg -y -ss ${t} -i "${film}" -frames:v 1 -vf "scale=320:-1" "${p}"`, { stdio: "ignore" }); if (fs.existsSync(p)) thumbs.push({ t, p }); } catch {} }
 async function pick() {
   if (!KEYS.length || !thumbs.length) return null;
-  const parts = [{ text: `Editor de SHORTS virales. Miniaturas del video "${src.title}" (tema: ${topic}) con timestamp (s). Elige el momento MÁS impactante/viral, sujeto BIEN CENTRADO. Devuelve SOLO JSON: {"start": <s, menos 3>, "title": "título EN inglés de alto CTR (<=60)"}.` }];
+  const parts = [{ text: `Editor de SHORTS virales. Miniaturas del video "${src.title}" (tema: ${topic}) con timestamp (s). Elige el momento MÁS impactante/viral. Devuelve SOLO JSON: {"start": <s, menos 3>, "title": "título EN inglés de alto CTR (<=60)", "subject_x": <0.0 a 1.0: posición horizontal del sujeto principal>}.` }];
   thumbs.forEach((th) => { parts.push({ text: `t=${th.t}s` }); parts.push({ inline_data: { mime_type: "image/jpeg", data: fs.readFileSync(th.p).toString("base64") } }); });
   for (let x = 0; x < 2; x++) for (const k of KEYS) for (const m of ["gemini-flash-latest", "gemini-2.5-flash"]) { try { const res = await tf(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${k}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseMimeType: "application/json" } }) }); if (!res.ok) continue; const jj = await res.json(); const t = (jj?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim(); if (t) return JSON.parse(t); } catch {} }
   return null;
@@ -59,8 +60,10 @@ let mo = await pick(); if (!mo || !isFinite(+mo.start)) mo = { start: Math.round
 const clipLen = Math.min(CLIP, Math.max(6, dur - 1));
 const start = Math.max(0, Math.min(+mo.start, dur - clipLen));
 
-// 4) Corte PRECISO + 9:16 profesional + música.
-const vf = `scale=-2:${H}:flags=lanczos,crop=${W}:${H},eq=contrast=1.06:saturation=1.06,unsharp=3:3:0.3,vignette=a=PI/7`;
+// 4) Corte PRECISO + 9:16 profesional con sujeto centrado (smart crop) + música.
+const { w: srcW, h: srcH } = sourceWH(film);
+const sx = isFinite(+mo.subject_x) ? +mo.subject_x : 0.5;
+const vf = smartCropVf(W, H, srcW, srcH, sx, "eq=contrast=1.06:saturation=1.06");
 const pre = Math.max(0, start - 3), fine = (start - pre).toFixed(2), silent = `${work}/silent.mp4`;
 execSync(`ffmpeg -y -ss ${pre} -i "${film}" -ss ${fine} -t ${clipLen} -vf "${vf}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${silent}"`, { stdio: "inherit" });
 if (fs.existsSync("music.mp3")) execSync(`ffmpeg -y -i "${silent}" -stream_loop -1 -i music.mp3 -filter_complex "[1:a]volume=0.5,afade=t=in:st=0:d=1[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
