@@ -8,6 +8,7 @@
 // Env: YT_CLIENT_ID/SECRET/REFRESH (YT2 mapeado), GEMINI_API_KEY(,2). Requiere yt-dlp instalado. music.mp3 opcional.
 import fs from "node:fs";
 import { execSync } from "node:child_process";
+import { sourceWH, smartCropVf } from "./clip_frame.mjs";
 
 const [topic, niche = "graciosos", outPath = "short.mp4"] = process.argv.slice(2);
 const { YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN } = process.env;
@@ -48,7 +49,7 @@ const a0 = dur * 0.08, a1 = dur * 0.92, N = 16, step = (a1 - a0) / N, thumbs = [
 for (let i = 0; i < N; i++) { const t = Math.round(a0 + i * step), p = `${work}/th${i}.jpg`; try { execSync(`ffmpeg -y -ss ${t} -i "${film}" -frames:v 1 -vf "scale=320:-1" "${p}"`, { stdio: "ignore" }); if (fs.existsSync(p)) thumbs.push({ t, p }); } catch {} }
 async function pickMoment() {
   if (!KEYS.length || !thumbs.length) return null;
-  const parts = [{ text: `Eres editor de SHORTS virales. Estas ${thumbs.length} miniaturas son del video "${src.title}" (tema: ${topic}). Cada una trae su timestamp en segundos. Elige el momento MÁS VIRAL/impactante (lo que la gente compartiría hoy), con el sujeto BIEN CENTRADO. Devuelve SOLO JSON: {"start": <segundos, del timestamp elegido menos 4>, "title": "título en INGLÉS de alto CTR (<=60 chars)"}.` }];
+  const parts = [{ text: `Eres editor de SHORTS virales. Estas ${thumbs.length} miniaturas son del video "${src.title}" (tema: ${topic}). Cada una trae su timestamp en segundos. Elige el momento MÁS VIRAL/impactante (lo que la gente compartiría hoy). Devuelve SOLO JSON: {"start": <segundos, del timestamp elegido menos 4>, "title": "título en INGLÉS de alto CTR (<=60 chars)", "subject_x": <0.0 a 1.0: posición horizontal del sujeto principal>}.` }];
   thumbs.forEach((th) => { parts.push({ text: `t=${th.t}s` }); parts.push({ inline_data: { mime_type: "image/jpeg", data: fs.readFileSync(th.p).toString("base64") } }); });
   for (let r = 0; r < 2; r++) for (const k of KEYS) for (const m of ["gemini-flash-latest", "gemini-2.5-flash"]) { try { const res = await tf(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${k}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseMimeType: "application/json" } }) }); if (!res.ok) continue; const j = await res.json(); const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim(); if (t) return JSON.parse(t); } catch {} }
   return null;
@@ -58,8 +59,10 @@ if (!pick || !isFinite(+pick.start)) pick = { start: Math.round(dur * 0.4), titl
 const start = Math.max(0, Math.min(+pick.start, dur - CLIP - 2));
 console.log(`Momento: ${Math.round(start)}s · "${pick.title}"`);
 
-// 5) 9:16 profesional (llena la pantalla, centrado, sin barras/subtítulos) + música.
-const vf = `scale=-2:${H}:flags=lanczos,crop=${W}:${H},eq=contrast=1.06:saturation=1.05,unsharp=3:3:0.3,vignette=a=PI/7`;
+// 5) 9:16 profesional con sujeto centrado (smart crop) + música.
+const { w: srcW, h: srcH } = sourceWH(film);
+const sx = isFinite(+pick.subject_x) ? +pick.subject_x : 0.5;
+const vf = smartCropVf(W, H, srcW, srcH, sx, "eq=contrast=1.06:saturation=1.05");
 const pre = Math.max(0, start - 3), fine = (start - pre).toFixed(2);
 const silent = `${work}/silent.mp4`;
 execSync(`ffmpeg -y -ss ${pre} -i "${film}" -ss ${fine} -t ${CLIP} -vf "${vf}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${silent}"`, { stdio: "inherit" });
