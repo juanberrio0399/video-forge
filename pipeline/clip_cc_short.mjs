@@ -46,6 +46,8 @@ console.log("Descargando (yt-dlp" + (ck ? " + cookies" : "") + ")…");
 // (falsea la huella TLS/JA3 de un navegador real, vía curl-cffi) + cliente TV. Cascada de intentos.
 const FMT = `-f "bv*[height<=1080]+ba/bv*+ba/b/b*" --merge-output-format mp4`;
 const attempts = [
+  `--force-ipv6 --impersonate chrome --extractor-args "youtube:player_client=tv"`, // IPv6 relaja el filtro de reputación en algunos datacenters
+  `--force-ipv6 --extractor-args "youtube:player_client=default,tv,android,ios"`,
   `--impersonate chrome --extractor-args "youtube:player_client=tv"`,
   `--impersonate chrome --extractor-args "youtube:player_client=default,tv,android,ios"`,
   `--impersonate safari --extractor-args "youtube:player_client=tv,mweb"`,
