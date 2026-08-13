@@ -325,7 +325,7 @@ jobs:
               let s= dir ? parseFloat((()=>{try{return fs.readFileSync(`${dir}/score.txt`,"utf8").trim()}catch(e){return ""}})()) : NaN;
               if(!isFinite(s)) s=0;
               scores.push(`f${k}:${s}`);
-              if(dir){ lines.push(`file ${process.cwd()}/${dir}/video.mp4`); if(s<min) min=s; }
+              if(dir){ lines.push(`file ${process.cwd()}/${dir}/video.mp4`); if(s>0 && s<min) min=s; } // 0 = score no guardado; no arrastra el mínimo
               else missing.push(k);
             }
             fs.writeFileSync("list.txt", lines.join("\n")+"\n");

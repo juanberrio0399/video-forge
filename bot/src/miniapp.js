@@ -394,12 +394,26 @@ export const APP_HTML = `<!doctype html>
     }).join("");
     return '<div class="card" style="padding:10px"><div style="font-weight:700;font-size:13px;margin-bottom:6px">📍 Vamos en el paso '+st+' de 6</div><div style="display:flex;gap:4px">'+cells+'</div></div>';
   }
+  // Nota a mostrar: usa min_score si es válido; si es 0 (alguna fase sin score guardado por un
+  // fallo de persistencia), toma el mínimo de las fases que SÍ tienen nota. Evita mostrar 0 falso.
+  function calScore(q){
+    if(!q) return 0;
+    if(+q.min_score>0) return +q.min_score;
+    var v=(q.phases||[]).map(function(f){return +f.score||0;}).filter(function(s){return s>0;});
+    if(!v.length) return 0;
+    return Math.round(Math.min.apply(null,v)*10)/10;
+  }
+  function phaseBars(q){
+    return (q.phases||[]).filter(function(f){return +f.score>0;}).map(function(f){
+      return '<div style="flex:1;text-align:center"><div class="bar" style="height:8px"><i style="width:'+Math.round((f.score/10)*100)+'%;background:'+scoreColor(f.score)+'"></i></div><div class="muted" style="font-size:10px;margin-top:3px">'+esc(f.phase)+'·'+f.score+'</div></div>';
+    }).join("");
+  }
   function productionHtml(){
     var p=ST.production||{}, q=p.quality, seo=p.seo;
     if(p.done) return ""; // video ya publicado: el paso SEO terminó, no mostrar su calificación
     // Video RENDERIZADO esperando aprobación -> ver / aprobar / regenerar, TODO en la app.
     if(p.render_pending){
-      var q2=p.quality||{}, ms=q2.min_score||0;
+      var q2=p.quality||{}, ms=calScore(q2);
       var qa=p.render_qa||{};
       var hr='<h2>🎬 Video listo — revísalo y aprueba</h2>';
       var mmss=qa.duration?(' · '+Math.floor(qa.duration/60)+':'+('0'+(qa.duration%60)).slice(-2)):'';
@@ -411,12 +425,10 @@ export const APP_HTML = `<!doctype html>
       if(p.watch_url) hr+='<a class="btn" href="'+esc(location.origin+p.watch_url)+'" target="_blank">▶️ Ver el video</a>';
       // CALIFICACIÓN COMPLETA (nota + fases) ANTES de aprobar/regenerar, junto al video.
       if(ms>0){
-        var phr=(q2.phases||[]).map(function(f){
-          return '<div style="flex:1;text-align:center"><div class="bar" style="height:8px"><i style="width:'+Math.round((f.score/10)*100)+'%;background:'+scoreColor(f.score)+'"></i></div><div class="muted" style="font-size:10px;margin-top:3px">'+esc(f.phase)+'·'+f.score+'</div></div>';
-        }).join("");
+        var phr=phaseBars(q2);
         hr+='<div class="card"><div style="display:flex;align-items:center;gap:12px">'
           +'<div class="score" style="color:'+scoreColor(ms)+'">'+ms+'<span style="font-size:13px;color:var(--hint)">/10</span></div>'
-          +'<div><div style="font-weight:700">Calificación IA del video</div><div class="muted" style="font-size:12px">'+(q2.passed?"✅ Pasó el mínimo (7.5)":"⚠️ Bajo 7.5 — puedes regenerar antes de subirlo")+'</div></div></div>'
+          +'<div><div style="font-weight:700">Calificación IA del video</div><div class="muted" style="font-size:12px">'+(ms>=7.5?"✅ Pasó el mínimo (7.5)":"⚠️ Bajo 7.5 — puedes regenerar antes de subirlo")+'</div></div></div>'
           +(phr?'<div style="display:flex;gap:8px;margin-top:12px">'+phr+'</div>':'')
           +'<div class="muted" style="font-size:11px;margin-top:8px">Míralo, revisa la nota por fases y decide: apruébalo o regenéralo.</div></div>';
       } else {
@@ -429,13 +441,11 @@ export const APP_HTML = `<!doctype html>
     if(!q && !seo) return "";
     var h='<h2>🎬 Video en producción</h2>';
     if(q){
-      var ms=q.min_score||0;
-      var ph=(q.phases||[]).map(function(f){
-        return '<div style="flex:1;text-align:center"><div class="bar" style="height:8px"><i style="width:'+Math.round((f.score/10)*100)+'%;background:'+scoreColor(f.score)+'"></i></div><div class="muted" style="font-size:10px;margin-top:3px">'+esc(f.phase)+'·'+f.score+'</div></div>';
-      }).join("");
+      var ms=calScore(q);
+      var ph=phaseBars(q);
       h+='<div class="card"><div style="display:flex;align-items:center;gap:12px">'
         +'<div class="score" style="color:'+scoreColor(ms)+'">'+ms+'<span style="font-size:13px;color:var(--hint)">/10</span></div>'
-        +'<div><div style="font-weight:700">Calificación IA del video</div><div class="muted" style="font-size:12px">'+(q.passed?"✅ Pasó el mínimo (7.5)":"⚠️ Bajo 7.5 — conviene regenerar")+'</div></div></div>'
+        +'<div><div style="font-weight:700">Calificación IA del video</div><div class="muted" style="font-size:12px">'+(ms>=7.5?"✅ Pasó el mínimo (7.5)":"⚠️ Bajo 7.5 — conviene regenerar")+'</div></div></div>'
         +(ph?'<div style="display:flex;gap:8px;margin-top:12px">'+ph+'</div>':'')+'</div>';
     }
     if(seo){
