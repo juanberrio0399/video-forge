@@ -6,8 +6,7 @@
 // Env: VIMEO_ACCESS_TOKEN, GEMINI_API_KEY(,2). Requiere yt-dlp. music.mp3 opcional.
 import fs from "node:fs";
 import { execSync } from "node:child_process";
-import { sourceWH, smartCropVf } from "./clip_frame.mjs";
-import { narrationText, synthVoice, muxVoiceMusic } from "./clip_narrate.mjs";
+import { sourceWH, smartCropVf, finishClip } from "./clip_frame.mjs";
 
 const [topic, niche = "graciosos", outPath = "short.mp4"] = process.argv.slice(2);
 const VT = process.env.VIMEO_ACCESS_TOKEN;
@@ -52,15 +51,14 @@ const start = Math.max(0, Math.min(+mo.start, dur - CLIP - 2));
 const { w: srcW, h: srcH } = sourceWH(film);
 const sx = isFinite(+mo.subject_x) ? +mo.subject_x : 0.5;
 const vf = smartCropVf(W, H, srcW, srcH, sx, "eq=contrast=1.06:saturation=1.05");
-const pre = Math.max(0, start - 3), fine = (start - pre).toFixed(2), silent = `${work}/silent.mp4`;
-execSync(`ffmpeg -y -ss ${pre} -i "${film}" -ss ${fine} -t ${CLIP} -vf "${vf}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${silent}"`, { stdio: "inherit" });
-const narr = await narrationText(KEYS, niche, src.name, topic);
-await synthVoice(KEYS, narr, "voice.wav");
-const hasVoice = muxVoiceMusic(silent, "voice.wav", outPath);
-console.log("voz: " + (hasVoice ? "sí" : "no (solo música)"));
+const pre = Math.max(0, start - 3), fine = (start - pre).toFixed(2), raw = `${work}/raw.mp4`;
+// Corte conservando el AUDIO ORIGINAL del video CC (sin -an).
+execSync(`ffmpeg -y -ss ${pre} -i "${film}" -ss ${fine} -t ${CLIP} -vf "${vf}" -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 160k "${raw}"`, { stdio: "inherit" });
+const hadAudio = finishClip(raw, outPath);
+console.log("audio original: " + (hadAudio ? "sí" : "no (solo música)"));
 
 fs.mkdirSync("publish", { recursive: true });
 const pkg = { title: (mo.title || src.name).slice(0, 92) + " #Shorts", description: `#Shorts\n\n${licKey === "cc-by" ? "Credit: " + attribution + " (edited/clipped)." : "Source: " + src.name + " (Vimeo, CC0)."}`, tags: ["shorts", niche, "creative commons"], language: "en" };
 fs.writeFileSync("publish/package.json", JSON.stringify(pkg, null, 2));
-fs.writeFileSync("clip_manifest.json", JSON.stringify({ niche, format: "9:16", clips: [{ clip_id: "vm1", source: "vimeo_cc", license: licKey, url: src.link, attribution: licKey === "cc-by" ? attribution : "", query: topic }], transform: { narration: hasVoice, editing: true, original_script: true, sound_design: true } }, null, 2));
+fs.writeFileSync("clip_manifest.json", JSON.stringify({ niche, format: "9:16", clips: [{ clip_id: "vm1", source: "vimeo_cc", license: licKey, url: src.link, attribution: licKey === "cc-by" ? attribution : "", query: topic }], transform: { narration: false, original_audio: hadAudio, editing: true, original_script: true, sound_design: true } }, null, 2));
 console.log(`Short Vimeo listo -> ${outPath} · "${pkg.title}"`);

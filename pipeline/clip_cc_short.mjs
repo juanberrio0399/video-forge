@@ -8,8 +8,7 @@
 // Env: YT_CLIENT_ID/SECRET/REFRESH (YT2 mapeado), GEMINI_API_KEY(,2). Requiere yt-dlp instalado. music.mp3 opcional.
 import fs from "node:fs";
 import { execSync } from "node:child_process";
-import { sourceWH, smartCropVf } from "./clip_frame.mjs";
-import { narrationText, synthVoice, muxVoiceMusic } from "./clip_narrate.mjs";
+import { sourceWH, smartCropVf, finishClip } from "./clip_frame.mjs";
 
 const [topic, niche = "graciosos", outPath = "short.mp4"] = process.argv.slice(2);
 const { YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN } = process.env;
@@ -65,16 +64,15 @@ const { w: srcW, h: srcH } = sourceWH(film);
 const sx = isFinite(+pick.subject_x) ? +pick.subject_x : 0.5;
 const vf = smartCropVf(W, H, srcW, srcH, sx, "eq=contrast=1.06:saturation=1.05");
 const pre = Math.max(0, start - 3), fine = (start - pre).toFixed(2);
-const silent = `${work}/silent.mp4`;
-execSync(`ffmpeg -y -ss ${pre} -i "${film}" -ss ${fine} -t ${CLIP} -vf "${vf}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${silent}"`, { stdio: "inherit" });
-const narr = await narrationText(KEYS, niche, src.title, topic);
-await synthVoice(KEYS, narr, "voice.wav");
-const hasVoice = muxVoiceMusic(silent, "voice.wav", outPath);
-console.log("voz: " + (hasVoice ? "sí" : "no (solo música)"));
+const raw = `${work}/raw.mp4`;
+// Corte conservando el AUDIO ORIGINAL del video CC-BY (sin -an).
+execSync(`ffmpeg -y -ss ${pre} -i "${film}" -ss ${fine} -t ${CLIP} -vf "${vf}" -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 160k "${raw}"`, { stdio: "inherit" });
+const hadAudio = finishClip(raw, outPath);
+console.log("audio original: " + (hadAudio ? "sí" : "no (solo música)"));
 
 // 6) Paquete con ATRIBUCIÓN (obligatoria en CC-BY) + manifiesto.
 fs.mkdirSync("publish", { recursive: true });
 const pkg = { title: (pick.title || src.title).slice(0, 92) + " #Shorts", description: `#Shorts\n\nCredit: ${attribution}\nUsed under Creative Commons (CC-BY). Edited/clipped.`, tags: ["shorts", niche, "creative commons"], language: "en" };
 fs.writeFileSync("publish/package.json", JSON.stringify(pkg, null, 2));
-fs.writeFileSync("clip_manifest.json", JSON.stringify({ niche, format: "9:16", clips: [{ clip_id: "cc1", source: "youtube_cc", license: "cc-by", url: `https://youtu.be/${src.id}`, attribution, query: topic }], transform: { narration: hasVoice, editing: true, original_script: true, sound_design: true } }, null, 2));
+fs.writeFileSync("clip_manifest.json", JSON.stringify({ niche, format: "9:16", clips: [{ clip_id: "cc1", source: "youtube_cc", license: "cc-by", url: `https://youtu.be/${src.id}`, attribution, query: topic }], transform: { narration: false, original_audio: hadAudio, editing: true, original_script: true, sound_design: true } }, null, 2));
 console.log(`Short CC-BY listo -> ${outPath} · "${pkg.title}"`);
