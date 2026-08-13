@@ -1,25 +1,30 @@
 {
-  "_nota": "Fuentes VETADAS para clipear shorts (video largo -> mejores momentos por segundos). SOLO CC0, CC-BY (con atribución) o DOMINIO PÚBLICO, verificadas una por una. NUNCA películas/series/deportes con derechos ni videos ajenos 'todos los derechos reservados'. Cada entrada debe tener licencia confirmada; CC-BY exige author + attribution (la puerta de compliance lo valida).",
+  "_nota": "Fuentes VETADAS para clipear shorts (video largo -> mejores momentos por segundos). SOLO dominio público (por antigüedad, 1930 o antes en EE.UU. a 2026), CC0 o CC-BY (con atribución). REGLA DE ORO: en películas PD usamos SOLO EL VIDEO y le ponemos NUESTRO audio (narración/música) -> evita cualquier tema de bandas sonoras re-agregadas. Confirmar que el item de Archive.org sea la versión ORIGINAL (no una restaurada con extras protegidos). NUNCA películas/series/deportes actuales ni videos ajenos con derechos.",
   "categories": {
-    "cine_clasico": {
-      "label": "Cine clásico (dominio público)",
-      "sources": []
-    },
     "graciosos": {
-      "label": "Graciosos (CC-BY / CC0)",
-      "sources": []
+      "label": "Graciosos (comedia clásica muda)",
+      "audio": "nuestro (música + narración/subtítulos)",
+      "sources": [
+        { "title": "Steamboat Bill, Jr.", "year": 1928, "author": "Buster Keaton", "license": "public-domain", "pd_basis": "antigüedad (<=1930)", "why": "gags visuales legendarios (la casa que cae) — oro para shorts", "url": "archive.org (buscar: Steamboat Bill Jr 1928)", "verified_by_juan": false },
+        { "title": "The General", "year": 1926, "author": "Buster Keaton", "license": "public-domain", "pd_basis": "antigüedad", "why": "persecución de tren, acción cómica", "url": "archive.org (buscar: The General 1926 Keaton)", "verified_by_juan": false },
+        { "title": "Sherlock Jr.", "year": 1924, "author": "Buster Keaton", "license": "public-domain", "pd_basis": "antigüedad", "why": "trucos visuales alucinantes", "url": "archive.org (buscar: Sherlock Jr 1924)", "verified_by_juan": false },
+        { "title": "The Gold Rush (versión muda 1925)", "year": 1925, "author": "Charlie Chaplin", "license": "public-domain", "pd_basis": "antigüedad (usar la muda de 1925, NO la sonora de 1942)", "why": "el baile de los panecillos, comer el zapato", "url": "archive.org (buscar: Gold Rush 1925 silent)", "verified_by_juan": false }
+      ]
+    },
+    "cine_clasico": {
+      "label": "Cine clásico (drama / terror / épico)",
+      "audio": "nuestro",
+      "sources": [
+        { "title": "Nosferatu", "year": 1922, "author": "F. W. Murnau", "license": "public-domain", "pd_basis": "antigüedad", "why": "terror icónico, la sombra en la escalera", "url": "archive.org (buscar: Nosferatu 1922)", "verified_by_juan": false },
+        { "title": "The Cabinet of Dr. Caligari", "year": 1920, "author": "Robert Wiene", "license": "public-domain", "pd_basis": "antigüedad", "why": "expresionismo, imágenes perturbadoras", "url": "archive.org (buscar: Caligari 1920)", "verified_by_juan": false },
+        { "title": "All Quiet on the Western Front", "year": 1930, "author": "Lewis Milestone", "license": "public-domain", "pd_basis": "entró a PD en 2026 (obra de 1930)", "why": "guerra, escenas dramáticas potentes", "url": "archive.org (buscar: All Quiet Western Front 1930)", "verified_by_juan": false }
+      ]
     },
     "deporte_momentos": {
-      "label": "Deporte / momentos (CC-BY / dominio público)",
+      "label": "Deporte / acción (pendiente fuente segura)",
+      "audio": "nuestro",
+      "_nota": "El deporte moderno tiene derechos (ligas/TV). Para esta categoría toca CC-BY verificado o stock de acción (Pexels/Pixabay). La lleno en fase 2 con fuentes confirmadas.",
       "sources": []
     }
-  },
-  "_ejemplo_de_fuente": {
-    "url": "https://archive.org/details/xxxx  (o youtube/vimeo CC-BY)",
-    "title": "Título original",
-    "license": "public-domain | cc0 | cc-by",
-    "author": "Nombre del creador (obligatorio si cc-by)",
-    "attribution": "Título · Autor · link fuente · link licencia · 'modificado' (obligatorio si cc-by)",
-    "verified_by_juan": true
   }
 }
