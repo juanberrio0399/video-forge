@@ -71,10 +71,11 @@ jobs:
           TOPICS=("funny fails" "epic fail" "funny animals" "bloopers" "skate fails" "funny cats" "funny dogs" "gaming fails" "sports fails" "funny moments" "animal fails" "fail compilation")
           DOY=$(date -u +%j); NT=${#TOPICS[@]}
           T1="${TOPICS[$((10#$DOY % NT))]}"
-          T2="${TOPICS[$(((10#$DOY + 5) % NT))]}"
-          for T in "$T1" "$T2"; do
+          T2="${TOPICS[$(((10#$DOY + 4) % NT))]}"
+          T3="${TOPICS[$(((10#$DOY + 8) % NT))]}"
+          for T in "$T1" "$T2" "$T3"; do
             echo "▶ Clip gracioso (Archive CC): $T"
             gh workflow run clip_archive_cc.yml -f topic="$T" -f niche="graciosos" -f publish=no -R "$GITHUB_REPOSITORY" || echo "no pude disparar $T"
             sleep 60
           done
-          bash pipeline/notify_telegram.sh "😹 Oddly Loop — clips graciosos del día (Archive CC): «$T1» y «$T2» → PRIVADOS para revisar y aprobar en la app." || true
+          bash pipeline/notify_telegram.sh "😹 Oddly Loop — 3 clips graciosos del día (Archive CC): «$T1», «$T2» y «$T3» → PRIVADOS para revisar y aprobar en la app." || true
