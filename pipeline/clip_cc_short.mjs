@@ -42,18 +42,23 @@ const film = `${work}/film.mp4`;
 const url = `https://www.youtube.com/watch?v=${src.id}`;
 const ck = fs.existsSync("cookies.txt") ? "--cookies cookies.txt " : "";
 console.log("Descargando (yt-dlp" + (ck ? " + cookies" : "") + ")…");
-// YouTube bloquea el cliente "web" desde IPs de nube (formatos vacíos aun con cookies). Probar
-// varios player_client (android/ios/tv suelen devolver formatos). Formato: mejor video+audio, merge mp4.
-const EA = `--extractor-args "youtube:player_client=default,android,ios,tv,web_safari"`;
+// YouTube niega formatos a IPs de nube (solo storyboards) aun con cookies. Clave: --impersonate
+// (falsea la huella TLS/JA3 de un navegador real, vía curl-cffi) + cliente TV. Cascada de intentos.
+const FMT = `-f "bv*[height<=1080]+ba/bv*+ba/b/b*" --merge-output-format mp4`;
+const attempts = [
+  `--impersonate chrome --extractor-args "youtube:player_client=tv"`,
+  `--impersonate chrome --extractor-args "youtube:player_client=default,tv,android,ios"`,
+  `--impersonate safari --extractor-args "youtube:player_client=tv,mweb"`,
+  `--extractor-args "youtube:player_client=default,android,ios,tv"`, // sin impersonate (respaldo)
+];
 let ok = false;
-try { execSync(`yt-dlp -q --no-warnings ${ck}${EA} -f "bv*[height<=1080]+ba/bv*+ba/b" --merge-output-format mp4 -o "${film}" "${url}"`, { stdio: "inherit" }); ok = fs.existsSync(film); } catch {}
-if (!ok) { // Fallback: cualquier mejor formato disponible.
-  try { execSync(`yt-dlp -q --no-warnings ${ck}${EA} -f "b/bv*+ba" --merge-output-format mp4 -o "${film}" "${url}"`, { stdio: "inherit" }); ok = fs.existsSync(film); } catch {}
+for (const a of attempts) {
+  try { execSync(`yt-dlp -q --no-warnings ${ck}${a} ${FMT} -o "${film}" "${url}"`, { stdio: "inherit" }); if (fs.existsSync(film)) { ok = true; console.log("Bajado con: " + a); break; } } catch {}
 }
 if (!ok) {
-  console.error("yt-dlp no pudo bajar el video. Formatos que YouTube ofrece a esta IP:");
-  try { execSync(`yt-dlp --no-warnings ${ck}${EA} --list-formats "${url}"`, { stdio: "inherit" }); } catch (e) { console.error("(ni --list-formats respondió: " + e.message + ")"); }
-  console.error(ck ? "Con cookies el bot pasó, pero YouTube no entrega formatos a la nube. Puede ser throttling temporal o cookies vencidas." : "Sin cookies: añade cookies.txt.");
+  console.error("yt-dlp no pudo bajar el video. Formatos que YouTube ofrece a esta IP (con impersonate+TV):");
+  try { execSync(`yt-dlp --no-warnings ${ck}--impersonate chrome --extractor-args "youtube:player_client=tv" --list-formats "${url}"`, { stdio: "inherit" }); } catch (e) { console.error("(ni --list-formats respondió: " + e.message + ")"); }
+  console.error(ck ? "Con cookies el bot pasó, pero YouTube sigue sin dar formatos. Prueba cookies FRESCAS en incógnito." : "Sin cookies: añade cookies.txt.");
   process.exit(2);
 }
 if (!fs.existsSync(film)) { console.error("no se descargó el video"); process.exit(2); }
