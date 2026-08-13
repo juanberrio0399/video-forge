@@ -59,6 +59,15 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           yt-dlp --version
           echo "--- impersonate targets ---"; yt-dlp --list-impersonate-targets 2>/dev/null | head -12 || true
+      - name: Levantar generador de PO-token (bgutil) + plugin
+        run: |
+          # Plugin que le da a yt-dlp el PO token que YouTube (SABR) exige a las IPs de nube.
+          sudo python3 -m pip install --break-system-packages -U bgutil-ytdlp-pot-provider || python3 -m pip install --user -U bgutil-ytdlp-pot-provider
+          # Servidor generador como contenedor local (puerto 4416). yt-dlp lo detecta solo.
+          docker run --name bgutil-provider -d --init -p 4416:4416 brainicism/bgutil-ytdlp-pot-provider || echo "aviso: el contenedor no arrancó"
+          # Esperar a que el generador responda (hasta ~50s).
+          for i in $(seq 1 25); do if curl -sf http://127.0.0.1:4416/ping >/dev/null 2>&1; then echo "PO-token provider LISTO"; break; fi; sleep 2; done
+          curl -s http://127.0.0.1:4416/ping || echo "(ping sin respuesta; el plugin reintentará igual)"
       - name: Cookies de YouTube (opcional — salta el bloqueo de bots de la nube)
         run: |
           if [ -n "$YT_COOKIES_B64" ]; then echo "$YT_COOKIES_B64" | tr -d '\r\n \t' | base64 -d > cookies.txt && echo "cookies.txt desde B64 ($(wc -l < cookies.txt) líneas)";
