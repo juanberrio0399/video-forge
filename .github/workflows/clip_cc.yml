@@ -42,6 +42,7 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
       YT_COOKIES_B64: ${{ secrets.YT_COOKIES_B64 }}
       YT_COOKIES: ${{ secrets.YT_COOKIES }}
+      YT_PROXY: ${{ secrets.YT_PROXY }}
       TOPIC: ${{ github.event.inputs.topic || 'funny animals' }}
       NICHE: ${{ github.event.inputs.niche || 'graciosos' }}
       PUBLISH: ${{ github.event.inputs.publish || 'no' }}
