@@ -147,7 +147,7 @@ const APP_WORKFLOWS = new Set([
   "shorts_final.yml", "publish_youtube.yml", "set_privacy.yml", "recipe_reel.yml",
   "produce_video.yml", "seo_regen.yml", "thumbnail_only.yml", "voice_samples.yml",
   "schedule_youtube.yml", "daily_video.yml", "channel_report.yml", "niche_radar.yml",
-  "report_auto2.yml", "produce_oddly.yml", "publish_oddly.yml", "build_asmr_library.yml", "daily_oddly.yml", "set_oddly_branding.yml", "clip_pd.yml", "clip_nasa.yml", "clip_wikimedia.yml", "clip_vimeo.yml", "clip_pixabay.yml", "clip_pexels.yml", "clip_archive_cc.yml",
+  "report_auto2.yml", "produce_oddly.yml", "publish_oddly.yml", "build_asmr_library.yml", "daily_oddly.yml", "set_oddly_branding.yml", "clip_pd.yml", "clip_nasa.yml", "clip_wikimedia.yml", "clip_pixabay.yml", "clip_pexels.yml", "clip_archive_cc.yml",
 ]);
 
 // Voces disponibles para el canal (con su ejemplo en R2). engine/kvoice se usan en la voz.
@@ -567,8 +567,10 @@ async function handleApi(request, env, url) {
     // (asi cada error sale UNA vez y se limpia solo cuando reintentas con exito).
     const latestByWf = {};
     for (const r of runs) { const wf = r.path || r.name; if (!latestByWf[wf]) latestByWf[wf] = r; }
-    // Muestra TODOS los errores recientes (últimas 24h), la última corrida fallida por workflow.
-    const fails = Object.values(latestByWf).filter((r) => r.conclusion === "failure" && (Date.now() - Date.parse(r.updated_at)) < 24 * 3600 * 1000).slice(0, 8);
+    // Errores recientes (24h), última corrida fallida por workflow — SOLO de workflows válidos
+    // actuales (APP_WORKFLOWS). Así los borrados/experimentales (clip_cc, clip_vimeo) no salen como
+    // "errores sin solucionar" cuando ya no existen o son dead-ends.
+    const fails = Object.values(latestByWf).filter((r) => r.conclusion === "failure" && (Date.now() - Date.parse(r.updated_at)) < 24 * 3600 * 1000 && APP_WORKFLOWS.has((r.path || "").split("/").pop())).slice(0, 8);
     state.problems = [];
     for (const r of fails) {
       // Sin pedir /jobs aqui (ahorra subrequests de Cloudflare): el paso/detalle se carga al
