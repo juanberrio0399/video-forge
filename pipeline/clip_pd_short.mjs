@@ -10,6 +10,7 @@
 import fs from "node:fs";
 import { execSync } from "node:child_process";
 import { sourceWH, smartCropVf } from "./clip_frame.mjs";
+import { narrationText, synthVoice, muxVoiceMusic } from "./clip_narrate.mjs";
 
 const [title, niche = "graciosos", outPath = "short.mp4"] = process.argv.slice(2);
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
@@ -90,12 +91,15 @@ const vf = smartCropVf(W, H, srcW, srcH, sx, "eq=contrast=1.07:saturation=1.06:b
 const pre = Math.max(0, start - 3), fine = (start - pre).toFixed(2);
 const silent = `${work}/silent.mp4`;
 execSync(`ffmpeg -y -ss ${pre} -i "${film}" -ss ${fine} -t ${CLIP} -vf "${vf}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${silent}"`, { stdio: "inherit" });
-if (fs.existsSync("music.mp3")) execSync(`ffmpeg -y -i "${silent}" -stream_loop -1 -i music.mp3 -filter_complex "[1:a]volume=0.5,afade=t=in:st=0:d=1[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
-else execSync(`ffmpeg -y -i "${silent}" -map 0:v -an -c:v copy "${outPath}"`, { stdio: "inherit" });
+// NARRACIÓN: guion corto por categoría + voz (Gemini TTS) -> mezcla voz + música bajo el clip.
+const narr = await narrationText(KEYS, niche, title, title);
+await synthVoice(KEYS, narr, "voice.wav");
+const hasVoice = muxVoiceMusic(silent, "voice.wav", outPath);
+console.log("voz: " + (hasVoice ? "sí" : "no (solo música)"));
 
 // 7) Paquete de publicación + manifiesto de compliance (fuente = dominio público).
 fs.mkdirSync("publish", { recursive: true });
 const pkg = { title: (pick.title || title).slice(0, 100) + " #Shorts", description: `${pick.caption || ""}\n\nClip de "${title}" — dominio público.\n#Shorts #classicmovies #comedy`, tags: ["shorts", "classic movie", "comedy", "silent film", niche], language: "en" };
 fs.writeFileSync("publish/package.json", JSON.stringify(pkg, null, 2));
-fs.writeFileSync("clip_manifest.json", JSON.stringify({ niche, format: "9:16", clips: [{ clip_id: "pd1", source: "archive_org", license: "public-domain", url: `https://archive.org/details/${ident}`, query: title }], transform: { narration: false, editing: true, original_script: true, sound_design: true } }, null, 2));
+fs.writeFileSync("clip_manifest.json", JSON.stringify({ niche, format: "9:16", clips: [{ clip_id: "pd1", source: "archive_org", license: "public-domain", url: `https://archive.org/details/${ident}`, query: title }], transform: { narration: hasVoice, editing: true, original_script: true, sound_design: true } }, null, 2));
 console.log(`Short listo -> ${outPath} · "${pkg.title}"`);
