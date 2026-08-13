@@ -6,8 +6,7 @@
 // Env: GEMINI_API_KEY(,2). music.mp3 opcional.
 import fs from "node:fs";
 import { execSync } from "node:child_process";
-import { sourceWH, smartCropVf } from "./clip_frame.mjs";
-import { narrationText, synthVoice, muxVoiceMusic } from "./clip_narrate.mjs";
+import { sourceWH, smartCropVf, finishClip } from "./clip_frame.mjs";
 
 const [topic, niche = "graciosos", outPath = "short.mp4"] = process.argv.slice(2);
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
@@ -65,17 +64,16 @@ const start = Math.max(0, Math.min(+mo.start, dur - clipLen));
 const { w: srcW, h: srcH } = sourceWH(film);
 const sx = isFinite(+mo.subject_x) ? +mo.subject_x : 0.5;
 const vf = smartCropVf(W, H, srcW, srcH, sx, "eq=contrast=1.06:saturation=1.06");
-const pre = Math.max(0, start - 3), fine = (start - pre).toFixed(2), silent = `${work}/silent.mp4`;
-execSync(`ffmpeg -y -ss ${pre} -i "${film}" -ss ${fine} -t ${clipLen} -vf "${vf}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${silent}"`, { stdio: "inherit" });
-// NARRACIÓN: guion corto por categoría + voz (Gemini TTS) -> mezcla voz + música bajo el clip.
-const narr = await narrationText(KEYS, niche, src.title, topic);
-await synthVoice(KEYS, narr, "voice.wav");
-const hasVoice = muxVoiceMusic(silent, "voice.wav", outPath);
-console.log("voz: " + (hasVoice ? "sí" : "no (solo música)"));
+const pre = Math.max(0, start - 3), fine = (start - pre).toFixed(2), raw = `${work}/raw.mp4`;
+// Corte conservando el AUDIO ORIGINAL del video (sin -an).
+execSync(`ffmpeg -y -ss ${pre} -i "${film}" -ss ${fine} -t ${clipLen} -vf "${vf}" -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 160k "${raw}"`, { stdio: "inherit" });
+// AUDIO ORIGINAL protagonista + música muy suave de fondo (o música si el video no tiene audio).
+const hadAudio = finishClip(raw, outPath);
+console.log("audio original: " + (hadAudio ? "sí" : "no (solo música)"));
 
 fs.mkdirSync("publish", { recursive: true });
 const credited = src.licKey === "cc-by";
 const pkg = { title: (mo.title || src.title).slice(0, 92) + " #Shorts", description: `#Shorts\n\n${credited ? "Credit: " + attribution + " (edited/clipped)." : "Source: " + src.title + " — Wikimedia Commons (" + src.licName + ")."}`, tags: ["shorts", niche, "creative commons"], language: "en" };
 fs.writeFileSync("publish/package.json", JSON.stringify(pkg, null, 2));
-fs.writeFileSync("clip_manifest.json", JSON.stringify({ niche, format: "9:16", clips: [{ clip_id: "wm1", source: "wikimedia", license: src.licKey, url: src.url, attribution: credited ? attribution : "", query: topic }], transform: { narration: hasVoice, editing: true, original_script: true, sound_design: true } }, null, 2));
+fs.writeFileSync("clip_manifest.json", JSON.stringify({ niche, format: "9:16", clips: [{ clip_id: "wm1", source: "wikimedia", license: src.licKey, url: src.url, attribution: credited ? attribution : "", query: topic }], transform: { narration: false, original_audio: hadAudio, editing: true, original_script: true, sound_design: true } }, null, 2));
 console.log(`Short Wikimedia listo -> ${outPath} · "${pkg.title}"`);

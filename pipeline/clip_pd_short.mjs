@@ -3,14 +3,14 @@
 // Vision) "mira" y elige el MEJOR momento (gag/escena) + título -> corta ~35s -> arma un SHORT 9:16
 // (fondo desenfocado + film centrado) con NUESTRO audio (música) + subtítulo + crédito PD + grade
 // cine. Salida: <out.mp4> + publish/package.json + clip_manifest.json (para la puerta de compliance).
-// REGLA: solo el VIDEO del film (PD por antigüedad); el audio original se DESCARTA (ponemos el nuestro).
+// AUDIO: si el film PD trae audio propio (p. ej. sonoro), se CONSERVA (también es dominio público);
+// si es cine mudo (sin pista), ponemos música. Ambos casos vía finishClip.
 //
 // Uso: node pipeline/clip_pd_short.mjs "<título>" <categoria> <out.mp4>
 // Env: GEMINI_API_KEY(,2). music.mp3 opcional en el cwd.
 import fs from "node:fs";
 import { execSync } from "node:child_process";
-import { sourceWH, smartCropVf } from "./clip_frame.mjs";
-import { narrationText, synthVoice, muxVoiceMusic } from "./clip_narrate.mjs";
+import { sourceWH, smartCropVf, finishClip } from "./clip_frame.mjs";
 
 const [title, niche = "graciosos", outPath = "short.mp4"] = process.argv.slice(2);
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
@@ -89,17 +89,15 @@ const vf = smartCropVf(W, H, srcW, srcH, sx, "eq=contrast=1.07:saturation=1.06:b
 // Corte PRECISO: seek rápido a un keyframe antes + seek fino exacto -> primer fotograma NÍTIDO
 // (evita el frame ampliado/borroso de arrancar a mitad de GOP).
 const pre = Math.max(0, start - 3), fine = (start - pre).toFixed(2);
-const silent = `${work}/silent.mp4`;
-execSync(`ffmpeg -y -ss ${pre} -i "${film}" -ss ${fine} -t ${CLIP} -vf "${vf}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${silent}"`, { stdio: "inherit" });
-// NARRACIÓN: guion corto por categoría + voz (Gemini TTS) -> mezcla voz + música bajo el clip.
-const narr = await narrationText(KEYS, niche, title, title);
-await synthVoice(KEYS, narr, "voice.wav");
-const hasVoice = muxVoiceMusic(silent, "voice.wav", outPath);
-console.log("voz: " + (hasVoice ? "sí" : "no (solo música)"));
+const raw = `${work}/raw.mp4`;
+// Corte conservando el audio original si existe (sin -an); si es mudo, no habrá pista.
+execSync(`ffmpeg -y -ss ${pre} -i "${film}" -ss ${fine} -t ${CLIP} -vf "${vf}" -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 160k "${raw}"`, { stdio: "inherit" });
+const hadAudio = finishClip(raw, outPath);
+console.log("audio original: " + (hadAudio ? "sí" : "no (solo música)"));
 
 // 7) Paquete de publicación + manifiesto de compliance (fuente = dominio público).
 fs.mkdirSync("publish", { recursive: true });
 const pkg = { title: (pick.title || title).slice(0, 100) + " #Shorts", description: `${pick.caption || ""}\n\nClip de "${title}" — dominio público.\n#Shorts #classicmovies #comedy`, tags: ["shorts", "classic movie", "comedy", "silent film", niche], language: "en" };
 fs.writeFileSync("publish/package.json", JSON.stringify(pkg, null, 2));
-fs.writeFileSync("clip_manifest.json", JSON.stringify({ niche, format: "9:16", clips: [{ clip_id: "pd1", source: "archive_org", license: "public-domain", url: `https://archive.org/details/${ident}`, query: title }], transform: { narration: hasVoice, editing: true, original_script: true, sound_design: true } }, null, 2));
+fs.writeFileSync("clip_manifest.json", JSON.stringify({ niche, format: "9:16", clips: [{ clip_id: "pd1", source: "archive_org", license: "public-domain", url: `https://archive.org/details/${ident}`, query: title }], transform: { narration: false, original_audio: hadAudio, editing: true, original_script: true, sound_design: true } }, null, 2));
 console.log(`Short listo -> ${outPath} · "${pkg.title}"`);
