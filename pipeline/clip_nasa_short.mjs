@@ -7,6 +7,7 @@
 import fs from "node:fs";
 import { execSync } from "node:child_process";
 import { sourceWH, smartCropVf } from "./clip_frame.mjs";
+import { narrationText, synthVoice, muxVoiceMusic } from "./clip_narrate.mjs";
 
 const [topic, niche = "ciencia_humor", outPath = "short.mp4"] = process.argv.slice(2);
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
@@ -59,11 +60,14 @@ const vf = smartCropVf(W, H, srcW, srcH, sx, "eq=contrast=1.05:saturation=1.08")
 const pre = Math.max(0, start - 3), fine = (start - pre).toFixed(2);
 const silent = `${work}/silent.mp4`;
 execSync(`ffmpeg -y -ss ${pre} -i "${film}" -ss ${fine} -t ${clipLen} -vf "${vf}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${silent}"`, { stdio: "inherit" });
-if (fs.existsSync("music.mp3")) execSync(`ffmpeg -y -i "${silent}" -stream_loop -1 -i music.mp3 -filter_complex "[1:a]volume=0.5,afade=t=in:st=0:d=1[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
-else execSync(`ffmpeg -y -i "${silent}" -map 0:v -an -c:v copy "${outPath}"`, { stdio: "inherit" });
+// NARRACIÓN: guion corto + voz (Gemini TTS) -> voz + música bajo el clip.
+const narr = await narrationText(KEYS, niche, title, topic);
+await synthVoice(KEYS, narr, "voice.wav");
+const hasVoice = muxVoiceMusic(silent, "voice.wav", outPath);
+console.log("voz: " + (hasVoice ? "sí" : "no (solo música)"));
 
 fs.mkdirSync("publish", { recursive: true });
 const pkg = { title: (mo.title || title).slice(0, 92) + " #Shorts", description: `#Shorts #space #nasa\n\nCredit: NASA (public domain) — ${title}.`, tags: ["shorts", "space", "nasa", "science", niche], language: "en" };
 fs.writeFileSync("publish/package.json", JSON.stringify(pkg, null, 2));
-fs.writeFileSync("clip_manifest.json", JSON.stringify({ niche, format: "9:16", clips: [{ clip_id: "nasa1", source: "nasa", license: "nasa", url: `https://images.nasa.gov/details-${nasaId}`, query: topic }], transform: { narration: false, editing: true, original_script: true, sound_design: true } }, null, 2));
+fs.writeFileSync("clip_manifest.json", JSON.stringify({ niche, format: "9:16", clips: [{ clip_id: "nasa1", source: "nasa", license: "nasa", url: `https://images.nasa.gov/details-${nasaId}`, query: topic }], transform: { narration: hasVoice, editing: true, original_script: true, sound_design: true } }, null, 2));
 console.log(`Short NASA listo -> ${outPath} · "${pkg.title}"`);
