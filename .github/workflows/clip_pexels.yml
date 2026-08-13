@@ -1,18 +1,18 @@
-name: Clipear short CC-BY (YouTube Creative Commons -> Oddly Loop)
+name: Clipear short Pexels (-> Oddly Loop)
 
-# Toma un video RECIENTE con licencia Creative Commons (CC-BY) de YouTube (verifica la licencia
-# por API), la IA elige el mejor momento y arma un SHORT 9:16 con NUESTRO audio + ATRIBUCIÓN.
-# Sube a Oddly Loop (YT2) privado para revisar. Descarga con yt-dlp (YouTube puede bloquear desde
-# la nube -> si falla seguido, pivotamos a Vimeo CC / Archive.org / NASA).
+# Toma un video de Pexels (Pexels Content License: libre, comercial, sin atribución; descarga
+# DIRECTA por API oficial, sin yt-dlp ni bloqueo de bots), la IA elige el mejor momento y arma un
+# SHORT 9:16 conservando el AUDIO ORIGINAL del clip (o música si es mudo). Sube a YT2 privado.
+# Requiere el secreto PEXELS_API_KEY (gratis en pexels.com/api).
 
 on:
   workflow_dispatch:
     inputs:
       topic:
-        description: "Tema a buscar en CC-BY (ej: funny animals, science experiment, skateboard)"
+        description: "Tema (ej: funny cats, funny dogs, satisfying, fails)"
         default: "funny animals"
       niche:
-        description: "categoría (graciosos / ciencia_humor / deporte_momentos)"
+        description: "categoría"
         default: "graciosos"
       publish:
         description: "no = privado · yes = programa"
@@ -27,8 +27,9 @@ env:
 jobs:
   clip:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
     env:
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -40,8 +41,6 @@ jobs:
       CHANNEL_URL: "https://youtube.com/@oddlyloophq"
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
-      YT_COOKIES_B64: ${{ secrets.YT_COOKIES_B64 }}
-      YT_COOKIES: ${{ secrets.YT_COOKIES }}
       TOPIC: ${{ github.event.inputs.topic || 'funny animals' }}
       NICHE: ${{ github.event.inputs.niche || 'graciosos' }}
       PUBLISH: ${{ github.event.inputs.publish || 'no' }}
@@ -50,32 +49,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Instalar ffmpeg + yt-dlp
-        run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation
-          sudo curl -fL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && sudo chmod a+rx /usr/local/bin/yt-dlp
-          yt-dlp --version
-      - name: Cookies de YouTube (opcional — salta el bloqueo de bots de la nube)
-        run: |
-          if [ -n "$YT_COOKIES_B64" ]; then echo "$YT_COOKIES_B64" | base64 -d > cookies.txt && echo "cookies.txt desde B64 ($(wc -l < cookies.txt) líneas)";
-          elif [ -n "$YT_COOKIES" ]; then printf '%s\n' "$YT_COOKIES" > cookies.txt && echo "cookies.txt desde texto ($(wc -l < cookies.txt) líneas)";
-          else echo "sin cookies (yt-dlp intentará anónimo; YouTube puede bloquear)"; fi
+      - name: Instalar ffmpeg + fuentes
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation
       - name: Música de fondo (opcional)
         run: npx --yes wrangler@4 r2 object get "$BUCKET/music/cinematic.mp3" --file=music.mp3 --remote 2>/dev/null || echo "sin musica"
-      - name: Clipear el mejor momento CC-BY -> short 9:16
+      - name: Clipear el mejor momento Pexels -> short 9:16
         run: |
-          set +e
-          node pipeline/clip_cc_short.mjs "$TOPIC" "$NICHE" short.mp4; RC=$?
-          if [ "$RC" = "2" ]; then bash pipeline/notify_telegram.sh "⚠️ Clip CC: YouTube bloqueó la descarga desde la nube (tema: ${TOPIC}). Reintento luego o pivotamos a Vimeo/Archive/NASA." || true; exit 1; fi
+          node pipeline/clip_pexels_short.mjs "$TOPIC" "$NICHE" short.mp4; RC=$?
+          if [ "$RC" = "3" ]; then bash pipeline/notify_telegram.sh "⚠️ Clip Pexels: falta el secreto PEXELS_API_KEY (gratis en pexels.com/api)." || true; exit 1; fi
           [ "$RC" != "0" ] && exit 1 || true
-      - name: PUERTA de compliance (CC-BY con atribución)
+      - name: PUERTA de compliance
         run: |
           if node pipeline/compliance_check.mjs clip_manifest.json channel/auto2/sources.seed.json; then echo "ok"; else
-            bash pipeline/notify_telegram.sh "🚫 Clip CC rechazado:"$'\n'"$(cat compliance_fail.txt 2>/dev/null)" || true; exit 1; fi
+            bash pipeline/notify_telegram.sh "🚫 Clip Pexels rechazado:"$'\n'"$(cat compliance_fail.txt 2>/dev/null)" || true; exit 1; fi
       - name: Subir a Oddly Loop (PRIVADO) + niche_map + (programar)
         run: |
           node pipeline/youtube_upload.mjs short.mp4 publish/package.json
-          [ ! -f publish/video_id.txt ] && { bash pipeline/notify_telegram.sh "❌ Clip CC: falló la subida." || true; exit 1; }
+          [ ! -f publish/video_id.txt ] && { bash pipeline/notify_telegram.sh "❌ Clip Pexels: falló la subida." || true; exit 1; }
           VID=$(cat publish/video_id.txt)
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/niche_map.json" --file=nm.json --remote 2>/dev/null || echo '{}' > nm.json
           VID="$VID" NICHE="$NICHE" node -e 'const fs=require("fs");let m={};try{m=JSON.parse(fs.readFileSync("nm.json","utf8"))}catch(e){};m[process.env.VID]=process.env.NICHE;fs.writeFileSync("nm.json",JSON.stringify(m))'
@@ -84,7 +74,7 @@ jobs:
             npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/best_hours.json" --file=best_hours.json --remote 2>/dev/null || true
             OCC=$(node pipeline/scheduled_times.mjs); SLOT=$(node pipeline/best_slot.mjs "$OCC")
             node pipeline/youtube_schedule.mjs "$VID" "$SLOT" || true
-            bash pipeline/notify_telegram.sh "🎬 Clip CC-BY (${NICHE}) subido y PROGRAMADO ($SLOT). $(cat publish/youtube_result.txt 2>/dev/null | head -2)"
+            bash pipeline/notify_telegram.sh "🎬 Clip Pexels (${NICHE}) subido y PROGRAMADO ($SLOT)."
           else
-            bash pipeline/notify_telegram.sh "🎬 Clip CC-BY (${NICHE}) — PRIVADO para revisar 👀. Con crédito al autor (CC-BY):"$'\n'"$(cat publish/youtube_result.txt 2>/dev/null | head -2)"
+            bash pipeline/notify_telegram.sh "🎬 Clip Pexels (${NICHE}) — PRIVADO para revisar 👀:"$'\n'"$(cat publish/youtube_result.txt 2>/dev/null | head -2)"
           fi
