@@ -411,7 +411,11 @@ async function handleApi(request, env, url) {
     (inv.shorts || []).forEach((sh) => { const p = shortsMap[sh.video_id]; if (p) (byParent[p] = byParent[p] || []).push(sh); });
     // Ledger de la fabrica (channel/videos.json): lo que NO esta aqui = subido MANUALMENTE por Juan.
     const vledger = (await r2json(env, "channel/videos.json")) || {};
-    const slimV = (v) => ({ video_id: v.video_id, title: (v.title || "").replace(/ #Shorts$/, ""), privacy: v.privacy, views: v.views || 0, watch_min: v.watch_min || 0, manual: !vledger[v.video_id] });
+    // "manual" = NO está en el ledger de la fábrica. PERO si el ledger está vacío/incompleto, eso
+    // marcaría TODO como manual (falso). Juan no sube nada a mano -> solo marcamos manual si el
+    // ledger tiene datos (si no, asumimos que son de la fábrica y el ledger aún no los registró).
+    const hasLedger = Object.keys(vledger).length > 0;
+    const slimV = (v) => ({ video_id: v.video_id, title: (v.title || "").replace(/ #Shorts$/, ""), privacy: v.privacy, views: v.views || 0, watch_min: v.watch_min || 0, manual: hasLedger && !vledger[v.video_id] });
     state.video_tree = (inv.longs || []).map((l) => ({ ...slimV(l), shorts: (byParent[l.video_id] || []).map(slimV) }));
     const groupedIds = new Set(Object.values(byParent).flat().map((s) => s.video_id));
     state.video_tree_ungrouped = (inv.shorts || []).filter((sh) => !groupedIds.has(sh.video_id)).map(slimV);
@@ -428,7 +432,7 @@ async function handleApi(request, env, url) {
       const scheduled = !!(v.publish_at && Date.parse(v.publish_at) > Date.now());
       return {
         video_id: v.video_id, title: v.title, public: v.privacy === "public", scheduled, publish_at: v.publish_at || null,
-        views: v.views, watch_min: v.watch_min || 0, manual: !vledger[v.video_id],
+        views: v.views, watch_min: v.watch_min || 0, manual: hasLedger && !vledger[v.video_id],
         thumb_url: thumbUrl, thumb_approved: !!st.thumb_approved,
         stages: {
           // "publicado" = ya gestionado: público EN VIVO o PROGRAMADO (se publica solo a su hora).
