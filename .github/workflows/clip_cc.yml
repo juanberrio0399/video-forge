@@ -57,7 +57,7 @@ jobs:
           yt-dlp --version
       - name: Cookies de YouTube (opcional — salta el bloqueo de bots de la nube)
         run: |
-          if [ -n "$YT_COOKIES_B64" ]; then echo "$YT_COOKIES_B64" | base64 -d > cookies.txt && echo "cookies.txt desde B64 ($(wc -l < cookies.txt) líneas)";
+          if [ -n "$YT_COOKIES_B64" ]; then echo "$YT_COOKIES_B64" | tr -d '\r\n \t' | base64 -d > cookies.txt && echo "cookies.txt desde B64 ($(wc -l < cookies.txt) líneas)";
           elif [ -n "$YT_COOKIES" ]; then printf '%s\n' "$YT_COOKIES" > cookies.txt && echo "cookies.txt desde texto ($(wc -l < cookies.txt) líneas)";
           else echo "sin cookies (yt-dlp intentará anónimo; YouTube puede bloquear)"; fi
       - name: Música de fondo (opcional)
