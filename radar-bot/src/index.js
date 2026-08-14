@@ -125,12 +125,18 @@ h1{font-size:16px;margin:2px 0 10px}.tabs{display:flex;gap:6px;overflow-x:auto;p
 .btn.d{background:transparent;color:#ff5c5c;border:1px solid rgba(255,92,92,.4)}
 a{color:var(--btn);text-decoration:none}.empty{text-align:center;color:var(--hint);padding:30px 10px}
 .sec{font-weight:700;font-size:13px;margin:14px 2px 6px}
+.home{cursor:pointer}.hrow{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.rname{font-weight:700;font-size:14px}.chips{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+.chip{padding:5px 10px;border-radius:999px;background:var(--bg);border:1px solid var(--line);font-size:13px;font-weight:700}
+.chip.z{opacity:.35;font-weight:400}.sum{color:var(--hint);font-size:12px;margin:0 2px 11px}
+.fbar{display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 11px;margin-bottom:9px;font-size:13px}
+.fbar button{background:transparent;color:var(--btn);border:0;font-weight:700;font-size:13px}
 #toast{position:fixed;left:10px;right:10px;bottom:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;display:none;z-index:9}
 </style></head><body>
 <h1>📡 Radar</h1><div class="tabs" id="tabs"></div><div id="list"></div><div id="toast"></div>
 <script>
 var TG=window.Telegram.WebApp;TG.ready();TG.expand();
-var INIT=TG.initData||"";var ST={repos:[]},CUR=0,REVIEWED={};
+var INIT=TG.initData||"";var ST={repos:[]},CUR=-1,FILTER=null,REVIEWED={};
 try{REVIEWED=JSON.parse(localStorage.getItem("radar_reviewed")||"{}");}catch(e){}
 function saveReviewed(){try{localStorage.setItem("radar_reviewed",JSON.stringify(REVIEWED));}catch(e){}}
 function api(path,body){return fetch(path,{method:"POST",headers:{"content-type":"application/json","x-init-data":INIT},body:JSON.stringify(body||{})}).then(function(r){return r.json();});}
@@ -156,16 +162,42 @@ function card(r,is){
     +'<div class="muted"><a href="'+is.url+'" target="_blank">Abrir issue ↗</a></div>'
     +'<div class="row">'+btns+'</div></div>';
 }
+function counts(r){var c={alta:0,media:0,baja:0,none:0};r.issues.forEach(function(x){var k=x.prio||'none';c[k]=(c[k]||0)+1;});return c;}
+function chip(i,prio,emoji,n){return '<span class="chip'+(n?'':' z')+'" onclick="event.stopPropagation();go('+i+',\\''+prio+'\\')">'+emoji+' '+n+'</span>';}
+function go(i,prio){CUR=i;FILTER=(prio==null)?null:prio;render();}
+function tabsHtml(){
+  var t='<div class="tab '+(CUR<0?'on':'')+'" onclick="CUR=-1;FILTER=null;render()">🏠 Inicio</div>';
+  t+=ST.repos.map(function(r,i){var pend=r.issues.filter(function(x){return x.pr;}).length;return '<div class="tab '+(i===CUR?'on':'')+'" onclick="go('+i+',null)">📦 '+esc(r.short)+' ('+r.issues.length+(pend?' · 🔧'+pend:'')+')</div>';}).join("");
+  return t;
+}
+function renderHome(){
+  var total=0,pend=0,alta=0;
+  var cards=ST.repos.map(function(r,i){
+    var c=counts(r);total+=r.issues.length;alta+=c.alta;
+    var p=r.issues.filter(function(x){return x.pr;}).length;pend+=p;
+    return '<div class="card home" onclick="go('+i+',null)">'
+      +'<div class="hrow"><span class="rname">📦 '+esc(r.short)+'</span><span class="muted">'+r.issues.length+' issue'+(r.issues.length===1?'':'s')+(p?' · 🔧'+p+' PR':'')+'</span></div>'
+      +'<div class="chips">'+chip(i,'alta','🔴',c.alta)+chip(i,'media','🟡',c.media)+chip(i,'baja','🟢',c.baja)+(c.none?chip(i,'none','⚪',c.none):'')+'</div>'
+    +'</div>';
+  }).join("");
+  document.getElementById("tabs").innerHTML=tabsHtml();
+  var head='<div class="sum">'+ST.repos.length+' repos · '+total+' mejora'+(total===1?'':'s')+' · 🔴 '+alta+' alta'+(pend?' · 🔧 '+pend+' por merge':'')+'</div>';
+  document.getElementById("list").innerHTML=total?(head+cards):'<div class="empty">✅ Sin issues del radar todavía.<br>El barrido semanal irá dejando novedades.</div>';
+}
 function render(){
-  var tabs=ST.repos.map(function(r,i){var pend=r.issues.filter(function(x){return x.pr;}).length;return '<div class="tab '+(i===CUR?'on':'')+'" onclick="CUR='+i+';render()">📦 '+esc(r.short)+' ('+r.issues.length+(pend?' · 🔧'+pend:'')+')</div>';}).join("");
-  document.getElementById("tabs").innerHTML=tabs;
+  if(CUR>=ST.repos.length)CUR=ST.repos.length?0:-1;
+  if(CUR<0){renderHome();return;}
+  document.getElementById("tabs").innerHTML=tabsHtml();
   var r=ST.repos[CUR]||{issues:[]};
-  var pend=r.issues.filter(function(x){return x.pr;});
-  var todo=r.issues.filter(function(x){return !x.pr;});
+  var items=r.issues;
+  if(FILTER!==null)items=items.filter(function(x){return (x.prio||'none')===FILTER;});
+  var pend=items.filter(function(x){return x.pr;});
+  var todo=items.filter(function(x){return !x.pr;});
   var html="";
+  if(FILTER!==null){var lbl={alta:'🔴 Alta',media:'🟡 Media',baja:'🟢 Baja',none:'⚪ Sin prioridad'}[FILTER]||FILTER;html+='<div class="fbar"><span>Filtrando: '+lbl+' ('+items.length+')</span><button onclick="FILTER=null;render()">Quitar ✕</button></div>';}
   if(pend.length){ html+='<div class="sec">🔧 Pendientes por merge ('+pend.length+')</div>'+pend.map(function(is){return card(r,is);}).join(""); }
   if(todo.length){ html+='<div class="sec">🆕 Por trabajar ('+todo.length+')</div>'+todo.map(function(is){return card(r,is);}).join(""); }
-  if(!html) html='<div class="empty">✅ Sin issues del radar en este repo.<br>El barrido semanal irá dejando novedades.</div>';
+  if(!html) html='<div class="empty">✅ Nada aquí'+(FILTER!==null?' con ese filtro.':'.<br>El barrido semanal irá dejando novedades.')+'</div>';
   document.getElementById("list").innerHTML=html;
 }
 function openPR(u){TG.openLink(u);}
