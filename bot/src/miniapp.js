@@ -14,68 +14,90 @@ export const APP_HTML = `<!doctype html>
     --bg:var(--tg-theme-bg-color,#0f1420); --card:var(--tg-theme-secondary-bg-color,#1a2130);
     --txt:var(--tg-theme-text-color,#eaf1ff); --hint:var(--tg-theme-hint-color,#8aa0c0);
     --btn:var(--tg-theme-button-color,#22a0e0); --btntx:var(--tg-theme-button-text-color,#fff);
-    --link:var(--tg-theme-link-color,#4fc3f7); --cy:#22d3ee; --gr:#34d399; --am:#f59e0b;
+    --link:var(--tg-theme-link-color,#4fc3f7);
+    --acc:var(--tg-theme-button-color,#22a0e0); --accfg:var(--tg-theme-button-text-color,#fff);
+    /* Bordes/tracks en gris neutro con alfa: se ven bien en tema CLARO y OSCURO (no dependen de blanco). */
+    --line:rgba(130,140,158,.24); --soft:rgba(130,140,158,.11);
+    --cy:#22d3ee; --gr:#34d399; --am:#f59e0b; --rd:#f87171;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;padding-bottom:80px}
-  header{padding:14px 16px 8px;position:sticky;top:0;background:var(--bg);z-index:5}
-  header h1{font-size:19px;margin:0;font-weight:800}
-  header .sub{color:var(--hint);font-size:12px;margin-top:2px}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;font-size:15px;line-height:1.45;padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+  header{padding:12px 14px 10px;position:sticky;top:0;background:var(--bg);z-index:6}
+  .hdrow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .hd-l{display:flex;align-items:center;gap:10px;min-width:0}
+  .logo{font-size:24px;line-height:1;flex-shrink:0}
+  header h1{font-size:18px;margin:0;font-weight:800;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header .sub{color:var(--hint);font-size:12px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .icon{background:var(--card);border:1px solid var(--line);color:var(--txt);min-width:38px;height:38px;border-radius:11px;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:transform .12s}
+  .icon:active{transform:scale(.9) rotate(-35deg)}
   .wrap{padding:0 14px}
-  .card{background:var(--card);border-radius:14px;padding:14px;margin:10px 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin:10px 0}
   .row{display:flex;gap:10px}
   .kpi{flex:1;text-align:center}
   .kpi .n{font-size:26px;font-weight:900;line-height:1}
   .kpi .l{font-size:11px;color:var(--hint);margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
-  h2{font-size:13px;color:var(--hint);text-transform:uppercase;letter-spacing:1px;margin:16px 4px 6px}
-  .bar{height:9px;background:rgba(255,255,255,.1);border-radius:6px;overflow:hidden;margin-top:6px}
+  h2{font-size:12px;color:var(--hint);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin:18px 4px 8px}
+  .bar{height:9px;background:var(--soft);border-radius:6px;overflow:hidden;margin-top:6px}
   .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--cy),var(--gr));border-radius:6px}
   table{width:100%;border-collapse:collapse;font-size:13px}
   th{color:var(--hint);text-align:left;font-weight:600;padding:6px 6px;font-size:11px;text-transform:uppercase}
-  td{padding:8px 6px;border-top:1px solid rgba(255,255,255,.07);vertical-align:top}
+  td{padding:8px 6px;border-top:1px solid var(--line);vertical-align:top}
   .tag{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700}
   .tag.pub{background:rgba(52,211,153,.18);color:var(--gr)} .tag.priv{background:rgba(245,158,11,.18);color:var(--am)}
   a{color:var(--link);text-decoration:none}
-  .btn{display:block;width:100%;background:var(--btn);color:var(--btntx);border:0;border-radius:12px;padding:13px;font-size:15px;font-weight:700;margin:8px 0;cursor:pointer}
-  .btn.ghost{background:transparent;color:var(--txt);border:1px solid rgba(255,255,255,.18)}
-  .btn.mini{display:inline-block;width:auto;padding:6px 12px;font-size:12px;margin:0}
+  .btn{display:block;width:100%;background:var(--btn);color:var(--btntx);border:0;border-radius:13px;padding:13px;font-size:15px;font-weight:700;margin:8px 0;cursor:pointer;transition:transform .09s}
+  .btn:active{transform:scale(.98)}
+  .btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--line)}
+  .btn.mini{display:inline-block;width:auto;padding:7px 13px;font-size:12px;margin:0;border-radius:11px}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  input[type=text],textarea{width:100%;background:var(--bg);color:var(--txt);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:11px;font-size:15px;font-family:inherit}
+  input[type=text],textarea{width:100%;background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:11px;padding:11px;font-size:15px;font-family:inherit}
   textarea{min-height:80px;resize:vertical}
-  .file{display:flex;align-items:center;gap:10px;background:var(--bg);border:1px dashed rgba(255,255,255,.25);border-radius:12px;padding:14px;justify-content:center;color:var(--hint);cursor:pointer;margin:8px 0}
-  .nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid rgba(255,255,255,.08);padding:6px 4px 10px}
-  .nav button{flex:1;background:none;border:0;color:var(--hint);font-size:11px;font-weight:600;padding:5px 2px;cursor:pointer;border-radius:12px;margin:0 2px;transition:background .15s}
+  .file{display:flex;align-items:center;gap:10px;background:var(--bg);border:1px dashed var(--line);border-radius:12px;padding:14px;justify-content:center;color:var(--hint);cursor:pointer;margin:8px 0}
+  .nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding:6px 6px calc(10px + env(safe-area-inset-bottom));z-index:7}
+  .nav button{flex:1;background:none;border:0;color:var(--hint);font-size:11px;font-weight:600;padding:6px 2px;cursor:pointer;border-radius:12px;margin:0 2px;transition:background .15s,color .15s}
   .nav button .ic{font-size:20px;display:block;margin-bottom:2px}
   .nav button.on{color:var(--cy);background:rgba(34,211,238,.14)}
-  .chsel{display:flex;background:var(--bg);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:3px;gap:2px}
-  .chsel button{background:none;border:0;color:var(--hint);font-size:11px;font-weight:700;padding:5px 10px;border-radius:8px;cursor:pointer;white-space:nowrap}
+  .chsel{display:flex;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px;margin-top:10px}
+  .chsel button{flex:1;background:none;border:0;color:var(--hint);font-size:12px;font-weight:700;padding:8px 10px;border-radius:9px;cursor:pointer;white-space:nowrap;transition:transform .08s}
+  .chsel button:active{transform:scale(.97)}
   .chsel button.on{background:var(--cy);color:#04121a}
   .gauge{font-size:34px;font-weight:900;line-height:1}
   .hide{display:none}
   .muted{color:var(--hint);font-size:13px}
-  #toast{position:fixed;bottom:78px;left:14px;right:14px;background:#111a2b;color:#fff;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:13px 16px;text-align:center;font-weight:600;transform:translateY(140px);transition:.25s;z-index:20;box-shadow:0 8px 30px rgba(0,0,0,.45)}
-  #toast.show{transform:translateY(0)}
+  #toast{position:fixed;bottom:calc(84px + env(safe-area-inset-bottom));left:14px;right:14px;background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:13px;padding:13px 16px;text-align:center;font-weight:600;transform:translateY(160%);opacity:0;transition:transform .3s cubic-bezier(.2,.9,.3,1),opacity .3s;z-index:20;box-shadow:0 10px 30px rgba(0,0,0,.32)}
+  #toast.show{transform:none;opacity:1}
   .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
-  .chip{font-size:12px;padding:6px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.18);cursor:pointer}
+  .chip{font-size:12px;padding:6px 11px;border-radius:20px;border:1px solid var(--line);cursor:pointer}
   .chip.on{background:var(--cy);color:#04121a;border-color:var(--cy);font-weight:700}
   .live{display:inline-block;width:9px;height:9px;border-radius:50%;background:#34d399;margin-right:2px;animation:pulse 1.4s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.55)}70%{box-shadow:0 0 0 8px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
-  .ytcard{border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;background:var(--card);margin:6px 0 10px}
+  .ytcard{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card);margin:6px 0 10px}
   .ytthumb{aspect-ratio:16/9;background:linear-gradient(135deg,#0e7490,#1e293b);display:flex;align-items:center;justify-content:center}
   .ytbig{font-weight:900;font-size:26px;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.6);text-align:center;padding:0 14px;letter-spacing:.5px;line-height:1.1}
   .yttitle{font-weight:700;font-size:14px;line-height:1.3;margin-bottom:2px}
   .score{font-size:30px;font-weight:800;line-height:1}
+  .fadein{animation:fadein .26s ease}
+  @keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .sk-l{height:13px;border-radius:7px;background:var(--soft);margin:7px 0;animation:skp 1.15s ease-in-out infinite}
+  .sk-l.s{height:11px;width:55%}
+  @keyframes skp{0%,100%{opacity:.45}50%{opacity:.95}}
 </style></head>
 <body>
 <header>
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-    <h1 id="chTitle">The Data Lens</h1>
-    <div class="chsel" id="chSel">
-      <button data-ch="data-lens" class="on">The Data Lens</button>
-      <button data-ch="auto2">Auto #2</button>
+  <div class="hdrow">
+    <div class="hd-l">
+      <span class="logo">🎬</span>
+      <div style="min-width:0">
+        <h1 id="chTitle">The Data Lens</h1>
+        <div class="sub" id="hd">Centro de control</div>
+      </div>
     </div>
+    <button class="icon" id="btnRefresh" aria-label="Actualizar">⟳</button>
   </div>
-  <div class="sub" id="hd">Centro de control</div>
+  <div class="chsel" id="chSel">
+    <button data-ch="data-lens" class="on">The Data Lens</button>
+    <button data-ch="auto2">Auto #2</button>
+  </div>
 </header>
 <div class="wrap">
   <div id="tabHelp" class="muted" style="font-size:12px;margin:2px 2px 8px"></div>
@@ -99,6 +121,16 @@ export const APP_HTML = `<!doctype html>
   if (tg) { tg.ready(); tg.expand(); }
   var INIT = tg ? tg.initData : "";
   var ST = {};
+  // Navegacion NATIVA de Telegram: haptics, boton Atras y color del header segun el tema.
+  function h(t){ try{ var H=tg&&tg.HapticFeedback; if(!H)return; if(t==="sel")H.selectionChanged(); else if(t==="ok")H.notificationOccurred("success"); else if(t==="err")H.notificationOccurred("error"); else H.impactOccurred(t||"light"); }catch(e){} }
+  try{ tg&&tg.setHeaderColor&&tg.setHeaderColor("bg_color"); }catch(e){}
+  // Muestra "Atras" cuando NO estas en la vista raiz (Inicio de The Data Lens y sin un short en foco).
+  function backBtnSync(){ try{ if(!tg||!tg.BackButton)return; if(curTab!=="inicio"||curChannel!=="data-lens"||shortsTargetVid) tg.BackButton.show(); else tg.BackButton.hide(); }catch(e){} }
+  try{ tg&&tg.BackButton&&tg.BackButton.onClick(function(){ h("light");
+    if(shortsTargetVid){ shortsTargetVid=""; render(); backBtnSync(); return; }
+    if(curChannel!=="data-lens"){ setChannel("data-lens"); return; }
+    if(curTab!=="inicio"){ tab("inicio"); }
+  }); }catch(e){}
   function el(id){return document.getElementById(id);}
   function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
   function toast(m){var t=el("toast");t.textContent=m;t.classList.add("show");setTimeout(function(){t.classList.remove("show");},2600);}
@@ -125,10 +157,13 @@ export const APP_HTML = `<!doctype html>
     ["inicio","producir","agenda","analitica","mas"].forEach(function(t){el("s-"+t).classList.toggle("hide",t!==name);});
     document.querySelectorAll(".nav button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-t")===name);});
     setHelp(name);
+    var sec=el("s-"+name); if(sec){ sec.classList.remove("fadein"); void sec.offsetWidth; sec.classList.add("fadein"); }
+    h("sel"); backBtnSync();
   }
-  function setChannel(ch){ curChannel=ch; document.querySelectorAll(".chsel button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-ch")===ch);}); render(); }
+  function setChannel(ch){ curChannel=ch; document.querySelectorAll(".chsel button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-ch")===ch);}); h("sel"); render(); backBtnSync(); }
   document.querySelectorAll(".nav button").forEach(function(b){b.onclick=function(){tab(b.getAttribute("data-t"));};});
   document.querySelectorAll(".chsel button").forEach(function(b){b.onclick=function(){setChannel(b.getAttribute("data-ch"));};});
+  (function(){ var rb=el("btnRefresh"); if(rb) rb.onclick=function(){ h("light"); toast("Actualizando…"); load(); }; })();
 
   function pct(a,b){return Math.min(100,Math.round((( +a||0)/(b||1))*100));}
   // Clasifica una ejecución por canal: Auto (Oddly Loop) vs The Data Lens.
@@ -1201,6 +1236,8 @@ export const APP_HTML = `<!doctype html>
     refTimer=setTimeout(function(){ if(curTab!=="mas" && !isTyping()) load(); else scheduleRefresh(); }, ms);
   }
   function load(){ api("/api/state").then(function(r){return r.json();}).then(function(j){ if(j.error){ el("hd").textContent = j.error==="no autorizado" ? "No autorizado" : ("⚠️ "+(j.detail||j.error)+" — reintentando…"); scheduleRefresh(); return; } ST=j; render(); scheduleRefresh(); }).catch(function(){el("hd").textContent="Sin conexión — reintentando…";scheduleRefresh();}); }
+  // Skeleton mientras llega el primer /api/state (evita pantalla vacia al abrir).
+  (function skeletonBoot(){ var s=""; for(var i=0;i<4;i++){ s+='<div class="card"><div class="sk-l" style="width:'+(46+i*10)+'%"></div><div class="sk-l s"></div></div>'; } var e=el("s-inicio"); if(e&&!e.innerHTML) e.innerHTML=s; })();
   load();
 </script>
 </body></html>`;
