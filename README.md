@@ -1,8 +1,26 @@
 # video-forge
 
+[![CI status](https://img.shields.io/github/actions/workflow/status/owner/video-forge/daily_video.yml?branch=main&label=Daily%20Video%20Workflow&style=flat-square)](https://github.com/owner/video-forge/actions/workflows/daily_video.yml)
+[![100% Cloud](https://img.shields.io/badge/infra-100%25%20cloud-blue?style=flat-square)](https://github.com)
+[![Stack](https://img.shields.io/badge/stack-GitHub%20Actions%20%·%20Cloudflare%20%·%20Gemini-orange?style=flat-square)](https://github.com)
+[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+
 Fábrica de videos de YouTube que corre **100% en la nube** (nada se renderiza en el PC) con herramientas **gratis**. Opera **dos canales independientes**, controlados desde una **Telegram Mini App**. GitHub Actions produce, un Cloudflare Worker + R2 son el mando/estado, y Gemini/Kokoro/HyperFrames/Freesound hacen el contenido.
 
+<p align="center">
+  <img src="assets/demo-miniapp.png" alt="Telegram Mini App orquestando la fábrica" width="600">
+  <!-- TODO: Reemplazar assets/demo-miniapp.png por assets/demo-miniapp.gif cuando esté disponible el vídeo de captura -->
+</p>
+
 > **Para una IA que lee esto:** cada script en `pipeline/*.mjs` tiene un comentario de cabecera que explica qué hace y su uso. Cada workflow en `.github/workflows/*.yml` tiene un comentario arriba. Este README es el mapa; los docs en `docs/` son el detalle por tema.
+
+## Míralo funcionando
+
+El sistema opera de forma autónoma alimentando canales reales en YouTube:
+
+- **[The Data Lens (@TheDataLensHQ)](https://www.youtube.com/@TheDataLensHQ)**: Contenido enfocado en datos y finanzas / faceless en inglés para el mercado de EE.UU., producido mediante inactividad y aprobación guiada.
+- **[Oddly Loop (@oddlyloophq)](https://www.youtube.com/@oddlyloophq)**: Canal automatizado de blitz en Shorts y videos largos de ASMR, compilaciones satisfactorias y narrativas con rigor de cumplimiento.
+
 
 ## Los dos canales (100% separados)
 
@@ -48,6 +66,16 @@ Cada canal maneja sus estados, procesos, producción, agendado y credenciales **
 - **Estrategia audaz = Shorts-first**: la vía rápida a monetizar es 10M vistas de Shorts en 90 días. Blitz de Shorts en Oddly Loop.
 - **Declaración de IA** (`containsSyntheticMedia: true`) en TODAS las subidas.
 - **Horas de silencio** de Telegram 11pm–5am Bogotá (`notify_telegram.sh`): mensajes llegan silenciosos.
+
+## Licencia
+
+Licencia: Apache-2.0 — © 2026 Juan Berrio. Ver LICENSE y NOTICE.
+
+## Descubribilidad y Social Preview
+
+- **Topics**: `youtube-automation`, `faceless-youtube`, `serverless`, `github-actions`, `cloudflare-workers`, `text-to-speech`, `generative-ai`, `gemini`, `content-automation`, `video-generation`, `ffmpeg`, `telegram-bot`, `automation`, `r2`.
+- **Website / About**: `https://www.youtube.com/@TheDataLensHQ`
+- **Social Preview**: Configurado con `assets/social-preview.png` (1280×640 px).
 
 ## Estructura
 
