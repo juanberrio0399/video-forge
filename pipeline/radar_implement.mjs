@@ -9,7 +9,7 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 
 const issueNo = (process.argv[2] || "").trim();
-const REPO = process.env.GITHUB_REPOSITORY || "";
+const REPO = process.env.RADAR_REPO || process.env.GITHUB_REPOSITORY || "";
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
 if (!/^\d+$/.test(issueNo)) { console.error("Falta el número de issue."); process.exit(2); }
 if (!KEYS.length) { console.error("Falta GEMINI_API_KEY."); process.exit(2); }

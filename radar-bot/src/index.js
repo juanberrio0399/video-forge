@@ -4,7 +4,15 @@
 // Autenticación segura vía Telegram initData (HMAC con el token del bot); solo el dueño.
 
 const GH = "https://api.github.com";
-const REPOS = ["juanberrio0399/video-forge"]; // ampliar con más repos (cada uno con radar_implement.yml)
+// El motor CENTRAL vive en video-forge e implementa en cualquier repo objetivo (usa el PAT).
+const MOTOR = "juanberrio0399/video-forge";
+const REPOS = [
+  "juanberrio0399/video-forge",
+  "juanberrio0399/ugpp-shield-pro",
+  "juanberrio0399/serverless-rag-assistant",
+  "juanberrio0399/Hearthwood",
+  "juanberrio0399/claude-config",
+];
 
 const gh = (env, path, opts = {}) =>
   fetch(`${GH}${path}`, { ...opts, headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: "application/vnd.github+json", "User-Agent": "radar-bot", ...(opts.headers || {}) } });
@@ -82,7 +90,8 @@ async function buildState(env) {
 }
 async function doAction(env, action, repo, number) {
   if (action === "run") {
-    const r = await gh(env, `/repos/${repo}/actions/workflows/radar_implement.yml/dispatches`, { method: "POST", body: JSON.stringify({ ref: "main", inputs: { issue: String(number) } }) });
+    // Motor CENTRAL en video-forge, implementa en el repo objetivo (repo) usando el PAT.
+    const r = await gh(env, `/repos/${MOTOR}/actions/workflows/radar_implement.yml/dispatches`, { method: "POST", body: JSON.stringify({ ref: "main", inputs: { issue: String(number), repo } }) });
     return (r.ok || r.status === 204) ? "⚙️ Motor lanzado. En 1-2 min queda el PR — refresca y usa 👀 Revisar." : "❌ No pude lanzar el motor.";
   }
   if (action === "merge") {
