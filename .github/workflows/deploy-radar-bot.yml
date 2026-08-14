@@ -58,4 +58,8 @@ jobs:
             --data-urlencode "secret_token=${{ secrets.TELEGRAM_WEBHOOK_SECRET }}")
           echo "Telegram: $RESP"
           echo "$RESP" | grep -q '"ok":true' || { echo "setWebhook falló"; exit 1; }
-          echo "✅ radar-bot desplegado y webhook activo en $URL/webhook"
+          # Botón de menú del bot -> abre la Mini App (forma confiable de adjuntarla).
+          MB=$(curl -s "https://api.telegram.org/bot${{ secrets.RADAR_BOT_TOKEN }}/setChatMenuButton" \
+            --data-urlencode 'menu_button={"type":"web_app","text":"📡 Radar","web_app":{"url":"'"$URL"'/app"}}')
+          echo "MenuButton: $MB"
+          echo "✅ radar-bot desplegado, webhook + botón de menú en $URL/app"
