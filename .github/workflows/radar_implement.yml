@@ -22,13 +22,12 @@ jobs:
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
       ISSUE: ${{ github.event.inputs.issue }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GH_TOKEN }}
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
