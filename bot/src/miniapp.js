@@ -701,21 +701,30 @@ export const APP_HTML = `<!doctype html>
     var prog=list.filter(isFuture).sort(function(a,b){ return (a.publish_at||"9")<(b.publish_at||"9")?-1:1; });
     var enRev=list.filter(function(v){ return v.privacy!=="public" && !isFuture(v) && localSched[v.video_id]!=="public"; });
     var pubCount=list.filter(function(v){ return v.privacy==="public"; }).length;
-    var h='<h2>📅 Programación de Oddly Loop</h2>';
-    // Próximos a publicar (programados)
-    h+='<div class="card"><div style="font-weight:800;font-size:14px;margin-bottom:6px">🗓️ Próximos a publicar ('+prog.length+')</div>';
-    if(prog.length){
-      h+=prog.map(function(v){
-        var when=v.publish_at?fmtSlot(v.publish_at):"mejor hora";
-        return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid rgba(255,255,255,.06);padding:7px 0">'
-          +'<div style="font-size:13px">'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,34))+'</a>':esc(v.title||""))
-          +(v.niche_label?'<div class="muted" style="font-size:11px">🎬 '+esc(v.niche_label)+'</div>':'')+'</div>'
-          +'<div style="font-size:11px;color:var(--cy);white-space:nowrap;text-align:right">🕒 '+esc(when)+'</div></div>';
-      }).join("");
+    // CALENDARIO DÍA A DÍA (como The Data Lens): qué hay programado cada día, con su hora (tu zona).
+    function dayKey(s){var d=new Date(s);return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+    function fmtTime(s){return new Date(s).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
+    function dayLabel(k){var t=dayKey(new Date().toISOString()),m=dayKey(new Date(Date.now()+864e5).toISOString());var d=new Date(k+'T12:00:00');var p=d.toLocaleDateString([],{weekday:'short',day:'numeric',month:'short'});return k===t?'Hoy · '+p:(k===m?'Mañana · '+p:p);}
+    var byDay={};
+    prog.forEach(function(v){ var k=v.publish_at?dayKey(v.publish_at):'—'; (byDay[k]=byDay[k]||[]).push(v); });
+    var days=Object.keys(byDay).sort();
+    var h='<h2>📅 Calendario de Oddly Loop</h2>'
+      +'<div class="card muted" style="font-size:12px">Lo que hay <b>programado cada día</b> (tu hora). Los privados por revisar salen más abajo.</div>';
+    if(days.length){
+      h+=days.map(function(k){
+        var items=byDay[k].sort(function(a,b){ return (a.publish_at||'')<(b.publish_at||'')?-1:1; });
+        var rows=items.map(function(v){
+          var isShort=/#short/i.test(v.title||'');
+          var t=v.publish_at?fmtTime(v.publish_at):'mejor hora';
+          return '<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid rgba(255,255,255,.06)">'
+            +'<div style="font-size:12px">'+(isShort?'📱':'🎬')+' '+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||'').slice(0,30))+'</a>':esc((v.title||'').slice(0,30)))+(v.niche_label?' <span class="muted" style="font-size:10px">('+esc(v.niche_label)+')</span>':'')+'</div>'
+            +'<div style="font-size:11px;color:var(--cy);white-space:nowrap">🕒 '+esc(t)+'</div></div>';
+        }).join('');
+        return '<div class="card" style="padding:10px 12px"><div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;text-transform:capitalize"><span>'+esc(dayLabel(k))+'</span><span style="color:var(--cy)">'+items.length+'</span></div>'+rows+'</div>';
+      }).join('');
     } else {
-      h+='<div class="muted" style="font-size:12px">Nada programado aún. En <b>Producir</b>, a un video privado dale <b>📅 Programar</b> y aparece aquí con su fecha.</div>';
+      h+='<div class="card muted" style="font-size:12px">Nada programado aún. En <b>Producir</b>, a un video privado dale <b>📅 Programar</b> y aparece aquí en su día.</div>';
     }
-    h+='</div>';
     // En revisión (por programar)
     if(enRev.length){
       h+='<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:14px;margin-bottom:4px">👀 En revisión — por programar ('+enRev.length+')</div>'
