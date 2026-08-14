@@ -57,6 +57,7 @@ Reglas:
 - Usa "content" (archivo completo) SOLO para archivos pequeños o nuevos; nunca para archivos grandes.
 - Cambios MÍNIMOS: no toques lógica ni archivos no relacionados. Respeta las restricciones del issue.
 - "find" debe coincidir literalmente con el contenido actual (respeta espacios, mayúsculas, @versiones).
+- Para AGREGAR contenido nuevo (una sección, un bloque, un archivo): NO inventes un "find" que no exista hoy. Ancla en un texto que YA exista (cópialo tal cual) y en "replace" repítelo seguido del contenido nuevo; o entrega el archivo completo en "content". Un "find" inexistente hace que la edición NO aplique.
 
 ## Issue #${issueNo}: ${issue.title}
 ${issue.body}
@@ -87,17 +88,16 @@ async function discoverModels() {
   console.log("No pude listar modelos; uso la lista por defecto:", MODELS.join(", "));
 }
 
-async function ask() {
+async function callGemini(promptText) {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-  await discoverModels();
   for (let r = 0; r < 5; r++) {
     for (const k of KEYS) for (const m of MODELS) {
       try {
-        const res = await tf(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${k}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.1 } }) });
+        const res = await tf(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${k}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.1 } }) });
         if (!res.ok) { console.error(`  ${m}: HTTP ${res.status}`); continue; }
         const j = await res.json();
         const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
-        if (t) { console.log(`  plan generado con ${m}`); return JSON.parse(t); }
+        if (t) { console.log(`  respuesta de ${m}`); return JSON.parse(t); }
       } catch (e) { console.error(`  ${m}: ${e.message}`); }
     }
     if (r < 4) { console.error(`  (ronda ${r + 1} sin éxito — espero y reintento; Google puede estar sobrecargado)`); await wait(8000); }
@@ -105,7 +105,8 @@ async function ask() {
   return null;
 }
 
-const plan = await ask();
+await discoverModels();
+const plan = await callGemini(prompt);
 if (!plan || !Array.isArray(plan.edits) || !plan.edits.length) { console.error("Gemini no devolvió un plan de ediciones usable."); process.exit(3); }
 
 // 3) Aplicar las ediciones.
@@ -116,24 +117,60 @@ function expandGlob(p) {
   try { return fs.readdirSync(dir).filter((f) => re.test(f)).map((f) => path.join(dir, f).replace(/\\/g, "/")); } catch { return []; }
 }
 const changed = new Set();
-const missed = [];
-for (const e of plan.edits) {
-  if (!e || !e.path) continue;
-  const targets = expandGlob(e.path);
-  let applied = false;
-  for (const p of targets) {
-    if (typeof e.content === "string" && (e.find == null || e.find === "")) {
-      fs.mkdirSync(path.dirname(p), { recursive: true });
-      fs.writeFileSync(p, e.content); changed.add(p); console.log(`  escrito: ${p}`); applied = true; continue;
+function applyEdits(edits) {
+  const failed = [];
+  for (const e of edits) {
+    if (!e || !e.path) continue;
+    const targets = expandGlob(e.path);
+    let applied = false;
+    for (const p of targets) {
+      if (typeof e.content === "string" && (e.find == null || e.find === "")) {
+        fs.mkdirSync(path.dirname(p), { recursive: true });
+        fs.writeFileSync(p, e.content); changed.add(p); console.log(`  escrito: ${p}`); applied = true; continue;
+      }
+      if (e.find != null && fs.existsSync(p)) {
+        const before = fs.readFileSync(p, "utf8");
+        if (before.includes(e.find)) { fs.writeFileSync(p, before.split(e.find).join(e.replace ?? "")); changed.add(p); console.log(`  editado: ${p} (${e.find.slice(0, 40)}…)`); applied = true; }
+      }
     }
-    if (e.find != null && fs.existsSync(p)) {
-      const before = fs.readFileSync(p, "utf8");
-      if (before.includes(e.find)) { fs.writeFileSync(p, before.split(e.find).join(e.replace ?? "")); changed.add(p); console.log(`  editado: ${p} (${e.find.slice(0, 40)}…)`); applied = true; }
-    }
+    if (!applied) { console.error(`  ❌ No aplicado: ${e.path} | find: ${e.find?.slice(0, 60) || 'N/A'}`); failed.push(e); }
   }
-  if (!applied) { console.error(`  ❌ No aplicado: ${e.path} | find: ${e.find?.slice(0, 60) || 'N/A'}`); missed.push(e); }
+  return failed;
 }
-if (missed.length > 0) { console.error(`Faltaron ${missed.length} ediciones.`); if (!changed.size) process.exit(3); }
+let missed = applyEdits(plan.edits);
+
+// 3b) AUTOCORRECCIÓN (el motor "inteligente"): si un `find` no existió, NO nos rendimos. Le devolvemos a
+// Gemini las ediciones fallidas + el contenido ACTUAL del archivo y le pedimos corregirlas (ancla real que
+// exista, o archivo completo). Hasta 2 rondas. Así los issues de "AGREGAR contenido" dejan de fallar en seco.
+function buildCorrectionPrompt(fails) {
+  const files = [...new Set(fails.map((m) => m.path).filter((p) => !p.includes("*")))];
+  const contents = files.map((p) => {
+    try { const c = fs.readFileSync(p, "utf8"); return `### ${p}\n\`\`\`\n${c.slice(0, 48000)}\n\`\`\``; } catch { return `### ${p} (no existe aún — créalo con "content")`; }
+  }).join("\n\n");
+  return `Estas ediciones NO se aplicaron porque su "find" NO existe literalmente en el archivo actual. Corrígelas. Devuelve SOLO JSON: {"edits":[...]}.
+
+REGLAS CLAVE:
+- Si el objetivo es AGREGAR contenido nuevo (una sección/bloque): NO inventes un "find". Ancla en un texto que EXISTA de verdad (cópialo tal cual del contenido de abajo) y en "replace" repite ese texto ancla seguido del contenido nuevo. Si es un archivo pequeño o nuevo, entrega el archivo completo en "content".
+- Si el objetivo es MODIFICAR: el "find" debe ser un substring EXACTO que exista hoy (cópialo del contenido de abajo, respetando espacios y mayúsculas).
+- Corrige SOLO estas ediciones.
+
+## Ediciones que fallaron (su find no existe)
+${fails.map((m) => `- path: ${m.path}\n  find intentado (NO existe): ${JSON.stringify(m.find ?? null)}\n  intención: ${JSON.stringify(String(m.replace ?? m.content ?? "").slice(0, 500))}`).join("\n")}
+
+## Contenido ACTUAL de esos archivos (copia el "find" de aquí)
+${contents || "(sin contenido)"}
+
+## Issue
+#${issueNo}: ${issue.title}`;
+}
+for (let round = 1; missed.length && round <= 2; round++) {
+  console.log(`🔁 Autocorrección ronda ${round}: reparando ${missed.length} edición(es) (find no encontrado)…`);
+  const corr = await callGemini(buildCorrectionPrompt(missed));
+  if (!corr || !Array.isArray(corr.edits) || !corr.edits.length) { console.error("  la autocorrección no devolvió ediciones; me detengo."); break; }
+  applyEdits(corr.edits);
+  missed = missed.filter((m) => !changed.has(m.path)); // resuelto si su archivo ya se modificó
+}
+if (missed.length > 0) { console.error(`Tras autocorrección, faltaron ${missed.length} edición(es).`); if (!changed.size) process.exit(3); }
 
 // 4) Metadatos para el workflow (rama + PR).
 // Un PR solo se marca "completo" (con `Closes #N`) si TODAS las ediciones aplicaron. Si faltó alguna,
