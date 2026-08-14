@@ -109,21 +109,24 @@ function expandGlob(p) {
   try { return fs.readdirSync(dir).filter((f) => re.test(f)).map((f) => path.join(dir, f).replace(/\\/g, "/")); } catch { return []; }
 }
 const changed = new Set();
+const missed = [];
 for (const e of plan.edits) {
   if (!e || !e.path) continue;
   const targets = expandGlob(e.path);
+  let applied = false;
   for (const p of targets) {
     if (typeof e.content === "string" && (e.find == null || e.find === "")) {
       fs.mkdirSync(path.dirname(p), { recursive: true });
-      fs.writeFileSync(p, e.content); changed.add(p); console.log(`  escrito: ${p}`); continue;
+      fs.writeFileSync(p, e.content); changed.add(p); console.log(`  escrito: ${p}`); applied = true; continue;
     }
     if (e.find != null && fs.existsSync(p)) {
       const before = fs.readFileSync(p, "utf8");
-      if (before.includes(e.find)) { fs.writeFileSync(p, before.split(e.find).join(e.replace ?? "")); changed.add(p); console.log(`  editado: ${p} (${e.find.slice(0, 40)}…)`); }
+      if (before.includes(e.find)) { fs.writeFileSync(p, before.split(e.find).join(e.replace ?? "")); changed.add(p); console.log(`  editado: ${p} (${e.find.slice(0, 40)}…)`); applied = true; }
     }
   }
+  if (!applied) { console.error(`  ❌ No aplicado: ${e.path} | find: ${e.find?.slice(0, 60) || 'N/A'}`); missed.push(e); }
 }
-if (!changed.size) { console.error("Ninguna edición aplicó (find no coincidió). No se abre PR."); process.exit(3); }
+if (missed.length > 0) { console.error(`Faltaron ${missed.length} ediciones.`); if (!changed.size) process.exit(3); }
 
 // 4) Metadatos para el workflow (rama + PR).
 const slug = (plan.branch || `radar/issue-${issueNo}`).replace(/[^a-zA-Z0-9/_-]/g, "-");
