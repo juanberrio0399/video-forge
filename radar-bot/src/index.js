@@ -72,20 +72,19 @@ async function prMap(env, repo) {
   return map;
 }
 async function buildState(env) {
-  const repos = [];
-  for (const repo of REPOS) {
+  // En paralelo por repo (5 repos) para que la app cargue rápido.
+  const repos = await Promise.all(REPOS.map(async (repo) => {
     const issues = [];
     try {
-      const map = await prMap(env, repo);
-      const r = await gh(env, `/repos/${repo}/issues?labels=radar&state=open&per_page=50`);
+      const [map, r] = await Promise.all([prMap(env, repo), gh(env, `/repos/${repo}/issues?labels=radar&state=open&per_page=50`)]);
       if (r.ok) {
         const list = (await r.json()).filter((is) => !is.pull_request);
         for (const is of list) issues.push({ number: is.number, title: is.title, url: is.html_url, prio: prioOf(is.body), pr: map[String(is.number)] || null });
         issues.sort((a, b) => rank(a.prio) - rank(b.prio));
       }
     } catch {}
-    repos.push({ repo, short: short(repo), issues });
-  }
+    return { repo, short: short(repo), issues };
+  }));
   return { repos };
 }
 async function doAction(env, action, repo, number) {
