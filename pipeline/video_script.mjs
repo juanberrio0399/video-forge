@@ -14,7 +14,7 @@ async function gemini(prompt) {
   // Multi-llave (respaldo = doble cuota) + reintento con backoff si TODO esta saturado (429/503).
   for (let round = 0; round < 3; round++) {
     for (let k = 0; k < KEYS.length; k++) {
-      for (const m of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]) {
+      for (const m of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-latest"]) {
         try {
           const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${KEYS[k]}`, {
             method: "POST", headers: { "content-type": "application/json" },

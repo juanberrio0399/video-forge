@@ -55,7 +55,7 @@ FIX: {"score": X.X, "fixes": {"brightness": 0.0, "saturation": 0.0, "contrast": 
 Numeros y strings validos.`;
 
 const parts = [{ text: prompt }, ...imgs.map((p) => ({ inline_data: { mime_type: "image/jpeg", data: fs.readFileSync(p).toString("base64") } }))];
-const models = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-flash-latest", "gemini-2.0-flash"];
+const models = ["gemini-2.5-flash-lite", "gemini-flash-latest-lite", "gemini-flash-latest", "gemini-flash-latest"];
 
 let out = "";
 for (const m of models) {

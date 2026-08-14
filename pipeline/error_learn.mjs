@@ -14,7 +14,7 @@ const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
 async function gh(path) { try { const r = await fetch(`https://api.github.com${path}`, { headers: H }); return r.ok ? await r.json() : null; } catch { return null; } }
 async function gemini(prompt) {
   if (!GEMINI_API_KEY) return null;
-  for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]) {
+  for (const m of ["gemini-2.5-flash", "gemini-flash-latest", "gemini-flash-latest"]) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI_API_KEY}`, {
         method: "POST", headers: { "content-type": "application/json" },

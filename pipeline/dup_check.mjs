@@ -22,7 +22,7 @@ async function getTitles() {
 }
 async function gemini(prompt) {
   if (!GEMINI_API_KEY) return null;
-  for (const m of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"]) {
+  for (const m of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"]) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI_API_KEY}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
       if (!r.ok) continue;

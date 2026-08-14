@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
+import { TEXT_MODELS } from "./_models.mjs";
 
 const [timingPath, outDir = "bg", maxSecondsArg] = process.argv.slice(2);
 const KEY = process.env.PEXELS_API_KEY || "";
@@ -128,7 +129,7 @@ async function geminiPlan(list) {
     `- "q" = query de 2-4 palabras en INGLES para buscar b-roll de stock. Si el segmento nombra una EMPRESA, MARCA, LUGAR, PRODUCTO u OBJETO concreto (ej: McDonald's, Tesla, stock exchange, warehouse, burger, real estate), la query DEBE ser sobre ESO especifico, no algo generico de "dinero". Usa el sustantivo concreto mas importante del segmento.\n` +
     `- "ai" = prompt de imagen IA de respaldo, tambien especifico a ese segmento.\n` +
     `REGLAS: planos BRILLANTES y bien iluminados (luz de dia, evita "dark"/"night"); MUY RELEVANTES al segmento exacto; VARIADOS entre si (no repitas el mismo tipo de plano); cinematograficos. Solo cae a un plano generico de dinero/datos si el segmento no menciona nada concreto.\nSegmentos:\n${seg}${fb}`;
-  for (const m of ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-flash-latest", "gemini-2.0-flash"]) {
+  for (const m of TEXT_MODELS) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI}`, {
         method: "POST", headers: { "content-type": "application/json" },

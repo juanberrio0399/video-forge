@@ -29,7 +29,7 @@ async function geminiPlan() {
     `El ULTIMO beat es el cierre (invita a probar/seguir). En medio, los pasos de preparacion EN ORDEN. ` +
     `Usa ${nSteps} beats en total. Narracion siempre en español; query e img_prompt en ingles.\n\n` +
     `RECETA:\n${recipe || "(sin texto; deduce una receta casera a partir de un platillo casero)"}`;
-  for (const m of ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-flash-latest"]) {
+  for (const m of ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-flash-latest"]) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI}`, {
         method: "POST", headers: { "content-type": "application/json" },
