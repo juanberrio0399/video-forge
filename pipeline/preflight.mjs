@@ -30,7 +30,7 @@ await check("Gemini (guion/SEO)", true, async () => {
   // Prueba VARIOS modelos (auto-adapta al que responda), igual que los scripts reales -> no marca
   // caido solo porque un nombre de modelo dio 404. Si alguno responde, Gemini esta OK.
   let saw429 = false;
-  for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-2.0-flash-lite"]) {
+  for (const m of ["gemini-2.5-flash", "gemini-flash-latest", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-flash-latest-lite"]) {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI_API_KEY}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }) });
     if (r.ok) return { ok: true, detail: `OK (${m})` };
     if (r.status === 429) saw429 = true;

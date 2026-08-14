@@ -15,7 +15,7 @@ async function checkGeminiText() {
   // Prueba CADA llave (multi-llave = mas cuota). Cada llave prueba varios modelos (evita 404 de un nombre).
   const keys = [GEMINI_API_KEY, GEMINI_API_KEY2].filter(Boolean);
   if (!keys.length) return add("Gemini (guion/SEO/IA)", false, "sin API key", true);
-  const models = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"];
+  const models = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"];
   let okCount = 0; const bad = [];
   for (let i = 0; i < keys.length; i++) {
     let ok = false, why = "no responde";

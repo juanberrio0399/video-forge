@@ -37,7 +37,7 @@ async function gemini(prompt) {
   if (!KEYS.length) return null;
   for (let round = 0; round < 3; round++) {
     for (let k = 0; k < KEYS.length; k++) {           // prueba cada API key (respaldo = doble cuota)
-      for (const m of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]) {
+      for (const m of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-latest"]) {
         try {
           const r = await tf(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${KEYS[k]}`, {
             method: "POST", headers: { "content-type": "application/json" },
