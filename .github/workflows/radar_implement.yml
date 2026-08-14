@@ -62,3 +62,12 @@ jobs:
           PRURL=$(gh pr view "$BR" -R "$TARGET" --json url -q .url)
           echo "PR: $PRURL"
           gh issue comment "$ISSUE" -R "$TARGET" --body "🤖 Rama \`$BR\` y PR listos para revisar (sin merge): $PRURL"
+          gh issue edit "$ISSUE" -R "$TARGET" --remove-label motor-fallo 2>/dev/null || true   # limpia un fallo previo
+      - name: Marcar fallo del motor (si algo se rompió)
+        if: failure()
+        run: |
+          # Cualquier paso que falle (clone, Gemini, sin ediciones, push, PR) deja rastro VISIBLE en el
+          # bot: etiqueta `motor-fallo` (el bot la muestra como ❌) + comentario en el issue.
+          gh label create motor-fallo -R "$TARGET" --color D73A4A --description "El motor del radar no pudo implementar el issue" 2>/dev/null || true
+          gh issue edit "$ISSUE" -R "$TARGET" --add-label motor-fallo 2>/dev/null || true
+          gh issue comment "$ISSUE" -R "$TARGET" --body "❌ El motor no pudo implementar este issue (falló el proceso). Requiere revisión/implementación manual — reintenta desde el bot (🔁) o hazlo a mano." || true

@@ -73,17 +73,19 @@ async function prMap(env, repo) {
 }
 async function buildState(env) {
   // En paralelo por repo (5 repos) para que la app cargue rápido.
+  // error=true si GitHub no respondió (NO se traga en silencio: la UI lo muestra).
+  // err por issue = el motor falló (etiqueta `motor-fallo` que pone el workflow al romperse).
   const repos = await Promise.all(REPOS.map(async (repo) => {
-    const issues = [];
+    let error = false; const issues = [];
     try {
       const [map, r] = await Promise.all([prMap(env, repo), gh(env, `/repos/${repo}/issues?labels=radar&state=open&per_page=50`)]);
       if (r.ok) {
         const list = (await r.json()).filter((is) => !is.pull_request);
-        for (const is of list) issues.push({ number: is.number, title: is.title, url: is.html_url, prio: prioOf(is.body), pr: map[String(is.number)] || null });
+        for (const is of list) issues.push({ number: is.number, title: is.title, url: is.html_url, prio: prioOf(is.body), err: (is.labels || []).some((l) => l.name === "motor-fallo"), pr: map[String(is.number)] || null });
         issues.sort((a, b) => rank(a.prio) - rank(b.prio));
-      }
-    } catch {}
-    return { repo, short: short(repo), issues };
+      } else { error = true; }
+    } catch { error = true; }
+    return { repo, short: short(repo), issues, error };
   }));
   return { repos };
 }
@@ -215,17 +217,18 @@ function tabsHtml(){
   document.getElementById("tabs").innerHTML=t;
 }
 function homeView(){
-  var total=0,alta=0,pend=0;
-  ST.repos.forEach(function(r){var c=counts(r);total+=r.issues.length;alta+=c.alta;pend+=r.issues.filter(function(x){return x.pr;}).length;});
-  if(!total){document.getElementById("view").innerHTML=empty("✨","Sin novedades del radar","El barrido semanal irá dejando hallazgos aquí. Vuelve el lunes.");return;}
+  var total=0,alta=0,pend=0,fails=0,anyErr=false;
+  ST.repos.forEach(function(r){var c=counts(r);total+=r.issues.length;alta+=c.alta;pend+=r.issues.filter(function(x){return x.pr;}).length;fails+=r.issues.filter(function(x){return x.err;}).length;if(r.error)anyErr=true;});
+  if(!total&&!anyErr){document.getElementById("view").innerHTML=empty("✨","Sin novedades del radar","El barrido semanal irá dejando hallazgos aquí. Vuelve el lunes.");return;}
   var kpi='<div class="kpi">'
     +'<div class="k"><span class="kn">'+total+'</span><span class="kl">mejoras</span></div>'
     +'<div class="k"><span class="kn" style="color:var(--r)">'+alta+'</span><span class="kl">alta</span></div>'
-    +'<div class="k"><span class="kn" style="color:var(--acc)">'+pend+'</span><span class="kl">por merge</span></div></div>';
+    +'<div class="k"><span class="kn" style="color:var(--acc)">'+pend+'</span><span class="kl">por merge</span></div>'
+    +(fails?'<div class="k"><span class="kn" style="color:var(--r)">'+fails+'</span><span class="kl">fallos</span></div>':"")+'</div>';
   var cards=ST.repos.map(function(r,i){
-    var c=counts(r),p=r.issues.filter(function(x){return x.pr;}).length;
+    var c=counts(r),p=r.issues.filter(function(x){return x.pr;}).length,f=r.issues.filter(function(x){return x.err;}).length;
     return '<div class="card repo tap" data-act="repo" data-i="'+i+'">'
-      +'<div class="rhead"><span class="rn">'+esc(r.short)+'</span><span class="meta">'+(p?'<span class="badge">🔧 '+p+'</span>':"")+r.issues.length+'<span class="chev">›</span></span></div>'
+      +'<div class="rhead"><span class="rn">'+esc(r.short)+'</span><span class="meta">'+(r.error?'<span class="badge" style="color:var(--r)">⚠️</span>':"")+(f?'<span class="badge" style="color:var(--r)">❌ '+f+'</span>':"")+(p?'<span class="badge">🔧 '+p+'</span>':"")+r.issues.length+'<span class="chev">›</span></span></div>'
       +'<div class="pills">'+pill("alta",c.alta,i)+pill("media",c.media,i)+pill("baja",c.baja,i)+(c.none?pill("none",c.none,i):"")+'</div></div>';
   }).join("");
   document.getElementById("view").innerHTML=kpi+cards;
@@ -233,7 +236,7 @@ function homeView(){
 function issueCard(r,is){
   var k=r.repo+"#"+is.number,p=PR[is.prio||"none"],acts;
   if(!is.pr){
-    acts='<button class="b" data-act="run" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">⚙️ Ejecutar</button>'
+    acts='<button class="b" data-act="run" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">'+(is.err?"🔁 Reintentar":"⚙️ Ejecutar")+'</button>'
       +'<button class="b d" data-act="close" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">Descartar</button>';
   }else if(!REVIEWED[k]){
     acts='<button class="b" data-act="review" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'" data-url="'+esc(is.pr.url)+'">👀 Revisar PR #'+is.pr.number+'</button>'
@@ -242,7 +245,7 @@ function issueCard(r,is){
     acts='<button class="b" data-act="merge" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">🔀 Merge</button>'
       +'<button class="b g" data-act="open" data-url="'+esc(is.pr.url)+'">📄 Ver PR</button>';
   }
-  var st=is.pr?'<div class="st">🔧 PR #'+is.pr.number+(REVIEWED[k]?" · revisado ✓":" · revísalo antes de mergear")+'</div>':"";
+  var st=is.pr?'<div class="st">🔧 PR #'+is.pr.number+(REVIEWED[k]?" · revisado ✓":" · revísalo antes de mergear")+'</div>':(is.err?'<div class="st" style="color:var(--r)">❌ El motor falló aquí — reintenta o impleméntalo manual</div>':"");
   return '<div class="card issue" style="--pc:'+p.c+'">'
     +'<div class="itop"><span class="ip" style="color:'+p.c+'">'+p.e+" "+p.l+'</span><span class="inum">#'+is.number+'</span></div>'
     +'<div class="ititle">'+esc(is.title)+"</div>"+st
@@ -252,11 +255,13 @@ function issueCard(r,is){
 function repoView(){
   var r=ST.repos[CUR]||{issues:[]},items=r.issues;
   if(FILTER!==null)items=items.filter(function(x){return (x.prio||"none")===FILTER;});
-  var pend=items.filter(function(x){return x.pr;}),todo=items.filter(function(x){return !x.pr;}),html="";
+  var pend=items.filter(function(x){return x.pr;}),fail=items.filter(function(x){return !x.pr&&x.err;}),todo=items.filter(function(x){return !x.pr&&!x.err;}),html="";
+  if(r.error)html+='<div class="fbar" style="color:var(--r)"><span>⚠️ No pude cargar este repo (GitHub no respondió)</span><button class="link" data-act="refresh">Reintentar ⟳</button></div>';
   if(FILTER!==null){var p=PR[FILTER];html+='<div class="fbar"><span>'+p.e+" "+p.l+" · "+items.length+'</span><button class="link" data-act="clear">Quitar ✕</button></div>';}
+  if(fail.length)html+=sec("❌ Falló el motor",fail.length)+fail.map(function(is){return issueCard(r,is);}).join("");
   if(pend.length)html+=sec("🔧 Pendientes por merge",pend.length)+pend.map(function(is){return issueCard(r,is);}).join("");
   if(todo.length)html+=sec("🆕 Por trabajar",todo.length)+todo.map(function(is){return issueCard(r,is);}).join("");
-  if(!html)html=empty("✅","Nada por aquí"+(FILTER!==null?" con ese filtro":""),FILTER!==null?"Quita el filtro para ver todo.":"El barrido semanal irá dejando novedades.");
+  if(!html&&!r.error)html=empty("✅","Nada por aquí"+(FILTER!==null?" con ese filtro":""),FILTER!==null?"Quita el filtro para ver todo.":"El barrido semanal irá dejando novedades.");
   document.getElementById("view").innerHTML=html;
 }
 function render(){
