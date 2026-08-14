@@ -61,14 +61,18 @@ ${fileCtx || "(ninguno adjuntado; usa las rutas del issue)"}
 ${tracked.slice(0, 400).join("\n")}`;
 
 async function ask() {
-  for (let r = 0; r < 3; r++) for (const k of KEYS) for (const m of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.5-pro"]) {
-    try {
-      const res = await tf(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${k}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.1 } }) });
-      if (!res.ok) { console.error(`  ${m}: HTTP ${res.status}`); continue; }
-      const j = await res.json();
-      const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
-      if (t) { console.log(`  plan generado con ${m}`); return JSON.parse(t); }
-    } catch (e) { console.error(`  ${m}: ${e.message}`); }
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  for (let r = 0; r < 5; r++) {
+    for (const k of KEYS) for (const m of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite"]) {
+      try {
+        const res = await tf(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${k}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.1 } }) });
+        if (!res.ok) { console.error(`  ${m}: HTTP ${res.status}`); continue; }
+        const j = await res.json();
+        const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
+        if (t) { console.log(`  plan generado con ${m}`); return JSON.parse(t); }
+      } catch (e) { console.error(`  ${m}: ${e.message}`); }
+    }
+    if (r < 4) { console.error(`  (ronda ${r + 1} sin éxito — espero y reintento; Google puede estar sobrecargado)`); await wait(8000); }
   }
   return null;
 }
