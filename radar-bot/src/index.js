@@ -249,7 +249,7 @@ function issueCard(r,is){
     acts='<button class="b" data-act="merge" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">🔀 Merge</button>'
       +'<button class="b g" data-act="open" data-url="'+esc(is.pr.url)+'">📄 Ver PR</button>';
   }
-  var st=running?'<div class="st" style="color:var(--acc)">⏳ Puede tardar 1-2 min — no cierres, te aviso cuando termine</div>':(is.pr?'<div class="st">🔧 PR #'+is.pr.number+(REVIEWED[k]?" · revisado ✓":" · revísalo antes de mergear")+'</div>':(is.err?'<div class="st" style="color:var(--r)">❌ El motor falló aquí — reintenta o impleméntalo manual</div>':""));
+  var st=running?'<div class="st" style="color:var(--acc)">⏳ Puede tardar unos minutos — no cierres, te aviso cuando termine</div>':(is.pr?'<div class="st">🔧 PR #'+is.pr.number+(REVIEWED[k]?" · revisado ✓":" · revísalo antes de mergear")+'</div>':(is.err?'<div class="st" style="color:var(--r)">❌ El motor falló aquí — reintenta o impleméntalo manual</div>':""));
   return '<div class="card issue" style="--pc:'+p.c+'">'
     +'<div class="itop"><span class="ip" style="color:'+p.c+'">'+p.e+" "+p.l+'</span><span class="inum">#'+is.number+'</span></div>'
     +'<div class="ititle">'+esc(is.title)+"</div>"+st
@@ -299,9 +299,9 @@ function watchRun(repo,n){
         if(is&&is.pr){clearInterval(iv);delete WATCH[k];h("ok");render();notify("✅ Listo #"+n+": el PR quedó creado. Ábrelo con 👀 Revisar y luego 🔀 Merge.");return;}
         if(is&&is.err){clearInterval(iv);delete WATCH[k];h("err");render();notify("❌ El motor falló en #"+n+". Toca 🔁 Reintentar, o impleméntalo a mano. No te quedes esperando.");return;}
       }
-      if(tries>=12){clearInterval(iv);delete WATCH[k];render();notify("⏳ El motor de #"+n+" se está demorando. Refresca ⟳ en un momento para ver el resultado.");return;}
+      if(tries>=60){clearInterval(iv);delete WATCH[k];render();notify("⏳ El #"+n+" lleva rato en proceso. Déjalo correr y refresca ⟳; si falla saldrá el ❌, y si queda listo, el PR para mergear.");return;}
       render();
-    }).catch(function(){if(tries>=12){clearInterval(iv);delete WATCH[k];render();}});
+    }).catch(function(){if(tries>=60){clearInterval(iv);delete WATCH[k];render();}});
   },15000);
 }
 function runAct(repo,n){
@@ -309,7 +309,7 @@ function runAct(repo,n){
   h("medium");toast("Lanzando el motor…");
   api("/api/action",{action:"run",repo:repo,number:n}).then(function(res){
     if(res.msg&&res.msg.indexOf("❌")>=0){h("err");notify(res.msg);return;}
-    WATCH[k]=1;render();toast("⚙️ Motor corriendo… te aviso cuando termine (1-2 min). Puedes seguir usando la app.");
+    WATCH[k]=1;render();toast("⚙️ Motor corriendo… te aviso cuando termine (unos minutos). Puedes seguir usando la app.");
     watchRun(repo,n);
   }).catch(function(){h("err");notify("No pude lanzar el motor. Revisa la conexión y reintenta.");});
 }
