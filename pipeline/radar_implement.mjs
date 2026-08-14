@@ -60,10 +60,31 @@ ${fileCtx || "(ninguno adjuntado; usa las rutas del issue)"}
 ## Rutas válidas del repo (git ls-files, muestra)
 ${tracked.slice(0, 400).join("\n")}`;
 
+// Descubre los modelos REALES de la key que soportan generateContent (evita adivinar nombres 404).
+let MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-pro-latest"];
+async function discoverModels() {
+  for (const k of KEYS) {
+    try {
+      const res = await tf(`https://generativelanguage.googleapis.com/v1beta/models?key=${k}&pageSize=200`, {}, 30000);
+      if (!res.ok) continue;
+      const j = await res.json();
+      const names = (j.models || []).filter((m) => (m.supportedGenerationMethods || []).includes("generateContent") && /gemini/i.test(m.name) && !/embedding|aqa|imagen|-tts|vision|1\.5|2\.0/i.test(m.name)).map((m) => m.name.replace("models/", ""));
+      if (names.length) {
+        const rank = (n) => (/flash-latest/.test(n) ? 0 : /flash-lite-latest/.test(n) ? 1 : /flash-latest|flash-lite/.test(n) ? 2 : /flash/.test(n) ? 3 : /pro-latest/.test(n) ? 4 : /pro/.test(n) ? 5 : 6);
+        MODELS = [...new Set(names)].sort((a, b) => rank(a) - rank(b)).slice(0, 6);
+        console.log("Modelos vivos detectados:", MODELS.join(", "));
+        return;
+      }
+    } catch {}
+  }
+  console.log("No pude listar modelos; uso la lista por defecto:", MODELS.join(", "));
+}
+
 async function ask() {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  await discoverModels();
   for (let r = 0; r < 5; r++) {
-    for (const k of KEYS) for (const m of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite"]) {
+    for (const k of KEYS) for (const m of MODELS) {
       try {
         const res = await tf(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${k}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.1 } }) });
         if (!res.ok) { console.error(`  ${m}: HTTP ${res.status}`); continue; }
