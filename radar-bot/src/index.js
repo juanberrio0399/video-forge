@@ -182,6 +182,11 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // Diagnóstico temporal: qué repos + cuántos issues ve el Worker (sin exponer títulos).
+    if (url.pathname === "/diag2") {
+      const st = await buildState(env);
+      return json({ repos: st.repos.map((r) => ({ repo: r.short, issues: r.issues.length })) });
+    }
     // Mini App
     if (url.pathname === "/app" || url.pathname === "/") {
       return new Response(APP_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
