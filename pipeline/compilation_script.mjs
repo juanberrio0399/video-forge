@@ -65,16 +65,18 @@ if (variant === "puro") {
     `Eres curador de un canal ASMR / "oddly satisfying" en YouTube (audiencia EEUU). ` +
     `Elige 14 clips de stock MUY satisfying/ASMR (cortes limpios, agua, slime, arena cinética, prensa hidráulica, pintura, resina, etc.). ` +
     `Inspírate en o elige de: ${pool}. Cada "query" = término de búsqueda de stock en INGLES. ` +
-    `Devuelve SOLO JSON: {"title":"título en inglés de alto CTR estilo 'Oddly Satisfying' (SIN datos, SIN clickbait falso)","beats":[{"query":"término stock en inglés","tipo":"clip"}]}`
+    `Para cumplir con políticas de transformación (YPP inauthentic content), incluye para cada beat un breve texto o dato en pantalla relevante ("insight") que aporte valor único. ` +
+    `Devuelve SOLO JSON: {"title":"título en inglés de alto CTR estilo 'Oddly Satisfying' (SIN clickbait falso)","beats":[{"query":"término stock en inglés","insight":"short text/fact on screen","tipo":"clip"}]}`
   );
-  const rawBeats = (scr && Array.isArray(scr.beats) && scr.beats.length) ? scr.beats : (nicheCfg.queries || ["satisfying"]).map((q) => ({ query: q, tipo: "clip" }));
+  const rawBeats = (scr && Array.isArray(scr.beats) && scr.beats.length) ? scr.beats : (nicheCfg.queries || ["satisfying"]).map((q) => ({ query: q, insight: "Satisfying ASMR visual", tipo: "clip" }));
   const title = (scr && scr.title) || (isShort ? "Oddly Satisfying ASMR #Shorts" : "The Most Oddly Satisfying Video to Melt Your Stress Away");
   const voicemap = {
     lang: "en", title, niche, variant, kind, defaults: { pause_after: 0 },
-    beats: rawBeats.slice(0, isShort ? SHORT.max_beats : 16).map((b) => ({ text: "", query: (b.query || nicheCfg.queries?.[0] || niche).trim(), tipo: b.tipo || "clip", pause_after: 0 })),
+    transform: { on_screen_insight: true, sound_design: true, narration: false },
+    beats: rawBeats.slice(0, isShort ? SHORT.max_beats : 16).map((b) => ({ text: b.insight || "", query: (b.query || nicheCfg.queries?.[0] || niche).trim(), tipo: b.tipo || "clip", pause_after: 0 })),
   };
   fs.writeFileSync(out, JSON.stringify(voicemap, null, 2));
-  console.log(`Guion ASMR PURO ${isShort ? "SHORT " : ""}(sin voz): "${title}" · ${voicemap.beats.length} clips${scr ? "" : " (fallback pool, sin Gemini)"} -> ${out}`);
+  console.log(`Guion ASMR PURO ${isShort ? "SHORT " : ""}(con capas de valor): "${title}" · ${voicemap.beats.length} clips${scr ? "" : " (fallback pool, sin Gemini)"} -> ${out}`);
   process.exit(0);
 }
 
