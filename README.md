@@ -49,6 +49,12 @@ Cada canal maneja sus estados, procesos, producción, agendado y credenciales **
 - **Declaración de IA** (`containsSyntheticMedia: true`) en TODAS las subidas.
 - **Horas de silencio** de Telegram 11pm–5am Bogotá (`notify_telegram.sh`): mensajes llegan silenciosos.
 
+## Descubribilidad y Social Preview
+
+- **Topics**: `youtube-automation`, `faceless-youtube`, `serverless`, `github-actions`, `cloudflare-workers`, `text-to-speech`, `generative-ai`, `gemini`, `content-automation`, `video-generation`, `ffmpeg`, `telegram-bot`, `automation`, `r2`.
+- **Website / About**: `https://www.youtube.com/@TheDataLensHQ`
+- **Social Preview**: Configurado con `assets/social-preview.png` (1280×640 px).
+
 ## Estructura
 
 - `bot/src/index.js` — Cloudflare Worker: API `/api/*`, construye el estado del canal desde R2 + YouTube, agenda (`nextBestSlot`).
