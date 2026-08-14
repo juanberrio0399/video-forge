@@ -1,24 +1,26 @@
 name: Radar — implementar issue (Gemini)
 
-# MOTOR del radar (sin Claude): toma un issue `radar`, Gemini implementa las ediciones y se abre
-# una RAMA + PR para revisar. NUNCA mergea. El bot de Telegram (Fase 2) disparará esto por issue.
+# MOTOR CENTRAL del radar (sin Claude): implementa un issue `radar` de CUALQUIER repo de Juan.
+# Clona el repo objetivo, Gemini hace las ediciones y abre RAMA + PR EN ESE repo. NUNCA mergea.
+# Usa el PAT (GH_TOKEN, scope repo+workflow) que ya alcanza todos los repos -> sin secretos por repo.
 
 on:
   workflow_dispatch:
     inputs:
       issue:
-        description: "Número del issue radar a implementar"
+        description: "Número del issue radar"
         required: true
+      repo:
+        description: "owner/repo objetivo (default: video-forge)"
+        default: "juanberrio0399/video-forge"
 
-# No dos implementaciones del MISMO issue a la vez (evita ramas/PR en conflicto). Se encolan.
+# No dos implementaciones del MISMO issue del MISMO repo a la vez (evita ramas/PR en conflicto).
 concurrency:
-  group: radar-implement-${{ github.event.inputs.issue }}
+  group: radar-implement-${{ github.event.inputs.repo }}-${{ github.event.inputs.issue }}
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+  contents: read
 
 jobs:
   implement:
@@ -29,20 +31,25 @@ jobs:
       GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
       ISSUE: ${{ github.event.inputs.issue }}
+      TARGET: ${{ github.event.inputs.repo || 'juanberrio0399/video-forge' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4        # video-forge: trae el script del motor
         with:
-          fetch-depth: 0
-          token: ${{ secrets.GH_TOKEN }}
+          path: motor
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Clonar el repo objetivo
+        run: git clone --depth 50 "https://x-access-token:${GH_TOKEN}@github.com/${TARGET}.git" target
       - name: Implementar el issue con Gemini
-        run: node pipeline/radar_implement.mjs "$ISSUE"
+        working-directory: target
+        run: RADAR_REPO="$TARGET" node "$GITHUB_WORKSPACE/motor/pipeline/radar_implement.mjs" "$ISSUE"
       - name: Crear rama + PR (sin merge)
+        working-directory: target
         run: |
-          [ ! -f radar_pr.json ] && { echo "El motor no produjo cambios (sin PR)."; gh issue comment "$ISSUE" --body "⚠️ El motor no pudo generar cambios para este issue. Requiere implementación manual." || true; exit 1; }
+          [ ! -f radar_pr.json ] && { echo "El motor no produjo cambios (sin PR)."; gh issue comment "$ISSUE" -R "$TARGET" --body "⚠️ El motor no pudo generar cambios para este issue. Requiere implementación manual." || true; exit 1; }
           BR=$(cat radar_branch.txt); TITLE=$(cat radar_title.txt); COMMIT=$(cat radar_commit.txt)
+          BASE=$(git symbolic-ref --short HEAD)
           mv radar_body.md /tmp/radar_body.md
           rm -f radar_pr.json radar_branch.txt radar_title.txt radar_commit.txt
           git config user.name "radar-bot"
@@ -51,7 +58,7 @@ jobs:
           git add -A
           git commit -m "$COMMIT" -m "Implementado por el motor del radar (Gemini). Revisar antes de merge. Closes #${ISSUE}"
           git push -u origin "$BR" --force
-          gh pr create --base main --head "$BR" --title "$TITLE" --body-file /tmp/radar_body.md || gh pr create --base main --head "$BR" --title "$TITLE" --body "Closes #${ISSUE}"
-          PRURL=$(gh pr view "$BR" --json url -q .url)
+          gh pr create -R "$TARGET" --base "$BASE" --head "$BR" --title "$TITLE" --body-file /tmp/radar_body.md || gh pr create -R "$TARGET" --base "$BASE" --head "$BR" --title "$TITLE" --body "Closes #${ISSUE}"
+          PRURL=$(gh pr view "$BR" -R "$TARGET" --json url -q .url)
           echo "PR: $PRURL"
-          gh issue comment "$ISSUE" --body "🤖 Rama \`$BR\` y PR listos para revisar (sin merge): $PRURL"
+          gh issue comment "$ISSUE" -R "$TARGET" --body "🤖 Rama \`$BR\` y PR listos para revisar (sin merge): $PRURL"
