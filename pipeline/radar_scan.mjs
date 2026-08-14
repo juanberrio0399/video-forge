@@ -61,6 +61,7 @@ Cubre estas dimensiones (mezcla mejorar + crecer, prioriza señal sobre ruido):
 - ™️ Marca personal: README que venda, demo/GIF, case study, badges.
 - ©️ Autoría y derechos: ¿hay LICENSE con CRÉDITO OBLIGATORIO a Juan Berrio? Si falta, proponerla.
 - 📈 Crecimiento/SEO del proyecto: descubribilidad (topics/tags de GitHub, About, social preview), difusión (subreddits concretos, Dev.to, Show HN, awesome-lists del nicho), ángulos de adquisición de usuarios/stars.
+- 🔮 Predicción de patrones y tendencias (FUNDAMENTAL): cruza la TRAYECTORIA del repo (qué se ha construido, qué se repite en commits/issues, etapa, deuda) con hacia dónde va el ecosistema, y PREDICE qué va a necesitar el proyecto y qué decisión estructural conviene tomar HOY para alinearse con lo que viene. Separa dato (ya pasó) de predicción (razonada) y declara confianza alto/medio/bajo.
 
 REGLAS:
 - Devuelve SOLO un arreglo JSON (sin prosa, sin markdown alrededor). Entre 2 y ${MAX_ISSUES} hallazgos, calidad sobre cantidad.
@@ -73,7 +74,7 @@ Formato de cada elemento del arreglo:
   "title": "título corto y accionable",
   "priority": "Alta" | "Media" | "Baja",
   "effort": "S" | "M" | "L",
-  "type": "Oportunidad/Novedad" | "Mejora" | "Seguridad" | "Dependencia" | "Deprecation" | "Marca" | "Autoría" | "Crecimiento",
+  "type": "Oportunidad/Novedad" | "Mejora" | "Seguridad" | "Dependencia" | "Deprecation" | "Marca" | "Autoría" | "Crecimiento" | "Predicción/Tendencia",
   "description": "3-6 líneas explicando el hallazgo",
   "why": "por qué importa a ESTE repo en concreto",
   "references": ["Autor/Org. (Año, Mes Día). Título. Sitio. https://url"],
@@ -153,7 +154,7 @@ if (!Array.isArray(findings) || !findings.length) { console.error("Gemini no dev
 shq(`gh label create radar --color BFD4F2 --description "Radar de proyecto (autom.)" -R ${REPO}`);
 
 // 5) Crear los issues nuevos (anti-duplicados).
-const okType = new Set(["Oportunidad/Novedad", "Mejora", "Seguridad", "Dependencia", "Deprecation", "Marca", "Autoría", "Crecimiento"]);
+const okType = new Set(["Oportunidad/Novedad", "Mejora", "Seguridad", "Dependencia", "Deprecation", "Marca", "Autoría", "Crecimiento", "Predicción/Tendencia"]);
 const okPrio = new Set(["Alta", "Media", "Baja"]);
 const okEff = new Set(["S", "M", "L"]);
 let created = 0; const titles = [];
