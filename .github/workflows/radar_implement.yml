@@ -49,19 +49,22 @@ jobs:
         run: |
           [ ! -f radar_pr.json ] && { echo "El motor no produjo cambios (sin PR)."; gh issue comment "$ISSUE" -R "$TARGET" --body "⚠️ El motor no pudo generar cambios para este issue. Requiere implementación manual." || true; exit 1; }
           BR=$(cat radar_branch.txt); TITLE=$(cat radar_title.txt); COMMIT=$(cat radar_commit.txt)
+          COMPLETE=$(cat radar_complete.txt 2>/dev/null || echo 1)   # 1=todas las ediciones aplicaron
           BASE=$(git symbolic-ref --short HEAD)
           mv radar_body.md /tmp/radar_body.md
-          rm -f radar_pr.json radar_branch.txt radar_title.txt radar_commit.txt
+          rm -f radar_pr.json radar_branch.txt radar_title.txt radar_commit.txt radar_complete.txt
+          # Solo un PR COMPLETO cierra el issue. Si quedó incompleto: `Ref` (no cierra) + aviso.
+          if [ "$COMPLETE" = "1" ]; then CLOSE="Closes #${ISSUE}"; NOTE=""; else CLOSE="Ref #${ISSUE}"; NOTE=" (⚠️ INCOMPLETO — revisar; NO cierra el issue)"; fi
           git config user.name "radar-bot"
           git config user.email "radar-bot@users.noreply.github.com"
           git checkout -b "$BR"
           git add -A
-          git commit -m "$COMMIT" -m "Implementado por el motor del radar (Gemini). Revisar antes de merge. Closes #${ISSUE}"
+          git commit -m "$COMMIT" -m "Implementado por el motor del radar (Gemini). Revisar antes de merge. $CLOSE"
           git push -u origin "$BR" --force
-          gh pr create -R "$TARGET" --base "$BASE" --head "$BR" --title "$TITLE" --body-file /tmp/radar_body.md || gh pr create -R "$TARGET" --base "$BASE" --head "$BR" --title "$TITLE" --body "Closes #${ISSUE}"
+          gh pr create -R "$TARGET" --base "$BASE" --head "$BR" --title "$TITLE" --body-file /tmp/radar_body.md || gh pr create -R "$TARGET" --base "$BASE" --head "$BR" --title "$TITLE" --body "$CLOSE"
           PRURL=$(gh pr view "$BR" -R "$TARGET" --json url -q .url)
           echo "PR: $PRURL"
-          gh issue comment "$ISSUE" -R "$TARGET" --body "🤖 Rama \`$BR\` y PR listos para revisar (sin merge): $PRURL"
+          gh issue comment "$ISSUE" -R "$TARGET" --body "🤖 Rama \`$BR\` y PR listos para revisar (sin merge)$NOTE: $PRURL"
           gh issue edit "$ISSUE" -R "$TARGET" --remove-label motor-fallo 2>/dev/null || true   # limpia un fallo previo
       - name: Marcar fallo del motor (si algo se rompió)
         if: failure()
