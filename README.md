@@ -49,6 +49,10 @@ Cada canal maneja sus estados, procesos, producción, agendado y credenciales **
 - **Declaración de IA** (`containsSyntheticMedia: true`) en TODAS las subidas.
 - **Horas de silencio** de Telegram 11pm–5am Bogotá (`notify_telegram.sh`): mensajes llegan silenciosos.
 
+## Licencia
+
+Licencia: Apache-2.0 — © 2026 Juan Berrio. Ver LICENSE y NOTICE.
+
 ## Descubribilidad y Social Preview
 
 - **Topics**: `youtube-automation`, `faceless-youtube`, `serverless`, `github-actions`, `cloudflare-workers`, `text-to-speech`, `generative-ai`, `gemini`, `content-automation`, `video-generation`, `ffmpeg`, `telegram-bot`, `automation`, `r2`.
