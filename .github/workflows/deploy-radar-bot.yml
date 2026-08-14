@@ -62,4 +62,10 @@ jobs:
           MB=$(curl -s "https://api.telegram.org/bot${{ secrets.RADAR_BOT_TOKEN }}/setChatMenuButton" \
             --data-urlencode 'menu_button={"type":"web_app","text":"📡 Radar","web_app":{"url":"'"$URL"'/app"}}')
           echo "MenuButton: $MB"
+          # Identidad del bot: descripción (chat vacío), "about" (perfil) y comandos.
+          TB="https://api.telegram.org/bot${{ secrets.RADAR_BOT_TOKEN }}"
+          curl -s "$TB/setMyShortDescription" --data-urlencode "short_description=Vigila tus repos: novedades, mejoras y PRs listos para revisar y mergear desde el celular." >/dev/null
+          curl -s "$TB/setMyDescription" --data-urlencode "description=📡 Radar del proyecto. Cada semana barre tus repositorios y te deja las novedades, mejoras, riesgos de seguridad y oportunidades de crecimiento como tareas. Ábrelo con el botón de menú para revisar y aprobar el flujo Ejecutar → Revisar → Merge, todo desde el celular." >/dev/null
+          curl -s "$TB/setMyCommands" --data-urlencode 'commands=[{"command":"radar","description":"📡 Abrir el panel del Radar"},{"command":"start","description":"Iniciar y abrir el Radar"}]' >/dev/null
+          echo "Identidad del bot (descripción + comandos) actualizada."
           echo "✅ radar-bot desplegado, webhook + botón de menú en $URL/app"
