@@ -6,6 +6,7 @@
 // Uso: node pipeline/replenish_ideas.mjs <state.json> <out_state.json> [produced.json] [target=10]
 // Env: GEMINI_API_KEY. Opcional: LEARNINGS (brief de lo que rinde) para alinear las ideas.
 import fs from "node:fs";
+import { TEXT_MODELS } from "./_models.mjs";
 
 const [statePath, outPath, producedPath = "", targetArg = "10"] = process.argv.slice(2);
 const TARGET = Math.max(1, parseInt(targetArg, 10) || 10);
@@ -16,7 +17,7 @@ const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
 async function gemini(prompt) {
   if (!KEY) return null;
   for (let round = 0; round < 2; round++) {
-    for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]) {
+    for (const m of TEXT_MODELS) {
       try {
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${KEY}`, {
           method: "POST", headers: { "content-type": "application/json" },
