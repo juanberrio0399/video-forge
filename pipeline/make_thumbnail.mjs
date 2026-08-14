@@ -5,13 +5,17 @@
 import fs from "node:fs";
 import { execSync } from "node:child_process";
 
-const [topic = "data video", ttRaw = "THE DATA LENS", out = "thumbnail.jpg"] = process.argv.slice(2);
+const [topic = "data video", ttRaw = "THE DATA LENS", out = "thumbnail.jpg", bgIn] = process.argv.slice(2);
 const W = 1280, H = 720;
 const FONT = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf";
 
-// 1) Fondo (flux, sin texto). Reintenta; si falla, fondo oscuro liso.
-const prompt = encodeURIComponent(`${topic}, money finance data theme, dramatic cinematic lighting, dark moody background, high contrast, professional, no text, no words, no letters`);
+// 1) Fondo. Si viene un fondo YA generado (4º arg, p. ej. de gen_image.mjs con Gemini/Nano Banana),
+// se usa ese (escalado a 1280x720). Si no, se genera con Pollinations (flux); si falla, oscuro liso.
 let bgOk = false;
+if (bgIn && fs.existsSync(bgIn) && fs.statSync(bgIn).size > 8000) {
+  try { execSync(`ffmpeg -y -i "${bgIn}" -vf "scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}" -frames:v 1 bg.jpg`, { stdio: "ignore" }); bgOk = fs.existsSync("bg.jpg"); if (bgOk) console.log("Miniatura: fondo provisto (" + bgIn + ")"); } catch {}
+}
+const prompt = encodeURIComponent(`${topic}, money finance data theme, dramatic cinematic lighting, dark moody background, high contrast, professional, no text, no words, no letters`);
 for (let i = 0; i < 4 && !bgOk; i++) {
   try {
     execSync(`curl -s -L "https://image.pollinations.ai/prompt/${prompt}?width=${W}&height=${H}&nologo=true&model=flux&seed=${(i + 1) * 13}" -o bg.jpg`, { stdio: "ignore" });

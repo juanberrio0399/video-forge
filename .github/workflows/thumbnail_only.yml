@@ -66,7 +66,8 @@ jobs:
       - name: GENERAR la miniatura (no la fija)
         if: ${{ github.event.inputs.mode != 'apply' }}
         run: |
-          node pipeline/make_thumbnail.mjs "$TOPIC" "$TT" thumbnail.jpg
+          node pipeline/gen_image.mjs "cinematic 3d composition about $TOPIC, bright clean lighting, dramatic angle, 8k, highly detailed, no text" thumb_bg.png || true
+          node pipeline/make_thumbnail.mjs "$TOPIC" "$TT" thumbnail.jpg thumb_bg.png || node pipeline/make_thumbnail.mjs "$TOPIC" "$TT" thumbnail.jpg
           npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/thumb_${VID}.jpg" --file=thumbnail.jpg --remote --content-type image/jpeg
           if [ "$SAVE_SLOT" = "yes" ]; then npx --yes wrangler@4 r2 object put "$BUCKET/video/$PROJECT/thumbnail.jpg" --file=thumbnail.jpg --remote --content-type image/jpeg || true; fi
           # Marcar como GENERADA pero NO aplicada (para que salga el botón Aprobar en la app).
