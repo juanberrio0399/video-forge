@@ -46,24 +46,33 @@ async function ownerFromReq(request, env) {
 }
 
 // ---------- Datos del radar ----------
-async function findPR(env, repo, number) {
-  const r = await gh(env, `/repos/${repo}/pulls?state=open&per_page=100`);
-  if (!r.ok) return null;
-  const prs = await r.json();
-  return prs.find((p) => new RegExp(`closes #${number}\\b`, "i").test(p.body || "") || (p.head?.ref || "").includes(`-${number}`) || (p.head?.ref || "").includes(`issue-${number}`)) || null;
+// Vínculo PR<->issue con la API OFICIAL (GraphQL closingIssuesReferences): GitHub ya parsea
+// "Closes #N" de forma fiable. Devuelve { issueNumber: {number,url,title} } de los PR abiertos.
+async function ghGraphQL(env, query, variables) {
+  const r = await fetch(`${GH}/graphql`, { method: "POST", headers: { Authorization: `Bearer ${env.GH_TOKEN}`, "User-Agent": "radar-bot", "content-type": "application/json" }, body: JSON.stringify({ query, variables }) });
+  const j = await r.json().catch(() => ({}));
+  return j.data;
+}
+async function prMap(env, repo) {
+  const [owner, name] = repo.split("/");
+  const q = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(states:OPEN,first:100){nodes{number title url closingIssuesReferences(first:20){nodes{number}}}}}}`;
+  const map = {};
+  try {
+    const d = await ghGraphQL(env, q, { owner, name });
+    for (const pr of (d?.repository?.pullRequests?.nodes || [])) for (const is of (pr.closingIssuesReferences?.nodes || [])) map[String(is.number)] = { number: pr.number, url: pr.url, title: pr.title };
+  } catch {}
+  return map;
 }
 async function buildState(env) {
   const repos = [];
   for (const repo of REPOS) {
     const issues = [];
     try {
+      const map = await prMap(env, repo);
       const r = await gh(env, `/repos/${repo}/issues?labels=radar&state=open&per_page=50`);
       if (r.ok) {
         const list = (await r.json()).filter((is) => !is.pull_request);
-        for (const is of list) {
-          const pr = await findPR(env, repo, is.number);
-          issues.push({ number: is.number, title: is.title, url: is.html_url, prio: prioOf(is.body), pr: pr ? { number: pr.number, url: pr.html_url, title: pr.title } : null });
-        }
+        for (const is of list) issues.push({ number: is.number, title: is.title, url: is.html_url, prio: prioOf(is.body), pr: map[String(is.number)] || null });
         issues.sort((a, b) => rank(a.prio) - rank(b.prio));
       }
     } catch {}
@@ -77,7 +86,7 @@ async function doAction(env, action, repo, number) {
     return (r.ok || r.status === 204) ? "⚙️ Motor lanzado. En 1-2 min queda el PR — refresca y usa 👀 Revisar." : "❌ No pude lanzar el motor.";
   }
   if (action === "merge") {
-    const pr = await findPR(env, repo, number);
+    const pr = (await prMap(env, repo))[String(number)];
     if (!pr) return `🔎 No hay PR abierto para el #${number}.`;
     const m = await gh(env, `/repos/${repo}/pulls/${pr.number}/merge`, { method: "PUT", body: JSON.stringify({ merge_method: "squash" }) });
     if (m.ok) return `✅ PR #${pr.number} mergeado. El issue #${number} se cierra solo.`;
@@ -107,6 +116,7 @@ h1{font-size:16px;margin:2px 0 10px}.tabs{display:flex;gap:6px;overflow-x:auto;p
 .btn.g{background:transparent;color:var(--fg);border:1px solid var(--line)}
 .btn.d{background:transparent;color:#ff5c5c;border:1px solid rgba(255,92,92,.4)}
 a{color:var(--btn);text-decoration:none}.empty{text-align:center;color:var(--hint);padding:30px 10px}
+.sec{font-weight:700;font-size:13px;margin:14px 2px 6px}
 #toast{position:fixed;left:10px;right:10px;bottom:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;display:none;z-index:9}
 </style></head><body>
 <h1>📡 Radar</h1><div class="tabs" id="tabs"></div><div id="list"></div><div id="toast"></div>
@@ -118,29 +128,35 @@ function toast(t){var e=document.getElementById("toast");e.textContent=t;e.style
 function esc(s){return (s||"").replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});}
 function prioBadge(p){var m={alta:["🔴","Alta"],media:["🟡","Media"],baja:["🟢","Baja"]}[p]||["⚪","Sin prioridad"];return '<span class="prio">'+m[0]+' '+m[1]+'</span>';}
 function load(){api("/api/state").then(function(s){if(s.error){document.getElementById("list").innerHTML='<div class="empty">'+esc(s.error)+'</div>';return;}ST=s;render();});}
+function card(r,is){
+  var k=r.repo+"#"+is.number;var btns;
+  if(!is.pr){
+    btns='<button class="btn" onclick="act(\\''+r.repo+'\\','+is.number+',\\'run\\')">⚙️ Ejecutar</button>'
+      +'<button class="btn d" onclick="act(\\''+r.repo+'\\','+is.number+',\\'close\\')">🗑️ Descartar</button>';
+  } else if(!REVIEWED[k]){
+    btns='<button class="btn" onclick="review(\\''+r.repo+'\\','+is.number+',\\''+is.pr.url+'\\')">👀 Revisar PR #'+is.pr.number+'</button>'
+      +'<button class="btn d" onclick="act(\\''+r.repo+'\\','+is.number+',\\'close\\')">🗑️ Descartar</button>';
+  } else {
+    btns='<button class="btn" onclick="act(\\''+r.repo+'\\','+is.number+',\\'merge\\')">🔀 Merge (ya lo revisé)</button>'
+      +'<button class="btn g" onclick="openPR(\\''+is.pr.url+'\\')">📄 Ver PR de nuevo</button>';
+  }
+  return '<div class="card">'+prioBadge(is.prio)+' · <span class="muted">#'+is.number+'</span>'
+    +'<div class="title">'+esc(is.title)+'</div>'
+    +(is.pr?'<div class="muted">🔧 PR #'+is.pr.number+' listo'+(REVIEWED[k]?' · revisado ✓':' — revísalo antes de mergear')+'</div>':'')
+    +'<div class="muted"><a href="'+is.url+'" target="_blank">Abrir issue ↗</a></div>'
+    +'<div class="row">'+btns+'</div></div>';
+}
 function render(){
-  var tabs=ST.repos.map(function(r,i){return '<div class="tab '+(i===CUR?'on':'')+'" onclick="CUR='+i+';render()">📦 '+esc(r.short)+' ('+r.issues.length+')</div>';}).join("");
+  var tabs=ST.repos.map(function(r,i){var pend=r.issues.filter(function(x){return x.pr;}).length;return '<div class="tab '+(i===CUR?'on':'')+'" onclick="CUR='+i+';render()">📦 '+esc(r.short)+' ('+r.issues.length+(pend?' · 🔧'+pend:'')+')</div>';}).join("");
   document.getElementById("tabs").innerHTML=tabs;
   var r=ST.repos[CUR]||{issues:[]};
-  if(!r.issues.length){document.getElementById("list").innerHTML='<div class="empty">✅ Sin issues del radar en este repo.<br>El barrido semanal irá dejando novedades.</div>';return;}
-  document.getElementById("list").innerHTML=r.issues.map(function(is){
-    var k=r.repo+"#"+is.number;var btns;
-    if(!is.pr){
-      btns='<button class="btn" onclick="act(\\''+r.repo+'\\','+is.number+',\\'run\\')">⚙️ Ejecutar</button>'
-        +'<button class="btn d" onclick="act(\\''+r.repo+'\\','+is.number+',\\'close\\')">🗑️ Descartar</button>';
-    } else if(!REVIEWED[k]){
-      btns='<button class="btn" onclick="review(\\''+r.repo+'\\','+is.number+',\\''+is.pr.url+'\\')">👀 Revisar PR #'+is.pr.number+'</button>'
-        +'<button class="btn d" onclick="act(\\''+r.repo+'\\','+is.number+',\\'close\\')">🗑️ Descartar</button>';
-    } else {
-      btns='<button class="btn" onclick="act(\\''+r.repo+'\\','+is.number+',\\'merge\\')">🔀 Merge (ya lo revisé)</button>'
-        +'<button class="btn g" onclick="openPR(\\''+is.pr.url+'\\')">📄 Ver PR de nuevo</button>';
-    }
-    return '<div class="card">'+prioBadge(is.prio)+' · <span class="muted">#'+is.number+'</span>'
-      +'<div class="title">'+esc(is.title)+'</div>'
-      +(is.pr?'<div class="muted">🔧 PR #'+is.pr.number+' listo'+(REVIEWED[k]?' · revisado ✓':' — revísalo antes de mergear')+'</div>':'')
-      +'<div class="muted"><a href="'+is.url+'" target="_blank">Abrir issue ↗</a></div>'
-      +'<div class="row">'+btns+'</div></div>';
-  }).join("");
+  var pend=r.issues.filter(function(x){return x.pr;});
+  var todo=r.issues.filter(function(x){return !x.pr;});
+  var html="";
+  if(pend.length){ html+='<div class="sec">🔧 Pendientes por merge ('+pend.length+')</div>'+pend.map(function(is){return card(r,is);}).join(""); }
+  if(todo.length){ html+='<div class="sec">🆕 Por trabajar ('+todo.length+')</div>'+todo.map(function(is){return card(r,is);}).join(""); }
+  if(!html) html='<div class="empty">✅ Sin issues del radar en este repo.<br>El barrido semanal irá dejando novedades.</div>';
+  document.getElementById("list").innerHTML=html;
 }
 function openPR(u){TG.openLink(u);}
 function review(repo,n,prUrl){REVIEWED[repo+"#"+n]=true;TG.openLink(prUrl);render();toast("Abrí el PR. Revísalo; si te convence, dale 🔀 Merge.");}
@@ -156,12 +172,6 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // Diagnóstico temporal del webhook.
-    if (url.pathname === "/diag") {
-      const r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getWebhookInfo`);
-      const wh = await r.json();
-      return json({ webhook: wh.result, app_url: url.origin + "/app", owner_set: !!env.OWNER_CHAT_ID });
-    }
     // Mini App
     if (url.pathname === "/app" || url.pathname === "/") {
       return new Response(APP_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });

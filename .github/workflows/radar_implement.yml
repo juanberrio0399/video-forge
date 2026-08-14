@@ -10,6 +10,11 @@ on:
         description: "Número del issue radar a implementar"
         required: true
 
+# No dos implementaciones del MISMO issue a la vez (evita ramas/PR en conflicto). Se encolan.
+concurrency:
+  group: radar-implement-${{ github.event.inputs.issue }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: write
@@ -45,7 +50,7 @@ jobs:
           git checkout -b "$BR"
           git add -A
           git commit -m "$COMMIT" -m "Implementado por el motor del radar (Gemini). Revisar antes de merge. Closes #${ISSUE}"
-          git push -u origin "$BR"
+          git push -u origin "$BR" --force
           gh pr create --base main --head "$BR" --title "$TITLE" --body-file /tmp/radar_body.md || gh pr create --base main --head "$BR" --title "$TITLE" --body "Closes #${ISSUE}"
           PRURL=$(gh pr view "$BR" --json url -q .url)
           echo "PR: $PRURL"
