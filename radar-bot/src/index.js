@@ -123,6 +123,8 @@ a{color:var(--btn);text-decoration:none}.empty{text-align:center;color:var(--hin
 <script>
 var TG=window.Telegram.WebApp;TG.ready();TG.expand();
 var INIT=TG.initData||"";var ST={repos:[]},CUR=0,REVIEWED={};
+try{REVIEWED=JSON.parse(localStorage.getItem("radar_reviewed")||"{}");}catch(e){}
+function saveReviewed(){try{localStorage.setItem("radar_reviewed",JSON.stringify(REVIEWED));}catch(e){}}
 function api(path,body){return fetch(path,{method:"POST",headers:{"content-type":"application/json","x-init-data":INIT},body:JSON.stringify(body||{})}).then(function(r){return r.json();});}
 function toast(t){var e=document.getElementById("toast");e.textContent=t;e.style.display="block";clearTimeout(window._tt);window._tt=setTimeout(function(){e.style.display="none";},4000);}
 function esc(s){return (s||"").replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});}
@@ -159,11 +161,11 @@ function render(){
   document.getElementById("list").innerHTML=html;
 }
 function openPR(u){TG.openLink(u);}
-function review(repo,n,prUrl){REVIEWED[repo+"#"+n]=true;TG.openLink(prUrl);render();toast("Abrí el PR. Revísalo; si te convence, dale 🔀 Merge.");}
+function review(repo,n,prUrl){REVIEWED[repo+"#"+n]=true;saveReviewed();TG.openLink(prUrl);render();toast("Abrí el PR. Revísalo y VUELVE aquí — abajo aparece 🔀 Merge.");}
+function doAct(repo,n,action){toast("Procesando…");api("/api/action",{action:action,repo:repo,number:n}).then(function(res){toast(res.msg||"Listo");setTimeout(load,1500);});}
 function act(repo,n,action){
-  if(action==="merge"&&!confirm("¿Mergear el PR del #"+n+"? Ya lo revisaste.")){return;}
-  toast("Procesando…");
-  api("/api/action",{action:action,repo:repo,number:n}).then(function(res){toast(res.msg||"Listo");setTimeout(load,1500);});
+  if(action==="merge"&&TG.showConfirm){TG.showConfirm("¿Mergear el PR del #"+n+"? Ya lo revisaste.",function(ok){if(ok)doAct(repo,n,action);});return;}
+  doAct(repo,n,action);
 }
 load();
 </script></body></html>`;
