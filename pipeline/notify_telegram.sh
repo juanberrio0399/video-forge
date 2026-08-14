@@ -14,6 +14,11 @@ if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
   exit 0
 fi
 
+# Truncar MSG a ~4000 caracteres para evitar error 400 de Telegram (limite 4096)
+if [ -n "$MSG" ] && [ ${#MSG} -gt 4000 ]; then
+  MSG="${MSG:0:4000}...";
+fi
+
 API="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}"
 MK_ARGS=()
 [ -n "$MARKUP" ] && MK_ARGS=(-F "reply_markup=$MARKUP")
@@ -24,23 +29,77 @@ H=$((10#$(date -u +%H)))
 SILENT_F=(); SILENT_D=()
 if [ "$H" -ge 4 ] && [ "$H" -lt 10 ]; then SILENT_F=(-F "disable_notification=true"); SILENT_D=(--data-urlencode "disable_notification=true"); fi
 
+send_request() {
+  local url="$1"
+  shift
+  local attempt=1
+  local max_attempts=3
+  local http_code=""
+  
+  while [ $attempt -le $max_attempts ]; do
+    http_code=$(curl -s -w '%{http_code}' -o /dev/null "$@" "$url")
+    local exit_code=$?
+    
+    if [ $exit_code -eq 0 ] && [[ "$http_code" =~ ^2[0-9]{2}$ ]]; then
+      return 0
+    fi
+    
+    # Si es error 429 (rate limit) o 5xx, reintentar con backoff
+    if [[ "$http_code" == "429" ]] || [[ "$http_code" =~ ^5[0-9]{2}$ ]]; then
+      if [ $attempt -lt $max_attempts ]; then
+        sleep $((attempt * 2))
+        attempt=$((attempt + 1))
+        continue
+      fi
+    fi
+    
+    # Si es otro error (ej 400, 401, 404), no reintentar más
+    break
+  done
+  
+  echo "notify_telegram: FALLO el envío (HTTP ${http_code:-unknown}, exit ${exit_code:-0})" >&2
+  return 1
+}
+
+SENT=0
+
 if [ -n "$FILE" ] && [ -f "$FILE" ]; then
   case "$FILE" in
     *.mp3|*.wav|*.m4a|*.ogg)
-      curl -sf -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" "${MK_ARGS[@]}" "${SILENT_F[@]}" -F audio=@"$FILE" "$API/sendAudio" >/dev/null ;;
+      if send_request "$API/sendAudio" -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" "${MK_ARGS[@]}" "${SILENT_F[@]}" -F audio=@"$FILE"; then
+        SENT=1
+      fi
+      ;;
     *.mp4|*.mov|*.webm)
-      curl -sf -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" "${MK_ARGS[@]}" "${SILENT_F[@]}" -F video=@"$FILE" "$API/sendVideo" >/dev/null ;;
+      if send_request "$API/sendVideo" -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" "${MK_ARGS[@]}" "${SILENT_F[@]}" -F video=@"$FILE"; then
+        SENT=1
+      fi
+      ;;
     *.jpg|*.jpeg|*.png|*.webp)
-      curl -sf -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" "${MK_ARGS[@]}" "${SILENT_F[@]}" -F photo=@"$FILE" "$API/sendPhoto" >/dev/null ;;
+      if send_request "$API/sendPhoto" -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" "${MK_ARGS[@]}" "${SILENT_F[@]}" -F photo=@"$FILE"; then
+        SENT=1
+      fi
+      ;;
     *)
-      curl -sf -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" "${MK_ARGS[@]}" "${SILENT_F[@]}" -F document=@"$FILE" "$API/sendDocument" >/dev/null ;;
+      if send_request "$API/sendDocument" -F chat_id="$TELEGRAM_CHAT_ID" -F caption="$MSG" "${MK_ARGS[@]}" "${SILENT_F[@]}" -F document=@"$FILE"; then
+        SENT=1
+      fi
+      ;;
   esac
 else
   if [ -n "$MARKUP" ]; then
-    curl -sf -F chat_id="$TELEGRAM_CHAT_ID" -F text="$MSG" -F "reply_markup=$MARKUP" "${SILENT_F[@]}" "$API/sendMessage" >/dev/null
+    if send_request "$API/sendMessage" -F chat_id="$TELEGRAM_CHAT_ID" -F text="$MSG" -F "reply_markup=$MARKUP" "${SILENT_F[@]}"; then
+      SENT=1
+    fi
   else
-    curl -sf --data-urlencode chat_id="$TELEGRAM_CHAT_ID" --data-urlencode text="$MSG" "${SILENT_D[@]}" "$API/sendMessage" >/dev/null
+    if send_request "$API/sendMessage" --data-urlencode chat_id="$TELEGRAM_CHAT_ID" --data-urlencode text="$MSG" "${SILENT_D[@]}"; then
+      SENT=1
+    fi
   fi
 fi
 
-echo "notify_telegram: enviado."
+if [ $SENT -eq 1 ]; then
+  echo "notify_telegram: enviado."
+else
+  echo "notify_telegram: no enviado (ver detalle arriba)."
+fi
