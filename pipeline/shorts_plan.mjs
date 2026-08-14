@@ -4,6 +4,7 @@
 //
 // Uso: node pipeline/shorts_plan.mjs <voicemap.json> <timing.json> <plan_out.json>
 import fs from "node:fs";
+import { TEXT_MODELS } from "./_models.mjs";
 
 const [voicemapPath, timingPath, planOut] = process.argv.slice(2);
 const KEY = process.env.GEMINI_API_KEY;
@@ -23,7 +24,7 @@ const lines = vmBeats.map((b, i) => {
 }).join("\n");
 
 async function gemini(prompt) {
-  for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]) {
+  for (const m of TEXT_MODELS) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${KEY}`, {
         method: "POST", headers: { "content-type": "application/json" },

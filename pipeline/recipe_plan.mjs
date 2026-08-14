@@ -6,6 +6,7 @@
 // Uso: node pipeline/recipe_plan.mjs <texto.txt> <numMedios> <plan.json> <voicemap.json>
 // Env: GEMINI_API_KEY (opcional; sin ella usa una heuristica), VOICE_REF (ruta al mp3 de la voz).
 import fs from "node:fs";
+import { TEXT_MODELS } from "./_models.mjs";
 
 const [textPath, mediaCountArg, planOut, voicemapOut] = process.argv.slice(2);
 const GEMINI = process.env.GEMINI_API_KEY || "";
@@ -29,7 +30,7 @@ async function geminiPlan() {
     `El ULTIMO beat es el cierre (invita a probar/seguir). En medio, los pasos de preparacion EN ORDEN. ` +
     `Usa ${nSteps} beats en total. Narracion siempre en español; query e img_prompt en ingles.\n\n` +
     `RECETA:\n${recipe || "(sin texto; deduce una receta casera a partir de un platillo casero)"}`;
-  for (const m of ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-flash-latest"]) {
+  for (const m of TEXT_MODELS) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI}`, {
         method: "POST", headers: { "content-type": "application/json" },

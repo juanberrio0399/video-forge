@@ -4,6 +4,7 @@
 //
 // Uso: node pipeline/video_script.mjs "<tema>" <out.json>
 import fs from "node:fs";
+import { TEXT_MODELS } from "./_models.mjs";
 
 const [topic, out = "voicemap.json"] = process.argv.slice(2);
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2, process.env.GEMINI_API_KEY3].filter(Boolean);
@@ -14,7 +15,7 @@ async function gemini(prompt) {
   // Multi-llave (respaldo = doble cuota) + reintento con backoff si TODO esta saturado (429/503).
   for (let round = 0; round < 3; round++) {
     for (let k = 0; k < KEYS.length; k++) {
-      for (const m of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]) {
+      for (const m of TEXT_MODELS) {
         try {
           const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${KEYS[k]}`, {
             method: "POST", headers: { "content-type": "application/json" },

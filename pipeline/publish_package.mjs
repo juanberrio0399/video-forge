@@ -41,7 +41,7 @@ fs.writeFileSync(`${outDir}/captions.srt`, srt);
 
 // --- Gemini helper: modelos REALES + reintento con backoff en 429/503 ---
 // (el SEO corre justo despues de la voz/shorts, que agotan la cuota gratis: hay que esperar)
-const MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"];
+import { TEXT_MODELS as MODELS } from "./_models.mjs";
 const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
 async function gemini(prompt) {
   if (!KEYS.length) return null;
