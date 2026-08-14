@@ -67,4 +67,14 @@ jobs:
             --data-urlencode "secret_token=${{ secrets.TELEGRAM_WEBHOOK_SECRET }}")
           echo "Telegram: $RESP"
           echo "$RESP" | grep -q '"ok":true' || { echo "setWebhook fallo"; exit 1; }
+          # Boton de menu del bot -> abre la Mini App (interfaz tipo app).
+          MB=$(curl -s "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/setChatMenuButton" \
+            --data-urlencode 'menu_button={"type":"web_app","text":"📊 App","web_app":{"url":"'"$URL"'/app"}}')
+          echo "MenuButton: $MB"
+          # Identidad del bot "Video Forge": descripcion corta (perfil), descripcion (chat vacio) y comandos.
+          TB="https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}"
+          curl -s "$TB/setMyShortDescription" --data-urlencode "short_description=Tu fabrica de videos para YouTube (The Data Lens y Oddly Loop): produce, aprueba y programa desde el celular." >/dev/null
+          curl -s "$TB/setMyDescription" --data-urlencode "description=🎬 Video Forge — centro de control de tus canales de YouTube. Produce, califica, aprueba y programa videos y Shorts de The Data Lens y Oddly Loop, automatico y desde el celular. Abre la app con el boton de menu para ver metricas, la agenda en las mejores horas y aprobar cada video antes de publicar." >/dev/null
+          curl -s "$TB/setMyCommands" --data-urlencode 'commands=[{"command":"start","description":"🏠 Menu"},{"command":"panel","description":"📊 Panel del canal (programacion)"},{"command":"reporte","description":"🔄 Reporte de metricas del canal"},{"command":"shorts","description":"🎬 Sugerir Shorts del ultimo video"},{"command":"voz","description":"🎙️ Generar la narracion"},{"command":"render","description":"🎬 Renderizar el video (por fases)"},{"command":"receta","description":"🍳 Armar un reel de receta"},{"command":"estado","description":"⏳ Que se hace ahora"}]' >/dev/null
+          echo "Identidad del bot (descripcion + comandos) actualizada."
           echo "✅ Bot desplegado y webhook activo en $URL"
