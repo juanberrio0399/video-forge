@@ -156,6 +156,12 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // Diagnóstico temporal del webhook.
+    if (url.pathname === "/diag") {
+      const r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getWebhookInfo`);
+      const wh = await r.json();
+      return json({ webhook: wh.result, app_url: url.origin + "/app", owner_set: !!env.OWNER_CHAT_ID });
+    }
     // Mini App
     if (url.pathname === "/app" || url.pathname === "/") {
       return new Response(APP_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
