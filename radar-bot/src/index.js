@@ -108,106 +108,189 @@ async function doAction(env, action, repo, number) {
   return "Acción desconocida.";
 }
 
-// ---------- Mini App (HTML) ----------
-const APP_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+// ---------- Mini App (HTML) — diseño pro, nativo de Telegram ----------
+const APP_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <title>Radar</title><style>
-:root{--bg:var(--tg-theme-bg-color,#0f1115);--fg:var(--tg-theme-text-color,#e8eaed);--hint:var(--tg-theme-hint-color,#8a8f98);--card:var(--tg-theme-secondary-bg-color,#191c22);--btn:var(--tg-theme-button-color,#2ea6ff);--btnfg:var(--tg-theme-button-text-color,#fff);--line:rgba(255,255,255,.08)}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 -apple-system,system-ui,sans-serif;padding:10px}
-h1{font-size:16px;margin:2px 0 10px}.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px}
-.tab{white-space:nowrap;padding:6px 12px;border-radius:999px;background:var(--card);color:var(--fg);border:1px solid var(--line);font-size:13px}
-.tab.on{background:var(--btn);color:var(--btnfg);border-color:var(--btn)}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:9px}
-.prio{font-size:11px;font-weight:700}.title{font-weight:600;font-size:14px;margin:3px 0 8px}
-.muted{color:var(--hint);font-size:12px}.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-.btn{flex:1;min-width:44%;padding:9px;border:0;border-radius:10px;background:var(--btn);color:var(--btnfg);font-weight:700;font-size:13px}
-.btn.g{background:transparent;color:var(--fg);border:1px solid var(--line)}
-.btn.d{background:transparent;color:#ff5c5c;border:1px solid rgba(255,92,92,.4)}
-a{color:var(--btn);text-decoration:none}.empty{text-align:center;color:var(--hint);padding:30px 10px}
-.sec{font-weight:700;font-size:13px;margin:14px 2px 6px}
-.home{cursor:pointer}.hrow{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.rname{font-weight:700;font-size:14px}.chips{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
-.chip{padding:5px 10px;border-radius:999px;background:var(--bg);border:1px solid var(--line);font-size:13px;font-weight:700}
-.chip.z{opacity:.35;font-weight:400}.sum{color:var(--hint);font-size:12px;margin:0 2px 11px}
-.fbar{display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 11px;margin-bottom:9px;font-size:13px}
-.fbar button{background:transparent;color:var(--btn);border:0;font-weight:700;font-size:13px}
-#toast{position:fixed;left:10px;right:10px;bottom:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;display:none;z-index:9}
+:root{
+  --bg:var(--tg-theme-bg-color,#0f1115);--fg:var(--tg-theme-text-color,#e9eaed);
+  --hint:var(--tg-theme-hint-color,#8b909a);--card:var(--tg-theme-secondary-bg-color,#181b21);
+  --acc:var(--tg-theme-button-color,#3a92ff);--accfg:var(--tg-theme-button-text-color,#fff);
+  --line:rgba(128,132,140,.24);--soft:rgba(128,132,140,.10);
+  --r:#ff5a5a;--y:#f2b234;--g:#33c46e;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;padding:0 13px calc(28px + env(safe-area-inset-bottom))}
+#app{max-width:560px;margin:0 auto}
+.hd{position:sticky;top:0;z-index:6;background:var(--bg);display:flex;align-items:center;justify-content:space-between;padding:13px 2px 9px}
+.hd-l{display:flex;align-items:center;gap:10px;min-width:0}
+.logo{font-size:22px;line-height:1}
+.h-t{font-weight:800;font-size:18px;letter-spacing:.2px}
+.h-s{font-size:12px;color:var(--hint);margin-top:-1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
+.icon{background:var(--card);border:1px solid var(--line);color:var(--fg);min-width:36px;height:36px;border-radius:11px;font-size:17px;display:flex;align-items:center;justify-content:center;transition:transform .1s}
+.icon:active{transform:scale(.9) rotate(-30deg)}
+.tabs{position:sticky;top:53px;z-index:5;background:var(--bg);display:flex;gap:7px;overflow-x:auto;padding:3px 0 11px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{white-space:nowrap;padding:7px 14px;border-radius:999px;background:var(--card);color:var(--fg);border:1px solid var(--line);font-size:13px;font-weight:600;transition:transform .08s}
+.tab:active{transform:scale(.95)}
+.tab.on{background:var(--acc);color:var(--accfg);border-color:var(--acc)}
+.tab b{opacity:.9;font-weight:800;margin-left:1px}
+.kpi{display:flex;gap:9px;margin-bottom:13px}
+.k{flex:1;background:var(--card);border:1px solid var(--line);border-radius:15px;padding:12px 6px;text-align:center}
+.kn{display:block;font-size:23px;font-weight:800;line-height:1}
+.kl{display:block;font-size:11px;color:var(--hint);margin-top:5px;letter-spacing:.2px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:14px;margin-bottom:11px}
+.tap{cursor:pointer;transition:transform .09s,border-color .15s}
+.tap:active{transform:scale(.984)}
+.repo .rhead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.rn{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta{color:var(--hint);font-size:13px;display:flex;align-items:center;gap:7px;flex-shrink:0}
+.badge{background:var(--soft);color:var(--acc);padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
+.chev{font-size:19px;opacity:.5;margin-left:1px}
+.pills{display:flex;gap:7px;margin-top:12px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:3px;padding:5px 11px;border-radius:999px;background:var(--bg);border:1px solid var(--line);font-size:13px;font-weight:700;transition:transform .08s}
+.pill.z{opacity:.38;font-weight:500}
+.pill.tapp:active{transform:scale(.9)}
+.sec{display:flex;align-items:center;gap:8px;font-weight:700;font-size:12px;color:var(--hint);letter-spacing:.4px;text-transform:uppercase;margin:18px 3px 9px}
+.cnt{background:var(--card);border:1px solid var(--line);color:var(--fg);padding:1px 8px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:0}
+.issue{border-left:3px solid var(--pc)}
+.itop{display:flex;justify-content:space-between;align-items:center}
+.ip{font-size:12px;font-weight:800;letter-spacing:.2px}
+.inum{color:var(--hint);font-size:12px;font-weight:600}
+.ititle{font-weight:650;font-size:15px;margin:6px 0 0;line-height:1.32}
+.st{color:var(--hint);font-size:12px;margin-top:7px}
+.ilink{display:inline-block;color:var(--acc);font-size:12px;font-weight:600;margin-top:8px;text-decoration:none}
+.acts{display:flex;gap:8px;margin-top:12px}
+.b{flex:1;padding:11px;border:0;border-radius:12px;background:var(--acc);color:var(--accfg);font-weight:700;font-size:13px;transition:transform .09s}
+.b:active{transform:scale(.97)}
+.b.g{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.b.d{background:transparent;color:var(--r);border:1px solid rgba(255,90,90,.42);flex:0 0 auto;padding:11px 15px}
+.fbar{display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 13px;margin-bottom:11px;font-size:13px;font-weight:600}
+.link{background:transparent;border:0;color:var(--acc);font-weight:700;font-size:13px;padding:0}
+.empty{text-align:center;padding:52px 18px;color:var(--hint)}
+.ei{font-size:42px;margin-bottom:12px}
+.et{font-weight:700;color:var(--fg);font-size:15px}
+.es{font-size:13px;margin-top:6px;line-height:1.5}
+.sk{pointer-events:none}
+.sk-l{height:13px;border-radius:7px;background:var(--soft);margin:5px 0;animation:pulse 1.15s ease-in-out infinite}
+.sk-l.s{height:11px;width:55%!important;opacity:.7}
+@keyframes pulse{0%,100%{opacity:.45}50%{opacity:.95}}
+#view.in{animation:fadein .26s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+#toast{position:fixed;left:13px;right:13px;bottom:calc(16px + env(safe-area-inset-bottom));max-width:534px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px 15px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.32);transform:translateY(160%);opacity:0;transition:transform .3s cubic-bezier(.2,.9,.3,1),opacity .3s;z-index:9}
+#toast.show{transform:none;opacity:1}
 </style></head><body>
-<h1>📡 Radar</h1><div class="tabs" id="tabs"></div><div id="list"></div><div id="toast"></div>
+<div id="app">
+  <div class="hd">
+    <div class="hd-l"><span class="logo">📡</span><div style="min-width:0"><div class="h-t">Radar</div><div class="h-s" id="hsub">Vigila tus repos</div></div></div>
+    <button class="icon" data-act="refresh" aria-label="Actualizar">⟳</button>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div id="view"></div>
+</div>
+<div id="toast"></div>
 <script>
 var TG=window.Telegram.WebApp;TG.ready();TG.expand();
-var INIT=TG.initData||"";var ST={repos:[]},CUR=-1,FILTER=null,REVIEWED={};
+try{TG.setHeaderColor&&TG.setHeaderColor("bg_color");}catch(e){}
+var INIT=TG.initData||"";
+var ST={repos:[]},CUR=-1,FILTER=null,REVIEWED={};
 try{REVIEWED=JSON.parse(localStorage.getItem("radar_reviewed")||"{}");}catch(e){}
-function saveReviewed(){try{localStorage.setItem("radar_reviewed",JSON.stringify(REVIEWED));}catch(e){}}
-function api(path,body){return fetch(path,{method:"POST",headers:{"content-type":"application/json","x-init-data":INIT},body:JSON.stringify(body||{})}).then(function(r){return r.json();});}
-function toast(t){var e=document.getElementById("toast");e.textContent=t;e.style.display="block";clearTimeout(window._tt);window._tt=setTimeout(function(){e.style.display="none";},4000);}
-function esc(s){return (s||"").replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});}
-function prioBadge(p){var m={alta:["🔴","Alta"],media:["🟡","Media"],baja:["🟢","Baja"]}[p]||["⚪","Sin prioridad"];return '<span class="prio">'+m[0]+' '+m[1]+'</span>';}
-function load(){api("/api/state").then(function(s){if(s.error){document.getElementById("list").innerHTML='<div class="empty">'+esc(s.error)+'</div>';return;}ST=s;render();});}
-function card(r,is){
-  var k=r.repo+"#"+is.number;var btns;
-  if(!is.pr){
-    btns='<button class="btn" onclick="act(\\''+r.repo+'\\','+is.number+',\\'run\\')">⚙️ Ejecutar</button>'
-      +'<button class="btn d" onclick="act(\\''+r.repo+'\\','+is.number+',\\'close\\')">🗑️ Descartar</button>';
-  } else if(!REVIEWED[k]){
-    btns='<button class="btn" onclick="review(\\''+r.repo+'\\','+is.number+',\\''+is.pr.url+'\\')">👀 Revisar PR #'+is.pr.number+'</button>'
-      +'<button class="btn d" onclick="act(\\''+r.repo+'\\','+is.number+',\\'close\\')">🗑️ Descartar</button>';
-  } else {
-    btns='<button class="btn" onclick="act(\\''+r.repo+'\\','+is.number+',\\'merge\\')">🔀 Merge (ya lo revisé)</button>'
-      +'<button class="btn g" onclick="openPR(\\''+is.pr.url+'\\')">📄 Ver PR de nuevo</button>';
-  }
-  return '<div class="card">'+prioBadge(is.prio)+' · <span class="muted">#'+is.number+'</span>'
-    +'<div class="title">'+esc(is.title)+'</div>'
-    +(is.pr?'<div class="muted">🔧 PR #'+is.pr.number+' listo'+(REVIEWED[k]?' · revisado ✓':' — revísalo antes de mergear')+'</div>':'')
-    +'<div class="muted"><a href="'+is.url+'" target="_blank">Abrir issue ↗</a></div>'
-    +'<div class="row">'+btns+'</div></div>';
-}
-function counts(r){var c={alta:0,media:0,baja:0,none:0};r.issues.forEach(function(x){var k=x.prio||'none';c[k]=(c[k]||0)+1;});return c;}
-function chip(i,prio,emoji,n){return '<span class="chip'+(n?'':' z')+'" onclick="event.stopPropagation();go('+i+',\\''+prio+'\\')">'+emoji+' '+n+'</span>';}
-function go(i,prio){CUR=i;FILTER=(prio==null)?null:prio;render();}
+function saveRev(){try{localStorage.setItem("radar_reviewed",JSON.stringify(REVIEWED));}catch(e){}}
+function h(t){try{var H=TG.HapticFeedback;if(!H)return;if(t==="sel")H.selectionChanged();else if(t==="ok")H.notificationOccurred("success");else if(t==="err")H.notificationOccurred("error");else H.impactOccurred(t||"light");}catch(e){}}
+function api(p,b){return fetch(p,{method:"POST",headers:{"content-type":"application/json","x-init-data":INIT},body:JSON.stringify(b||{})}).then(function(r){return r.json();});}
+function esc(s){return (s||"").replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+function toast(t){var e=document.getElementById("toast");e.textContent=t;e.className="show";clearTimeout(window._t);window._t=setTimeout(function(){e.className="";},3400);}
+var PR={alta:{e:"🔴",l:"Alta",c:"var(--r)"},media:{e:"🟡",l:"Media",c:"var(--y)"},baja:{e:"🟢",l:"Baja",c:"var(--g)"},none:{e:"⚪",l:"Sin prioridad",c:"var(--hint)"}};
+function counts(r){var c={alta:0,media:0,baja:0,none:0};r.issues.forEach(function(x){c[x.prio||"none"]++;});return c;}
+function pill(prio,n,i){return '<span class="pill'+(n?" tapp":" z")+'" data-act="chip" data-i="'+i+'" data-prio="'+prio+'">'+PR[prio].e+" "+n+"</span>";}
+function empty(ic,t,s){return '<div class="empty"><div class="ei">'+ic+'</div><div class="et">'+esc(t)+"</div>"+(s?'<div class="es">'+esc(s)+"</div>":"")+"</div>";}
+function sec(t,n){return '<div class="sec">'+t+' <span class="cnt">'+n+"</span></div>";}
+
+function skeleton(){var s="";for(var i=0;i<4;i++)s+='<div class="card sk"><div class="sk-l" style="width:'+(42+i*11)+'%"></div><div class="sk-l s"></div></div>';document.getElementById("view").innerHTML=s;}
+function backBtn(){try{if(CUR<0)TG.BackButton.hide();else TG.BackButton.show();}catch(e){}}
+
 function tabsHtml(){
-  var t='<div class="tab '+(CUR<0?'on':'')+'" onclick="CUR=-1;FILTER=null;render()">🏠 Inicio</div>';
-  t+=ST.repos.map(function(r,i){var pend=r.issues.filter(function(x){return x.pr;}).length;return '<div class="tab '+(i===CUR?'on':'')+'" onclick="go('+i+',null)">📦 '+esc(r.short)+' ('+r.issues.length+(pend?' · 🔧'+pend:'')+')</div>';}).join("");
-  return t;
+  var t='<button class="tab '+(CUR<0?"on":"")+'" data-act="home">🏠</button>';
+  t+=ST.repos.map(function(r,i){var p=r.issues.filter(function(x){return x.pr;}).length;return '<button class="tab '+(i===CUR?"on":"")+'" data-act="tab" data-i="'+i+'">'+esc(r.short)+(p?' <b>'+p+'</b>':"")+"</button>";}).join("");
+  document.getElementById("tabs").innerHTML=t;
 }
-function renderHome(){
-  var total=0,pend=0,alta=0;
+function homeView(){
+  var total=0,alta=0,pend=0;
+  ST.repos.forEach(function(r){var c=counts(r);total+=r.issues.length;alta+=c.alta;pend+=r.issues.filter(function(x){return x.pr;}).length;});
+  if(!total){document.getElementById("view").innerHTML=empty("✨","Sin novedades del radar","El barrido semanal irá dejando hallazgos aquí. Vuelve el lunes.");return;}
+  var kpi='<div class="kpi">'
+    +'<div class="k"><span class="kn">'+total+'</span><span class="kl">mejoras</span></div>'
+    +'<div class="k"><span class="kn" style="color:var(--r)">'+alta+'</span><span class="kl">alta</span></div>'
+    +'<div class="k"><span class="kn" style="color:var(--acc)">'+pend+'</span><span class="kl">por merge</span></div></div>';
   var cards=ST.repos.map(function(r,i){
-    var c=counts(r);total+=r.issues.length;alta+=c.alta;
-    var p=r.issues.filter(function(x){return x.pr;}).length;pend+=p;
-    return '<div class="card home" onclick="go('+i+',null)">'
-      +'<div class="hrow"><span class="rname">📦 '+esc(r.short)+'</span><span class="muted">'+r.issues.length+' issue'+(r.issues.length===1?'':'s')+(p?' · 🔧'+p+' PR':'')+'</span></div>'
-      +'<div class="chips">'+chip(i,'alta','🔴',c.alta)+chip(i,'media','🟡',c.media)+chip(i,'baja','🟢',c.baja)+(c.none?chip(i,'none','⚪',c.none):'')+'</div>'
-    +'</div>';
+    var c=counts(r),p=r.issues.filter(function(x){return x.pr;}).length;
+    return '<div class="card repo tap" data-act="repo" data-i="'+i+'">'
+      +'<div class="rhead"><span class="rn">'+esc(r.short)+'</span><span class="meta">'+(p?'<span class="badge">🔧 '+p+'</span>':"")+r.issues.length+'<span class="chev">›</span></span></div>'
+      +'<div class="pills">'+pill("alta",c.alta,i)+pill("media",c.media,i)+pill("baja",c.baja,i)+(c.none?pill("none",c.none,i):"")+'</div></div>';
   }).join("");
-  document.getElementById("tabs").innerHTML=tabsHtml();
-  var head='<div class="sum">'+ST.repos.length+' repos · '+total+' mejora'+(total===1?'':'s')+' · 🔴 '+alta+' alta'+(pend?' · 🔧 '+pend+' por merge':'')+'</div>';
-  document.getElementById("list").innerHTML=total?(head+cards):'<div class="empty">✅ Sin issues del radar todavía.<br>El barrido semanal irá dejando novedades.</div>';
+  document.getElementById("view").innerHTML=kpi+cards;
+}
+function issueCard(r,is){
+  var k=r.repo+"#"+is.number,p=PR[is.prio||"none"],acts;
+  if(!is.pr){
+    acts='<button class="b" data-act="run" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">⚙️ Ejecutar</button>'
+      +'<button class="b d" data-act="close" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">Descartar</button>';
+  }else if(!REVIEWED[k]){
+    acts='<button class="b" data-act="review" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'" data-url="'+esc(is.pr.url)+'">👀 Revisar PR #'+is.pr.number+'</button>'
+      +'<button class="b d" data-act="close" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">Descartar</button>';
+  }else{
+    acts='<button class="b" data-act="merge" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">🔀 Merge</button>'
+      +'<button class="b g" data-act="open" data-url="'+esc(is.pr.url)+'">📄 Ver PR</button>';
+  }
+  var st=is.pr?'<div class="st">🔧 PR #'+is.pr.number+(REVIEWED[k]?" · revisado ✓":" · revísalo antes de mergear")+'</div>':"";
+  return '<div class="card issue" style="--pc:'+p.c+'">'
+    +'<div class="itop"><span class="ip" style="color:'+p.c+'">'+p.e+" "+p.l+'</span><span class="inum">#'+is.number+'</span></div>'
+    +'<div class="ititle">'+esc(is.title)+"</div>"+st
+    +'<a class="ilink" data-act="open" data-url="'+esc(is.url)+'">Abrir issue ↗</a>'
+    +'<div class="acts">'+acts+"</div></div>";
+}
+function repoView(){
+  var r=ST.repos[CUR]||{issues:[]},items=r.issues;
+  if(FILTER!==null)items=items.filter(function(x){return (x.prio||"none")===FILTER;});
+  var pend=items.filter(function(x){return x.pr;}),todo=items.filter(function(x){return !x.pr;}),html="";
+  if(FILTER!==null){var p=PR[FILTER];html+='<div class="fbar"><span>'+p.e+" "+p.l+" · "+items.length+'</span><button class="link" data-act="clear">Quitar ✕</button></div>';}
+  if(pend.length)html+=sec("🔧 Pendientes por merge",pend.length)+pend.map(function(is){return issueCard(r,is);}).join("");
+  if(todo.length)html+=sec("🆕 Por trabajar",todo.length)+todo.map(function(is){return issueCard(r,is);}).join("");
+  if(!html)html=empty("✅","Nada por aquí"+(FILTER!==null?" con ese filtro":""),FILTER!==null?"Quita el filtro para ver todo.":"El barrido semanal irá dejando novedades.");
+  document.getElementById("view").innerHTML=html;
 }
 function render(){
   if(CUR>=ST.repos.length)CUR=ST.repos.length?0:-1;
-  if(CUR<0){renderHome();return;}
-  document.getElementById("tabs").innerHTML=tabsHtml();
-  var r=ST.repos[CUR]||{issues:[]};
-  var items=r.issues;
-  if(FILTER!==null)items=items.filter(function(x){return (x.prio||'none')===FILTER;});
-  var pend=items.filter(function(x){return x.pr;});
-  var todo=items.filter(function(x){return !x.pr;});
-  var html="";
-  if(FILTER!==null){var lbl={alta:'🔴 Alta',media:'🟡 Media',baja:'🟢 Baja',none:'⚪ Sin prioridad'}[FILTER]||FILTER;html+='<div class="fbar"><span>Filtrando: '+lbl+' ('+items.length+')</span><button onclick="FILTER=null;render()">Quitar ✕</button></div>';}
-  if(pend.length){ html+='<div class="sec">🔧 Pendientes por merge ('+pend.length+')</div>'+pend.map(function(is){return card(r,is);}).join(""); }
-  if(todo.length){ html+='<div class="sec">🆕 Por trabajar ('+todo.length+')</div>'+todo.map(function(is){return card(r,is);}).join(""); }
-  if(!html) html='<div class="empty">✅ Nada aquí'+(FILTER!==null?' con ese filtro.':'.<br>El barrido semanal irá dejando novedades.')+'</div>';
-  document.getElementById("list").innerHTML=html;
+  document.getElementById("hsub").textContent=CUR<0?"Vigila tus repos":("📦 "+ST.repos[CUR].short);
+  tabsHtml();backBtn();
+  var v=document.getElementById("view");
+  if(CUR<0)homeView();else repoView();
+  v.classList.remove("in");void v.offsetWidth;v.classList.add("in");
 }
-function openPR(u){TG.openLink(u);}
-function review(repo,n,prUrl){REVIEWED[repo+"#"+n]=true;saveReviewed();TG.openLink(prUrl);render();toast("Abrí el PR. Revísalo y VUELVE aquí — abajo aparece 🔀 Merge.");}
-function doAct(repo,n,action){toast("Procesando…");api("/api/action",{action:action,repo:repo,number:n}).then(function(res){toast(res.msg||"Listo");setTimeout(load,1500);});}
-function act(repo,n,action){
-  if(action==="merge"&&TG.showConfirm){TG.showConfirm("¿Mergear el PR del #"+n+"? Ya lo revisaste.",function(ok){if(ok)doAct(repo,n,action);});return;}
-  doAct(repo,n,action);
+function go(i,prio){CUR=i;FILTER=(prio==null?null:prio);h("sel");render();}
+function load(first){
+  if(first)skeleton();
+  api("/api/state").then(function(s){
+    if(s.error){document.getElementById("view").innerHTML=empty("🔒",s.error,"Abre la app desde el botón del bot.");return;}
+    ST=s;render();
+  }).catch(function(){document.getElementById("view").innerHTML=empty("⚠️","No pude cargar","Revisa la conexión y toca ⟳ para reintentar.");});
 }
-load();
+function doAct(repo,n,action){h("medium");toast("Procesando…");api("/api/action",{action:action,repo:repo,number:n}).then(function(res){h(action==="merge"?"ok":"light");toast(res.msg||"Listo");setTimeout(function(){load(false);},1500);});}
+try{TG.BackButton.onClick(function(){CUR=-1;FILTER=null;h("light");render();});}catch(e){}
+document.addEventListener("click",function(ev){
+  var el=ev.target.closest("[data-act]");if(!el)return;var a=el.getAttribute("data-act");
+  if(a==="home"){CUR=-1;FILTER=null;h("sel");render();return;}
+  if(a==="tab"||a==="repo"){go(+el.getAttribute("data-i"),null);return;}
+  if(a==="chip"){go(+el.getAttribute("data-i"),el.getAttribute("data-prio"));return;}
+  if(a==="clear"){FILTER=null;h("light");render();return;}
+  if(a==="refresh"){h("light");toast("Actualizando…");load(true);return;}
+  if(a==="open"){TG.openLink(el.getAttribute("data-url"));return;}
+  var repo=el.getAttribute("data-repo"),n=+el.getAttribute("data-n");
+  if(a==="review"){REVIEWED[repo+"#"+n]=true;saveRev();h("light");TG.openLink(el.getAttribute("data-url"));render();toast("Abrí el PR. Revísalo y vuelve — abajo sale 🔀 Merge.");return;}
+  if(a==="run"||a==="close"){doAct(repo,n,a);return;}
+  if(a==="merge"){if(TG.showConfirm){TG.showConfirm("¿Mergear el PR del #"+n+"? Ya lo revisaste.",function(ok){if(ok)doAct(repo,n,"merge");});}else doAct(repo,n,"merge");return;}
+});
+load(true);
 </script></body></html>`;
 
 export default {
@@ -240,7 +323,7 @@ export default {
         const chatId = String(upd.message.chat.id);
         if (owner && chatId !== owner) return new Response("ok");
         const appUrl = url.origin + "/app";
-        await tg(env, "sendMessage", { chat_id: chatId, text: "📡 Radar — control de novedades por repo. Ábrelo:", reply_markup: { inline_keyboard: [[{ text: "📡 Abrir Radar", web_app: { url: appUrl } }]] } });
+        await tg(env, "sendMessage", { chat_id: chatId, text: "📡 *Radar del proyecto*\nTus repos, en una sola vista: novedades, mejoras y PRs listos para revisar.\n\nToca abajo para abrirlo 👇", parse_mode: "Markdown", reply_markup: { inline_keyboard: [[{ text: "📡 Abrir Radar", web_app: { url: appUrl } }]] } });
         return new Response("ok");
       }
       return new Response("ok");
