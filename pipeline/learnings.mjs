@@ -6,6 +6,7 @@
 // Uso: node pipeline/learnings.mjs [out.txt=learnings.txt] [out.json=learnings.json]
 // Env: YT_CLIENT_ID / YT_CLIENT_SECRET / YT_REFRESH_TOKEN (OAuth) + GEMINI_API_KEY
 import fs from "node:fs";
+import { TEXT_MODELS } from "./_models.mjs";
 
 const [outTxt = "learnings.txt", outJson = "learnings.json"] = process.argv.slice(2);
 const { YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN, GEMINI_API_KEY } = process.env;
@@ -24,7 +25,7 @@ async function getToken() {
 async function gemini(prompt) {
   if (!GEMINI_API_KEY) return null;
   for (let round = 0; round < 2; round++) {
-    for (const m of ["gemini-2.5-flash", "gemini-flash-latest", "gemini-flash-latest"]) {
+    for (const m of TEXT_MODELS) {
       try {
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI_API_KEY}`, {
           method: "POST", headers: { "content-type": "application/json" },
