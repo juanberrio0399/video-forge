@@ -1,0 +1,62 @@
+name: Radar — barrido semanal (Gemini)
+
+# BARRIDO del radar para los repos PRIVADOS de Juan (los públicos los cubre la rutina de Claude en la nube).
+# Investiga con Gemini + Google Search y crea Issues `radar` nuevos (anti-duplicados). NO toca código.
+# Usa el PAT (GH_TOKEN, scope repo) -> alcanza los privados sin depender de la cuenta de Claude compartida.
+
+on:
+  schedule:
+    - cron: "0 13 * * 1"          # Lunes 13:00 UTC = 8:00am Bogota
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "owner/repo objetivo (vacio = los 3 privados por defecto)"
+        required: false
+        default: ""
+
+concurrency:
+  group: radar-scan-${{ github.event.inputs.repo || 'weekly' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      repos: ${{ steps.set.outputs.repos }}
+    steps:
+      - id: set
+        run: |
+          if [ -n "${{ github.event.inputs.repo }}" ]; then
+            echo 'repos=["${{ github.event.inputs.repo }}"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'repos=["juanberrio0399/ugpp-shield-pro","juanberrio0399/Hearthwood","juanberrio0399/claude-config"]' >> "$GITHUB_OUTPUT"
+          fi
+
+  scan:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        repo: ${{ fromJSON(needs.prepare.outputs.repos) }}
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      TARGET: ${{ matrix.repo }}
+    steps:
+      - uses: actions/checkout@v4          # video-forge: trae el script del motor
+        with:
+          path: motor
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Clonar el repo objetivo
+        run: git clone --depth 50 "https://x-access-token:${GH_TOKEN}@github.com/${TARGET}.git" target
+      - name: Barrido del radar (Gemini)
+        working-directory: target
+        run: RADAR_REPO="$TARGET" node "$GITHUB_WORKSPACE/motor/pipeline/radar_scan.mjs"
