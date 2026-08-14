@@ -29,10 +29,11 @@ export async function generateImage(prompt, outPath = "out.png") {
   const dir = path.dirname(outPath);
   if (dir && dir !== ".") fs.mkdirSync(dir, { recursive: true });
 
-  for (const key of API_KEYS) {
+  const IMG_MODELS = ["gemini-2.5-flash-image", "gemini-3.1-flash-lite-image", "gemini-2.0-flash-preview-image-generation"];
+  for (const key of API_KEYS) for (const model of IMG_MODELS) {
     try {
-      console.log(`[gen_image] Solicitando imagen a Gemini 2.5 Flash Image...`);
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${key}`;
+      console.log(`[gen_image] Solicitando imagen a Gemini (${model})...`);
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
       const payload = {
         contents: [
           {
