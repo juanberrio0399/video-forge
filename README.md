@@ -1,9 +1,9 @@
 # video-forge
 
-[![CI status](https://img.shields.io/github/actions/workflow/status/owner/video-forge/daily_video.yml?branch=main&label=Daily%20Video%20Workflow&style=flat-square)](https://github.com/owner/video-forge/actions/workflows/daily_video.yml)
+[![CI status](https://img.shields.io/github/actions/workflow/status/juanberrio0399/video-forge/daily_video.yml?branch=main&label=Daily%20Video%20Workflow&style=flat-square)](https://github.com/juanberrio0399/video-forge/actions/workflows/daily_video.yml)
 [![100% Cloud](https://img.shields.io/badge/infra-100%25%20cloud-blue?style=flat-square)](https://github.com)
 [![Stack](https://img.shields.io/badge/stack-GitHub%20Actions%20%·%20Cloudflare%20%·%20Gemini-orange?style=flat-square)](https://github.com)
-[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
 
 Fábrica de videos de YouTube que corre **100% en la nube** (nada se renderiza en el PC) con herramientas **gratis**. Opera **dos canales independientes**, controlados desde una **Telegram Mini App**. GitHub Actions produce, un Cloudflare Worker + R2 son el mando/estado, y Gemini/Kokoro/HyperFrames/Freesound hacen el contenido.
 
