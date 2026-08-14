@@ -5,6 +5,7 @@
 // Uso: node pipeline/preflight.mjs
 // Env: GEMINI_API_KEY, PEXELS_API_KEY, YT_CLIENT_ID/SECRET/REFRESH
 import fs from "node:fs";
+import { TEXT_MODELS } from "./_models.mjs";
 
 const { GEMINI_API_KEY, PEXELS_API_KEY, YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN } = process.env;
 const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
@@ -30,7 +31,7 @@ await check("Gemini (guion/SEO)", true, async () => {
   // Prueba VARIOS modelos (auto-adapta al que responda), igual que los scripts reales -> no marca
   // caido solo porque un nombre de modelo dio 404. Si alguno responde, Gemini esta OK.
   let saw429 = false;
-  for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-2.0-flash-lite"]) {
+  for (const m of TEXT_MODELS) {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI_API_KEY}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }) });
     if (r.ok) return { ok: true, detail: `OK (${m})` };
     if (r.status === 429) saw429 = true;
