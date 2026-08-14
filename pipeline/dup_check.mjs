@@ -1,4 +1,5 @@
 // dup_check.mjs — GUARDA anti-duplicados: evita producir un tema que YA existe en el canal.
+import { TEXT_MODELS } from "./_models.mjs";
 // Usa Gemini para comparar por SIGNIFICADO (robusto a redacciones distintas: "1,000,000" vs "1 million").
 // Sale 1 si es DUPLICADO (para que produce_video aborte). Sale 0 si es tema nuevo (o si no puede juzgar).
 // Uso: node pipeline/dup_check.mjs "<topic>"
@@ -22,7 +23,7 @@ async function getTitles() {
 }
 async function gemini(prompt) {
   if (!GEMINI_API_KEY) return null;
-  for (const m of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"]) {
+  for (const m of TEXT_MODELS) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI_API_KEY}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
       if (!r.ok) continue;

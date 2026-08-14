@@ -5,6 +5,7 @@
 // Uso: node pipeline/error_learn.mjs <ledger_in.json> <ledger_out.json>
 // Env: GH_TOKEN, GH_REPO (owner/repo), GEMINI_API_KEY
 import fs from "node:fs";
+import { TEXT_MODELS } from "./_models.mjs";
 
 const [inLedger = "error_log.json", outLedger = "error_log.json"] = process.argv.slice(2);
 const { GH_TOKEN, GH_REPO, GEMINI_API_KEY } = process.env;
@@ -14,7 +15,7 @@ const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
 async function gh(path) { try { const r = await fetch(`https://api.github.com${path}`, { headers: H }); return r.ok ? await r.json() : null; } catch { return null; } }
 async function gemini(prompt) {
   if (!GEMINI_API_KEY) return null;
-  for (const m of ["gemini-2.5-flash", "gemini-flash-latest", "gemini-flash-latest"]) {
+  for (const m of TEXT_MODELS) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI_API_KEY}`, {
         method: "POST", headers: { "content-type": "application/json" },

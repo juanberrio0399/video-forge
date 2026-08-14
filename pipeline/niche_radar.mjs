@@ -8,6 +8,7 @@
 // Env: GEMINI_API_KEY (recomendación IA), YT2_CLIENT_ID/SECRET/REFRESH (canal auto, opcional)
 //      niche_map.json (mapa video_id -> nicho, lo escribe la producción del canal auto)
 import fs from "node:fs";
+import { TEXT_MODELS } from "./_models.mjs";
 
 const [inPath, outPath = "niche_radar.json"] = process.argv.slice(2);
 const { GEMINI_API_KEY, YT2_CLIENT_ID, YT2_CLIENT_SECRET, YT2_REFRESH_TOKEN } = process.env;
@@ -45,7 +46,7 @@ async function collect() {
 // --- Recomendación IA por nicho (SEGUIR/ESCALAR/PIVOTAR) ---
 async function gemini(prompt) {
   if (!GEMINI_API_KEY) return null;
-  for (const m of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-latest"]) {
+  for (const m of TEXT_MODELS) {
     try {
       const r = await tf(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI_API_KEY}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
       if (!r.ok) continue;
