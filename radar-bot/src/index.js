@@ -167,6 +167,8 @@ body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 -apple-system,
 .b:active{transform:scale(.97)}
 .b.g{background:transparent;color:var(--fg);border:1px solid var(--line)}
 .b.d{background:transparent;color:var(--r);border:1px solid rgba(255,90,90,.42);flex:0 0 auto;padding:11px 15px}
+.waitb{flex:1;padding:11px;border-radius:12px;background:var(--soft);color:var(--acc);font-weight:700;font-size:13px;text-align:center}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--acc);margin-right:5px;animation:pulse 1.1s ease-in-out infinite;vertical-align:middle}
 .fbar{display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 13px;margin-bottom:11px;font-size:13px;font-weight:600}
 .link{background:transparent;border:0;color:var(--acc);font-weight:700;font-size:13px;padding:0}
 .empty{text-align:center;padding:52px 18px;color:var(--hint)}
@@ -195,7 +197,7 @@ body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 -apple-system,
 var TG=window.Telegram.WebApp;TG.ready();TG.expand();
 try{TG.setHeaderColor&&TG.setHeaderColor("bg_color");}catch(e){}
 var INIT=TG.initData||"";
-var ST={repos:[]},CUR=-1,FILTER=null,REVIEWED={};
+var ST={repos:[]},CUR=-1,FILTER=null,REVIEWED={},WATCH={};
 try{REVIEWED=JSON.parse(localStorage.getItem("radar_reviewed")||"{}");}catch(e){}
 function saveRev(){try{localStorage.setItem("radar_reviewed",JSON.stringify(REVIEWED));}catch(e){}}
 function h(t){try{var H=TG.HapticFeedback;if(!H)return;if(t==="sel")H.selectionChanged();else if(t==="ok")H.notificationOccurred("success");else if(t==="err")H.notificationOccurred("error");else H.impactOccurred(t||"light");}catch(e){}}
@@ -234,8 +236,10 @@ function homeView(){
   document.getElementById("view").innerHTML=kpi+cards;
 }
 function issueCard(r,is){
-  var k=r.repo+"#"+is.number,p=PR[is.prio||"none"],acts;
-  if(!is.pr){
+  var k=r.repo+"#"+is.number,p=PR[is.prio||"none"],acts,running=WATCH[k];
+  if(running){
+    acts='<div class="waitb"><span class="dot"></span>Motor corriendo… te aviso al terminar</div>';
+  }else if(!is.pr){
     acts='<button class="b" data-act="run" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">'+(is.err?"🔁 Reintentar":"⚙️ Ejecutar")+'</button>'
       +'<button class="b d" data-act="close" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">Descartar</button>';
   }else if(!REVIEWED[k]){
@@ -245,7 +249,7 @@ function issueCard(r,is){
     acts='<button class="b" data-act="merge" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">🔀 Merge</button>'
       +'<button class="b g" data-act="open" data-url="'+esc(is.pr.url)+'">📄 Ver PR</button>';
   }
-  var st=is.pr?'<div class="st">🔧 PR #'+is.pr.number+(REVIEWED[k]?" · revisado ✓":" · revísalo antes de mergear")+'</div>':(is.err?'<div class="st" style="color:var(--r)">❌ El motor falló aquí — reintenta o impleméntalo manual</div>':"");
+  var st=running?'<div class="st" style="color:var(--acc)">⏳ Puede tardar 1-2 min — no cierres, te aviso cuando termine</div>':(is.pr?'<div class="st">🔧 PR #'+is.pr.number+(REVIEWED[k]?" · revisado ✓":" · revísalo antes de mergear")+'</div>':(is.err?'<div class="st" style="color:var(--r)">❌ El motor falló aquí — reintenta o impleméntalo manual</div>':""));
   return '<div class="card issue" style="--pc:'+p.c+'">'
     +'<div class="itop"><span class="ip" style="color:'+p.c+'">'+p.e+" "+p.l+'</span><span class="inum">#'+is.number+'</span></div>'
     +'<div class="ititle">'+esc(is.title)+"</div>"+st
@@ -281,6 +285,34 @@ function load(first){
   }).catch(function(){document.getElementById("view").innerHTML=empty("⚠️","No pude cargar","Revisa la conexión y toca ⟳ para reintentar.");});
 }
 function doAct(repo,n,action){h("medium");toast("Procesando…");api("/api/action",{action:action,repo:repo,number:n}).then(function(res){h(action==="merge"?"ok":"light");toast(res.msg||"Listo");setTimeout(function(){load(false);},1500);});}
+function notify(m){try{if(TG.showAlert){TG.showAlert(m);return;}}catch(e){}toast(m);}
+// Tras Ejecutar, el motor tarda 1-2 min. NO dejamos al usuario esperando a ciegas: vigilamos el
+// estado del issue y avisamos con alerta al terminar (PR listo ✅ o motor falló ❌ → reintenta).
+function watchRun(repo,n){
+  var k=repo+"#"+n,tries=0;
+  var iv=setInterval(function(){
+    tries++;
+    api("/api/state").then(function(s){
+      if(s&&s.repos){ST=s;
+        var rr=s.repos.filter(function(x){return x.repo===repo;})[0];
+        var is=rr&&rr.issues.filter(function(x){return x.number===n;})[0];
+        if(is&&is.pr){clearInterval(iv);delete WATCH[k];h("ok");render();notify("✅ Listo #"+n+": el PR quedó creado. Ábrelo con 👀 Revisar y luego 🔀 Merge.");return;}
+        if(is&&is.err){clearInterval(iv);delete WATCH[k];h("err");render();notify("❌ El motor falló en #"+n+". Toca 🔁 Reintentar, o impleméntalo a mano. No te quedes esperando.");return;}
+      }
+      if(tries>=12){clearInterval(iv);delete WATCH[k];render();notify("⏳ El motor de #"+n+" se está demorando. Refresca ⟳ en un momento para ver el resultado.");return;}
+      render();
+    }).catch(function(){if(tries>=12){clearInterval(iv);delete WATCH[k];render();}});
+  },15000);
+}
+function runAct(repo,n){
+  var k=repo+"#"+n;if(WATCH[k])return;
+  h("medium");toast("Lanzando el motor…");
+  api("/api/action",{action:"run",repo:repo,number:n}).then(function(res){
+    if(res.msg&&res.msg.indexOf("❌")>=0){h("err");notify(res.msg);return;}
+    WATCH[k]=1;render();toast("⚙️ Motor corriendo… te aviso cuando termine (1-2 min). Puedes seguir usando la app.");
+    watchRun(repo,n);
+  }).catch(function(){h("err");notify("No pude lanzar el motor. Revisa la conexión y reintenta.");});
+}
 try{TG.BackButton.onClick(function(){CUR=-1;FILTER=null;h("light");render();});}catch(e){}
 document.addEventListener("click",function(ev){
   var el=ev.target.closest("[data-act]");if(!el)return;var a=el.getAttribute("data-act");
@@ -292,7 +324,8 @@ document.addEventListener("click",function(ev){
   if(a==="open"){TG.openLink(el.getAttribute("data-url"));return;}
   var repo=el.getAttribute("data-repo"),n=+el.getAttribute("data-n");
   if(a==="review"){REVIEWED[repo+"#"+n]=true;saveRev();h("light");TG.openLink(el.getAttribute("data-url"));render();toast("Abrí el PR. Revísalo y vuelve — abajo sale 🔀 Merge.");return;}
-  if(a==="run"||a==="close"){doAct(repo,n,a);return;}
+  if(a==="run"){runAct(repo,n);return;}
+  if(a==="close"){doAct(repo,n,"close");return;}
   if(a==="merge"){if(TG.showConfirm){TG.showConfirm("¿Mergear el PR del #"+n+"? Ya lo revisaste.",function(ok){if(ok)doAct(repo,n,"merge");});}else doAct(repo,n,"merge");return;}
 });
 load(true);
