@@ -23,7 +23,7 @@ const lines = vmBeats.map((b, i) => {
 }).join("\n");
 
 async function gemini(prompt) {
-  for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]) {
+  for (const m of ["gemini-2.5-flash", "gemini-flash-latest", "gemini-flash-latest"]) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${KEY}`, {
         method: "POST", headers: { "content-type": "application/json" },

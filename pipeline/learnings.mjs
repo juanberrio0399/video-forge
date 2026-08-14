@@ -24,7 +24,7 @@ async function getToken() {
 async function gemini(prompt) {
   if (!GEMINI_API_KEY) return null;
   for (let round = 0; round < 2; round++) {
-    for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]) {
+    for (const m of ["gemini-2.5-flash", "gemini-flash-latest", "gemini-flash-latest"]) {
       try {
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI_API_KEY}`, {
           method: "POST", headers: { "content-type": "application/json" },
