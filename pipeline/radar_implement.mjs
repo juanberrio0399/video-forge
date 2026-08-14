@@ -26,8 +26,15 @@ const tracked = sh(`git ls-files`).split("\n").filter(Boolean);
 const mentioned = [...new Set((issue.body.match(/`([^`]+?\.[A-Za-z0-9]+)(?::\d+)?`/g) || [])
   .map((s) => s.replace(/`/g, "").replace(/:\d+$/, "")))]
   .filter((p) => tracked.includes(p));
+const CTX_MAX = 48000; // Incluir el archivo aunque sea grande (recortado). Omitirlo hacía que Gemini
+                       // inventara "find" que no existían en el archivo real -> ediciones que no aplican.
 const fileCtx = mentioned.slice(0, 12).map((p) => {
-  try { const c = fs.readFileSync(p, "utf8"); return c.length < 20000 ? `### ${p}\n\`\`\`\n${c}\n\`\`\`` : `### ${p} (grande, ${c.length} chars — omitido)`; } catch { return ""; }
+  try {
+    const c = fs.readFileSync(p, "utf8");
+    return c.length <= CTX_MAX
+      ? `### ${p}\n\`\`\`\n${c}\n\`\`\``
+      : `### ${p} (grande: ${c.length} chars — recortado a los primeros ${CTX_MAX}; el "find" DEBE salir de esta porción)\n\`\`\`\n${c.slice(0, CTX_MAX)}\n\`\`\``;
+  } catch { return ""; }
 }).filter(Boolean).join("\n\n");
 
 const prompt = `Eres un implementador de cambios de código, cuidadoso y mínimo. Te doy un GitHub Issue (con su sección "Prompt para implementar") y contexto del repositorio. Devuelve SOLO JSON con las ediciones EXACTAS y NECESARIAS para implementarlo. Nada de explicaciones fuera del JSON.
@@ -109,25 +116,35 @@ function expandGlob(p) {
   try { return fs.readdirSync(dir).filter((f) => re.test(f)).map((f) => path.join(dir, f).replace(/\\/g, "/")); } catch { return []; }
 }
 const changed = new Set();
+const missed = [];
 for (const e of plan.edits) {
   if (!e || !e.path) continue;
   const targets = expandGlob(e.path);
+  let applied = false;
   for (const p of targets) {
     if (typeof e.content === "string" && (e.find == null || e.find === "")) {
       fs.mkdirSync(path.dirname(p), { recursive: true });
-      fs.writeFileSync(p, e.content); changed.add(p); console.log(`  escrito: ${p}`); continue;
+      fs.writeFileSync(p, e.content); changed.add(p); console.log(`  escrito: ${p}`); applied = true; continue;
     }
     if (e.find != null && fs.existsSync(p)) {
       const before = fs.readFileSync(p, "utf8");
-      if (before.includes(e.find)) { fs.writeFileSync(p, before.split(e.find).join(e.replace ?? "")); changed.add(p); console.log(`  editado: ${p} (${e.find.slice(0, 40)}…)`); }
+      if (before.includes(e.find)) { fs.writeFileSync(p, before.split(e.find).join(e.replace ?? "")); changed.add(p); console.log(`  editado: ${p} (${e.find.slice(0, 40)}…)`); applied = true; }
     }
   }
+  if (!applied) { console.error(`  ❌ No aplicado: ${e.path} | find: ${e.find?.slice(0, 60) || 'N/A'}`); missed.push(e); }
 }
-if (!changed.size) { console.error("Ninguna edición aplicó (find no coincidió). No se abre PR."); process.exit(3); }
+if (missed.length > 0) { console.error(`Faltaron ${missed.length} ediciones.`); if (!changed.size) process.exit(3); }
 
 // 4) Metadatos para el workflow (rama + PR).
+// Un PR solo se marca "completo" (con `Closes #N`) si TODAS las ediciones aplicaron. Si faltó alguna,
+// NO cerramos el issue con trabajo a medias: el PR se marca [INCOMPLETO] y el issue sigue abierto.
 const slug = (plan.branch || `radar/issue-${issueNo}`).replace(/[^a-zA-Z0-9/_-]/g, "-");
-const meta = { branch: slug.startsWith("radar/") ? slug : `radar/issue-${issueNo}`, commit_message: plan.commit_message || `radar: implementar #${issueNo}`, pr_title: plan.pr_title || issue.title, pr_body: (plan.pr_body || "") + `\n\nCloses #${issueNo}`, summary: plan.summary || "", changed: [...changed] };
+const complete = missed.length === 0;
+const closing = complete
+  ? `\n\nCloses #${issueNo}`
+  : `\n\n> ⚠️ **PR INCOMPLETO** — se aplicaron ${changed.size} cambio(s) pero faltaron ${missed.length} edición(es) (el \`find\` no coincidió con el archivo actual). Revisar y completar a mano. **Este PR NO cierra el issue #${issueNo}** (sigue abierto a propósito).`;
+fs.writeFileSync("radar_complete.txt", complete ? "1" : "0");
+const meta = { branch: slug.startsWith("radar/") ? slug : `radar/issue-${issueNo}`, commit_message: plan.commit_message || `radar: implementar #${issueNo}`, pr_title: (complete ? "" : "[INCOMPLETO] ") + (plan.pr_title || issue.title), pr_body: (plan.pr_body || "") + closing, summary: plan.summary || "", changed: [...changed], complete };
 fs.writeFileSync("radar_pr.json", JSON.stringify(meta, null, 2));
 fs.writeFileSync("radar_branch.txt", meta.branch);
 fs.writeFileSync("radar_title.txt", meta.pr_title);
