@@ -1,0 +1,52 @@
+name: Radar — implementar issue (Gemini)
+
+# MOTOR del radar (sin Claude): toma un issue `radar`, Gemini implementa las ediciones y se abre
+# una RAMA + PR para revisar. NUNCA mergea. El bot de Telegram (Fase 2) disparará esto por issue.
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: "Número del issue radar a implementar"
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      ISSUE: ${{ github.event.inputs.issue }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Implementar el issue con Gemini
+        run: node pipeline/radar_implement.mjs "$ISSUE"
+      - name: Crear rama + PR (sin merge)
+        run: |
+          [ ! -f radar_pr.json ] && { echo "El motor no produjo cambios (sin PR)."; gh issue comment "$ISSUE" --body "⚠️ El motor no pudo generar cambios para este issue. Requiere implementación manual." || true; exit 1; }
+          BR=$(cat radar_branch.txt); TITLE=$(cat radar_title.txt); COMMIT=$(cat radar_commit.txt)
+          mv radar_body.md /tmp/radar_body.md
+          rm -f radar_pr.json radar_branch.txt radar_title.txt radar_commit.txt
+          git config user.name "radar-bot"
+          git config user.email "radar-bot@users.noreply.github.com"
+          git checkout -b "$BR"
+          git add -A
+          git commit -m "$COMMIT" -m "Implementado por el motor del radar (Gemini). Revisar antes de merge. Closes #${ISSUE}"
+          git push -u origin "$BR"
+          gh pr create --base main --head "$BR" --title "$TITLE" --body-file /tmp/radar_body.md || gh pr create --base main --head "$BR" --title "$TITLE" --body "Closes #${ISSUE}"
+          PRURL=$(gh pr view "$BR" --json url -q .url)
+          echo "PR: $PRURL"
+          gh issue comment "$ISSUE" --body "🤖 Rama \`$BR\` y PR listos para revisar (sin merge): $PRURL"
