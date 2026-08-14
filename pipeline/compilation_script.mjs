@@ -6,6 +6,7 @@
 // Uso: node pipeline/compilation_script.mjs <niche> <out.json>
 // Env: GEMINI_API_KEY
 import fs from "node:fs";
+import { TEXT_MODELS } from "./_models.mjs";
 
 const [niche = "satisfying", out = "voicemap.json", variant = "narrado", kind = "video"] = process.argv.slice(2);
 const isShort = kind === "short"; // Short = 9:16, ~6-8 clips, punchy (lo que más se descubre)
@@ -37,7 +38,7 @@ async function gemini(prompt) {
   if (!KEYS.length) return null;
   for (let round = 0; round < 3; round++) {
     for (let k = 0; k < KEYS.length; k++) {           // prueba cada API key (respaldo = doble cuota)
-      for (const m of ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-latest"]) {
+      for (const m of TEXT_MODELS) {
         try {
           const r = await tf(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${KEYS[k]}`, {
             method: "POST", headers: { "content-type": "application/json" },
