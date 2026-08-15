@@ -25,8 +25,8 @@ jobs:
       YT2_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
       YT2_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
       - name: Estado de Oddly Loop

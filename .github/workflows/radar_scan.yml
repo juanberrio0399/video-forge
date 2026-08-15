@@ -49,10 +49,10 @@ jobs:
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
       TARGET: ${{ matrix.repo }}
     steps:
-      - uses: actions/checkout@v4          # video-forge: trae el script del motor
+      - uses: actions/checkout@v5          # video-forge: trae el script del motor
         with:
           path: motor
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
       - name: Clonar el repo objetivo
