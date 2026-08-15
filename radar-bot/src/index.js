@@ -246,7 +246,10 @@ function homeView(){
 }
 function issueCard(r,is){
   var k=r.repo+"#"+is.number,p=PR[is.prio||"none"],acts,running=WATCH[k];
-  if(running){
+  var summary=/resumen de la corrida/i.test(is.title||"");   // issue-reporte: no se implementa, solo se lee
+  if(summary){
+    acts='<div class="waitb" style="background:transparent;color:var(--hint);border:1px dashed var(--line)">📄 Reporte del radar — no requiere acción</div>';
+  }else if(running){
     acts='<div class="waitb"><span class="dot"></span>Motor corriendo… te aviso al terminar</div>';
   }else if(!is.pr){
     acts='<button class="b" data-act="run" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">'+(is.err?"🔁 Reintentar":"⚙️ Ejecutar")+'</button>'
