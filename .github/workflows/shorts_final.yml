@@ -36,8 +36,8 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
       - name: Leer aprobados del plan
@@ -80,8 +80,8 @@ jobs:
       IDX: ${{ matrix.idx }}
       VOICE: ${{ github.event.inputs.voice || 'Charon' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
       - uses: actions/setup-python@v5
@@ -199,8 +199,8 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
       APPROVED: ${{ needs.prepare.outputs.approved }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
       - name: Escribir los video_id nuevos en el plan (asi la app los muestra bien)
