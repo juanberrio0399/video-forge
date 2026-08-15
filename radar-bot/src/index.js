@@ -63,11 +63,20 @@ async function ghGraphQL(env, query, variables) {
 }
 async function prMap(env, repo) {
   const [owner, name] = repo.split("/");
-  const q = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(states:OPEN,first:100){nodes{number title url closingIssuesReferences(first:20){nodes{number}}}}}}`;
+  const q = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(states:OPEN,first:100){nodes{number title url body closingIssuesReferences(first:20){nodes{number}}}}}}`;
   const map = {};
   try {
     const d = await ghGraphQL(env, q, { owner, name });
-    for (const pr of (d?.repository?.pullRequests?.nodes || [])) for (const is of (pr.closingIssuesReferences?.nodes || [])) map[String(is.number)] = { number: pr.number, url: pr.url, title: pr.title };
+    for (const pr of (d?.repository?.pullRequests?.nodes || [])) {
+      const info = { number: pr.number, url: pr.url, title: pr.title, incomplete: /\[INCOMPLETO\]/i.test(pr.title || "") };
+      // 1) PRs que CIERRAN el issue (Closes #N) — vínculo oficial.
+      for (const is of (pr.closingIssuesReferences?.nodes || [])) map[String(is.number)] = info;
+      // 2) PRs que solo REFERENCIAN el issue (Ref #N = PR incompleto): `Ref` NO crea closingIssuesReference,
+      //    así que el bot no los "veía" y se esperaba hasta el timeout. Los detectamos por el cuerpo.
+      for (const m of (pr.body || "").matchAll(/(?:ref|closes?|fix(?:es)?|resolves?)\s+#(\d+)/gi)) {
+        if (!map[m[1]]) map[m[1]] = info;
+      }
+    }
   } catch {}
   return map;
 }
@@ -249,7 +258,7 @@ function issueCard(r,is){
     acts='<button class="b" data-act="merge" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">🔀 Merge</button>'
       +'<button class="b g" data-act="open" data-url="'+esc(is.pr.url)+'">📄 Ver PR</button>';
   }
-  var st=running?'<div class="st" style="color:var(--acc)">⏳ Puede tardar unos minutos — no cierres, te aviso cuando termine</div>':(is.pr?'<div class="st">🔧 PR #'+is.pr.number+(REVIEWED[k]?" · revisado ✓":" · revísalo antes de mergear")+'</div>':(is.err?'<div class="st" style="color:var(--r)">❌ El motor falló aquí — reintenta o impleméntalo manual</div>':""));
+  var st=running?'<div class="st" style="color:var(--acc)">⏳ Puede tardar unos minutos — no cierres, te aviso cuando termine</div>':(is.pr?'<div class="st">🔧 PR #'+is.pr.number+(is.pr.incomplete?' ⚠️ INCOMPLETO':'')+(REVIEWED[k]?" · revisado ✓":" · revísalo antes de mergear")+'</div>':(is.err?'<div class="st" style="color:var(--r)">❌ El motor falló aquí — reintenta o impleméntalo manual</div>':""));
   return '<div class="card issue" style="--pc:'+p.c+'">'
     +'<div class="itop"><span class="ip" style="color:'+p.c+'">'+p.e+" "+p.l+'</span><span class="inum">#'+is.number+'</span></div>'
     +'<div class="ititle">'+esc(is.title)+"</div>"+st
@@ -296,13 +305,13 @@ function watchRun(repo,n){
       if(s&&s.repos){ST=s;
         var rr=s.repos.filter(function(x){return x.repo===repo;})[0];
         var is=rr&&rr.issues.filter(function(x){return x.number===n;})[0];
-        if(is&&is.pr){clearInterval(iv);delete WATCH[k];h("ok");render();notify("✅ Listo #"+n+": el PR quedó creado. Ábrelo con 👀 Revisar y luego 🔀 Merge.");return;}
+        if(is&&is.pr){clearInterval(iv);delete WATCH[k];h("ok");render();notify(is.pr.incomplete?("⚠️ #"+n+": PR creado pero INCOMPLETO. Ábrelo con 👀 Revisar y complétalo antes de mergear."):("✅ Listo #"+n+": el PR quedó creado. Ábrelo con 👀 Revisar y luego 🔀 Merge."));return;}
         if(is&&is.err){clearInterval(iv);delete WATCH[k];h("err");render();notify("❌ El motor falló en #"+n+". Toca 🔁 Reintentar, o impleméntalo a mano. No te quedes esperando.");return;}
       }
-      if(tries>=60){clearInterval(iv);delete WATCH[k];render();notify("⏳ El #"+n+" lleva rato en proceso. Déjalo correr y refresca ⟳; si falla saldrá el ❌, y si queda listo, el PR para mergear.");return;}
+      if(tries>=90){clearInterval(iv);delete WATCH[k];render();notify("⏳ El #"+n+" lleva rato en proceso. Déjalo correr y refresca ⟳; si falla saldrá el ❌, y si queda listo, el PR para mergear.");return;}
       render();
-    }).catch(function(){if(tries>=60){clearInterval(iv);delete WATCH[k];render();}});
-  },15000);
+    }).catch(function(){if(tries>=90){clearInterval(iv);delete WATCH[k];render();}});
+  },10000);
 }
 function runAct(repo,n){
   var k=repo+"#"+n;if(WATCH[k])return;
