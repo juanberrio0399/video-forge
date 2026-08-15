@@ -75,7 +75,7 @@ const prompt =
   `PIENSA COMO EDITOR CINEMATOGRAFICO: construye un ARCO emocional (calma -> tension -> clímax -> resolución), varia el RITMO (frases cortas para tension, pausas para peso), y estructura por escenas con transiciones motivadas (cada beat prepara el siguiente). Momentos de SILENCIO/pausa antes de un dato fuerte. ` +
   `${TONE_TXT} ` +
   `Para ${TARGET_MIN} min, manten la retencion ALTA todo el video (nada de relleno: cada beat aporta un dato o giro). ` +
-  `IMPORTANTE — LARGO: apunta a ~${TARGET_WORDS} PALABRAS de narracion en TOTAL (es lo que llena ${TARGET_MIN} min hablados). NO te quedes corto: si te falta, agrega mas datos, contexto historico y ejemplos REALES (nunca relleno vacio). ` +
+  `IMPORTANTE — DURACION: este video debe durar ~${TARGET_MIN} minutos. PROYECTA el tiempo mientras escribes con esta regla: ~${WPM} palabras habladas = 1 minuto de video. Por eso necesitas ~${TARGET_WORDS} PALABRAS de narracion en TOTAL. CUENTA tus palabras y no cierres el guion hasta acercarte a ese numero; si te falta, agrega mas datos, contexto historico y ejemplos REALES (nunca relleno vacio). ` +
   `Todo en INGLES natural (no robotico). Devuelve SOLO JSON:\n` +
   `{"title":"titulo en ingles","beats":[{"text":"1-3 frases en ingles","tipo":"hook|dato|contexto|reveal|cta|sintesis"}]}\n` +
   `Usa ${BEATS_MIN} a ${BEATS_MAX} beats. El PRIMER beat es el gancho; el ULTIMO es CTA.`;
