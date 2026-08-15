@@ -132,6 +132,26 @@ if (pkg && typeof pkg.description === "string" && !pkg.description.includes("Sub
   pkg.description = pkg.description + linkBlock;
 }
 
+// --- CREDITOS de metraje CC-BY (OBLIGATORIO por licencia) ---
+// Si el b-roll uso metraje CC-BY (Wikimedia/Internet Archive), la licencia EXIGE atribucion en la
+// descripcion. build_background.mjs los deja en bg/attributions.json (credits_required, ya formateados).
+try {
+  const attr = readJSON("bg/attributions.json");
+  const credits = (attr && Array.isArray(attr.credits_required)) ? attr.credits_required : [];
+  const seen = new Set(), lines = [];
+  for (const c of credits) {
+    const key = `${c.title}|${c.author}|${c.url}`;
+    if (seen.has(key)) continue;                       // no repetir el mismo clip
+    seen.add(key);
+    const txt = (c.text || `${c.title || "Untitled"}${c.author ? " · " + c.author : ""} · ${c.source || "source"} · ${c.license || "CC BY"}`).trim();
+    lines.push(`• ${txt}${c.url ? " — " + c.url : ""}`);
+  }
+  if (lines.length && typeof pkg.description === "string" && !pkg.description.includes("Footage credits")) {
+    pkg.description += `\n\n— — —\nFootage credits (CC BY):\n${lines.join("\n")}`;
+    console.log(`Creditos CC-BY anexados a la descripcion: ${lines.length}`);
+  }
+} catch {}
+
 // --- 2) VALIDAR el paquete (auditor de publicacion) ---
 const valPrompt = `Eres un auditor estricto de publicaciones de YouTube (meta: maximas vistas Y SUSCRIPTORES). Valida este paquete: ${JSON.stringify(pkg)}.
 Devuelve SOLO JSON:
