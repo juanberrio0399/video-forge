@@ -116,6 +116,153 @@ async function pixabayLink(kw) {
   return null;
 }
 
+// ── FUENTES INFORMATIVAS/HISTORICAS (relevancia real > stock generico) ─────────────
+// Para segmentos que hablan de un EVENTO/PERSONA/LUGAR/EPOCA real (kind="archival") es
+// mucho mejor metraje de ARCHIVO (Wikimedia / Internet Archive / NASA) que un plano
+// generico de dinero. Cada fetcher es best-effort: try/catch + timeout; si falla o no
+// hay licencia usable, devuelve null y el ruteo cae a la siguiente fuente -> NUNCA rompe
+// la corrida. SOLO se acepta CC0/CC-BY/dominio publico (ver sources.seed.json); CC-BY
+// guarda su atribucion para la descripcion del video.
+const UA = { "user-agent": "video-forge/1.0 (educational faceless data channel)" };
+const tf = (u, ms = 30000, o = {}) => fetch(u, { ...o, headers: { ...UA, ...(o.headers || {}) }, signal: AbortSignal.timeout(ms) });
+const strip = (s) => (s || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+
+// Descarga acotada: si Content-Length (o el buffer) supera el tope, aborta -> no bajamos
+// gigas por un plano de ~5s. Con timeout duro (AbortSignal) para no colgar la fase.
+async function dlCapped(url, dest, maxBytes = 130 * 1024 * 1024, ms = 150000) {
+  const r = await tf(url, ms);
+  if (!r.ok) return false;
+  const len = +(r.headers.get("content-length") || 0);
+  if (len && len > maxBytes) return false;      // demasiado pesado -> ni lo bajamos
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (buf.length > maxBytes) return false;
+  fs.writeFileSync(dest, buf);
+  return true;
+}
+
+// Wikimedia Commons: biblioteca enorme CC/PD con descarga directa. Busca VIDEOS (.webm/.ogv/.mp4)
+// y ACEPTA solo si la licencia real del item es CC0/CC-BY/dominio publico (rechaza SA/NC/ND).
+async function wikimediaVideo(q) {
+  try {
+    const api = `https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&generator=search&gsrsearch=${encodeURIComponent(q + " filetype:video")}&gsrnamespace=6&gsrlimit=20&iiprop=url|size|extmetadata`;
+    const r = await tf(api, 30000); if (!r.ok) return null;
+    const j = await r.json();
+    const pages = Object.values((j.query && j.query.pages) || {});
+    for (const p of pages) {
+      const ii = (p.imageinfo || [])[0]; if (!ii || !ii.url) continue;
+      // La url puede traer query (?utm_...): probar la extension sobre el path, sin el query.
+      // Solo formatos de VIDEO (webm/ogv/mp4); .ogg suele ser audio -> fuera.
+      if (!/\.(webm|ogv|mp4)$/i.test(ii.url.split("?")[0])) continue;
+      const sz = +(ii.size || 0); if (sz < 1e6 || sz > 120e6) continue; // ni miniaturas ni archivos gigantes
+      const em = ii.extmetadata || {};
+      const licName = (em.LicenseShortName && em.LicenseShortName.value) || (em.UsageTerms && em.UsageTerms.value) || "";
+      const lic = licName.toLowerCase();
+      const ok = /cc0|public domain/.test(lic) || (/cc.?by/.test(lic) && !/sa|nc|nd/.test(lic));
+      if (!ok) continue;                                                 // licencia no usable comercialmente
+      const licKey = /cc0/.test(lic) ? "cc0" : (/public domain/.test(lic) ? "public-domain" : "cc-by");
+      const author = strip(em.Artist && em.Artist.value) || "Wikimedia Commons";
+      const title = (p.title || "").replace(/^File:/, "");
+      const page = `https://commons.wikimedia.org/wiki/${encodeURIComponent(p.title || "")}`;
+      const attribution = `${title} · ${author} · Wikimedia Commons · ${licName}`;
+      // Solo CC-BY exige credito; CC0/PD no. Guardamos la atribucion solo cuando se debe.
+      return { link: ii.url, src: "wikimedia", seek: 0, licKey, attribution: licKey === "cc-by" ? attribution : "", title, author, license: licName, page };
+    }
+  } catch {}
+  return null;
+}
+
+// NASA (dominio publico): API oficial. Resuelve el .mp4 del item evitando ~orig (gigante):
+// prefiere large/medium/small para que la descarga sea liviana.
+async function nasaVideo(q) {
+  try {
+    const r = await tf(`https://images-api.nasa.gov/search?q=${encodeURIComponent(q)}&media_type=video&page_size=20`, 30000);
+    if (!r.ok) return null;
+    const s = await r.json();
+    const items = (s.collection && s.collection.items) || [];
+    for (const it of items) {
+      try {
+        const cr = await tf(it.href, 20000); if (!cr.ok) continue;
+        const col = await cr.json();
+        const urls = (Array.isArray(col) ? col : []).filter((u) => /\.mp4$/i.test(u));
+        const pick = urls.find((u) => /~large\.mp4$/i.test(u)) || urls.find((u) => /~medium\.mp4$/i.test(u)) ||
+          urls.find((u) => /~small\.mp4$/i.test(u)) || urls.find((u) => !/~orig\.mp4$/i.test(u)) || urls[0];
+        if (pick) {
+          const title = (it.data && it.data[0] && it.data[0].title) || q;
+          const id = (it.data && it.data[0] && it.data[0].nasa_id) || "";
+          // NASA = dominio publico: sin atribucion obligatoria (registramos la fuente igual).
+          return { link: pick.replace(/^http:/, "https:"), src: "nasa", seek: 0, licKey: "public-domain", attribution: "", title, page: id ? `https://images.nasa.gov/details-${id}` : "" };
+        }
+      } catch {}
+    }
+  } catch {}
+  return null;
+}
+
+// Internet Archive: licenseurl -> clave usable (rechaza SA/NC/ND) o null.
+function licFromUrl(u) {
+  u = (Array.isArray(u) ? u[0] : u || "").toLowerCase();
+  if (/publicdomain\/zero|\/cc0/.test(u)) return "cc0";
+  if (/\/by-sa|\/by-nc|\/by-nd/.test(u)) return null;
+  if (/\/licenses\/by(\/|$)/.test(u)) return "cc-by";
+  if (/publicdomain\/mark|\/publicdomain(\/|$)/.test(u)) return "public-domain";
+  return null;
+}
+// Internet Archive (historico): busca movies con licencia CC/PD, valida la licencia por item y
+// elige el mp4/ogv MAS PEQUENO usable (derivado ligero) para bajar rapido; makeSeg lo corta a ~dur.
+async function archiveVideo(q) {
+  try {
+    const cc = `(${q}) AND mediatype:(movies) AND licenseurl:(*creativecommons* OR *publicdomain*)`;
+    const u = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(cc)}&fl[]=identifier&fl[]=title&fl[]=licenseurl&fl[]=creator&sort[]=downloads+desc&rows=8&output=json`;
+    const r = await tf(u, 30000); if (!r.ok) return null;
+    const j = await r.json();
+    const docs = (j.response && j.response.docs) || [];
+    for (const d of docs) {
+      const licKey = licFromUrl(d.licenseurl); if (!licKey) continue;    // sin licencia usable -> siguiente
+      try {
+        const mr = await tf(`https://archive.org/metadata/${d.identifier}`, 30000); if (!mr.ok) continue;
+        const meta = await mr.json();
+        const files = (meta.files || []).filter((f) => /\.(mp4|ogv)$/i.test(f.name) && +(f.size || 0) > 2e6 && +(f.size || 0) < 80e6).sort((a, b) => +a.size - +b.size);
+        if (!files.length) continue;
+        const f = files[0];                                              // el mas liviano usable
+        const creator = (Array.isArray(d.creator) ? d.creator[0] : d.creator) || "Internet Archive";
+        const title = (Array.isArray(d.title) ? d.title[0] : d.title) || q;
+        const link = `https://archive.org/download/${d.identifier}/${encodeURIComponent(f.name)}`;
+        const page = `https://archive.org/details/${d.identifier}`;
+        const attribution = `${title} · ${creator} · ${page} · ${licKey.toUpperCase()}`;
+        return { link, src: "archive", seek: 3, licKey, attribution: licKey === "cc-by" ? attribution : "", title, author: creator, license: licKey, page };
+      } catch {}
+    }
+  } catch {}
+  return null;
+}
+
+// Heuristica de respaldo (sin Gemini): ¿el segmento habla de algo REAL/historico/cientifico?
+// -> "archival". Si es ambiente/objeto generico -> "stock".
+function guessKind(text) {
+  const t = (text || "").toLowerCase();
+  if (/\b(1[5-9]\d{2}|20[0-2]\d)\b/.test(t)) return "archival";           // menciona un año concreto
+  if (/\b(crash|depression|recession|war|president|election|founded|history|historic|ancient|century|apollo|moon|nasa|space|rocket|invented|discovered|revolution|empire|pandemic|treaty|dynasty|astronaut|satellite)\b/.test(t)) return "archival";
+  return "stock";
+}
+
+// Envolturas de Pexels/Pixabay al formato { link, src } del ruteo.
+async function pexelsSrc(q) { const l = await pexelsLink(q); return l ? { link: l, src: "pexels", seek: 0 } : null; }
+async function pixabaySrc(q) { const l = await pixabayLink(q); return l ? { link: l, src: "pixabay", seek: 0 } : null; }
+
+// RUTEO por prioridad: relevancia (archivo) > generico (stock) > IA.
+//  - archival: Wikimedia -> Internet Archive -> NASA -> Pexels -> Pixabay
+//  - stock:    Pexels -> Pixabay -> Wikimedia (por si hay algo tematico)
+// El primero que devuelva un link usable gana; si ninguno, makeSeg cae a imagen IA.
+async function resolveSource(kind, q) {
+  const order = kind === "archival"
+    ? [wikimediaVideo, archiveVideo, nasaVideo, pexelsSrc, pixabaySrc]
+    : [pexelsSrc, pixabaySrc, wikimediaVideo];
+  for (const fn of order) {
+    try { const s = await fn(q); if (s && s.link) return s; } catch {}
+  }
+  return null;
+}
+
 // Gemini como "director de fotografia": elige el mejor plano por segmento (1 sola llamada).
 async function geminiPlan(list) {
   if (!GEMINI) return null;
@@ -128,6 +275,7 @@ async function geminiPlan(list) {
     `Devuelve SOLO un array JSON, un objeto por segmento en el MISMO orden, con:\n` +
     `- "q" = query de 2-4 palabras en INGLES para buscar b-roll de stock. Si el segmento nombra una EMPRESA, MARCA, LUGAR, PRODUCTO u OBJETO concreto (ej: McDonald's, Tesla, stock exchange, warehouse, burger, real estate), la query DEBE ser sobre ESO especifico, no algo generico de "dinero". Usa el sustantivo concreto mas importante del segmento.\n` +
     `- "ai" = prompt de imagen IA de respaldo, tambien especifico a ese segmento.\n` +
+    `- "kind" = "archival" si el segmento habla de un EVENTO, PERSONA, LUGAR o EPOCA REAL (historico, cientifico, documental: ej. crack del 29, gran depresion, Apollo 11, un presidente, una guerra, una empresa historica) -> conviene metraje de ARCHIVO real; "stock" si es un ambiente/objeto generico (dinero, oficina, ciudad, datos abstractos).\n` +
     `REGLAS: planos BRILLANTES y bien iluminados (luz de dia, evita "dark"/"night"); MUY RELEVANTES al segmento exacto; VARIADOS entre si (no repitas el mismo tipo de plano); cinematograficos. Solo cae a un plano generico de dinero/datos si el segmento no menciona nada concreto.\nSegmentos:\n${seg}${fb}`;
   for (const m of TEXT_MODELS) {
     try {
@@ -153,20 +301,29 @@ async function aiImage(prompt, dest, seed) {
 }
 
 // Genera cada plano como clip de video del largo exacto (con movimiento real).
-async function makeSeg(i, s, th) {
+async function makeSeg(i, s, th, kind) {
   // +TD de "cola" para que el plano tenga con que solapar en la transicion.
   const dur = Math.max(1.2, +(s.end - s.start + TD).toFixed(2));
   const out = `${outDir}/seg${String(i).padStart(3, "0")}.mp4`;
-  let link = await pexelsLink(th.kw);
-  let src = "pexels";
-  if (!link) { link = await pixabayLink(th.kw); if (link) src = "pixabay"; }
-  if (link) {
-    const raw = `${outDir}/raw${i}.mp4`;
-    await dl(link, raw);
-    execSync(`ffmpeg -y -stream_loop -1 -i "${raw}" -t ${dur} -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,${VF}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${out}"`, { stdio: "ignore" });
-    fs.rmSync(raw, { force: true });
-    return { out, dur, src };
-  }
+  // 1) Fuente por prioridad segun kind (archivo si es historico/real, stock si es generico).
+  //    Toda la parte de red va en try/catch: si algo falla, se cae a la imagen IA de abajo.
+  try {
+    const got = await resolveSource(kind, th.kw);
+    if (got && got.link) {
+      const raw = `${outDir}/raw${i}.mp4`;
+      // Archive puede tener derivados algo pesados -> tope mas bajo; stock/wiki/nasa un poco mas.
+      const cap = got.src === "archive" ? 80 * 1024 * 1024 : 130 * 1024 * 1024;
+      const ok = await dlCapped(got.link, raw, cap, 150000);
+      if (ok) {
+        // seek>0 (Archive) entra al contenido y, junto con -t dur, corta un tramo corto (no procesa todo).
+        const seekArg = got.seek ? `-ss ${got.seek}` : "";
+        execSync(`ffmpeg -y -stream_loop -1 ${seekArg} -i "${raw}" -t ${dur} -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,${VF}" -an -r 30 -c:v libx264 -preset veryfast -pix_fmt yuv420p "${out}"`, { stdio: "ignore", timeout: 200000 });
+        fs.rmSync(raw, { force: true });
+        return { out, dur, src: got.src, licKey: got.licKey || "", attribution: got.attribution || "", meta: got };
+      }
+      fs.rmSync(raw, { force: true });
+    }
+  } catch { /* cualquier fallo de fuente -> IA */ }
   // fallback: imagen IA animada con zoompan (movimiento real sobre la imagen)
   const img = `${outDir}/img${i}.jpg`;
   await aiImage(th.ai, img, 1000 + i);
@@ -188,24 +345,42 @@ const parts = [];
 const durs = [];
 let prevKw = null, fillerIdx = 0;
 const kwCount = {};
+const attributions = [];  // CC-BY que EXIGEN credito (van a la descripcion del video)
+const usedSources = [];   // trazabilidad: de que fuente salio cada plano
 for (let i = 0; i < segs.length; i++) {
   // Tema del plano: Gemini si planeo, si no la heuristica.
   let th = plan && plan[i] && plan[i].q
     ? { kw: plan[i].q, ai: plan[i].ai || theme(segs[i].text).ai }
     : theme(segs[i].text);
+  // kind: lo dice Gemini; si no, la heuristica sobre el texto del segmento.
+  let kind = plan && plan[i] && (plan[i].kind === "archival" || plan[i].kind === "stock")
+    ? plan[i].kind : guessKind(segs[i].text);
   // Variedad: ningun tema dos veces seguidas NI mas de 2 veces en total.
-  if (th.kw === prevKw || (kwCount[th.kw] || 0) >= 2) { th = FILLERS[fillerIdx++ % FILLERS.length]; }
+  // Al caer a un FILLER (dinero/ciudad generico), el plano deja de ser "de archivo" -> stock.
+  if (th.kw === prevKw || (kwCount[th.kw] || 0) >= 2) { th = FILLERS[fillerIdx++ % FILLERS.length]; kind = "stock"; }
   kwCount[th.kw] = (kwCount[th.kw] || 0) + 1;
   prevKw = th.kw;
   try {
-    const r = await makeSeg(i, segs[i], th);
+    const r = await makeSeg(i, segs[i], th, kind);
     parts.push(path.resolve(r.out).replace(/\\/g, "/"));
     durs.push(r.dur);
-    if (i % 5 === 0) console.log(`  ...plano ${i}/${segs.length} (${r.src}) [${th.kw}]`);
+    usedSources.push({ plano: i, source: r.src, license: r.licKey || r.src, query: th.kw, kind });
+    // Acumular SOLO las CC-BY (Wikimedia/Archive) que exigen atribucion.
+    if (r.licKey === "cc-by" && r.attribution) {
+      const m = r.meta || {};
+      attributions.push({ plano: i, source: r.src, title: m.title || "", author: m.author || "", url: m.page || "", license: m.license || "cc-by", text: r.attribution });
+    }
+    if (i % 5 === 0) console.log(`  ...plano ${i}/${segs.length} (${r.src}·${kind}) [${th.kw}]`);
   } catch (e) {
     console.log(`  error plano ${i}: ${e.message}`);
   }
 }
+// Atribuciones + trazabilidad de fuentes para la descripcion del video (fuera de bg.json,
+// que NO cambia de formato). Solo CC-BY exige credito; NASA/CC0/PD/stock no.
+try {
+  fs.writeFileSync(`${outDir}/attributions.json`, JSON.stringify({ generated: new Date().toISOString(), credits_required: attributions, sources_used: usedSources }, null, 2));
+  if (attributions.length) console.log(`Atribuciones CC-BY: ${attributions.length} -> ${outDir}/attributions.json`);
+} catch {}
 
 if (!parts.length) { console.log("Sin planos -> sin fondo."); fs.writeFileSync(`${outDir}/bg.json`, "[]"); process.exit(0); }
 
