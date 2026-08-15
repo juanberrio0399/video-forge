@@ -69,8 +69,12 @@ jobs:
             PRURL=$(gh pr view "$BR" -R "$TARGET" --json url -q .url)
             gh issue comment "$ISSUE" -R "$TARGET" --body "🤖 Rama \`$BR\` y PR listos para revisar (sin merge)$NOTE: $PRURL"
           else
-            echo "PR ya existía; la rama se actualizó (force-push)."
-            gh issue comment "$ISSUE" -R "$TARGET" --body "🔄 Rama \`$BR\` actualizada — el PR ya existía, ahora tiene el contenido nuevo$NOTE: $PRURL"
+            # El PR ya existía (reintento): el force-push ya actualizó su código. Ademas REFRESCAMOS su
+            # titulo y cuerpo al estado ACTUAL, para que si el reintento ya quedó completo, el PR deje de
+            # decir [INCOMPLETO] y pase de `Ref` a `Closes` (y así cierre el issue al mergear) — y viceversa.
+            echo "PR ya existía; rama actualizada. Refresco titulo/cuerpo al estado actual (completo/incompleto)."
+            gh pr edit "$PRURL" -R "$TARGET" --title "$TITLE" --body-file /tmp/radar_body.md 2>/dev/null || true
+            gh issue comment "$ISSUE" -R "$TARGET" --body "🔄 Rama \`$BR\` actualizada — el PR ya existía, ahora refleja el contenido y estado nuevos$NOTE: $PRURL"
           fi
           echo "PR: $PRURL"
           gh issue edit "$ISSUE" -R "$TARGET" --remove-label motor-fallo 2>/dev/null || true   # limpia un fallo previo
