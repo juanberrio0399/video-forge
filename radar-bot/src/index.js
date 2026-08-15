@@ -93,7 +93,7 @@ async function doAction(env, action, repo, number) {
   if (action === "run") {
     // Motor CENTRAL en video-forge, implementa en el repo objetivo (repo) usando el PAT.
     const r = await gh(env, `/repos/${MOTOR}/actions/workflows/radar_implement.yml/dispatches`, { method: "POST", body: JSON.stringify({ ref: "main", inputs: { issue: String(number), repo } }) });
-    return (r.ok || r.status === 204) ? "⚙️ Motor lanzado. En 1-2 min queda el PR — refresca y usa 👀 Revisar." : "❌ No pude lanzar el motor.";
+    return (r.ok || r.status === 204) ? "⚙️ Motor lanzado. Tarda unos minutos — te aviso cuando termine." : "❌ No pude lanzar el motor.";
   }
   if (action === "merge") {
     const pr = (await prMap(env, repo))[String(number)];
@@ -337,7 +337,7 @@ export default {
 
     // Mini App
     if (url.pathname === "/app" || url.pathname === "/") {
-      return new Response(APP_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
+      return new Response(APP_HTML, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
     }
     // API de la Mini App (auth por initData)
     if (url.pathname.startsWith("/api/") && request.method === "POST") {
