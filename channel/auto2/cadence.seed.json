@@ -6,7 +6,7 @@
     "ciencia_humor": 2,
     "naturaleza_relax": 2
   },
-  "long_per_day": 1,
+  "long_per_day": 0,
   "long_rotation": ["satisfying", "naturaleza_relax", "ciencia_humor", "narrativas"],
   "variant": {
     "satisfying": "puro",

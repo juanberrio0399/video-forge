@@ -40,6 +40,7 @@ jobs:
           # con el formato viejo (per_category_per_day + kind).
           node -e '
             const c=JSON.parse(require("fs").readFileSync("cadence.json","utf8"));
+            c.long_per_day=0; if(c.kind)c.kind="short";   // Oddly = SOLO shorts (decision de Juan): nada de largos 16:9, ni desde R2
             const va=c.variant||{}; const out=[];
             if(c.shorts_per_category){
               for(const [niche,n] of Object.entries(c.shorts_per_category)){ for(let i=0;i<(+n||0);i++) out.push(niche+" "+(va[niche]||"narrado")+" short"); }
