@@ -71,12 +71,17 @@ async function pexels(q) {
   if (!PEXELS) return null;
   try {
     const orient = W >= H ? "landscape" : "portrait";
-    const r = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&orientation=${orient}&size=medium&per_page=15`, { headers: { Authorization: PEXELS } });
+    // size=large -> Full HD/4K (antes "medium" traia clips chicos que se agrandaban = borroso).
+    const r = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&orientation=${orient}&size=large&per_page=15`, { headers: { Authorization: PEXELS } });
     if (!r.ok) return null;
     const j = await r.json();
     for (const v of (j.videos || []).sort(() => Math.random() - 0.5)) {
-      const files = (v.video_files || []).filter((f) => f.file_type === "video/mp4" && f.height).sort((a, b) => b.height - a.height);
-      const f = files.find((f) => f.height >= 720 && f.height <= 1920) || files[0];
+      const files = (v.video_files || []).filter((f) => f.file_type === "video/mp4" && f.width && f.height);
+      if (!files.length) continue;
+      // Elige el clip que CUBRE el frame (w>=W && h>=H) SIN upscale; el mas chico que cubra (menos downscale).
+      // Si ninguno cubre, el mas grande disponible (el menor upscale posible).
+      const cover = files.filter((f) => f.width >= W && f.height >= H).sort((a, b) => a.width * a.height - b.width * b.height);
+      const f = cover[0] || files.sort((a, b) => b.width * b.height - a.width * a.height)[0];
       if (f) return { url: f.link, source: "pexels", license: "pexels" };
     }
   } catch {}
@@ -89,7 +94,10 @@ async function pixabay(q) {
     if (!r.ok) return null;
     const j = await r.json();
     for (const h of (j.hits || []).sort(() => Math.random() - 0.5)) {
-      const f = (h.videos || {}).large || (h.videos || {}).medium || (h.videos || {}).small;
+      const cands = ["large", "medium", "small"].map((k) => (h.videos || {})[k]).filter((v) => v && v.url && v.width && v.height);
+      if (!cands.length) continue;
+      const cover = cands.filter((v) => v.width >= W && v.height >= H).sort((a, b) => a.width * a.height - b.width * b.height);
+      const f = cover[0] || cands.sort((a, b) => b.width * b.height - a.width * a.height)[0];
       if (f && f.url) return { url: f.url, source: "pixabay", license: "pixabay" };
     }
   } catch {}
@@ -313,12 +321,12 @@ if (fs.existsSync("music.mp3")) { ins.push(`-stream_loop -1 -i music.mp3`); fc +
 if (ambient) { ins.push(`-i "${ambient}"`); fc += `[${idx}:a]volume=${profile.amb}[am];`; mix.push("[am]"); idx++; }
 const LN = "loudnorm=I=-14:TP=-1.5:LRA=11"; // loudness estándar de YouTube: ni bajo ni saturado
 if (!mix.length) {
-  execSync(`ffmpeg -y ${ins.join(" ")} -map 0:v -an -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p "${outPath}"`, { stdio: "inherit" });
+  execSync(`ffmpeg -y ${ins.join(" ")} -map 0:v -an -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p "${outPath}"`, { stdio: "inherit" });
 } else if (mix.length === 1) {
   const single = fc + `${mix[0]}${LN}[aout]`;
-  execSync(`ffmpeg -y ${ins.join(" ")} -filter_complex "${single}" -map 0:v -map "[aout]" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
+  execSync(`ffmpeg -y ${ins.join(" ")} -filter_complex "${single}" -map 0:v -map "[aout]" -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
 } else {
   fc += `${mix.join("")}amix=inputs=${mix.length}:duration=first:dropout_transition=0:normalize=0,${LN}[aout]`;
-  execSync(`ffmpeg -y ${ins.join(" ")} -filter_complex "${fc}" -map 0:v -map "[aout]" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
+  execSync(`ffmpeg -y ${ins.join(" ")} -filter_complex "${fc}" -map 0:v -map "[aout]" -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest "${outPath}"`, { stdio: "inherit" });
 }
 console.log(`Compilación lista -> ${outPath} (${parts.length} clips ${format}, nicho ${niche}, ${hasVoice ? "narrado" : "SIN voz / ASMR puro"}). Manifiesto: compilation_manifest.json`);
