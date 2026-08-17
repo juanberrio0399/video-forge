@@ -12,8 +12,12 @@ if (!topic) { console.error("Falta el tema"); process.exit(1); }
 
 const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
 async function gemini(prompt) {
-  // Multi-llave (respaldo = doble cuota) + reintento con backoff si TODO esta saturado (429/503).
-  for (let round = 0; round < 3; round++) {
+  // Multi-llave (respaldo = doble cuota) + reintento con backoff CRECIENTE si todo esta saturado
+  // (429/503). ROBUSTEZ: solo damos por bueno un JSON que TRAE beats -> una respuesta vacia o rara
+  // (JSON sin beats) YA NO aborta la produccion, se reintenta. Antes se rendia en ~12s y un 429
+  // pasajero (o un JSON basura) tumbaba el video entero.
+  const ROUNDS = 5;
+  for (let round = 0; round < ROUNDS; round++) {
     for (let k = 0; k < KEYS.length; k++) {
       for (const m of TEXT_MODELS) {
         try {
@@ -25,11 +29,15 @@ async function gemini(prompt) {
           if (!r.ok) { console.error(`key${k + 1}/${m}: ${r.status}`); continue; }
           const j = await r.json();
           const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
-          if (t) return JSON.parse(t);
+          if (!t) continue;
+          let parsed = null; try { parsed = JSON.parse(t); } catch { console.error(`key${k + 1}/${m}: JSON invalido`); continue; }
+          if (parsed && Array.isArray(parsed.beats) && parsed.beats.length) return parsed; // solo un guion VALIDO cuenta
+          console.error(`key${k + 1}/${m}: respuesta sin beats, reintento`);
         } catch (e) { console.error(`key${k + 1}/${m}: ${e.message}`); }
       }
     }
-    await sleep(15000);
+    // Backoff creciente (20s, 40s, 60s, 80s): da tiempo a que se libere la cuota por minuto.
+    if (round < ROUNDS - 1) { const wait = Math.min(20000 * (round + 1), 80000); console.error(`Gemini saturado (ronda ${round + 1}/${ROUNDS}); espero ${wait / 1000}s…`); await sleep(wait); }
   }
   console.error("Gemini no respondio tras varios reintentos (guion).");
   return null;
