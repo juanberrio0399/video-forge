@@ -15,6 +15,10 @@ on:
         description: "Numero del video en la serie"
         required: false
         default: "2"
+      regen:
+        description: "Intento de REGENERACION por duracion corta (vacio = produccion normal)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -41,6 +45,7 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
       TOPIC: ${{ github.event.inputs.topic }}
       N: ${{ github.event.inputs.n || '2' }}
+      REGEN: ${{ github.event.inputs.regen || '' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -63,7 +68,9 @@ jobs:
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/tools_health.json" --file=tools_health.json --remote --content-type application/json 2>/dev/null || true
 
       - name: GUARDA anti-duplicados — no producir un tema que ya existe
-        if: ${{ env.PROCEED != 'no' }}
+        # En una REGENERACION por duracion (regen no vacio) NO aplicamos la guarda: el tema ya
+        # existe a proposito (lo estamos rehaciendo mas largo), no debe bloquear el re-disparo.
+        if: ${{ env.PROCEED != 'no' && env.REGEN == '' }}
         run: |
           if node pipeline/dup_check.mjs "$TOPIC"; then
             echo "PROCEED=yes" >> "$GITHUB_ENV"
@@ -116,6 +123,11 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/experiments.json" --file=exp.json --remote 2>/dev/null || cp channel/experiments.seed.json exp.json 2>/dev/null || echo '{}' > exp.json
           export TARGET_MIN=$(node -e 'try{const d=JSON.parse(require("fs").readFileSync("exp.json","utf8")).duration||{};process.stdout.write(String((d.enabled!==false&&(d.ramp&&d.ramp[d.step||0]))||d.target_min||8))}catch(e){process.stdout.write("8")}')
           echo "Duracion objetivo: ${TARGET_MIN} min"
+          # Guardar objetivo de duracion + tema + intento en R2, para que voice_parallel decida si el
+          # video quedo corto y hay que REGENERAR con un guion mas largo. Nunca aborta la corrida.
+          REGEN_N=$(node -e 'process.stdout.write(String(parseInt(process.env.REGEN||"0")||0))')
+          TARGET_MIN="$TARGET_MIN" TOPIC="$TOPIC" REGEN_N="$REGEN_N" node -e 'require("fs").writeFileSync("dur_target.json",JSON.stringify({target_min:+process.env.TARGET_MIN,topic:process.env.TOPIC||"",regen:+process.env.REGEN_N}))'
+          npx --yes wrangler@4 r2 object put "$BUCKET/audio/$PROJECT/dur_target.json" --file=dur_target.json --remote --content-type application/json || true
           # Tono de crecimiento (CTA para conseguir suscriptores).
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/growth.json" --file=growth.json --remote 2>/dev/null || cp channel/growth.seed.json growth.json 2>/dev/null || echo '{}' > growth.json
           export GROWTH_TONE=$(node -e 'try{const g=JSON.parse(require("fs").readFileSync("growth.json","utf8"));process.stdout.write(String((g.enabled!==false&&g.cta_tone)||"retador"))}catch(e){process.stdout.write("retador")}')
