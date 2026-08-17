@@ -566,6 +566,21 @@ export const APP_HTML = `<!doctype html>
     return '<h2>📅 Programados ('+s.length+')</h2>'
       +'<div class="card"><div class="muted" style="font-size:11px;margin-bottom:4px">Se publican solos en la mejor hora (EEUU). Al publicarse, desaparecen de aquí.</div>'+rows+'</div>';
   }
+  function pendingReviewHtml(){
+    // PRIVADOS por revisar: The Data Lens sube en privado (para que Juan revise). Aquí salen con
+    // acciones Programar/Publicar (igual que Oddly), así la agenda NO queda en blanco.
+    var all=ST.all_videos||[]; var sid={}; (ST.scheduled||[]).forEach(function(s){sid[s.video_id]=1;});
+    var pend=all.filter(function(v){ if(!v.video_id||v.privacy==="public")return false; var loc=localSched[v.video_id]; if(loc==="schedule"||loc==="public")return false; return !sid[v.video_id]; });
+    if(!pend.length) return "";
+    var rows=pend.slice(0,20).map(function(v){
+      return '<div style="border-top:1px solid rgba(255,255,255,.06);padding:8px 0">'
+        +'<div style="font-size:12px">'+(v.type==="short"?"🎬 ":"📹 ")+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"Video").slice(0,34))+'</a>':esc((v.title||"").slice(0,34)))+' <span class="muted" style="font-size:10px">(privado)</span></div>'
+        +'<div style="margin-top:6px"><button class="btn mini" onclick="dlPublish(\\''+v.video_id+'\\',\\'schedule\\')">📅 Programar (mejor hora)</button> <button class="btn mini ghost" onclick="dlPublish(\\''+v.video_id+'\\',\\'public\\')">🌍 Publicar ahora</button></div>'
+        +'</div>';
+    }).join("");
+    return '<h2>👀 Privados por revisar ('+pend.length+')</h2>'
+      +'<div class="card"><div class="muted" style="font-size:12px;margin-bottom:6px">The Data Lens sube en <b>privado</b> para que los revises. Dale <b>Programar</b> (mejor hora EEUU) y entra al calendario, o <b>Publicar ahora</b> para hacerlo público ya.</div>'+rows+'</div>';
+  }
   function calendarHtml(){
     // CALENDARIO día a día: cada día con sus 2 franjas (mejores horas EEUU), lleno o libre. Meta 2/día.
     var cal=ST.calendar||[];
@@ -996,7 +1011,7 @@ export const APP_HTML = `<!doctype html>
       +shb;
 
     // ===== AGENDA =====
-    el("s-agenda").innerHTML = calendarHtml()+scheduledHtml()+bestTimesHtml();
+    el("s-agenda").innerHTML = calendarHtml()+pendingReviewHtml()+scheduledHtml()+bestTimesHtml();
 
     // ===== ANALITICA ===== canal completo + analisis + fabrica + tus videos.
     var tree=ST.video_tree||[], ung=ST.video_tree_ungrouped||[];
@@ -1223,6 +1238,23 @@ export const APP_HTML = `<!doctype html>
         else toast("❌ "+(j.error||"no pude"));
       }).catch(function(){toast("❌ Error de red");}); };
     if(mode==="public"&&tg&&tg.showConfirm){ tg.showConfirm("¿Publicar este video de Oddly Loop AHORA (público)?",function(ok){if(ok)go();}); } else go();
+  }
+  function dlPublish(vid,mode){
+    // The Data Lens: programar (mejor hora, token YT_) o publicar ya (set_privacy.yml). Feedback
+    // optimista (localSched) + aviso activo al terminar, como en Oddly.
+    if(!vid){toast("sin video");return;}
+    mode=mode||"schedule";
+    var go=function(){
+      if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
+      if(mode==="public"){
+        api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"set_privacy.yml",inputs:{video_id:vid,privacy:"public"}})})
+        .then(function(r){return r.json();}).then(function(j){ if(j.ok){ localSched[vid]="public"; render(); toast("🌍 Publicando en The Data Lens… te aviso al chat"); setTimeout(load,4000); startWatch("set_privacy.yml","Publicar en The Data Lens","El video quedó público en The Data Lens.","La publicación en The Data Lens falló."); } else toast("❌ "+(j.error||"no pude")); }).catch(function(){toast("❌ Error de red");});
+      } else {
+        api("/api/schedule",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({video_id:vid})})
+        .then(function(r){return r.json();}).then(function(j){ if(j.ok){ localSched[vid]="schedule"; render(); toast("📅 Programado para "+fmtSlot(j.publish_at)+" — mira 📅 Agenda"); setTimeout(load,4000); } else toast("❌ "+(j.error||"no pude programar")); }).catch(function(){toast("❌ Error de red");});
+      }
+    };
+    if(mode==="public"&&tg&&tg.showConfirm){ tg.showConfirm("¿Publicar este video de The Data Lens AHORA (público)?",function(ok){if(ok)go();}); } else go();
   }
   function goShorts(vid){ if(vid) shortsTargetVid=vid; tab("producir"); render(); var e=el("shortsAnchor"); if(e) setTimeout(function(){e.scrollIntoView({behavior:"smooth",block:"start"});},60); }
   function clearShortsTarget(){ shortsTargetVid=""; render(); }
