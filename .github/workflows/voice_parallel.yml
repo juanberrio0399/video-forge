@@ -216,8 +216,48 @@ jobs:
           if [ "$ENGINE" = "kokoro" ]; then VOZ="voz Kokoro (respaldo, Gemini estaba saturado)"; else VOZ="locutor Gemini (Charon)"; fi
           if [ -f renders/voiceover_dir.mp3 ]; then
             if [ "$THEN_RENDER" = "true" ]; then
-              bash pipeline/notify_telegram.sh "🎙️ Narración lista con $VOZ. Ahora renderizo el video por fases (automatico). Te lo mando para aprobar al terminar." renders/voiceover_dir.mp3
-              gh workflow run render_phased.yml -R "$GITHUB_REPOSITORY" && echo "render disparado"
+              # --- CHEQUEO DE DURACION -------------------------------------------------
+              # Si el video quedo corto respecto al objetivo del experimento, REGENERAMOS el
+              # guion (mas largo) en vez de renderizar. Tope: 2 regeneraciones (contador 'regen').
+              # Cualquier fallo leyendo R2 => fallback = encadenar el render normal.
+              npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/dur_target.json" --file=dur_target.json --remote 2>/dev/null || rm -f dur_target.json
+              node -e '
+                const fs = require("fs");
+                let d = {}; try { d = JSON.parse(fs.readFileSync("dur_target.json","utf8")); } catch (e) {}
+                let total = 0; try { total = parseFloat(JSON.parse(fs.readFileSync("renders/timing.json","utf8")).total) || 0; } catch (e) {}
+                const targetMin = parseFloat(d.target_min) || 0;
+                const regen = parseInt(d.regen) || 0;
+                const minNeeded = targetMin * 60 * 0.85;
+                let action = "render", exhausted = "0";
+                if (targetMin > 0 && total > 0 && total < minNeeded) {
+                  if (regen < 2) action = "regen"; else { action = "render"; exhausted = "1"; }
+                }
+                fs.writeFileSync("dt_action.txt", action);
+                fs.writeFileSync("dt_exhausted.txt", exhausted);
+                fs.writeFileSync("dt_next.txt", String(regen + 1));
+                fs.writeFileSync("dt_topic.txt", d.topic || "");
+                fs.writeFileSync("dt_totalmin.txt", (total/60).toFixed(1));
+                fs.writeFileSync("dt_targetmin.txt", String(targetMin || ""));
+              ' || echo render > dt_action.txt
+              ACTION=$(cat dt_action.txt 2>/dev/null || echo render)
+              if [ "$ACTION" = "regen" ]; then
+                DT_TOPIC="$(cat dt_topic.txt)"
+                NEXT="$(cat dt_next.txt)"
+                TMIN="$(cat dt_totalmin.txt)"; YMIN="$(cat dt_targetmin.txt)"
+                bash pipeline/notify_telegram.sh "⏱️ El video quedó corto: ${TMIN} min de ${YMIN} objetivo. Regenerando (intento ${NEXT}/2) con un guion más largo…"
+                # Re-disparo IDEMPOTENTE y acotado: pasa el mismo tema y sube el contador 'regen'. NO encadena render.
+                gh workflow run produce_video.yml -f topic="$DT_TOPIC" -f regen="$NEXT" -R "$GITHUB_REPOSITORY" && echo "regeneracion disparada (intento $NEXT)"
+              else
+                # Llega al tiempo (o se agotaron los 2 intentos): encadenar el render como siempre.
+                if [ "$(cat dt_exhausted.txt 2>/dev/null)" = "1" ]; then
+                  TMIN="$(cat dt_totalmin.txt)"; YMIN="$(cat dt_targetmin.txt)"
+                  bash pipeline/notify_telegram.sh "⚠️ Tras 2 intentos sigue algo corto (${TMIN}/${YMIN} min); sigo con el render igual."
+                fi
+                bash pipeline/notify_telegram.sh "🎙️ Narración lista con $VOZ. Ahora renderizo el video por fases (automatico). Te lo mando para aprobar al terminar." renders/voiceover_dir.mp3
+                gh workflow run render_phased.yml -R "$GITHUB_REPOSITORY" && echo "render disparado"
+                # Limpiar el estado de duracion para no arrastrarlo al proximo video.
+                npx --yes wrangler@4 r2 object delete "$BUCKET/audio/$PROJECT/dur_target.json" --remote 2>/dev/null || true
+              fi
             else
               bash pipeline/notify_telegram.sh "🎙️ Resultado: NARRACIÓN lista con $VOZ, guardada en R2. Si suena bien, dale a 🎬 Renderizar." renders/voiceover_dir.mp3
             fi
