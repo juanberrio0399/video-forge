@@ -423,7 +423,7 @@ async function handleApi(request, env, url) {
     // Bot (toda la produccion se sube por la fabrica). Juan avisa cuando sube algo manual y ese id
     // entra a la lista. Asi ningun video del Bot sale como "manual" por un ledger incompleto.
     const manualSet = new Set((await r2json(env, "channel/manual_videos.json")) || []);
-    const slimV = (v) => ({ video_id: v.video_id, title: (v.title || "").replace(/ #Shorts$/, ""), privacy: v.privacy, views: v.views || 0, watch_min: v.watch_min || 0, manual: manualSet.has(v.video_id) });
+    const slimV = (v) => ({ video_id: v.video_id, title: (v.title || "").replace(/ #Shorts$/, ""), privacy: v.privacy, views: v.views || 0, watch_min: v.watch_min || 0, manual: manualSet.has(v.video_id), niche_label: dlLabel(v.title) });
     state.video_tree = (inv.longs || []).map((l) => ({ ...slimV(l), shorts: (byParent[l.video_id] || []).map(slimV) }));
     const groupedIds = new Set(Object.values(byParent).flat().map((s) => s.video_id));
     state.video_tree_ungrouped = (inv.shorts || []).filter((sh) => !groupedIds.has(sh.video_id)).map(slimV);
@@ -440,7 +440,7 @@ async function handleApi(request, env, url) {
       const scheduled = !!(v.publish_at && Date.parse(v.publish_at) > Date.now());
       return {
         video_id: v.video_id, title: v.title, public: v.privacy === "public", scheduled, publish_at: v.publish_at || null,
-        views: v.views, watch_min: v.watch_min || 0, manual: manualSet.has(v.video_id),
+        views: v.views, watch_min: v.watch_min || 0, manual: manualSet.has(v.video_id), niche_label: dlLabel(v.title),
         thumb_url: thumbUrl, thumb_approved: !!st.thumb_approved,
         stages: {
           // "publicado" = ya gestionado: público EN VIVO o PROGRAMADO (se publica solo a su hora).
@@ -890,6 +890,17 @@ async function channelInventory(env) {
 }
 
 // Lee un JSON de R2 (o null). Resiliente: un blip de red de R2 devuelve null, no tumba /api/state.
+// SUBCATEGORIA de The Data Lens (inferida del titulo) — MISMA logica que pipeline/manage_playlists.mjs,
+// para que el badge del app y la playlist de YouTube coincidan.
+function dlNiche(t) { t = (t || "").toLowerCase();
+  if (/1 ?million|1,000,000|views? (pay|pays)|per view|creator|youtuber|\breels?\b|tiktok|spotify|roblox|devex|payout|monetiz/.test(t)) return "creator_economy";
+  if (/where your|actually goes|hidden|really costs|\bcut\b|dirty|\bscam\b|\btax\b|\$\d/.test(t)) return "costos_ocultos";
+  if (/inflation|interest rate|\bfed\b|\bmarket\b|\beconomy\b|every second|money supply|recession/.test(t)) return "dinero_mercados";
+  if (/google|netflix|mcdonald|apple|amazon|uber|tesla|microsoft|openai|\bmeta\b|snapchat|instagram|nvidia|disney|costco|how .* makes/.test(t)) return "big_tech";
+  return "big_tech"; }
+const DL_LABEL = { big_tech: "Big Tech", creator_economy: "Creator Economy", costos_ocultos: "Costos ocultos", dinero_mercados: "Dinero & mercados" };
+const dlLabel = (title) => DL_LABEL[dlNiche(title)];
+
 // ===== METAS DE MONETIZACION (YPP) — plazo realista por canal, medido DIA A DIA =====
 // Cada canal su meta segun su enfoque. Editable aqui. El ritmo se mide con los ultimos 7 dias
 // de snapshots (channel/…/monetization_history.json) para saber si vamos en camino o atras.
