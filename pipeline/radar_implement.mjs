@@ -97,7 +97,9 @@ async function callGemini(promptText) {
         if (!res.ok) { console.error(`  ${m}: HTTP ${res.status}`); continue; }
         const j = await res.json();
         const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
-        if (t) { console.log(`  respuesta de ${m}`); return JSON.parse(t); }
+        if (!t) continue;
+        let p = null; try { p = JSON.parse(t); } catch { console.error(`  ${m}: JSON invalido`); continue; }
+        if (p && Array.isArray(p.edits) && p.edits.length) { console.log(`  respuesta de ${m}`); return p; } // solo un plan valido (con edits) cuenta
       } catch (e) { console.error(`  ${m}: ${e.message}`); }
     }
     if (r < 4) { console.error(`  (ronda ${r + 1} sin éxito — espero y reintento; Google puede estar sobrecargado)`); await wait(8000); }
