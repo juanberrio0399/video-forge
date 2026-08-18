@@ -17,7 +17,7 @@ if (!CID || !CSEC || !RTOK) { console.error("Faltan credenciales YT del canal", 
 
 // Subcategorias por canal (key -> titulo publico de la playlist)
 const CATS = A2
-  ? { satisfying: "Satisfying / ASMR", narrativas: "Narrativas", ciencia_humor: "Ciencia + humor", naturaleza_relax: "Naturaleza / Relax" }
+  ? { satisfying: "Satisfying / ASMR", narrativas: "Narrativas", ciencia_humor: "Ciencia + humor", naturaleza_relax: "Naturaleza / Relax", graciosos: "Graciosos / Fails" }
   : { big_tech: "Big Tech · Como ganan dinero las empresas", creator_economy: "Creator Economy · Cuanto pagan las plataformas", costos_ocultos: "Costos ocultos · A donde va tu dinero", dinero_mercados: "Dinero y mercados" };
 
 // Inferencia de nicho por titulo (misma logica que el resto del sistema)
@@ -66,21 +66,37 @@ let PL = { map: {}, added: [] };
 try { const p = JSON.parse(fs.readFileSync("playlists.json", "utf8")); PL.map = p.map || {}; PL.added = p.added || []; } catch {}
 const addedSet = new Set(PL.added);
 
+const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
+PL.titles = PL.titles || {};
 async function ensurePlaylist(cat) {
-  if (PL.map[cat]) return PL.map[cat];
-  const body = { snippet: { title: CATS[cat] || cat, description: "Playlist por categoria (automatica)." }, status: { privacyStatus: "public" } };
+  const want = CATS[cat] || cat;
+  if (PL.map[cat]) {
+    // Auto-sanacion: si el titulo guardado no coincide (p.ej. una playlist vieja "undefined"), renombrar.
+    if (PL.titles[cat] !== want) {
+      const r = await tf("https://www.googleapis.com/youtube/v3/playlists?part=snippet", { method: "PUT", headers: H, body: JSON.stringify({ id: PL.map[cat], snippet: { title: want, description: "Playlist por categoria (automatica)." } }) });
+      if (r.ok) { PL.titles[cat] = want; console.log(`~ playlist renombrada -> ${want}`); }
+    }
+    return PL.map[cat];
+  }
+  const body = { snippet: { title: want, description: "Playlist por categoria (automatica)." }, status: { privacyStatus: "public" } };
   const r = await (await tf("https://www.googleapis.com/youtube/v3/playlists?part=snippet,status", { method: "POST", headers: H, body: JSON.stringify(body) })).json();
   if (!r.id) { console.error("no pude crear playlist", cat, JSON.stringify(r).slice(0, 200)); return null; }
-  PL.map[cat] = r.id; console.log(`+ playlist creada: ${CATS[cat]} -> ${r.id}`); return r.id;
+  PL.map[cat] = r.id; PL.titles[cat] = want; console.log(`+ playlist creada: ${want} -> ${r.id}`); return r.id;
 }
 async function addToPlaylist(plid, vid) {
   const body = { snippet: { playlistId: plid, resourceId: { kind: "youtube#video", videoId: vid } } };
-  const r = await tf("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet", { method: "POST", headers: H, body: JSON.stringify(body) });
-  if (r.ok) return true;
-  const e = await r.json().catch(() => ({}));
-  const reason = (e.error && e.error.errors && e.error.errors[0] && e.error.errors[0].reason) || r.status;
-  console.error(`  no pude agregar ${vid}: ${reason}`);
-  return reason === "quotaExceeded" ? "quota" : false;
+  // Reintenta en SERVICE_UNAVAILABLE (503): una playlist recien creada tarda un momento en estar lista.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const r = await tf("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet", { method: "POST", headers: H, body: JSON.stringify(body) });
+    if (r.ok) return true;
+    const e = await r.json().catch(() => ({}));
+    const reason = (e.error && e.error.errors && e.error.errors[0] && e.error.errors[0].reason) || r.status;
+    if (reason === "quotaExceeded") return "quota";
+    if ((reason === "SERVICE_UNAVAILABLE" || reason === 503 || reason === 500) && attempt < 2) { await sleep(2000); continue; }
+    console.error(`  no pude agregar ${vid}: ${reason}`);
+    return false;
+  }
+  return false;
 }
 
 const vids = await myVideos();
