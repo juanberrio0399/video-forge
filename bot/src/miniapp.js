@@ -1040,7 +1040,8 @@ export const APP_HTML = `<!doctype html>
     function vcell(v,isPub){ return '<td style="text-align:right">'+(isPub?num(v.views):"🔒")+'</td>'
       +'<td style="text-align:right">'+(aok?num(v.watch_min||0):"—")+'</td>'; }
     function man(v){ return v.manual?' <span style="color:var(--am);font-size:10px;white-space:nowrap">✋ manual</span>':''; }
-    function link(v){ return (v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,30))+'</a>':esc(v.title||""))+man(v); }
+    function cat(v){ return (v.niche_label&&!/#short/i.test(v.title||''))?' <span style="color:var(--cy);font-size:10px;white-space:nowrap">🎬 '+esc(v.niche_label)+'</span>':''; }
+    function link(v){ return (v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,30))+'</a>':esc(v.title||""))+cat(v)+man(v); }
     tree.forEach(function(l){ li++;
       var pv=l.privacy==="public"; gV+=l.views||0; gW+=l.watch_min||0;
       rowsHtml+='<tr style="font-weight:700;border-top:1px solid rgba(255,255,255,.10)"><td>📹 <span class="muted" style="font-weight:400">#'+li+'</span> '+link(l)+'</td>'+vcell(l,pv)+'</tr>';
