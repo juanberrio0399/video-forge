@@ -60,6 +60,7 @@ jobs:
             npx --yes wrangler@4 r2 object put "$BUCKET/$PLKEY" --file=playlists.json --remote --content-type application/json
           }
           if [ "$CH_IN" = "both" ]; then run_channel data-lens; run_channel auto2; else run_channel "$CH_IN"; fi
-          # Aviso al chat con el resumen
+          # Aviso al chat con el resumen + estado claro (COMPLETO vs faltan)
           SUMMARY="$(grep -hE '^✓ ' out_*.txt 2>/dev/null | sed 's/^/• /')"
-          [ -n "$SUMMARY" ] && bash pipeline/notify_telegram.sh "🎞️ Playlists sincronizadas por categoría:"$'\n\n'"${SUMMARY}" || true
+          if echo "$SUMMARY" | grep -q "pendientes: [1-9]"; then STATUS="⏳ aún faltan videos (sigue mañana solo)"; else STATUS="✅ TODO AL DÍA (0 pendientes)"; fi
+          [ -n "$SUMMARY" ] && bash pipeline/notify_telegram.sh "🎞️ Playlists por categoría — ${STATUS}"$'\n\n'"${SUMMARY}" || true
