@@ -1,13 +1,13 @@
 {
-  "_nota": "BLITZ DE SHORTS (audaz) para monetizar rápido: 10M vistas de Shorts en 90 días = YPP. shorts_per_category = Shorts/día por categoría; long_per_day = largos/día (rotando el nicho por día) para watch-hours. Sube/baja los números para dialar la agresividad. Cada uno se programa a su mejor hora, tope 2/hora.",
+  "_nota": "CADENCIA POR DATOS (agresivo hacia el ganador). Ranking real por vistas/dia: Narrativas 66 > Naturaleza 38 > Satisfying 35 > Ciencia+humor 10. Se DOBLA el ganador (narrativas 2->4) y se recorta lo flojo. shorts_per_category = Shorts/dia por categoria; long_per_day = largos/dia. 8 Shorts/dia (dentro de la cuota). Reevaluar con el ranking del reporte y re-balancear cada semana.",
   "shorts_per_category": {
-    "satisfying": 2,
-    "narrativas": 2,
-    "ciencia_humor": 2,
-    "naturaleza_relax": 2
+    "narrativas": 4,
+    "naturaleza_relax": 2,
+    "satisfying": 1,
+    "ciencia_humor": 1
   },
   "long_per_day": 0,
-  "long_rotation": ["satisfying", "naturaleza_relax", "ciencia_humor", "narrativas"],
+  "long_rotation": ["narrativas", "naturaleza_relax", "satisfying", "ciencia_humor"],
   "variant": {
     "satisfying": "puro",
     "naturaleza_relax": "puro",
