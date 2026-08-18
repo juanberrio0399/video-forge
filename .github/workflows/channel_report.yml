@@ -85,6 +85,19 @@ jobs:
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/state.json" --file=state_final.json --remote
           # Mejores horas por datos (si el reporte las calculó) -> para el agendado del Worker.
           [ -s best_hours.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/best_hours.json" --file=best_hours.json --remote --content-type application/json || true
+          # Snapshot diario de MONETIZACION (meta): subs + horas vistas. No depende de abrir la app.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/monetization_history.json" --file=mh.json --remote 2>/dev/null || echo '[]' > mh.json
+          node -e '
+            const fs=require("fs"); let h=[]; try{h=JSON.parse(fs.readFileSync("mh.json","utf8"))}catch(e){}; if(!Array.isArray(h))h=[];
+            let st={}; try{st=JSON.parse(fs.readFileSync("state_final.json","utf8"))}catch(e){}
+            const m=st.monetization||{}, cs=st.channel_stats||{};
+            const today=new Date().toISOString().slice(0,10);
+            const snap={date:today, subs:Math.round(m.subs||cs.subs||0), watch_hours:Math.round(m.watch_hours||0)};
+            if(h.length&&h[h.length-1].date===today) h[h.length-1]=snap; else h.push(snap);
+            fs.writeFileSync("mh.json", JSON.stringify(h.slice(-120)));
+            console.log("Snapshot Data Lens (meta):", JSON.stringify(snap));
+          '
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/monetization_history.json" --file=mh.json --remote --content-type application/json
 
       - name: Enviar el reporte al chat
         if: always()
