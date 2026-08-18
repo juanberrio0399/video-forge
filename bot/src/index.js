@@ -403,6 +403,9 @@ async function handleApi(request, env, url) {
     state.niche_radar = (await r2json(env, "channel/niche_radar.json")) || null;
     // CANAL AUTO #2 (Oddly Loop): estado real (videos/subs/vistas/min), lo llena report_auto2.
     state.auto2 = (await r2json(env, "channel/auto2/state.json")) || null;
+    // META DE MONETIZACION (YPP) con medicion diaria del ritmo — cada canal su meta.
+    try { state.monet_goal = await monetTrack(env, "data-lens", { subs: inv.subs || 0, watch_hours: ((state.totals && state.totals.watch_min) || 0) / 60 }); } catch {}
+    if (state.auto2) { try { state.auto2.monet_goal = await monetTrack(env, "auto2", { subs: state.auto2.subs || 0, shorts_views: state.auto2.total_views || 0 }); } catch {} }
     // ARBOL de Videos: cada LARGO con sus SHORTS anidados debajo (pestaña Videos, como la pidio Juan).
     // Mapeo short->padre: ledger persistente (channel/shorts_map.json) + el plan actual (for_video_id).
     const shortsMap = (await r2json(env, "channel/shorts_map.json")) || {};
@@ -882,6 +885,49 @@ async function channelInventory(env) {
 }
 
 // Lee un JSON de R2 (o null). Resiliente: un blip de red de R2 devuelve null, no tumba /api/state.
+// ===== METAS DE MONETIZACION (YPP) — plazo realista por canal, medido DIA A DIA =====
+// Cada canal su meta segun su enfoque. Editable aqui. El ritmo se mide con los ultimos 7 dias
+// de snapshots (channel/…/monetization_history.json) para saber si vamos en camino o atras.
+const MONET_GOALS = {
+  "data-lens": { path: "longform", deadline: "2027-02-17", targets: [
+    { key: "subs", label: "Suscriptores", target: 1000 },
+    { key: "watch_hours", label: "Horas vistas", target: 4000 },
+  ] },
+  "auto2": { path: "shorts", deadline: "2026-11-15", targets: [
+    { key: "subs", label: "Suscriptores", target: 1000 },
+    { key: "shorts_views", label: "Vistas de Shorts", target: 10000000 },
+  ] },
+};
+async function monetTrack(env, chKey, current) {
+  const goal = MONET_GOALS[chKey]; if (!goal) return null;
+  const hkey = chKey === "auto2" ? "channel/auto2/monetization_history.json" : "channel/monetization_history.json";
+  let hist = (await r2json(env, hkey)) || []; if (!Array.isArray(hist)) hist = [];
+  const today = new Date().toISOString().slice(0, 10);
+  const snap = { date: today };
+  goal.targets.forEach((t) => { snap[t.key] = Math.round(current[t.key] || 0); });
+  // Un snapshot por dia (idempotente): si el ultimo es de hoy lo refresca, si no lo agrega.
+  if (hist.length && hist[hist.length - 1].date === today) hist[hist.length - 1] = snap; else hist.push(snap);
+  hist = hist.slice(-120);
+  try { await env.R2.put(hkey, JSON.stringify(hist), { httpMetadata: { contentType: "application/json" } }); } catch {}
+  const daysLeft = Math.max(0, Math.ceil((Date.parse(goal.deadline) - Date.now()) / 86400000));
+  const win = hist.filter((h) => (Date.parse(today) - Date.parse(h.date)) / 86400000 <= 7);
+  const reqs = goal.targets.map((t) => {
+    const cur = Math.round(current[t.key] || 0);
+    const need = Math.max(0, t.target - cur);
+    const pctv = Math.min(100, Math.floor((cur / t.target) * 100));
+    const perDayNeeded = daysLeft > 0 ? need / daysLeft : need;
+    let perDayActual = null, projDate = null;
+    if (win.length >= 2) { const a = win[0], b = win[win.length - 1]; const dd = (Date.parse(b.date) - Date.parse(a.date)) / 86400000; if (dd > 0) perDayActual = ((b[t.key] || 0) - (a[t.key] || 0)) / dd; }
+    if (perDayActual > 0 && need > 0) projDate = new Date(Date.now() + Math.ceil(need / perDayActual) * 86400000).toISOString().slice(0, 10);
+    const done = cur >= t.target;
+    const onTrack = done ? true : (perDayActual == null ? null : perDayActual >= perDayNeeded);
+    return { key: t.key, label: t.label, cur, target: t.target, pct: pctv, per_day_needed: Math.max(0, perDayNeeded), per_day_actual: perDayActual, proj_date: projDate, on_track: onTrack, done };
+  });
+  const allDone = reqs.every((r) => r.done);
+  const measuring = reqs.some((r) => !r.done && r.on_track === null);
+  const behind = reqs.some((r) => !r.done && r.on_track === false);
+  return { path: goal.path, deadline: goal.deadline, days_left: daysLeft, status: allDone ? "done" : measuring ? "measuring" : behind ? "behind" : "ontrack", reqs };
+}
 async function r2json(env, key) {
   if (!env.R2) return null;
   try { const o = await env.R2.get(key); if (!o) return null; return JSON.parse(await o.text()); } catch { return null; }
