@@ -25,7 +25,8 @@ async function gemini(prompt) {
       if (!r.ok) continue;
       const j = await r.json();
       const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
-      return JSON.parse(t);
+      if (!t) continue;
+      const p = JSON.parse(t); if (p && typeof p === "object") return p;
     } catch {}
   }
   return null;
