@@ -824,7 +824,7 @@ export const APP_HTML = `<!doctype html>
     function fN(n){n=+n||0;if(n>=1e6)return (n/1e6).toFixed(n>=1e7?0:1)+"M";if(n>=1e3)return (n/1e3).toFixed(n>=1e5?0:1)+"k";return String(Math.round(n));}
     function fP(n){if(n==null)return "—";n=+n||0;if(n>=1e3)return fN(n);if(n>=10)return String(Math.round(n));return String(Math.round(n*10)/10);}
     var rows=g.reqs.map(function(r){
-      var bc=r.done?"var(--gr)":(r.on_track===false?"var(--am)":"var(--cy)");
+      var bc=(r.done||r.on_track===true)?"var(--gr)":(r.on_track===false?"var(--am)":"var(--cy)");
       var pace=r.done?'✅ completo'
         :(r.on_track===null?'necesitas '+fP(r.per_day_needed)+'/día (aún midiendo el ritmo)'
           :(r.on_track?'🟢 vas a '+fP(r.per_day_actual)+'/día · necesitas '+fP(r.per_day_needed)
