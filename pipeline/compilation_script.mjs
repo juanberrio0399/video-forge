@@ -82,9 +82,14 @@ if (variant === "puro") {
   process.exit(0);
 }
 
+// APRENDIZAJE: los titulos que MAS rinden en este canal (vistas/dia), inyectados por produce_oddly
+// desde el reporte. El guion imita su ESTILO de gancho/estructura (no copia el tema) -> replicar lo top.
+const LEARN = (process.env.ODDLY_LEARN || "").trim();
+const learnBlock = LEARN ? `LO QUE MAS RINDE EN ESTE CANAL (estudia el ESTILO de gancho y estructura de estos ganadores y escribe en ese espiritu; NO copies el tema): ${LEARN}\n` : "";
+
 const prompt =
   `Eres guionista EXPERTO de un canal faceless de YouTube en INGLES (audiencia EEUU) tipo "${label}". ` +
-  `Estilo: ${NICHE_STYLE}\n${EXPERT_RULES}\n` +
+  `Estilo: ${NICHE_STYLE}\n${EXPERT_RULES}\n${learnBlock}` +
   `Escribe el guion de UNA compilación con ALTA RETENCION. Cada "beat" = un clip de stock con su narración corta. ` +
   `La narración da valor ORIGINAL (dato/curiosidad/comentario), no describe lo obvio. Tono acorde al nicho. ` +
   `El "query" de cada beat es un termino de busqueda de STOCK en ingles (elige de o inspirate en: ${pool}). ` +
