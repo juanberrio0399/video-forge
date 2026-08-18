@@ -403,6 +403,11 @@ async function handleApi(request, env, url) {
     state.niche_radar = (await r2json(env, "channel/niche_radar.json")) || null;
     // CANAL AUTO #2 (Oddly Loop): estado real (videos/subs/vistas/min), lo llena report_auto2.
     state.auto2 = (await r2json(env, "channel/auto2/state.json")) || null;
+    // "manual" en Oddly = SOLO lo que Juan marca (channel/auto2/manual_videos.json). Por defecto del Bot.
+    if (state.auto2 && Array.isArray(state.auto2.list)) {
+      const om = new Set((await r2json(env, "channel/auto2/manual_videos.json")) || []);
+      state.auto2.list.forEach((v) => { v.manual = om.has(v.video_id); });
+    }
     // META DE MONETIZACION (YPP) con medicion diaria del ritmo — cada canal su meta.
     try { state.monet_goal = await monetTrack(env, "data-lens", { subs: inv.subs || 0, watch_hours: ((state.totals && state.totals.watch_min) || 0) / 60 }); } catch {}
     if (state.auto2) { try { state.auto2.monet_goal = await monetTrack(env, "auto2", { subs: state.auto2.subs || 0, shorts_views: state.auto2.total_views || 0 }); } catch {} }
@@ -412,13 +417,13 @@ async function handleApi(request, env, url) {
     if (plan.for_video_id) (plan.shorts || []).forEach((s) => { if (s.video_id) shortsMap[s.video_id] = plan.for_video_id; });
     const byParent = {};
     (inv.shorts || []).forEach((sh) => { const p = shortsMap[sh.video_id]; if (p) (byParent[p] = byParent[p] || []).push(sh); });
-    // Ledger de la fabrica (channel/videos.json): lo que NO esta aqui = subido MANUALMENTE por Juan.
+    // Ledger de la fabrica (channel/videos.json): se usa para las ETAPAS de cada video.
     const vledger = (await r2json(env, "channel/videos.json")) || {};
-    // "manual" = NO está en el ledger de la fábrica. PERO si el ledger está vacío/incompleto, eso
-    // marcaría TODO como manual (falso). Juan no sube nada a mano -> solo marcamos manual si el
-    // ledger tiene datos (si no, asumimos que son de la fábrica y el ledger aún no los registró).
-    const hasLedger = Object.keys(vledger).length > 0;
-    const slimV = (v) => ({ video_id: v.video_id, title: (v.title || "").replace(/ #Shorts$/, ""), privacy: v.privacy, views: v.views || 0, watch_min: v.watch_min || 0, manual: hasLedger && !vledger[v.video_id] });
+    // "manual" = SOLO lo que Juan marca a mano (channel/manual_videos.json). Por defecto TODO es del
+    // Bot (toda la produccion se sube por la fabrica). Juan avisa cuando sube algo manual y ese id
+    // entra a la lista. Asi ningun video del Bot sale como "manual" por un ledger incompleto.
+    const manualSet = new Set((await r2json(env, "channel/manual_videos.json")) || []);
+    const slimV = (v) => ({ video_id: v.video_id, title: (v.title || "").replace(/ #Shorts$/, ""), privacy: v.privacy, views: v.views || 0, watch_min: v.watch_min || 0, manual: manualSet.has(v.video_id) });
     state.video_tree = (inv.longs || []).map((l) => ({ ...slimV(l), shorts: (byParent[l.video_id] || []).map(slimV) }));
     const groupedIds = new Set(Object.values(byParent).flat().map((s) => s.video_id));
     state.video_tree_ungrouped = (inv.shorts || []).filter((sh) => !groupedIds.has(sh.video_id)).map(slimV);
@@ -435,7 +440,7 @@ async function handleApi(request, env, url) {
       const scheduled = !!(v.publish_at && Date.parse(v.publish_at) > Date.now());
       return {
         video_id: v.video_id, title: v.title, public: v.privacy === "public", scheduled, publish_at: v.publish_at || null,
-        views: v.views, watch_min: v.watch_min || 0, manual: hasLedger && !vledger[v.video_id],
+        views: v.views, watch_min: v.watch_min || 0, manual: manualSet.has(v.video_id),
         thumb_url: thumbUrl, thumb_approved: !!st.thumb_approved,
         stages: {
           // "publicado" = ya gestionado: público EN VIVO o PROGRAMADO (se publica solo a su hora).
