@@ -1,0 +1,25 @@
+name: Sincronizar cadencia de Oddly a R2
+
+# Sube channel/auto2/cadence.seed.json (fuente de verdad en el repo) a R2
+# (channel/auto2/cadence.json), que es lo que lee daily_oddly. Correr tras editar la cadencia.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Subir cadencia a R2
+        run: |
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/cadence.json" --file=channel/auto2/cadence.seed.json --remote --content-type application/json
+          echo "Cadencia sincronizada:"; cat channel/auto2/cadence.seed.json
