@@ -1,0 +1,64 @@
+name: Sincronizar playlists por categoria
+
+# Crea una playlist por subcategoria en cada canal y agrega los videos a la suya.
+# Idempotente y cuota-segura (tope de inserts por corrida). El cron diario va terminando lo
+# pendiente + agregando lo nuevo. Manual: elegir canal y tope.
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "data-lens | auto2 | both"
+        required: false
+        default: "both"
+      max:
+        description: "tope de inserts por corrida (cada uno = 50 unidades de cuota)"
+        required: false
+        default: "60"
+  schedule:
+    - cron: "0 6 * * *"   # 6:00 UTC diario (antes del blitz, poca competencia de cuota)
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      YT2_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+      YT2_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+      YT2_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+      PLAYLIST_MAX: ${{ github.event.inputs.max || '60' }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Sincronizar
+        run: |
+          CH_IN="${{ github.event.inputs.channel || 'both' }}"
+          run_channel() {
+            CH="$1"
+            if [ "$CH" = "auto2" ]; then PLKEY="channel/auto2/playlists.json"; else PLKEY="channel/playlists.json"; fi
+            echo "=== Canal: $CH ==="
+            npx --yes wrangler@4 r2 object get "$BUCKET/$PLKEY" --file=playlists.json --remote 2>/dev/null || echo '{"map":{},"added":[]}' > playlists.json
+            if [ "$CH" = "auto2" ]; then
+              npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/niche_map.json" --file=niche_map.json --remote 2>/dev/null || echo '{}' > niche_map.json
+            fi
+            node pipeline/manage_playlists.mjs "$CH" | tee "out_$CH.txt"
+            npx --yes wrangler@4 r2 object put "$BUCKET/$PLKEY" --file=playlists.json --remote --content-type application/json
+          }
+          if [ "$CH_IN" = "both" ]; then run_channel data-lens; run_channel auto2; else run_channel "$CH_IN"; fi
+          # Aviso al chat con el resumen
+          SUMMARY="$(grep -hE '^✓ ' out_*.txt 2>/dev/null | sed 's/^/• /')"
+          [ -n "$SUMMARY" ] && bash pipeline/notify_telegram.sh "🎞️ Playlists sincronizadas por categoría:"$'\n\n'"${SUMMARY}" || true
