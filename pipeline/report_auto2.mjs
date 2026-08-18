@@ -20,12 +20,22 @@ try {
   let nicheMap = {};
   try { nicheMap = JSON.parse(fs.readFileSync("niche_map.json", "utf8")); } catch {}
   const NICHE_LABEL = { satisfying: "Satisfying / ASMR", narrativas: "Narrativas", ciencia_humor: "Ciencia + humor", naturaleza_relax: "Naturaleza / relax" };
+  // Si un video no quedo en el niche_map (produccion vieja), INFERIMOS su categoria por el titulo,
+  // para que TODO tenga subcategoria (nunca "Sin categoria"). Default = satisfying (el nucleo del canal).
+  function inferNiche(title) {
+    const t = (title || "").toLowerCase();
+    if (/satisfying|slime|kinetic|hydraulic|soap|paint|resin|\bsand\b|oddly sat|asmr/.test(t)) return "satisfying";
+    if (/deep sleep|relax|nature|rain|ocean|forest|\bcalm\b|10 hours|for sleep|sleep/.test(t)) return "naturaleza_relax";
+    if (/your brain|your body|\bscience\b|neuron|immune|weirdly|\bfact/.test(t)) return "ciencia_humor";
+    if (/\bshe\b|\bhe\b|\bher\b|\bhis\b|story|secret|faked|cheat|affair|\btext\b|ghost|betray|caught|revenge/.test(t)) return "narrativas";
+    return "satisfying";
+  }
   const list = [];
   for (let i = 0; i < ids.length; i += 50) {
     const j = await (await tf(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status,statistics&id=${ids.slice(i, i + 50).join(",")}`, { headers: H })).json();
     for (const v of j.items || []) {
-      const nk = nicheMap[v.id];
-      list.push({ video_id: v.id, title: v.snippet.title, privacy: v.status.privacyStatus, publish_at: (v.status || {}).publishAt || null, views: +((v.statistics || {}).viewCount || 0), published_at: v.snippet.publishedAt.slice(0, 10), pub_iso: v.snippet.publishedAt, niche: nk || null, niche_label: NICHE_LABEL[nk] || null, manual: !nk });
+      const nk = nicheMap[v.id] || inferNiche(v.snippet.title); // SIEMPRE hay categoria
+      list.push({ video_id: v.id, title: v.snippet.title, privacy: v.status.privacyStatus, publish_at: (v.status || {}).publishAt || null, views: +((v.statistics || {}).viewCount || 0), published_at: v.snippet.publishedAt.slice(0, 10), pub_iso: v.snippet.publishedAt, niche: nk, niche_label: NICHE_LABEL[nk] || null, manual: false });
     }
   }
   let watch_min = 0;
@@ -36,9 +46,9 @@ try {
   const pubs = list.filter((v) => v.privacy === "public" && v.pub_iso);
   for (const v of pubs) { const days = Math.max(0.5, (now - Date.parse(v.pub_iso)) / 86400000); v.vpd = +(v.views / days).toFixed(1); v._h = etHour(v.pub_iso); }
   // TOP: los que más rinden por VELOCIDAD (vistas/día, justo para videos de distinta edad).
-  const top = [...pubs].sort((a, b) => (b.vpd || 0) - (a.vpd || 0)).slice(0, 5).map((v) => ({ video_id: v.video_id, title: v.title, views: v.views, vpd: v.vpd, niche_label: v.niche_label || (v.manual ? "manual" : null) }));
+  const top = [...pubs].sort((a, b) => (b.vpd || 0) - (a.vpd || 0)).slice(0, 5).map((v) => ({ video_id: v.video_id, title: v.title, views: v.views, vpd: v.vpd, niche_label: v.niche_label }));
   // NICHO ganador: qué categoría acumula más vistas/día (para producir más de eso).
-  const byNiche = {}; for (const v of pubs) { const k = v.niche_label || (v.manual ? "Manual" : "Sin categoría"); (byNiche[k] = byNiche[k] || { vpd: 0, n: 0 }); byNiche[k].vpd += v.vpd || 0; byNiche[k].n++; }
+  const byNiche = {}; for (const v of pubs) { const k = v.niche_label || "Satisfying / ASMR"; (byNiche[k] = byNiche[k] || { vpd: 0, n: 0 }); byNiche[k].vpd += v.vpd || 0; byNiche[k].n++; }
   const niche_ranking = Object.entries(byNiche).map(([label, d]) => ({ label, avg_vpd: +(d.vpd / d.n).toFixed(1), videos: d.n })).sort((a, b) => b.avg_vpd - a.avg_vpd);
   // MEJORES HORAS por DATOS: horas ET con más vistas/día acumuladas. Solo si hay señal suficiente
   // (>=6 públicos); si no, null -> el agendado usa las horas investigadas (research) por defecto.
