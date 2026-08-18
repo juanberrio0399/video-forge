@@ -36,3 +36,15 @@ jobs:
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/state.json" --file=auto2_state.json --remote --content-type application/json
           # Mejores horas por datos (si el reporte las calculó) -> para el agendado.
           [ -s best_hours.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/best_hours.json" --file=best_hours.json --remote --content-type application/json || true
+          # Snapshot diario de MONETIZACION (meta): subs + vistas de Shorts. No depende de abrir la app.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/monetization_history.json" --file=mh2.json --remote 2>/dev/null || echo '[]' > mh2.json
+          node -e '
+            const fs=require("fs"); let h=[]; try{h=JSON.parse(fs.readFileSync("mh2.json","utf8"))}catch(e){}; if(!Array.isArray(h))h=[];
+            let st={}; try{st=JSON.parse(fs.readFileSync("auto2_state.json","utf8"))}catch(e){}
+            const today=new Date().toISOString().slice(0,10);
+            const snap={date:today, subs:Math.round(st.subs||0), shorts_views:Math.round(st.total_views||0)};
+            if(h.length&&h[h.length-1].date===today) h[h.length-1]=snap; else h.push(snap);
+            fs.writeFileSync("mh2.json", JSON.stringify(h.slice(-120)));
+            console.log("Snapshot Oddly (meta):", JSON.stringify(snap));
+          '
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/monetization_history.json" --file=mh2.json --remote --content-type application/json
