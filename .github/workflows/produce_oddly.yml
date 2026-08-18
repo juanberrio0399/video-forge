@@ -75,6 +75,12 @@ jobs:
       - name: Formato del Short (fuerza 9:16)
         run: if [ "$KIND" = "short" ]; then echo "FORMAT=9:16" >> "$GITHUB_ENV"; fi
 
+      - name: Aprendizaje del canal (titulos ganadores) -> el guion imita lo que rinde
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/state.json" --file=auto2_state.json --remote 2>/dev/null || echo '{}' > auto2_state.json
+          LEARN=$(node -e 'try{const s=JSON.parse(require("fs").readFileSync("auto2_state.json","utf8"));const t=(s.top||[]).slice(0,5).map(v=>`"${(v.title||"").replace(/ #Shorts$/,"").replace(/[\r\n]+/g," ")}" (${v.vpd||0}/dia${v.niche_label?", "+v.niche_label:""})`).join(" · ");process.stdout.write(t)}catch(e){}')
+          echo "ODDLY_LEARN=${LEARN}" >> "$GITHUB_ENV"
+          [ -n "$LEARN" ] && echo "Aprendizaje: $LEARN" || echo "Sin datos de aprendizaje aun (usa el prompt base)"
       - name: Guion de la compilacion (IA)
         run: |
           if node pipeline/compilation_script.mjs "$NICHE" voicemap.json "$VARIANT" "$KIND"; then
