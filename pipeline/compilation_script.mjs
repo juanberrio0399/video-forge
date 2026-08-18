@@ -48,7 +48,9 @@ async function gemini(prompt) {
           if (!r.ok) { console.error(`key${k + 1}/${m}: ${r.status}`); continue; }
           const j = await r.json();
           const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
-          if (t) return JSON.parse(t);
+          if (!t) continue;
+          let p = null; try { p = JSON.parse(t); } catch { console.error(`key${k + 1}/${m}: JSON invalido`); continue; }
+          if (p && Array.isArray(p.beats) && p.beats.length) return p; // solo un guion valido (con beats) cuenta; si no, reintenta
         } catch (e) { console.error(`key${k + 1}/${m}: ${e.message}`); }
       }
     }

@@ -33,7 +33,8 @@ async function gemini(prompt) {
       if (!r.ok) { console.error(`gemini ${m}: ${r.status}`); continue; }
       const j = await r.json();
       const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
-      return JSON.parse(t);
+      if (!t) continue;
+      const p = JSON.parse(t); if (p && Array.isArray(p.shorts) && p.shorts.length) return p; // solo un plan valido (con shorts) cuenta
     } catch (e) { console.error(`gemini ${m}: ${e.message}`); }
   }
   return null;

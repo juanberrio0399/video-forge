@@ -71,7 +71,7 @@ async function pickMoment() {
       if (!res.ok) continue;
       const j = await res.json();
       const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
-      if (t) return JSON.parse(t);
+      if (t) { try { const p = JSON.parse(t); if (p && isFinite(+p.start)) return p; } catch {} }
     } catch {}
   }
   return null;
