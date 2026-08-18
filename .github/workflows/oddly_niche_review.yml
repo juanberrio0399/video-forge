@@ -1,0 +1,35 @@
+name: Recordatorio semanal - revisar nichos de Oddly
+
+# Cada lunes te manda por Telegram el ranking de nichos por vistas/dia + la cadencia actual,
+# para decidir si re-balanceas hacia el ganador. TODO en tu infraestructura (GitHub + Telegram + R2),
+# NADA en claude.ai web (la cuenta compartida). Reemplaza al recordatorio de rutina en la nube.
+on:
+  schedule:
+    - cron: "0 14 * * 1"   # lunes 14:00 UTC = 9:00 a.m. Bogota
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Armar y enviar el recordatorio
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/state.json" --file=s.json --remote 2>/dev/null || echo '{}' > s.json
+          RANK=$(node -e 'try{const s=JSON.parse(require("fs").readFileSync("s.json","utf8"));const r=(s.niche_ranking||[]).map(n=>`${n.label}=${n.avg_vpd}/dia (${n.videos})`).join(" · ");process.stdout.write(r||"(sin datos aun)")}catch(e){process.stdout.write("(sin datos)")}')
+          CAD=$(node -e 'try{const c=JSON.parse(require("fs").readFileSync("channel/auto2/cadence.seed.json","utf8"));process.stdout.write(Object.entries(c.shorts_per_category||{}).map(([k,v])=>`${k}=${v}`).join(" · "))}catch(e){process.stdout.write("?")}')
+          bash pipeline/notify_telegram.sh "🗓️ Revisión semanal de nichos — Oddly Loop"$'\n\n'"🏆 Vistas/día por nicho: ${RANK}"$'\n\n'"Cadencia actual: ${CAD}"$'\n\n'"¿Re-balanceamos hacia el ganador? Dile a Claude: «revisa el ranking de Oddly y ajusta la cadencia»."
