@@ -65,5 +65,6 @@ try {
   fs.writeFileSync("best_hours.json", JSON.stringify(best_hours || {}, null, 2));
   console.log(`Auto2 (${state.name}): ${state.videos} videos · ${subs} subs · ${total_views} vistas · ${watch_min} min.`);
   if (top.length) console.log(`  🔥 Top: ${top.map((t) => (t.title || "").slice(0, 20) + " (" + t.vpd + "/día)").join(" · ")}`);
+  if (niche_ranking.length) console.log(`  🏆 Nichos por vistas/día (promedio): ${niche_ranking.map((r) => `${r.label}=${r.avg_vpd} (${r.videos} vids)`).join(" · ")}`);
   if (best_hours) console.log(`  🕐 Mejores horas (datos): ${best_hours.hours.join("h, ")}h ET`); else console.log("  🕐 Mejores horas: research (aún sin datos suficientes)");
 } catch (e) { console.error("report_auto2 error:", e.message); process.exit(1); }
