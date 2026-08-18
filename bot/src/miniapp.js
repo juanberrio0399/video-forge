@@ -818,6 +818,26 @@ export const APP_HTML = `<!doctype html>
     if(next) return card("▶️ Producir el siguiente","#"+(next.n||"")+" · "+(next.topic||""),"Producir","tab(\\'producir\\')");
     return '<div class="card muted">✅ Todo al día. Nada requiere tu atención ahora.</div>';
   }
+  function goalHtml(g){
+    if(!g||!g.reqs) return "";
+    var S={done:["var(--gr)","🎉 ¡Meta cumplida!"],ontrack:["var(--gr)","🟢 En camino"],measuring:["var(--cy)","📈 Midiendo el ritmo…"],behind:["var(--am)","🟡 Vamos atrás"]}[g.status]||["var(--cy)",""];
+    function fN(n){n=+n||0;if(n>=1e6)return (n/1e6).toFixed(n>=1e7?0:1)+"M";if(n>=1e3)return (n/1e3).toFixed(n>=1e5?0:1)+"k";return String(Math.round(n));}
+    function fP(n){if(n==null)return "—";n=+n||0;if(n>=1e3)return fN(n);if(n>=10)return String(Math.round(n));return String(Math.round(n*10)/10);}
+    var rows=g.reqs.map(function(r){
+      var bc=r.done?"var(--gr)":(r.on_track===false?"var(--am)":"var(--cy)");
+      var pace=r.done?'✅ completo'
+        :(r.on_track===null?'necesitas '+fP(r.per_day_needed)+'/día (aún midiendo el ritmo)'
+          :(r.on_track?'🟢 vas a '+fP(r.per_day_actual)+'/día · necesitas '+fP(r.per_day_needed)
+            :'🟡 vas a '+fP(r.per_day_actual)+'/día · necesitas '+fP(r.per_day_needed)+(r.proj_date?' · a este ritmo llegas el '+r.proj_date:'')));
+      return '<div style="margin-top:8px"><div style="display:flex;justify-content:space-between;font-size:12px"><span>'+esc(r.label)+'</span><span class="muted">'+fN(r.cur)+' / '+fN(r.target)+'</span></div>'
+        +'<div class="bar"><i style="width:'+r.pct+'%;background:'+bc+'"></i></div>'
+        +'<div class="muted" style="font-size:11px;margin-top:2px">'+pace+'</div></div>';
+    }).join("");
+    return '<h2>🎯 Meta de monetización</h2><div class="card">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px"><div style="font-weight:800;color:'+S[0]+'">'+S[1]+'</div><div class="muted" style="font-size:12px">quedan <b>'+g.days_left+'</b> días · '+esc(g.deadline)+'</div></div>'
+      +rows
+      +'<div class="muted" style="font-size:10px;margin-top:8px">'+(g.path==="shorts"?"Ruta Shorts: 1.000 subs + 10M vistas (90 días).":"Ruta estándar: 1.000 subs + 4.000 horas (12 meses).")+' El ritmo se mide con los últimos 7 días.</div></div>';
+  }
   function promiseMiniHtml(){
     var a=ST.analysis; if(!a) return "";
     var col=a.promise>=66?"var(--gr)":a.promise>=40?"var(--cy)":"var(--am)";
@@ -886,14 +906,14 @@ export const APP_HTML = `<!doctype html>
       var privA=((ST.auto2&&ST.auto2.list)||[]).filter(function(v){ var future=v.publish_at&&(new Date(v.publish_at)>nowR); var loc=localSched[v.video_id]; return v.privacy!=="public" && !future && loc!=="schedule" && loc!=="public"; }).length;
       var pendA=privA?('<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px">👀 '+privA+' video(s) por revisar</div><div class="muted" style="font-size:13px;margin:4px 0 8px">De Oddly Loop, privados. Revísalos y publica/programa en Producir.</div><button class="btn" onclick="tab(\\'producir\\')">Ir a revisar</button></div>'):'';
       // INICIO: pulso (KPIs + estado + pendientes + producir + radar)
-      el("s-inicio").innerHTML = auto2KpisHtml() + statusA + pendA + auto2TopHtml() + auto2ProduceCard() + nicheRadarHtml();
+      el("s-inicio").innerHTML = auto2KpisHtml() + goalHtml(ST.auto2 && ST.auto2.monet_goal) + statusA + pendA + auto2TopHtml() + auto2ProduceCard() + nicheRadarHtml();
       // PRODUCIR: sus videos CON acciones (publicar/programar) + producir + nota
       el("s-producir").innerHTML = statusA + auto2VideosHtml(true) + auto2ProduceCard()
         + '<div class="card muted" style="font-size:12px">Oddly Loop es <b>full-auto</b>: cuando prendamos el cron, produce y programa 3/día solo. Aquí revisas/publicas los suyos y disparas manuales.</div>';
       // AGENDA: próximos a publicar (programados) + en revisión + estado del automático + mejores horas
       el("s-agenda").innerHTML = auto2AgendaHtml();
       // ANALITICA: KPIs + top 3 + sin-vistas + radar (sin listar todos los videos)
-      el("s-analitica").innerHTML = auto2KpisHtml() + auto2TopHtml() + nicheRadarHtml();
+      el("s-analitica").innerHTML = auto2KpisHtml() + goalHtml(ST.auto2 && ST.auto2.monet_goal) + auto2TopHtml() + nicheRadarHtml();
       // MAS: info + refrescar
       el("s-mas").innerHTML = '<h2>⚙️ Canal automático</h2><div class="card muted" style="font-size:12px">Oddly Loop · @oddlyloophq · compilaciones ASMR/satisfying legales, automáticas. Solo fuentes con licencia (puerta de compliance).</div>'
         + '<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:2px">🎨 Marca del canal</div><div class="muted" style="font-size:12px;margin-bottom:8px">Aplica el banner, la descripción y los tags por API. El avatar te lo mando por Telegram para que lo subas en Studio (la API no lo permite).</div><button class="btn ghost" onclick="dispatch(\\'set_oddly_branding.yml\\',\\'Aplicar marca del canal\\')">🎨 Aplicar marca del canal</button></div>'
@@ -911,6 +931,7 @@ export const APP_HTML = `<!doctype html>
       +'<div class="kpi"><div class="n">'+(ST.long_count||0)+'</div><div class="l">Largos</div></div>'
       +'<div class="kpi"><div class="n">'+(ST.shorts_count||0)+'</div><div class="l">Shorts</div></div>'
       +'</div></div>'
+      +goalHtml(ST.monet_goal)
       +promiseMiniHtml()
       +healthLineHtml();
 
@@ -1042,7 +1063,8 @@ export const APP_HTML = `<!doctype html>
       +'<div id="insightsOut">'+lastInsights+'</div>'
       +'<div class="muted" style="font-size:11px;text-align:center">📹 largo · ↳🎬 sus shorts · 🔒 privado</div>';
     el("s-analitica").innerHTML=
-      analyticsHtml()
+      goalHtml(ST.monet_goal)
+      +analyticsHtml()
       +dataLensTopHtml()
       +analysisHtml()
       +factoryHtml()
