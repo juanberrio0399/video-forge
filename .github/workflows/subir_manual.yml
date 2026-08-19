@@ -45,6 +45,7 @@ jobs:
 
       - name: Instalar ffmpeg (binario listo, sin apt/candados)
         uses: federicocarboni/setup-ffmpeg@v3
+        continue-on-error: true
 
       - name: Bajar el clip de R2
         run: |
