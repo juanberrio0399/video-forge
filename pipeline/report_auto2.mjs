@@ -19,7 +19,7 @@ try {
   // Mapa video->nicho (lo escribe la produccion) para mostrar DE QUE trata cada video.
   let nicheMap = {};
   try { nicheMap = JSON.parse(fs.readFileSync("niche_map.json", "utf8")); } catch {}
-  const NICHE_LABEL = { satisfying: "Satisfying / ASMR", narrativas: "Narrativas", ciencia_humor: "Ciencia + humor", naturaleza_relax: "Naturaleza / relax" };
+  const NICHE_LABEL = { satisfying: "Satisfying / ASMR", narrativas: "Narrativas", ciencia_humor: "Ciencia + humor", naturaleza_relax: "Naturaleza / relax", remix: "Remix" };
   // Si un video no quedo en el niche_map (produccion vieja), INFERIMOS su categoria por el titulo,
   // para que TODO tenga subcategoria (nunca "Sin categoria"). Default = satisfying (el nucleo del canal).
   function inferNiche(title) {
