@@ -23,7 +23,12 @@ def cargar_config() -> dict:
         return json.load(f)
 
 
-def procesar_url(url: str, cfg: dict, hw: dict, music: str = None) -> list:
+def procesar_url(url: str, cfg: dict, hw: dict, procesados: set = None, music: str = None) -> list:
+    procesados = procesados if procesados is not None else set()
+    key = _source_key(url)
+    if key in procesados:
+        print(f"\n⏭️  Ya procesado antes (no duplico): {url}")
+        return []
     work = os.path.join(ROOT, "work", "job")
     os.makedirs(work, exist_ok=True)
     print(f"\n📥 [1/5] Descargando (solo CC): {url}")
@@ -66,7 +71,20 @@ def procesar_url(url: str, cfg: dict, hw: dict, music: str = None) -> list:
             resultados.append({"titulo": titulo, "categoria": p["categoria"]})
         except Exception as e:
             print(f"   ❌ error en el Short {i}: {e}")
+    publish.marcar_procesado(key)   # queda en el historial: no se vuelve a procesar
+    procesados.add(key)
     return resultados
+
+
+def _source_key(url: str) -> str:
+    """Clave estable del video FUENTE (para el anti-duplicados)."""
+    if "archive.org/details/" in url:
+        return "archive:" + url.split("archive.org/details/")[1].split("/")[0].split("?")[0]
+    if "watch?v=" in url:
+        return "yt:" + url.split("watch?v=")[1].split("&")[0]
+    if "youtu.be/" in url:
+        return "yt:" + url.split("youtu.be/")[1].split("?")[0]
+    return url
 
 
 def seleccionar_interactivo(cfg: dict) -> list:
@@ -86,6 +104,12 @@ def seleccionar_interactivo(cfg: dict) -> list:
         print("\n🔎 Buscando en YouTube (filtro Creative Commons)...")
         tops += (search.top_videos(temas, por, mind, ntop).get("top") or [])
     tops.sort(key=lambda v: v.get("score", 0), reverse=True)
+    # Anti-duplicados: quitar del TOP los videos que YA procesaste antes (historial en R2).
+    proc = publish.cargar_procesados()
+    antes = len(tops)
+    tops = [t for t in tops if _source_key(t.get("url", "")) not in proc]
+    if antes > len(tops):
+        print(f"   (omiti {antes - len(tops)} video(s) que ya habias procesado antes)")
     r = {"categorias": temas, "top": tops[:ntop]}
     print("\n📂 Categorias que estoy buscando: " + " · ".join(r["categorias"]))
     top = r["top"]
@@ -134,9 +158,10 @@ def main():
 
     music = os.path.join(ROOT, "assets", "music.mp3")
     music = music if os.path.exists(music) else None
+    procesados = publish.cargar_procesados()   # historial anti-duplicados (R2)
     total = []
     for u in urls:
-        total += procesar_url(u, cfg, hw, music)
+        total += procesar_url(u, cfg, hw, procesados, music)
 
     print("\n" + "=" * 50)
     if total:
