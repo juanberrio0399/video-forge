@@ -12,7 +12,7 @@ import sys
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src import analyze, detect_hardware, download, edit, publish, qa  # noqa: E402
+from src import analyze, detect_hardware, download, edit, publish, qa, search  # noqa: E402
 
 load_dotenv()
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -66,21 +66,53 @@ def procesar_url(url: str, cfg: dict, hw: dict, music: str = None) -> list:
     return resultados
 
 
+def seleccionar_interactivo(cfg: dict) -> list:
+    """Muestra las categorias + un TOP rankeado de videos CC largos y deja que Juan elija por numero."""
+    s = cfg.get("search", {})
+    print("\n🔎 Buscando videos CC largos en YouTube (tarda un momento)...")
+    r = search.top_videos(s.get("temas", []), s.get("por_tema", 8),
+                          s.get("duracion_min_video", 180), cfg.get("mostrar_top", 8))
+    print("\n📂 Categorias que estoy buscando: " + " · ".join(r["categorias"]))
+    top = r["top"]
+    if not top:
+        print("   No encontre videos CC largos ahora. Ajusta los temas en config.json -> search.temas.")
+        return []
+    print("\n🏆 TOP videos CC (el mejor primero — ya valide cual trae mas material):\n")
+    for i, v in enumerate(top, 1):
+        print(f"  {i}. [{v.get('score','')}/100] {v['title'][:62]}")
+        print(f"       {v.get('razon','')}")
+    print("\n👉 Que numero(s) apruebas?  (ej: 1   o   1,3   ·   'todos'   ·   ENTER = el #1)")
+    try:
+        sel = input("   > ").strip().lower()
+    except EOFError:
+        sel = ""
+    if sel == "":
+        elegidos = [top[0]]
+    elif sel in ("todos", "all"):
+        elegidos = top
+    else:
+        idxs = [int(x) for x in sel.replace(" ", "").split(",") if x.isdigit() and 1 <= int(x) <= len(top)]
+        elegidos = [top[i - 1] for i in idxs] or [top[0]]
+    print(f"\n✓ Procesando {len(elegidos)} video(s): " + ", ".join(f"#{top.index(e) + 1}" for e in elegidos))
+    return [e["url"] for e in elegidos]
+
+
 def main():
     cfg = cargar_config()
     print("🖥️  Detectando hardware...")
     hw = detect_hardware.detectar()
     print("   " + hw["nota"])
 
-    urls = []
     if len(sys.argv) > 1:
         urls = [sys.argv[1]]
+    elif cfg.get("sources"):
+        urls = list(cfg["sources"])
+    elif cfg.get("search", {}).get("enabled"):
+        urls = seleccionar_interactivo(cfg)
     else:
-        urls = list(cfg.get("sources") or [])
-        # (La busqueda por tema se agrega en la siguiente version; por ahora usa 'sources'.)
+        urls = []
     if not urls:
-        print("\n⚠️ No hay URLs. Pon videos CC en config.json -> 'sources', o pasa una URL:")
-        print("   python -m src.pipeline \"https://www.youtube.com/watch?v=...\"")
+        print("\n⚠️ No hay videos para procesar. Pon URLs CC en config.json -> 'sources', o activa 'search'.")
         return
 
     music = os.path.join(ROOT, "assets", "music.mp3")
