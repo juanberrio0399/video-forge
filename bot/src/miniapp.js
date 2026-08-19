@@ -909,7 +909,12 @@ export const APP_HTML = `<!doctype html>
       el("s-inicio").innerHTML = auto2KpisHtml() + goalHtml(ST.auto2 && ST.auto2.monet_goal) + statusA + pendA + auto2TopHtml() + auto2ProduceCard() + nicheRadarHtml();
       // PRODUCIR: sus videos CON acciones (publicar/programar) + producir + nota
       el("s-producir").innerHTML = statusA + auto2VideosHtml(true) + auto2ProduceCard()
+        + '<div class="card"><div style="font-weight:800;margin-bottom:4px">🎬 Mis Clips (subir uno tuyo)</div>'
+        + '<div class="muted" style="font-size:12px;margin-bottom:6px">Sube un video generado por IA: le pongo título, descripción y #, lo programo a la mejor hora libre y lo agrego a la playlist <b>Mis Clips</b>.</div>'
+        + '<label class="file" for="fClip">🎬 Elegir video (máx ~100MB)</label><input id="fClip" type="file" accept="video/*" class="hide">'
+        + '<input id="clipCap" type="text" placeholder="Opcional: de qué trata (ayuda al título)"></div>'
         + '<div class="card muted" style="font-size:12px">Oddly Loop es <b>full-auto</b>: cuando prendamos el cron, produce y programa 3/día solo. Aquí revisas/publicas los suyos y disparas manuales.</div>';
+      var _fc=el("fClip"); if(_fc) _fc.onchange=function(e){uploadClip(e.target.files[0]);};
       // AGENDA: próximos a publicar (programados) + en revisión + estado del automático + mejores horas
       el("s-agenda").innerHTML = auto2AgendaHtml();
       // ANALITICA: KPIs + top 3 + sin-vistas + radar (sin listar todos los videos)
@@ -1084,10 +1089,6 @@ export const APP_HTML = `<!doctype html>
       +'<button class="btn" onclick="buildRecipe()">🍳 Armar el reel</button></div>'
       +'<div class="card"><label class="file" for="fVoice">🎤 Subir nota de voz</label><input id="fVoice" type="file" accept="audio/*" class="hide">'
       +'<input id="vName" type="text" placeholder="Nombre de la voz (ej: esposa)"></div>'
-      +'<div class="card"><div style="font-weight:800;margin-bottom:4px">🎬 Mis Clips → Oddly Loop</div>'
-      +'<div class="muted" style="font-size:12px;margin-bottom:6px">Sube un video tuyo: la IA le pone título, descripción y #, lo programa a la mejor hora libre y lo agrega a la playlist <b>Mis Clips</b>.</div>'
-      +'<label class="file" for="fClip">🎬 Elegir video (máx ~100MB)</label><input id="fClip" type="file" accept="video/*" class="hide">'
-      +'<input id="clipCap" type="text" placeholder="Opcional: de qué trata (ayuda al título)"></div>'
       +voicePickerHtml()
       +toolsHealthHtml()
       +problemsHtml()
@@ -1098,7 +1099,6 @@ export const APP_HTML = `<!doctype html>
     el("fPhoto").onchange=function(e){uploadPhoto(e.target.files[0]);};
     el("fRecipe").onchange=function(e){recFiles=Array.prototype.slice.call(e.target.files);el("recCount").textContent=recFiles.length+" archivo(s) elegido(s).";};
     el("fVoice").onchange=function(e){uploadVoice(e.target.files[0]);};
-    el("fClip").onchange=function(e){uploadClip(e.target.files[0]);};
   }
 
   var recFiles=[];
