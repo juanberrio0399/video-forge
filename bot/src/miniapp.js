@@ -760,16 +760,17 @@ export const APP_HTML = `<!doctype html>
     prog.forEach(function(v){ var k=v.publish_at?dayKey(v.publish_at):'—'; (byDay[k]=byDay[k]||[]).push(v); });
     var days=Object.keys(byDay).sort();
     var h='<h2>📅 Calendario de Oddly Loop</h2>'
-      +'<div class="card muted" style="font-size:12px">Lo que hay <b>programado cada día</b> (tu hora). Los privados por revisar salen más abajo.</div>';
+      +'<div class="card muted" style="font-size:12px">Lo que hay <b>programado cada día</b> (tu hora). Los privados por revisar salen más abajo.<br><span style="color:#c084fc;font-weight:700">🟣 morado = tus clips manuales</span> · azul = automáticos.</div>';
     if(days.length){
       h+=days.map(function(k){
         var items=byDay[k].sort(function(a,b){ return (a.publish_at||'')<(b.publish_at||'')?-1:1; });
         var rows=items.map(function(v){
           var isShort=/#short/i.test(v.title||'');
           var t=v.publish_at?fmtTime(v.publish_at):'mejor hora';
-          return '<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid rgba(255,255,255,.06)">'
-            +'<div style="font-size:12px">'+(isShort?'📱':'🎬')+' '+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||'').slice(0,30))+'</a>':esc((v.title||'').slice(0,30)))+(v.niche_label?' <span class="muted" style="font-size:10px">('+esc(v.niche_label)+')</span>':'')+'</div>'
-            +'<div style="font-size:11px;color:var(--cy);white-space:nowrap">🕒 '+esc(t)+'</div></div>';
+          var man=v.manual; var col=man?'#c084fc':'var(--cy)';
+          return '<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid rgba(255,255,255,.06)'+(man?';border-left:3px solid #c084fc;padding-left:6px':'')+'">'
+            +'<div style="font-size:12px">'+(man?'🟣':(isShort?'📱':'🎬'))+' '+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||'').slice(0,30))+'</a>':esc((v.title||'').slice(0,30)))+(man?' <span style="color:#c084fc;font-size:10px;font-weight:700">tuyo</span>':'')+(v.niche_label?' <span class="muted" style="font-size:10px">('+esc(v.niche_label)+')</span>':'')+'</div>'
+            +'<div style="font-size:11px;color:'+col+';white-space:nowrap">🕒 '+esc(t)+'</div></div>';
         }).join('');
         return '<div class="card" style="padding:10px 12px"><div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;text-transform:capitalize"><span>'+esc(dayLabel(k))+'</span><span style="color:var(--cy)">'+items.length+'</span></div>'+rows+'</div>';
       }).join('');
