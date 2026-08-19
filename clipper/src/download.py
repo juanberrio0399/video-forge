@@ -7,10 +7,12 @@ import json
 import os
 import subprocess
 
+from src import tools
+
 
 def _meta(url: str) -> dict:
     """Metadata del video via yt-dlp (sin descargar)."""
-    r = subprocess.run(["yt-dlp", "-J", "--no-warnings", url], capture_output=True, text=True, timeout=120)
+    r = subprocess.run(tools.ytdlp() + ["-J", "--no-warnings", url], capture_output=True, text=True, timeout=120)
     if r.returncode != 0:
         raise RuntimeError(f"yt-dlp -J fallo: {r.stderr[:300]}")
     return json.loads(r.stdout)
@@ -30,8 +32,8 @@ def descargar(url: str, work_dir: str) -> dict:
 
     out = os.path.join(work_dir, "source.%(ext)s")
     r = subprocess.run(
-        ["yt-dlp", "-f", "bv*[height<=1080]+ba/b[height<=1080]", "--merge-output-format", "mp4",
-         "-o", out, "--no-warnings", url],
+        tools.ytdlp() + ["-f", "bv*[height<=1080]+ba/b[height<=1080]", "--merge-output-format", "mp4",
+                         "-o", out, "--no-warnings", url],
         capture_output=True, text=True, timeout=1800,
     )
     if r.returncode != 0:
