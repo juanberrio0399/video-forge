@@ -146,7 +146,7 @@ const APP_WORKFLOWS = new Set([
   "render_phased.yml", "voice_parallel.yml", "channel_report.yml", "shorts_plan.yml",
   "shorts_final.yml", "publish_youtube.yml", "set_privacy.yml", "recipe_reel.yml",
   "produce_video.yml", "seo_regen.yml", "thumbnail_only.yml", "voice_samples.yml",
-  "schedule_youtube.yml", "daily_video.yml", "channel_report.yml", "niche_radar.yml",
+  "schedule_youtube.yml", "daily_video.yml", "photo_edit.yml", "niche_radar.yml",
   "report_auto2.yml", "produce_oddly.yml", "publish_oddly.yml", "build_asmr_library.yml", "daily_oddly.yml", "set_oddly_branding.yml", "clip_pd.yml", "clip_nasa.yml", "clip_wikimedia.yml", "clip_pixabay.yml", "clip_pexels.yml", "clip_archive_cc.yml", "subir_manual.yml",
 ]);
 
@@ -787,11 +787,12 @@ async function handleApi(request, env, url) {
     const ct = request.headers.get("content-type") || "";
     if (!/^video\//.test(ct)) return json({ error: "el archivo debe ser un video" }, 400);
     const size = +(request.headers.get("content-length") || 0);
+    if (!size) return json({ error: "no pude medir el tamaño del video; reintenta la subida" }, 411);
     if (size > 100 * 1024 * 1024) return json({ error: "El clip supera ~100MB (límite del subidor por ahora). Recórtalo o bájale la calidad." }, 413);
     if (!request.body) return json({ error: "sin video" }, 400);
     const cid = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const key = `clipper/manual/${cid}.mp4`;
-    await env.R2.put(key, request.body, { httpMetadata: { contentType: "video/mp4" } });
+    await env.R2.put(key, request.body, { httpMetadata: { contentType: ct } });
     const caption = (url.searchParams.get("caption") || "").slice(0, 300);
     const r = await ghDispatch(env, "subir_manual.yml", { r2_key: key, caption });
     return json({ ok: r.ok, cid });
