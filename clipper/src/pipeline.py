@@ -72,16 +72,21 @@ def procesar_url(url: str, cfg: dict, hw: dict, music: str = None) -> list:
 def seleccionar_interactivo(cfg: dict) -> list:
     """Muestra las categorias + un TOP rankeado de videos CC largos y deja que Juan elija por numero."""
     s = cfg.get("search", {})
-    fuente = (s.get("fuente") or "youtube").lower()
-    if fuente == "archive":
+    fuente = (s.get("fuente") or "youtube").lower()   # "youtube" | "archive" | "ambos"
+    temas = s.get("temas", [])
+    por = s.get("por_tema", 8)
+    mind = s.get("duracion_min_video", 60)
+    ntop = cfg.get("mostrar_top", 8)
+    tops = []
+    if fuente in ("archive", "ambos"):
         from src import search_archive
-        print("\n🔎 Buscando videos legales (CC / dominio publico) en Archive.org...")
-        r = search_archive.top_videos(s.get("temas", []), s.get("por_tema", 8),
-                                      s.get("duracion_min_video", 180), cfg.get("mostrar_top", 8))
-    else:
-        print("\n🔎 Buscando videos CC largos en YouTube (tarda un momento)...")
-        r = search.top_videos(s.get("temas", []), s.get("por_tema", 8),
-                              s.get("duracion_min_video", 180), cfg.get("mostrar_top", 8))
+        print("\n🔎 Buscando en Archive.org (CC / dominio publico)...")
+        tops += (search_archive.top_videos(temas, por, mind, ntop).get("top") or [])
+    if fuente in ("youtube", "ambos"):
+        print("\n🔎 Buscando en YouTube (filtro Creative Commons)...")
+        tops += (search.top_videos(temas, por, mind, ntop).get("top") or [])
+    tops.sort(key=lambda v: v.get("score", 0), reverse=True)
+    r = {"categorias": temas, "top": tops[:ntop]}
     print("\n📂 Categorias que estoy buscando: " + " · ".join(r["categorias"]))
     top = r["top"]
     if not top:
