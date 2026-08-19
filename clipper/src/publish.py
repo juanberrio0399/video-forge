@@ -1,75 +1,55 @@
-"""Paso 5 — Publicar: sube el Short PRIVADO a Oddly Loop (YT2), lo etiqueta con la categoria
-distinta (para medir aparte) escribiendo en R2 niche_map, y avisa al bot de Telegram para que
-Juan apruebe. NO publica publico: eso lo decides tu desde el bot.
+"""Paso 5 — Enviar a R2 (NO sube a YouTube desde el PC).
+
+El PC solo deja el Short editado + su metadata en R2, en el area 'clipper/pending/'. Luego el BOT
+lo muestra para que Juan apruebe, y la NUBE (con los secrets que ya tiene) lo sube a Oddly. Asi el
+PC solo necesita las claves de R2 (nada de YT2 ni el refresh token dificil).
 """
 import json
 import os
+import time
+from datetime import datetime, timezone
 
-import requests
-
-
-def subir_a_oddly(short_path: str, titulo: str, descripcion: str) -> str:
-    """Sube PRIVADO a Oddly Loop con las credenciales YT2. Devuelve el video_id."""
-    from google.oauth2.credentials import Credentials
-    from googleapiclient.discovery import build
-    from googleapiclient.http import MediaFileUpload
-
-    creds = Credentials(
-        token=None,
-        refresh_token=os.getenv("YT2_REFRESH_TOKEN"),
-        client_id=os.getenv("YT2_CLIENT_ID"),
-        client_secret=os.getenv("YT2_CLIENT_SECRET"),
-        token_uri="https://oauth2.googleapis.com/token",
-    )
-    yt = build("youtube", "v3", credentials=creds)
-    body = {
-        "snippet": {"title": titulo[:100], "description": descripcion[:4900], "categoryId": "24"},
-        "status": {"privacyStatus": "private", "selfDeclaredMadeForKids": False},
-    }
-    media = MediaFileUpload(short_path, chunksize=-1, resumable=True)
-    req = yt.videos().insert(part="snippet,status", body=body, media_body=media)
-    resp = None
-    while resp is None:
-        _, resp = req.next_chunk()
-    return resp["id"]
+import boto3
 
 
-def etiquetar_categoria_r2(video_id: str, categoria_key: str):
-    """Marca este video con la categoria (para que el bot/reporte lo mida aparte) en channel/auto2/niche_map.json."""
-    import boto3
+def _s3():
     acc = os.getenv("CLOUDFLARE_ACCOUNT_ID")
+    if not (acc and os.getenv("R2_ACCESS_KEY_ID") and os.getenv("R2_SECRET_ACCESS_KEY")):
+        raise RuntimeError("Faltan claves de R2 en .env (CLOUDFLARE_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY)")
+    return boto3.client("s3", endpoint_url=f"https://{acc}.r2.cloudflarestorage.com",
+                        aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+                        aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"), region_name="auto")
+
+
+def enviar_a_r2(short_path: str, titulo: str, atribucion: str, clip: dict, cfg: dict, source_url: str) -> dict:
+    """Sube el MP4 + metadata a R2 pending y actualiza el indice que lee el bot."""
     bucket = os.getenv("R2_BUCKET", "video-forge")
-    s3 = boto3.client("s3", endpoint_url=f"https://{acc}.r2.cloudflarestorage.com",
-                      aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
-                      aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"), region_name="auto")
-    key = "channel/auto2/niche_map.json"
+    s3 = _s3()
+    cid = f"{int(time.time())}_{os.path.splitext(os.path.basename(short_path))[0]}"
+    key_mp4 = f"clipper/pending/{cid}.mp4"
+    key_meta = f"clipper/pending/{cid}.json"
+    now = datetime.now(timezone.utc).isoformat()
+
+    print("   subiendo el Short a R2 (para revisar en el bot)...")
+    s3.upload_file(short_path, bucket, key_mp4, ExtraArgs={"ContentType": "video/mp4"})
+    meta = {
+        "id": cid, "mp4_key": key_mp4, "title": titulo,
+        "description": f"{titulo}\n\n{atribucion}\n\nEditado por Oddly Clipper. #Shorts",
+        "categoria": cfg.get("categoria", "Remix"), "categoria_key": cfg.get("categoria_key", "remix"),
+        "source_url": source_url, "score": clip.get("score"), "at": now,
+    }
+    s3.put_object(Bucket=bucket, Key=key_meta, Body=json.dumps(meta).encode(), ContentType="application/json")
+
+    # Indice de pendientes (lo lee el bot para mostrarlos en "Remix por revisar")
+    idx_key = "clipper/pending/index.json"
     try:
-        cur = json.loads(s3.get_object(Bucket=bucket, Key=key)["Body"].read())
+        idx = json.loads(s3.get_object(Bucket=bucket, Key=idx_key)["Body"].read())
+        if not isinstance(idx, list):
+            idx = []
     except Exception:
-        cur = {}
-    cur[video_id] = categoria_key
-    s3.put_object(Bucket=bucket, Key=key, Body=json.dumps(cur).encode(), ContentType="application/json")
+        idx = []
+    idx = [x for x in idx if x.get("id") != cid]
+    idx.append({"id": cid, "title": titulo, "at": now, "source_url": source_url, "score": clip.get("score")})
+    s3.put_object(Bucket=bucket, Key=idx_key, Body=json.dumps(idx).encode(), ContentType="application/json")
 
-
-def avisar_bot(titulo: str, video_id: str, categoria: str):
-    tok, chat = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
-    if not (tok and chat):
-        return
-    msg = (f"✂️ Nuevo Short (Clipper) — categoria «{categoria}»\n\n{titulo}\n"
-           f"https://youtu.be/{video_id}\n\nQuedo PRIVADO en Oddly Loop. Revisalo y aprueba/publica desde el bot.")
-    try:
-        requests.post(f"https://api.telegram.org/bot{tok}/sendMessage", json={"chat_id": chat, "text": msg}, timeout=20)
-    except Exception:
-        pass
-
-
-def publicar(short_path: str, titulo: str, atribucion: str, cfg: dict) -> dict:
-    desc = f"{titulo}\n\n{atribucion}\n\nEditado por Oddly Clipper. #Shorts"
-    print("   subiendo PRIVADO a Oddly Loop (YT2)...")
-    vid = subir_a_oddly(short_path, titulo, desc)
-    try:
-        etiquetar_categoria_r2(vid, cfg.get("categoria_key", "clips_cc"))
-    except Exception as e:
-        print(f"   (aviso) no pude etiquetar en R2: {e}")
-    avisar_bot(titulo, vid, cfg.get("categoria", "Clips CC"))
-    return {"video_id": vid, "url": f"https://youtu.be/{vid}"}
+    return {"id": cid, "categoria": meta["categoria"]}

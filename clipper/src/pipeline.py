@@ -59,11 +59,11 @@ def procesar_url(url: str, cfg: dict, hw: dict, music: str = None) -> list:
                 continue
             print(f"   ✓ QA OK ({v['w']}x{v['h']}, {v['dur']}s)")
 
-            print("📤 [5/5] Publicando PRIVADO a Oddly Loop...")
+            print("📤 [5/5] Enviando a R2 (para que lo apruebes en el bot)...")
             titulo = (clip.get("title") or d["title"])[:100]
-            p = publish.publicar(out_mp4, titulo, d["atribucion"], cfg)
-            print(f"   ✅ Subido: {p['url']}  (privado, categoria «{cfg.get('categoria')}»)")
-            resultados.append({"url": p["url"], "titulo": titulo})
+            p = publish.enviar_a_r2(out_mp4, titulo, d["atribucion"], clip, cfg, url)
+            print(f"   ✅ En R2: «{titulo}» (categoria «{p['categoria']}») — apruébalo en el bot de Telegram")
+            resultados.append({"titulo": titulo, "categoria": p["categoria"]})
         except Exception as e:
             print(f"   ❌ error en el Short {i}: {e}")
     return resultados
@@ -128,9 +128,9 @@ def main():
 
     print("\n" + "=" * 50)
     if total:
-        print(f"✅ Listo: {len(total)} Short(s) PRIVADOS en Oddly Loop. Aprueba desde el bot de Telegram.")
+        print(f"✅ Listo: {len(total)} Short(s) enviados a R2. Ábrelos y APRUEBA en el bot de Telegram.")
         for t in total:
-            print(f"   • {t['titulo']}  {t['url']}")
+            print(f"   • {t['titulo']}  [{t['categoria']}]")
     else:
         print("Sin Shorts producidos esta corrida (revisa el log de arriba).")
 

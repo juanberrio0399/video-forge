@@ -24,7 +24,7 @@ if (-not (Test-Path ".\venv")) {
 # [3] Revisar que tengas tus claves (lo unico manual, 1 sola vez)
 if (-not (Test-Path ".\.env")) { Copy-Item ".env.example" ".env" }
 $envtxt = Get-Content ".\.env" -Raw
-if ($envtxt -match "(?m)(GEMINI_API_KEY|YT2_CLIENT_ID)=\s*$") {
+if ($envtxt -match "(?m)(GEMINI_API_KEY|R2_ACCESS_KEY_ID)=\s*$") {
   Write-Host "`n[3/4] FALTAN TUS CLAVES (gratis)." -ForegroundColor Red
   Write-Host "      Voy a abrir el archivo de claves en el Bloc de notas." -ForegroundColor Red
   Write-Host "      Pega tus claves, GUARDA (Ctrl+S), cierra el Bloc de notas y vuelve aca." -ForegroundColor Red
