@@ -3,10 +3,11 @@
   "sources": [],
   "search": {
     "enabled": true,
-    "temas": ["oddly satisfying", "relaxing nature 4k", "amazing story", "science explained"],
+    "fuente": "archive",
+    "temas": ["funny", "comedy", "bloopers", "funny animals"],
     "por_tema": 8,
     "solo_cc": true,
-    "duracion_min_video": 300
+    "duracion_min_video": 60
   },
   "mostrar_top": 8,
   "clips_per_video": 2,
