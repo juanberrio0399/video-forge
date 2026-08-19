@@ -1,9 +1,10 @@
 name: Subir clip manual a Oddly (Mis Clips)
 
 # Sube un clip que Juan dejo en R2 (clipper/manual/<cid>.mp4) desde la Mini App:
-#  transcribe -> SEO IA (titulo/descripcion/#) -> sube PRIVADO a Oddly Loop (YT2)
-#  -> PROGRAMA a la mejor hora libre -> lo agrega a la playlist "Mis Clips" -> avisa por Telegram.
-# Reusa el mismo mapeo YT2_* -> YT_* que publish_oddly.yml.
+#  extrae audio (ffmpeg) -> SEO IA (Gemini ESCUCHA el audio + la pista) -> sube PRIVADO a
+#  Oddly Loop (YT2) -> PROGRAMA a la mejor hora libre -> lo marca como manual (color en el
+#  calendario) -> lo agrega a la playlist "Mis Clips" -> avisa por Telegram.
+# Sin whisper (era lento): Gemini multimodal hace el analisis del audio.
 
 on:
   workflow_dispatch:
@@ -22,7 +23,7 @@ permissions:
 jobs:
   subir:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     env:
       YT_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
       YT_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
@@ -41,14 +42,9 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
 
-      - name: Instalar ffmpeg + faster-whisper
-        run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg
-          pip install -q faster-whisper
+      - name: Instalar ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Bajar el clip de R2
         run: |
@@ -59,11 +55,11 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/$R2_KEY" --file=clip.mp4 --remote
           ls -la clip.mp4
 
-      - name: Transcribir (insumo del SEO)
-        run: python pipeline/manual_transcribe.py clip.mp4 transcript.txt || echo "" > transcript.txt
+      - name: Extraer audio (para que la IA lo escuche)
+        run: ffmpeg -y -i clip.mp4 -vn -ac 1 -ar 16000 -b:a 48k audio.mp3 || echo "el clip no tiene audio, sigo con la pista"
 
-      - name: SEO con IA (titulo / descripcion / #)
-        run: node pipeline/manual_seo.mjs transcript.txt "$CAPTION"
+      - name: SEO con IA (escucha el audio + la pista)
+        run: node pipeline/manual_seo.mjs audio.mp3 "$CAPTION"
 
       - name: Subir a Oddly Loop (privado)
         run: |
