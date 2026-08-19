@@ -3,10 +3,10 @@
   "sources": [],
   "search": {
     "enabled": true,
-    "fuente": "archive",
+    "fuente": "ambos",
     "temas": ["funny", "comedy", "bloopers", "funny animals"],
     "por_tema": 8,
-    "solo_cc": true,
+    "solo_cc": false,
     "duracion_min_video": 60
   },
   "mostrar_top": 8,
