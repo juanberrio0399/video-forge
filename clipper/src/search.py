@@ -4,6 +4,8 @@ para que Juan elija cual procesar (por numero). Solo metadata (no descarga) -> r
 import json
 import subprocess
 
+from src import tools
+
 
 def _run(args, timeout=90):
     r = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
@@ -12,7 +14,7 @@ def _run(args, timeout=90):
 
 def _buscar_flat(tema: str, n: int) -> list:
     """Busca N candidatos (rapido, sin licencia todavia)."""
-    out, rc = _run(["yt-dlp", f"ytsearch{n}:{tema} creative commons", "--flat-playlist", "-J", "--no-warnings"])
+    out, rc = _run(tools.ytdlp() + [f"ytsearch{n}:{tema} creative commons", "--flat-playlist", "-J", "--no-warnings"])
     if rc != 0 or not out:
         return []
     try:
@@ -30,7 +32,7 @@ def _buscar_flat(tema: str, n: int) -> list:
 
 def _es_cc(vid_url: str) -> tuple:
     """Verifica licencia CC (una llamada de metadata). Devuelve (es_cc, meta_min)."""
-    out, rc = _run(["yt-dlp", "-J", "--no-warnings", "--skip-download", vid_url], timeout=60)
+    out, rc = _run(tools.ytdlp() + ["-J", "--no-warnings", "--skip-download", vid_url], timeout=60)
     if rc != 0 or not out:
         return False, {}
     try:

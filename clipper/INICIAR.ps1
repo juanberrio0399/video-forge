@@ -19,7 +19,9 @@ if (-not (Test-Path ".\venv")) {
   Write-Host "[2/4] Primera vez: instalando todo (tarda unos minutos, es 1 sola vez)..." -ForegroundColor Yellow
   powershell -ExecutionPolicy Bypass -File ".\setup.ps1"
 } else {
-  Write-Host "[2/4] Ya esta instalado. OK" -ForegroundColor Green
+  Write-Host "[2/4] Revisando dependencias..." -ForegroundColor Yellow
+  .\venv\Scripts\python.exe -m pip install -q -r requirements.txt *> "$clipper\setup_install.log"
+  Write-Host "[2/4] Dependencias al dia. OK" -ForegroundColor Green
 }
 
 # [3] Revisar que tengas tus claves (lo unico manual, 1 sola vez)

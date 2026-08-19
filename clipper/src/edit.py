@@ -6,6 +6,8 @@ v1 = reframe por recorte central + subtitulos por frase. (Face-tracking y b-roll
 import os
 import subprocess
 
+from src import tools
+
 W, H = 1080, 1920  # 9:16
 
 
@@ -58,7 +60,7 @@ def editar(video_path: str, clip: dict, words: list, cfg: dict, out_mp4: str, mu
         ass_esc = ass.replace("\\", "/").replace(":", "\\:")
         vf += f",subtitles='{ass_esc}'"
 
-    cmd = ["ffmpeg", "-y", "-ss", str(start), "-t", str(dur), "-i", video_path]
+    cmd = [tools.ffmpeg(), "-y", "-ss", str(start), "-t", str(dur), "-i", video_path]
     if music_path and cfg.get("musica", {}).get("on", True) and os.path.exists(music_path):
         vol = cfg.get("musica", {}).get("volumen", 0.12)
         cmd += ["-stream_loop", "-1", "-i", music_path,
