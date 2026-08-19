@@ -15,7 +15,7 @@
   "duracion_short": { "min": 15, "max": 55 },
   "idioma": "en",
   "subtitulos": { "estilo": "karaoke", "on": true },
-  "broll": { "on": true, "fuente": "pexels" },
-  "musica": { "on": true, "volumen": 0.12 },
+  "broll": { "on": false },
+  "musica": { "on": false, "volumen": 0.12 },
   "privacidad_subida": "private"
 }

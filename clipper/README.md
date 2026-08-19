@@ -1,7 +1,7 @@
 # Oddly Clipper — 2º puente de creación (local, gratis)
 
 Toma videos **largos con licencia Creative Commons (CC-BY)** de YouTube, los **edita profesionalmente**
-(reencuadre 9:16, subtítulos animados, b-roll, música, efectos) y los deja **privados en Oddly Loop**
+(reencuadre 9:16, subtítulos animados) usando **solo el contenido del propio video** (nada externo) y los deja **privados en Oddly Loop**
 para que **tú apruebes desde el bot de Telegram** si se publican o no.
 
 Corre **100% local en tu PC** (por eso puede descargar de YouTube, cosa que la nube bloquea). Todo
@@ -19,7 +19,7 @@ hace la nube (lo automático) y lo local (esto). Al clonar video-forge en cualqu
 ```
 1. DESCARGA (local, yt-dlp)      → baja el video CC + verifica que la licencia sea CC-BY
 2. ANÁLISIS (Whisper + Gemini)   → transcribe y la IA elige los MEJORES momentos (hooks, giros)
-3. EDICIÓN PRO (ffmpeg + motor)  → recorta, reencuadra 9:16, subtítulos karaoke, b-roll, música
+3. EDICIÓN PRO (ffmpeg)          → recorta el momento, reencuadra 9:16, subtítulos karaoke (solo el video CC)
 4. QA                            → valida duración, formato 9:16, subtítulos, atribución CC, archivo OK
 5. PUBLICAR (privado a Oddly)    → sube PRIVADO a Oddly Loop (YT2) + categoría "Clips CC" + avisa al bot
 6. TÚ APRUEBAS en el bot         → publicar / programar / descartar (flujo que ya tienes)
@@ -62,7 +62,6 @@ Copy-Item .env.example .env
 ```
 - `YT2_CLIENT_ID / YT2_CLIENT_SECRET / YT2_REFRESH_TOKEN` — para subir a Oddly Loop
 - `GEMINI_API_KEY` — elegir los mejores momentos (plan gratis)
-- `PEXELS_API_KEY` — b-roll (plan gratis)
 - `R2_*` + `TELEGRAM_*` — para avisar al bot
 
 ### 4) Crear el acceso en el Escritorio (una vez)
