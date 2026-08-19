@@ -1,19 +1,22 @@
-# Oddly Clipper — SETUP (una sola vez por PC). Instala todo lo gratis y detecta tu hardware.
+# Oddly Clipper - SETUP (una sola vez por PC). Instala todo lo gratis y detecta tu hardware.
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
-Write-Host "=== Oddly Clipper · setup ===" -ForegroundColor Cyan
+Write-Host "=== Oddly Clipper - setup ===" -ForegroundColor Cyan
 
 # 1) Python
 try { $pv = (python --version) 2>&1 } catch { $pv = $null }
-if (-not $pv) { Write-Host "❌ Falta Python 3.10+. Instalalo de https://www.python.org/downloads/ (marca 'Add to PATH') y reintenta." -ForegroundColor Red; exit 1 }
-Write-Host "✓ $pv"
+if (-not $pv) {
+  Write-Host "[X] Falta Python 3.10+. Instalalo de https://www.python.org/downloads/ (marca 'Add to PATH') y reintenta." -ForegroundColor Red
+  exit 1
+}
+Write-Host "[OK] $pv"
 
 # 2) Entorno virtual + dependencias
 if (-not (Test-Path ".\venv")) { Write-Host "Creando entorno virtual..."; python -m venv venv }
 Write-Host "Instalando dependencias (gratis)..."
 .\venv\Scripts\python.exe -m pip install --upgrade pip | Out-Null
 .\venv\Scripts\python.exe -m pip install -r requirements.txt
-Write-Host "✓ dependencias listas"
+Write-Host "[OK] dependencias listas"
 
 # 3) ffmpeg
 $ff = (Get-Command ffmpeg -ErrorAction SilentlyContinue)
@@ -21,13 +24,20 @@ if (-not $ff) {
   Write-Host "ffmpeg no esta en el PATH. Intento instalarlo con winget..." -ForegroundColor Yellow
   try { winget install --id Gyan.FFmpeg -e --accept-source-agreements --accept-package-agreements } catch {}
   Write-Host "Si sigue faltando, instala ffmpeg y agregalo al PATH, luego reabre la terminal." -ForegroundColor Yellow
-} else { Write-Host "✓ ffmpeg encontrado" }
+} else {
+  Write-Host "[OK] ffmpeg encontrado"
+}
 
 # 4) .env
-if (-not (Test-Path ".\.env")) { Copy-Item ".env.example" ".env"; Write-Host "→ Cree .env — ABRELO y pon tus claves (todas gratis)." -ForegroundColor Yellow }
+if (-not (Test-Path ".\.env")) {
+  Copy-Item ".env.example" ".env"
+  Write-Host "-> Cree .env - ABRELO y pon tus claves (todas gratis)." -ForegroundColor Yellow
+}
 
 # 5) Hardware
-Write-Host "`nDetectando hardware..." -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Detectando hardware..." -ForegroundColor Cyan
 .\venv\Scripts\python.exe src\detect_hardware.py
 
-Write-Host "`n✅ Setup listo. Pon tus claves en .env y luego corre:  .\run.ps1" -ForegroundColor Green
+Write-Host ""
+Write-Host "[OK] Setup listo." -ForegroundColor Green
