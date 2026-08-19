@@ -21,6 +21,33 @@ def _s3():
                         aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"), region_name="auto")
 
 
+# --- Historial anti-duplicados (en R2: clipper/processed.json) ---
+def cargar_procesados() -> set:
+    """Ids de videos FUENTE ya procesados (para no repetir). Vive en R2 -> compartido entre PCs."""
+    try:
+        s3 = _s3()
+        bucket = os.getenv("R2_BUCKET", "video-forge")
+        data = json.loads(s3.get_object(Bucket=bucket, Key="clipper/processed.json")["Body"].read())
+        return set(data if isinstance(data, list) else [])
+    except Exception:
+        return set()
+
+
+def marcar_procesado(source_key: str):
+    """Guarda que ya procesamos ese video fuente (para no repetirlo en futuras busquedas)."""
+    if not source_key:
+        return
+    try:
+        s3 = _s3()
+        bucket = os.getenv("R2_BUCKET", "video-forge")
+        cur = cargar_procesados()
+        cur.add(source_key)
+        s3.put_object(Bucket=bucket, Key="clipper/processed.json",
+                      Body=json.dumps(sorted(cur)).encode(), ContentType="application/json")
+    except Exception as e:
+        print(f"   (aviso) no pude guardar en el historial anti-duplicados: {e}")
+
+
 def enviar_a_r2(short_path: str, titulo: str, atribucion: str, clip: dict, cfg: dict, source_url: str) -> dict:
     """Sube el MP4 + metadata a R2 pending y actualiza el indice que lee el bot."""
     bucket = os.getenv("R2_BUCKET", "video-forge")

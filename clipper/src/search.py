@@ -11,7 +11,7 @@ from urllib.parse import quote
 from src import tools
 
 # Codigo del filtro "Creative Commons" de la busqueda de YouTube (Filters -> Creative Commons).
-YT_CC_FILTER = "EgIwAQ%3D%3D"
+YT_CC_FILTER = "EgIQAQ%3D%3D"
 
 
 def _run(args, timeout=120):
