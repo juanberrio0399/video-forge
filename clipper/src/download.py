@@ -27,7 +27,10 @@ def descargar(url: str, work_dir: str) -> dict:
     """Descarga el video si es CC. Devuelve {ok, path, meta, atribucion} o {ok:False, motivo}."""
     os.makedirs(work_dir, exist_ok=True)
     meta = _meta(url)
-    if not es_creative_commons(meta):
+    # Archive.org ya viene pre-filtrado a CC/dominio publico en la busqueda -> no re-verificamos.
+    # YouTube SI se verifica: solo Creative Commons pasa.
+    es_archive = "archive.org" in url
+    if not es_archive and not es_creative_commons(meta):
         return {"ok": False, "motivo": f"NO es Creative Commons (license='{meta.get('license')}') -> descartado", "meta": meta}
 
     out = os.path.join(work_dir, "source.%(ext)s")

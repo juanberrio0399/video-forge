@@ -72,9 +72,16 @@ def procesar_url(url: str, cfg: dict, hw: dict, music: str = None) -> list:
 def seleccionar_interactivo(cfg: dict) -> list:
     """Muestra las categorias + un TOP rankeado de videos CC largos y deja que Juan elija por numero."""
     s = cfg.get("search", {})
-    print("\n🔎 Buscando videos CC largos en YouTube (tarda un momento)...")
-    r = search.top_videos(s.get("temas", []), s.get("por_tema", 8),
-                          s.get("duracion_min_video", 180), cfg.get("mostrar_top", 8))
+    fuente = (s.get("fuente") or "youtube").lower()
+    if fuente == "archive":
+        from src import search_archive
+        print("\n🔎 Buscando videos legales (CC / dominio publico) en Archive.org...")
+        r = search_archive.top_videos(s.get("temas", []), s.get("por_tema", 8),
+                                      s.get("duracion_min_video", 180), cfg.get("mostrar_top", 8))
+    else:
+        print("\n🔎 Buscando videos CC largos en YouTube (tarda un momento)...")
+        r = search.top_videos(s.get("temas", []), s.get("por_tema", 8),
+                              s.get("duracion_min_video", 180), cfg.get("mostrar_top", 8))
     print("\n📂 Categorias que estoy buscando: " + " · ".join(r["categorias"]))
     top = r["top"]
     if not top:
