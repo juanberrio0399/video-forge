@@ -21,6 +21,25 @@ def _s3():
                         aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"), region_name="auto")
 
 
+# --- Ultimo TOP guardado (para reusar los pendientes en la proxima corrida, sin re-buscar) ---
+def guardar_top(top: list):
+    try:
+        s3 = _s3()
+        s3.put_object(Bucket=os.getenv("R2_BUCKET", "video-forge"), Key="clipper/last_top.json",
+                      Body=json.dumps(top).encode(), ContentType="application/json")
+    except Exception:
+        pass
+
+
+def cargar_top() -> list:
+    try:
+        s3 = _s3()
+        d = json.loads(s3.get_object(Bucket=os.getenv("R2_BUCKET", "video-forge"), Key="clipper/last_top.json")["Body"].read())
+        return d if isinstance(d, list) else []
+    except Exception:
+        return []
+
+
 # --- Historial anti-duplicados (en R2: clipper/processed.json) ---
 def cargar_procesados() -> set:
     """Ids de videos FUENTE ya procesados (para no repetir). Vive en R2 -> compartido entre PCs."""

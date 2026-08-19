@@ -87,8 +87,8 @@ def _source_key(url: str) -> str:
     return url
 
 
-def seleccionar_interactivo(cfg: dict) -> list:
-    """Muestra las categorias + un TOP rankeado de videos CC largos y deja que Juan elija por numero."""
+def _buscar_top(cfg: dict, proc: set) -> list:
+    """Busca (segun fuente), quita los ya procesados, guarda el TOP en R2 y lo devuelve."""
     s = cfg.get("search", {})
     fuente = (s.get("fuente") or "youtube").lower()   # "youtube" | "archive" | "ambos"
     temas = s.get("temas", [])
@@ -104,29 +104,52 @@ def seleccionar_interactivo(cfg: dict) -> list:
         print("\n🔎 Buscando en YouTube (filtro Creative Commons)...")
         tops += (search.top_videos(temas, por, mind, ntop).get("top") or [])
     tops.sort(key=lambda v: v.get("score", 0), reverse=True)
-    # Anti-duplicados: quitar del TOP los videos que YA procesaste antes (historial en R2).
-    proc = publish.cargar_procesados()
     antes = len(tops)
     tops = [t for t in tops if _source_key(t.get("url", "")) not in proc]
     if antes > len(tops):
         print(f"   (omiti {antes - len(tops)} video(s) que ya habias procesado antes)")
-    r = {"categorias": temas, "top": tops[:ntop]}
-    print("\n📂 Categorias que estoy buscando: " + " · ".join(r["categorias"]))
-    top = r["top"]
+    top = tops[:ntop]
+    if top:
+        publish.guardar_top(top)   # guarda el TOP para reusar los pendientes la proxima corrida
+    return top
+
+
+def seleccionar_interactivo(cfg: dict) -> list:
+    """TOP de videos para elegir por numero. Si quedan PENDIENTES del ultimo TOP, ofrece esos
+    (sin re-buscar); si no, busca nuevos. 'nuevos' fuerza otra busqueda."""
+    proc = publish.cargar_procesados()
+    ntop = cfg.get("mostrar_top", 8)
+    pendientes = [t for t in publish.cargar_top() if _source_key(t.get("url", "")) not in proc]
+    reusando = bool(pendientes)
+    if reusando:
+        top = pendientes[:ntop]
+        print(f"\n📋 Retomando tu ultima lista: {len(top)} video(s) que faltaban de tu TOP anterior.")
+    else:
+        top = _buscar_top(cfg, proc)
     if not top:
-        print("   No encontre videos CC largos ahora. Ajusta los temas en config.json -> search.temas.")
+        print("   No hay videos para mostrar. Ajusta los temas en config.json -> search.temas.")
         return []
-    print("\n🏆 TOP videos CC (el mejor primero — ya valide cual trae mas material):\n")
-    for i, v in enumerate(top, 1):
-        print(f"  {i}. [{v.get('score','')}/100] {v['title'][:62]}")
-        print(f"       {v.get('razon','')}")
-        print(f"       ▶ VERLO: {v['url']}")
-    print("\n👉 Que numero(s) apruebas?  (ej: 1   o   1,3   ·   'todos'   ·   ENTER = el #1)")
-    print("   (abre el link 'VERLO' en tu navegador para revisarlo antes de elegir)")
-    try:
-        sel = input("   > ").strip().lower()
-    except EOFError:
-        sel = ""
+    while True:
+        print("\n🏆 TOP videos (el mejor primero):\n")
+        for i, v in enumerate(top, 1):
+            print(f"  {i}. [{v.get('score','')}/100] {v['title'][:62]}")
+            print(f"       {v.get('razon','')}")
+            print(f"       ▶ VERLO: {v['url']}")
+        extra = "   ·   'nuevos' = buscar otra lista" if reusando else ""
+        print(f"\n👉 Que numero(s) apruebas?  (ej: 1   o   1,3   ·   'todos'   ·   ENTER = el #1{extra})")
+        print("   (abre el link 'VERLO' en tu navegador para revisarlo antes de elegir)")
+        try:
+            sel = input("   > ").strip().lower()
+        except EOFError:
+            sel = ""
+        if sel == "nuevos" and reusando:
+            top = _buscar_top(cfg, proc)
+            reusando = False
+            if not top:
+                print("   No encontre nuevos videos.")
+                return []
+            continue
+        break
     if sel == "":
         elegidos = [top[0]]
     elif sel in ("todos", "all"):
