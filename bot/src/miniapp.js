@@ -1084,6 +1084,10 @@ export const APP_HTML = `<!doctype html>
       +'<button class="btn" onclick="buildRecipe()">🍳 Armar el reel</button></div>'
       +'<div class="card"><label class="file" for="fVoice">🎤 Subir nota de voz</label><input id="fVoice" type="file" accept="audio/*" class="hide">'
       +'<input id="vName" type="text" placeholder="Nombre de la voz (ej: esposa)"></div>'
+      +'<div class="card"><div style="font-weight:800;margin-bottom:4px">🎬 Mis Clips → Oddly Loop</div>'
+      +'<div class="muted" style="font-size:12px;margin-bottom:6px">Sube un video tuyo: la IA le pone título, descripción y #, lo programa a la mejor hora libre y lo agrega a la playlist <b>Mis Clips</b>.</div>'
+      +'<label class="file" for="fClip">🎬 Elegir video (máx ~100MB)</label><input id="fClip" type="file" accept="video/*" class="hide">'
+      +'<input id="clipCap" type="text" placeholder="Opcional: de qué trata (ayuda al título)"></div>'
       +voicePickerHtml()
       +toolsHealthHtml()
       +problemsHtml()
@@ -1094,6 +1098,7 @@ export const APP_HTML = `<!doctype html>
     el("fPhoto").onchange=function(e){uploadPhoto(e.target.files[0]);};
     el("fRecipe").onchange=function(e){recFiles=Array.prototype.slice.call(e.target.files);el("recCount").textContent=recFiles.length+" archivo(s) elegido(s).";};
     el("fVoice").onchange=function(e){uploadVoice(e.target.files[0]);};
+    el("fClip").onchange=function(e){uploadClip(e.target.files[0]);};
   }
 
   var recFiles=[];
@@ -1324,6 +1329,12 @@ export const APP_HTML = `<!doctype html>
     toast("Subiendo foto…"); api("/api/upload",{method:"POST",body:fd}).then(function(r){return r.json();}).then(function(j){toast(j.ok?"✅ Retocando la foto, te llega al chat":"❌ "+(j.error||"falló"));}); }
   function uploadVoice(f){ if(!f)return; var fd=new FormData(); fd.append("kind","voice"); fd.append("name",el("vName").value||"voz"); fd.append("file",f);
     toast("Subiendo voz…"); api("/api/upload",{method:"POST",body:fd}).then(function(r){return r.json();}).then(function(j){toast(j.ok?"✅ Voz guardada":"❌ "+(j.error||"falló"));}); }
+  function uploadClip(f){ if(!f)return;
+    if(f.size>100*1024*1024){toast("Ese clip pesa "+Math.round(f.size/1048576)+"MB. El máximo por ahora es ~100MB.");return;}
+    var cap=encodeURIComponent((el("clipCap").value||"").slice(0,300));
+    toast("Subiendo clip… ("+Math.round(f.size/1048576)+"MB)");
+    api("/api/upload-clip?caption="+cap,{method:"POST",headers:{"content-type":f.type||"video/mp4"},body:f})
+      .then(function(r){return r.json();}).then(function(j){toast(j.ok?"✅ Clip recibido. La IA arma el SEO, lo programa y te aviso al chat con el link.":"❌ "+(j.error||"falló"));if(el("clipCap"))el("clipCap").value="";}); }
   function buildRecipe(){ if(!recFiles.length){toast("Elige al menos una foto/video");return;}
     var fd=new FormData(); fd.append("kind","recipe"); fd.append("text",el("rText").value||"");
     recFiles.forEach(function(f){fd.append("file",f);});
