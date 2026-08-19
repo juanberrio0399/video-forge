@@ -1,0 +1,93 @@
+name: Subir clip manual a Oddly (Mis Clips)
+
+# Sube un clip que Juan dejo en R2 (clipper/manual/<cid>.mp4) desde la Mini App:
+#  transcribe -> SEO IA (titulo/descripcion/#) -> sube PRIVADO a Oddly Loop (YT2)
+#  -> PROGRAMA a la mejor hora libre -> lo agrega a la playlist "Mis Clips" -> avisa por Telegram.
+# Reusa el mismo mapeo YT2_* -> YT_* que publish_oddly.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      r2_key:
+        description: "Key del clip en R2 (clipper/manual/<cid>.mp4)"
+        required: true
+      caption:
+        description: "Pista/caption opcional que dejo Juan"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  subir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      YT_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      BUCKET: video-forge
+      R2_KEY: ${{ github.event.inputs.r2_key }}
+      CAPTION: ${{ github.event.inputs.caption }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar ffmpeg + faster-whisper
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          pip install -q faster-whisper
+
+      - name: Bajar el clip de R2
+        run: |
+          case "$R2_KEY" in
+            clipper/manual/*.mp4) ;;
+            *) echo "key no permitida: $R2_KEY"; exit 1;;
+          esac
+          npx --yes wrangler@4 r2 object get "$BUCKET/$R2_KEY" --file=clip.mp4 --remote
+          ls -la clip.mp4
+
+      - name: Transcribir (insumo del SEO)
+        run: python pipeline/manual_transcribe.py clip.mp4 transcript.txt || echo "" > transcript.txt
+
+      - name: SEO con IA (titulo / descripcion / #)
+        run: node pipeline/manual_seo.mjs transcript.txt "$CAPTION"
+
+      - name: Subir a Oddly Loop (privado)
+        run: |
+          node pipeline/short_publish.mjs clip.mp4 title.txt description.txt
+          echo "VID=$(cat short_id.txt)" >> "$GITHUB_ENV"
+
+      - name: Programar a la mejor hora libre (como el resto)
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/best_hours.json" --file=best_hours.json --remote 2>/dev/null || true
+          OCC=$(node pipeline/scheduled_times.mjs)
+          SLOT=$(node pipeline/best_slot.mjs "$OCC")
+          echo "SLOT=$SLOT" >> "$GITHUB_ENV"
+          node pipeline/youtube_schedule.mjs "$VID" "$SLOT"
+
+      - name: Agregar a la playlist Mis Clips
+        run: |
+          node pipeline/add_to_playlist.mjs "$VID" "Mis Clips" || echo "playlist opcional, sigo"
+
+      - name: Borrar el clip de R2 (ya subido)
+        if: always()
+        run: |
+          npx --yes wrangler@4 r2 object delete "$BUCKET/$R2_KEY" --remote 2>/dev/null || true
+          npx --yes wrangler@4 r2 object delete "$BUCKET/$R2_KEY.json" --remote 2>/dev/null || true
+
+      - name: Avisar por Telegram
+        run: |
+          bash pipeline/notify_telegram.sh "✅ Mis Clips - subí tu clip a Oddly Loop y lo PROGRAMÉ para $SLOT (siguiente franja libre). En la playlist Mis Clips. https://youtu.be/$VID"
