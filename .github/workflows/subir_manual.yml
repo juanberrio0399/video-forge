@@ -43,8 +43,8 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Instalar ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Instalar ffmpeg (binario listo, sin apt/candados)
+        uses: federicocarboni/setup-ffmpeg@v3
 
       - name: Bajar el clip de R2
         run: |
