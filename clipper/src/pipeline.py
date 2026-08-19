@@ -36,9 +36,12 @@ def procesar_url(url: str, cfg: dict, hw: dict, music: str = None) -> list:
     print("🧠 [2/5] Analizando (Whisper + Gemini)...")
     a = analyze.analizar(d["path"], hw, cfg)
     if not a["clips"]:
-        print("   ⚠️ la IA no encontro clips utiles.")
+        print("   ⚠️ la IA no encontro momentos buenos en este video.")
         return []
-    print(f"   ✓ {len(a['clips'])} momentos elegidos")
+    print(f"   ✓ Segun el analisis, de este video salen {len(a['clips'])} corto(s):")
+    for j, c in enumerate(a["clips"], 1):
+        seg = int(float(c.get("end", 0)) - float(c.get("start", 0)))
+        print(f"       {j}. «{(c.get('title') or '')[:44]}» ({seg}s, score {c.get('score','?')})")
 
     resultados = []
     out_dir = os.path.join(ROOT, "out")
@@ -81,7 +84,9 @@ def seleccionar_interactivo(cfg: dict) -> list:
     for i, v in enumerate(top, 1):
         print(f"  {i}. [{v.get('score','')}/100] {v['title'][:62]}")
         print(f"       {v.get('razon','')}")
+        print(f"       ▶ VERLO: {v['url']}")
     print("\n👉 Que numero(s) apruebas?  (ej: 1   o   1,3   ·   'todos'   ·   ENTER = el #1)")
+    print("   (abre el link 'VERLO' en tu navegador para revisarlo antes de elegir)")
     try:
         sel = input("   > ").strip().lower()
     except EOFError:
