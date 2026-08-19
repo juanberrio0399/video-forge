@@ -1,0 +1,20 @@
+{
+  "_nota": "Config del Oddly Clipper. 'sources' = videos CC de YouTube a procesar (o deja 'search' para buscar por tema). SOLO se procesan los que tengan licencia Creative Commons; los demas se descartan.",
+  "sources": [],
+  "search": {
+    "enabled": true,
+    "temas": ["satisfying", "oddly satisfying", "nature relaxing", "amazing story"],
+    "por_tema": 1,
+    "solo_cc": true,
+    "duracion_min_video": 180
+  },
+  "clips_per_video": 2,
+  "categoria": "Clips CC",
+  "categoria_key": "clips_cc",
+  "duracion_short": { "min": 15, "max": 55 },
+  "idioma": "en",
+  "subtitulos": { "estilo": "karaoke", "on": true },
+  "broll": { "on": true, "fuente": "pexels" },
+  "musica": { "on": true, "volumen": 0.12 },
+  "privacidad_subida": "private"
+}

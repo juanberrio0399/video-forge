@@ -21,3 +21,13 @@ _*.mp3
 _*.mp4
 
 .wrangler/
+
+# === Oddly Clipper (corre LOCAL en el PC) — no subir credenciales, venv ni videos de trabajo ===
+clipper/.env
+clipper/venv/
+clipper/work/
+clipper/out/
+clipper/downloads/
+clipper/**/__pycache__/
+clipper/assets/*.mp3
+!clipper/.env.example

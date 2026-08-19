@@ -1,0 +1,10 @@
+# Oddly Clipper — dependencias (todas gratis / open source)
+yt-dlp>=2024.1.1
+faster-whisper>=1.0.0
+google-generativeai>=0.7.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+boto3>=1.34.0
+google-api-python-client>=2.100.0
+google-auth>=2.23.0
+google-auth-oauthlib>=1.1.0
