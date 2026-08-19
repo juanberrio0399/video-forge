@@ -3,11 +3,12 @@
   "sources": [],
   "search": {
     "enabled": true,
-    "temas": ["satisfying", "oddly satisfying", "nature relaxing", "amazing story"],
-    "por_tema": 1,
+    "temas": ["oddly satisfying", "relaxing nature 4k", "amazing story", "science explained"],
+    "por_tema": 8,
     "solo_cc": true,
-    "duracion_min_video": 180
+    "duracion_min_video": 300
   },
+  "mostrar_top": 8,
   "clips_per_video": 2,
   "categoria": "Remix",
   "categoria_key": "remix",
