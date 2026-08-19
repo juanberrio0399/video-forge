@@ -11,12 +11,22 @@ if (-not $pv) {
 }
 Write-Host "[OK] $pv"
 
-# 2) Entorno virtual + dependencias
+# 2) Entorno virtual + dependencias (salida detallada -> a un log; en pantalla solo el resumen)
 if (-not (Test-Path ".\venv")) { Write-Host "Creando entorno virtual..."; python -m venv venv }
-Write-Host "Instalando dependencias (gratis)..."
-.\venv\Scripts\python.exe -m pip install --upgrade pip | Out-Null
-.\venv\Scripts\python.exe -m pip install -r requirements.txt
-Write-Host "[OK] dependencias listas"
+Write-Host "Instalando dependencias (esto tarda unos minutos, es 1 sola vez)..." -ForegroundColor Yellow
+$log = Join-Path $PSScriptRoot "setup_install.log"
+.\venv\Scripts\python.exe -m pip install --upgrade pip *> $log
+.\venv\Scripts\python.exe -m pip install -r requirements.txt *>> $log
+if ($LASTEXITCODE -eq 0) {
+  Write-Host "[OK] Dependencias instaladas:" -ForegroundColor Green
+  foreach ($p in @("yt-dlp (descarga)", "faster-whisper (transcribe)", "google-generativeai (IA)", "boto3 (R2)", "python-dotenv", "requests")) {
+    Write-Host "     [OK] $p"
+  }
+} else {
+  Write-Host "[X] Fallo la instalacion. Ultimas lineas del log:" -ForegroundColor Red
+  Get-Content $log -Tail 15
+  exit 1
+}
 
 # 3) ffmpeg
 $ff = (Get-Command ffmpeg -ErrorAction SilentlyContinue)
