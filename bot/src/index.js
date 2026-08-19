@@ -452,6 +452,12 @@ async function handleApi(request, env, url) {
         },
       };
     }));
+    // PENDIENTE GLOBAL de shorts: cuantos videos PUBLICOS aun no tienen shorts (de TODO el canal,
+    // no solo el ultimo). El detalle por video con boton "+Hacer" va en "Control por video".
+    state.shorts_pending_videos = (state.video_matrix || [])
+      .filter((v) => v.public && !((v.stages || {}).shorts))
+      .map((v) => ({ video_id: v.video_id, title: v.title }));
+    state.shorts_pending_count = state.shorts_pending_videos.length;
     // Shorts "hechos" = hay aprobados y TODOS estan subidos (tienen video_id).
     const shortsDone = approvedShorts.length > 0 && approvedShorts.every((s) => s.video_id);
     (state.published || []).forEach((v, i) => { v.shorts_done = i === 0 ? shortsDone : false; });

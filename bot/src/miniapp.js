@@ -953,6 +953,7 @@ export const APP_HTML = `<!doctype html>
     var uplShow=upl.filter(function(s){return !(s.publish_at && s.privacy!=="public");});
     var skip=prop.filter(function(s){return s.state==="skipped";});
     var shb=""; var vid=sst.latest_video_id;
+    if((ST.shorts_pending_count||0)>0){ shb+='<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:700;font-size:13px">🎬 '+ST.shorts_pending_count+' video(s) público(s) sin shorts</div><div class="muted" style="font-size:12px;margin-top:2px">Complétalos uno por uno con ＋ Hacer en 📋 Control por video (arriba).</div></div>'; }
     if(pend.length){
       shb+='<h2>🤖 Sugerencias por aprobar ('+pend.length+')</h2>';
       shb+=pend.map(function(s){
@@ -1072,6 +1073,7 @@ export const APP_HTML = `<!doctype html>
       goalHtml(ST.monet_goal)
       +analyticsHtml()
       +dataLensTopHtml()
+      +videosCard
       +analysisHtml()
       +factoryHtml()
       +monetizationHtml();
