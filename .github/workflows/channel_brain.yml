@@ -1,0 +1,42 @@
+name: Cerebro de canales (salud + escalar / reestructurar)
+
+# EL CEREBRO: cada dia revisa la salud de Oddly y Data Lens, mide QUE rinde (por direccion en
+# Data Lens) y ESCALA a "reestructurar" si un canal sigue estancado tras suficientes pruebas.
+# Filosofia: probar en pequeno -> medir -> escalar al ganador -> si nada rinde, reestructurar.
+# Te manda el pulso a Telegram. Todo en la nube (GitHub + R2 + Telegram), sin PC.
+on:
+  schedule:
+    - cron: "0 13 * * *"   # diario 13:00 UTC = 8:00 a.m. Bogota
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  cerebro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Bajar el estado de los dos canales
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/state.json" --file=dl_state.json --remote 2>/dev/null || echo '{}' > dl_state.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/state.json" --file=oddly_state.json --remote 2>/dev/null || echo '{}' > oddly_state.json
+
+      - name: Diagnostico (el cerebro)
+        run: node pipeline/channel_brain.mjs
+
+      - name: Enviar el pulso a Telegram
+        run: bash pipeline/notify_telegram.sh "$(cat brain.txt)"
