@@ -17,7 +17,7 @@ if (!CID || !CSEC || !RTOK) { console.error("Faltan credenciales YT del canal", 
 
 // Subcategorias por canal (key -> titulo publico de la playlist)
 const CATS = A2
-  ? { satisfying: "Satisfying / ASMR", narrativas: "Narrativas", ciencia_humor: "Ciencia + humor", naturaleza_relax: "Naturaleza / Relax", graciosos: "Graciosos / Fails", remix: "Remix" }
+  ? { satisfying: "Satisfying / ASMR", narrativas: "Narrativas", ciencia_humor: "Ciencia + humor", naturaleza_relax: "Naturaleza / Relax", animales_tiernos: "Animales tiernos / ASMR", graciosos: "Graciosos / Fails", remix: "Remix" }
   : { big_tech: "Big Tech · Como ganan dinero las empresas", creator_economy: "Creator Economy · Cuanto pagan las plataformas", costos_ocultos: "Costos ocultos · A donde va tu dinero", dinero_mercados: "Dinero y mercados" };
 
 // Inferencia de nicho por titulo (misma logica que el resto del sistema)
