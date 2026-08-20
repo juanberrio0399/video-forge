@@ -7,23 +7,25 @@ import fs from "node:fs";
 import { TEXT_MODELS } from "./_models.mjs";
 
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2, process.env.GEMINI_API_KEY3].filter(Boolean);
-const BRAVE = process.env.BRAVE_API_KEY;
+const TAVILY = process.env.TAVILY_API_KEY;
 const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
 
-// --- Busqueda web (Brave) ---
-async function brave(q) {
+// --- Busqueda web (Tavily, gratis sin tarjeta) ---
+async function tavily(q) {
   try {
-    const r = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(q)}&count=5`, {
-      headers: { "X-Subscription-Token": BRAVE, Accept: "application/json" },
+    const r = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${TAVILY}` },
+      body: JSON.stringify({ query: q, max_results: 5, search_depth: "basic" }),
     });
-    if (!r.ok) { console.error(`brave "${q}": ${r.status}`); return []; }
+    if (!r.ok) { console.error(`tavily "${q}": ${r.status} ${(await r.text()).slice(0, 100)}`); return []; }
     const j = await r.json();
-    return ((j.web && j.web.results) || []).slice(0, 5)
-      .map((x) => `- ${x.title}: ${String(x.description || "").replace(/<[^>]+>/g, "").slice(0, 180)} (${x.url})`);
-  } catch (e) { console.error(`brave: ${e.message}`); return []; }
+    return (j.results || []).slice(0, 5)
+      .map((x) => `- ${x.title}: ${String(x.content || "").slice(0, 180)} (${x.url})`);
+  } catch (e) { console.error(`tavily: ${e.message}`); return []; }
 }
 async function research() {
-  if (!BRAVE) return "";
+  if (!TAVILY) return "";
   const queries = [
     "YouTube Shorts monetization requirements 2026 YPP subscribers views 90 days",
     "YouTube Shorts viral trends 2026 formats satisfying ASMR animals",
@@ -32,9 +34,9 @@ async function research() {
   ];
   const blocks = [];
   for (const q of queries) {
-    const res = await brave(q);
+    const res = await tavily(q);
     if (res.length) blocks.push(`### ${q}\n${res.join("\n")}`);
-    await sleep(1100); // tier gratis = 1 consulta/seg
+    await sleep(400);
   }
   return blocks.join("\n\n");
 }
