@@ -1,6 +1,7 @@
 {
   "_nota": "Direccion de contenido de The Data Lens. La lee replenish_ideas para GENERAR ideas en este estilo. Cambia esto para PIVOTAR el canal sin tocar codigo. La revision semanal la ajusta segun que rinda; si NADA rinde, se reestructura con direcciones nuevas.",
   "label": "Data curiosa (experimento) - pivote 2026-08-20",
+  "pivot_at": "2026-08-20",
   "style": "Videos/Shorts de DATOS con ALTA curiosidad y compartibilidad, en INGLES (mercado EE.UU.). PROHIBIDO 'how much money X company makes' y explicadores corporativos de finanzas (nicho saturado, 0 subs). Gancho de curiosidad en 2s, cifra o dato contraintuitivo, retencion alta.",
   "directions": [
     { "key": "rankings", "desc": "Rankings y comparaciones visuales: 'X ranked by [metrica sorprendente]', 'X vs Y - the data nobody shows'. Retiene (esperas el #1), muy compartible." },
