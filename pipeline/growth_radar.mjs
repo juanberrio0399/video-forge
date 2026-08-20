@@ -4,8 +4,10 @@
 // YPP actuales. Clasifica por evidencia y propone EXPERIMENTOS. Todo en la infra de Juan.
 // Salida: growth_radar.txt (informe para Telegram) + growth_radar.json (para la Mini App).
 import fs from "node:fs";
+import { TEXT_MODELS } from "./_models.mjs";
 
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2, process.env.GEMINI_API_KEY3].filter(Boolean);
+const sleep = (ms) => new Promise((s) => setTimeout(s, ms));
 
 const prompt = `Eres un equipo de ELITE de crecimiento de YouTube (estratega + analista de tendencias + analista de competencia + experto en Shorts/ASMR/humor/datos/curiosidades + SEO + monetizacion + investigador de algoritmo y politicas). Mercado: EE.UU., ingles. Estamos en agosto 2026.
 
@@ -26,18 +28,22 @@ Usa EXACTAMENTE estas secciones y emojis, cortas:
 Se DIRECTO, sin relleno. Prioriza impacto hacia monetizacion y velocidad de aprendizaje. NO recomiendes atajos destructivos (bots, compra de views/subs, contenido robado, reuploads sin transformar, evadir politicas).`;
 
 async function gemini(withSearch) {
-  for (const k of KEYS) for (const m of ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash"]) {
-    try {
-      const body = { contents: [{ parts: [{ text: prompt }] }] };
-      if (withSearch) body.tools = [{ google_search: {} }];
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${k}`, {
-        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
-      });
-      if (!r.ok) { console.error(`${m}${withSearch ? "+search" : ""}: ${r.status} ${(await r.text()).slice(0, 120)}`); continue; }
-      const j = await r.json();
-      const t = (j?.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
-      if (t) return { text: t, model: m, grounded: !!withSearch };
-    } catch (e) { console.error(`${m}: ${e.message}`); }
+  for (const k of KEYS) for (const m of TEXT_MODELS) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const body = { contents: [{ parts: [{ text: prompt }] }] };
+        if (withSearch) body.tools = [{ google_search: {} }];
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${k}`, {
+          method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+        });
+        if (r.status === 429 || r.status === 503) { await sleep(6000); continue; } // rate limit -> reintenta
+        if (!r.ok) { console.error(`${m}${withSearch ? "+search" : ""}: ${r.status} ${(await r.text()).slice(0, 100)}`); break; }
+        const j = await r.json();
+        const t = (j?.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
+        if (t) return { text: t, model: m, grounded: !!withSearch };
+        break;
+      } catch (e) { console.error(`${m}: ${e.message}`); break; }
+    }
   }
   return null;
 }
