@@ -888,27 +888,35 @@ export const APP_HTML = `<!doctype html>
   }
   // VENTANA PRINCIPAL: los dos canales de un vistazo (verdicto del cerebro + KPIs + entrar).
   function resumenHtml(){
-    var b=ST.brain||{}, od=b.oddly||{}, dl=b.data_lens||{}, a2=ST.auto2||{};
+    var b=ST.brain||{}, od=b.oddly||{}, dl=b.data_lens||{}, a2=ST.auto2||{}, pa=ST.pending_approve||{};
     function kpi(n,l){return '<div class="kpi"><div class="n">'+num(n||0)+'</div><div class="l">'+l+'</div></div>';}
-    function chCard(title,handle,verdict,msg,kpis,goCh){
-      return '<div class="card">'
+    function chCard(title,handle,verdict,msg,kpis,goCh,pend){
+      var pl = pend>0
+        ? '<div class="card" style="background:rgba(34,211,238,.14);border:1px solid var(--cy);padding:8px;margin:2px 0 8px"><b style="color:var(--cy)">👀 '+pend+' video(s) por aprobar</b></div>'
+        : '<div class="muted" style="font-size:11px;margin:2px 0 8px">✓ nada por aprobar</div>';
+      return '<div class="card"'+(pend>0?' style="border:1px solid var(--cy)"':'')+'>'
         +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
         +'<div><div style="font-weight:800;font-size:15px">'+title+'</div><div class="muted" style="font-size:11px">'+handle+'</div></div>'
         +'<div style="font-size:13px;font-weight:700;white-space:nowrap">'+esc(verdict||"—")+'</div></div>'
         +'<div class="row" style="margin:8px 0">'+kpis+'</div>'
+        +pl
         +(msg?'<div class="muted" style="font-size:12px;margin-bottom:8px">'+esc(msg)+'</div>':'')
-        +'<button class="btn" onclick="setChannel(\\''+goCh+'\\')">Entrar a '+title+' →</button></div>';
+        +'<button class="btn'+(pend>0?'':' ghost')+'" onclick="setChannel(\\''+goCh+'\\')">'+(pend>0?'👀 Aprobar en '+title+' →':'Entrar a '+title+' →')+'</button></div>';
     }
     var kO=kpi(a2.subs||od.subs,"Subs")+kpi(a2.total_views||od.views,"Vistas")+kpi(a2.videos||od.videos,"Videos");
     var dlSubs=(ST.channel_stats&&ST.channel_stats.subs)||dl.subs||0;
     var dlViews=(ST.totals&&ST.totals.views)||(ST.channel_stats&&ST.channel_stats.total_views)||0;
     var dlVids=dl.videos||(ST.totals&&ST.totals.videos)||0;
     var kD=kpi(dlSubs,"Subs")+kpi(dlViews,"Vistas")+kpi(dlVids,"Videos");
+    var totPend=(pa.total!=null?pa.total:((pa.oddly||0)+(pa.data_lens||0)));
+    var topBanner=totPend>0?'<div class="card" style="background:rgba(34,211,238,.14);border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px;color:var(--cy)">👀 Tienes '+totPend+' video(s) por aprobar</div><div class="muted" style="font-size:12px">Entra al canal marcado con 👀 y apruébalos para que se publiquen.</div></div>':'';
     var when=b.at?'<div class="muted" style="font-size:11px;margin:-2px 2px 8px">🧠 Diagnóstico del cerebro: '+esc(String(b.at).slice(5,16).replace("T"," "))+'</div>':'<div class="muted" style="font-size:11px;margin:-2px 2px 8px">🧠 El cerebro corre cada día 8am y te avisa por chat.</div>';
     var alert=dl.restructure?'<div class="card" style="border:1px solid var(--am)"><div style="font-weight:800;color:var(--am)">⚠️ The Data Lens: reestructurar</div><div class="muted" style="font-size:12px;margin-top:2px">Se probaron las direcciones y ninguna despegó. Dile a Claude: «reestructura Data Lens».</div></div>':'';
-    return '<h2>🧠 Resumen — los dos canales</h2>'+when+alert
-      +chCard("Oddly Loop","@oddlyloophq",od.verdict,od.msg,kO,"auto2")
-      +chCard("The Data Lens","@TheDataLensHQ",dl.verdict,dl.msg,kD,"data-lens");
+    return '<h2>🧠 Resumen — los dos canales</h2>'+when+topBanner+alert
+      +chCard("Oddly Loop","@oddlyloophq",od.verdict,od.msg,kO,"auto2",pa.oddly||0)
+      +goalHtml(a2.monet_goal)
+      +chCard("The Data Lens","@TheDataLensHQ",dl.verdict,dl.msg,kD,"data-lens",pa.data_lens||0)
+      +goalHtml(ST.monet_goal);
   }
   function render(){
     var ch = ST.channel||{}, cs = ST.channel_stats||{}, mon = ST.monetization||{};
