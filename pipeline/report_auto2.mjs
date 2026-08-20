@@ -19,11 +19,12 @@ try {
   // Mapa video->nicho (lo escribe la produccion) para mostrar DE QUE trata cada video.
   let nicheMap = {};
   try { nicheMap = JSON.parse(fs.readFileSync("niche_map.json", "utf8")); } catch {}
-  const NICHE_LABEL = { satisfying: "Satisfying / ASMR", narrativas: "Narrativas", ciencia_humor: "Ciencia + humor", naturaleza_relax: "Naturaleza / relax", remix: "Remix" };
+  const NICHE_LABEL = { satisfying: "Satisfying / ASMR", narrativas: "Narrativas", ciencia_humor: "Ciencia + humor", naturaleza_relax: "Naturaleza / relax", animales_tiernos: "Animales tiernos / ASMR", remix: "Remix" };
   // Si un video no quedo en el niche_map (produccion vieja), INFERIMOS su categoria por el titulo,
   // para que TODO tenga subcategoria (nunca "Sin categoria"). Default = satisfying (el nucleo del canal).
   function inferNiche(title) {
     const t = (title || "").toLowerCase();
+    if (/puppy|kitten|\bcat\b|\bdog\b|\bpet\b|bunny|rabbit|hamster|panda|otter|corgi|kitty|cute animal|baby animal/.test(t)) return "animales_tiernos";
     if (/satisfying|slime|kinetic|hydraulic|soap|paint|resin|\bsand\b|oddly sat|asmr/.test(t)) return "satisfying";
     if (/deep sleep|relax|nature|rain|ocean|forest|\bcalm\b|10 hours|for sleep|sleep/.test(t)) return "naturaleza_relax";
     if (/your brain|your body|\bscience\b|neuron|immune|weirdly|\bfact/.test(t)) return "ciencia_humor";

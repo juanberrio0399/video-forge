@@ -38,6 +38,16 @@
       ],
       "short": { "min_beats": 8, "max_beats": 13, "clip_sec": 7 }
     },
+    "animales_tiernos": {
+      "label": "Animales tiernos / ASMR",
+      "sources": ["pexels", "pixabay", "coverr", "videvo"],
+      "queries": ["cute puppy close up", "kitten eating", "baby animals playing", "cat drinking water slow motion", "rabbit eating carrot", "hamster eating seeds", "golden retriever puppy", "kittens sleeping", "baby goat jumping", "duckling walking", "dog wagging tail close up", "panda eating bamboo", "otter playing", "cat paws macro", "fluffy cat purring", "baby elephant", "corgi puppy running", "cat grooming", "puppy eyes close up", "bunny nose twitch macro"],
+      "palettes": [
+        { "name": "Comiendo ASMR", "bed": "soft calm ambience", "accents": ["animal eating crunch", "water lapping", "soft chewing asmr"] },
+        { "name": "Tiernos relax", "bed": "gentle soft piano", "accents": ["cat purring", "soft breathing"] }
+      ],
+      "short": { "min_beats": 6, "max_beats": 10, "clip_sec": 6 }
+    },
     "narrativas": {
       "label": "Narrativas (traición/venganza, historias)",
       "sources": ["pexels", "pixabay", "coverr", "videvo", "archive_org"],
