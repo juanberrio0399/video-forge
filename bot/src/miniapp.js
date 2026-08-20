@@ -95,7 +95,8 @@ export const APP_HTML = `<!doctype html>
     <button class="icon" id="btnRefresh" aria-label="Actualizar">⟳</button>
   </div>
   <div class="chsel" id="chSel">
-    <button data-ch="data-lens" class="on">The Data Lens</button>
+    <button data-ch="resumen" class="on">🏠 Resumen</button>
+    <button data-ch="data-lens">The Data Lens</button>
     <button data-ch="auto2">Auto #2</button>
   </div>
 </header>
@@ -125,11 +126,11 @@ export const APP_HTML = `<!doctype html>
   function h(t){ try{ var H=tg&&tg.HapticFeedback; if(!H)return; if(t==="sel")H.selectionChanged(); else if(t==="ok")H.notificationOccurred("success"); else if(t==="err")H.notificationOccurred("error"); else H.impactOccurred(t||"light"); }catch(e){} }
   try{ tg&&tg.setHeaderColor&&tg.setHeaderColor("bg_color"); }catch(e){}
   // Muestra "Atras" cuando NO estas en la vista raiz (Inicio de The Data Lens y sin un short en foco).
-  function backBtnSync(){ try{ if(!tg||!tg.BackButton)return; if(curTab!=="inicio"||curChannel!=="data-lens"||shortsTargetVid) tg.BackButton.show(); else tg.BackButton.hide(); }catch(e){} }
+  function backBtnSync(){ try{ if(!tg||!tg.BackButton)return; if(curChannel!=="resumen"||curTab!=="inicio"||shortsTargetVid) tg.BackButton.show(); else tg.BackButton.hide(); }catch(e){} }
   try{ tg&&tg.BackButton&&tg.BackButton.onClick(function(){ h("light");
     if(shortsTargetVid){ shortsTargetVid=""; render(); backBtnSync(); return; }
-    if(curChannel!=="data-lens"){ setChannel("data-lens"); return; }
-    if(curTab!=="inicio"){ tab("inicio"); }
+    if(curTab!=="inicio"){ tab("inicio"); return; }
+    if(curChannel!=="resumen"){ setChannel("resumen"); }
   }); }catch(e){}
   function el(id){return document.getElementById(id);}
   function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
@@ -138,7 +139,7 @@ export const APP_HTML = `<!doctype html>
   function num(n){n=+n||0;return n>=1000?(n/1000).toFixed(n>=100000?0:1)+"k":String(n);}
   function durTxt(sec){ if(sec==null) return "—"; sec=+sec; if(sec>=60){var m=Math.floor(sec/60),s=sec%60;return m+":"+("0"+s).slice(-2);} return sec+"s"; }
 
-  var curTab="inicio", curChannel="data-lens";
+  var curTab="inicio", curChannel="resumen";
   var vSort="views";
   var lastInsights="";
   var localSched={}; // video_id -> "schedule"|"public": marca optimista al programar/publicar (feedback inmediato aunque el reporte del canal tarde en refrescar)
@@ -885,6 +886,30 @@ export const APP_HTML = `<!doctype html>
     h+='<div class="muted" style="font-size:10px;margin-top:6px">Según la API de YouTube (rechazos/estado de subida). Los reclamos de Content ID completos solo se ven en Studio.</div></div>';
     return h;
   }
+  // VENTANA PRINCIPAL: los dos canales de un vistazo (verdicto del cerebro + KPIs + entrar).
+  function resumenHtml(){
+    var b=ST.brain||{}, od=b.oddly||{}, dl=b.data_lens||{}, a2=ST.auto2||{};
+    function kpi(n,l){return '<div class="kpi"><div class="n">'+num(n||0)+'</div><div class="l">'+l+'</div></div>';}
+    function chCard(title,handle,verdict,msg,kpis,goCh){
+      return '<div class="card">'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
+        +'<div><div style="font-weight:800;font-size:15px">'+title+'</div><div class="muted" style="font-size:11px">'+handle+'</div></div>'
+        +'<div style="font-size:13px;font-weight:700;white-space:nowrap">'+esc(verdict||"—")+'</div></div>'
+        +'<div class="row" style="margin:8px 0">'+kpis+'</div>'
+        +(msg?'<div class="muted" style="font-size:12px;margin-bottom:8px">'+esc(msg)+'</div>':'')
+        +'<button class="btn" onclick="setChannel(\\''+goCh+'\\')">Entrar a '+title+' →</button></div>';
+    }
+    var kO=kpi(a2.subs||od.subs,"Subs")+kpi(a2.total_views||od.views,"Vistas")+kpi(a2.videos||od.videos,"Videos");
+    var dlSubs=(ST.channel_stats&&ST.channel_stats.subs)||dl.subs||0;
+    var dlViews=(ST.totals&&ST.totals.views)||(ST.channel_stats&&ST.channel_stats.total_views)||0;
+    var dlVids=dl.videos||(ST.totals&&ST.totals.videos)||0;
+    var kD=kpi(dlSubs,"Subs")+kpi(dlViews,"Vistas")+kpi(dlVids,"Videos");
+    var when=b.at?'<div class="muted" style="font-size:11px;margin:-2px 2px 8px">🧠 Diagnóstico del cerebro: '+esc(String(b.at).slice(5,16).replace("T"," "))+'</div>':'<div class="muted" style="font-size:11px;margin:-2px 2px 8px">🧠 El cerebro corre cada día 8am y te avisa por chat.</div>';
+    var alert=dl.restructure?'<div class="card" style="border:1px solid var(--am)"><div style="font-weight:800;color:var(--am)">⚠️ The Data Lens: reestructurar</div><div class="muted" style="font-size:12px;margin-top:2px">Se probaron las direcciones y ninguna despegó. Dile a Claude: «reestructura Data Lens».</div></div>':'';
+    return '<h2>🧠 Resumen — los dos canales</h2>'+when+alert
+      +chCard("Oddly Loop","@oddlyloophq",od.verdict,od.msg,kO,"auto2")
+      +chCard("The Data Lens","@TheDataLensHQ",dl.verdict,dl.msg,kD,"data-lens");
+  }
   function render(){
     var ch = ST.channel||{}, cs = ST.channel_stats||{}, mon = ST.monetization||{};
     var up = ST.upcoming||[];
@@ -895,6 +920,17 @@ export const APP_HTML = `<!doctype html>
     // Banner de "te aviso al terminar" (G-V1): visible en TODAS las pestañas mientras haya un proceso vigilado.
     var wb=watchBannerHtml();
     el("globalStatus").innerHTML = wb + ((activeFor("data-lens").length) ? ('<h2>⚡ En proceso ahora</h2>'+statusHtml("data-lens")) : "");
+
+    // VENTANA PRINCIPAL: resumen de los DOS canales. De aqui entras a cada uno.
+    if(curChannel==="resumen"){
+      el("chTitle").textContent="Resumen";
+      el("hd").textContent="Los dos canales · act. "+(ST.updated_at?String(ST.updated_at).slice(5,16).replace("T"," "):"—")+liveTag;
+      el("globalStatus").innerHTML=wb;
+      el("s-inicio").innerHTML=resumenHtml();
+      var _hint='<div class="card muted" style="font-size:13px">👆 Elige <b>Oddly Loop</b> o <b>The Data Lens</b> arriba para ver el detalle de esta sección.</div>';
+      el("s-producir").innerHTML=_hint; el("s-agenda").innerHTML=_hint; el("s-analitica").innerHTML=_hint; el("s-mas").innerHTML=_hint;
+      return;
+    }
 
     // CANAL AUTOMATICO #2 (Oddly Loop): cada flujo con su contenido propio.
     if(curChannel==="auto2"){
