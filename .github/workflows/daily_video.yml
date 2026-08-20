@@ -42,6 +42,7 @@ jobs:
           # GUARDA 1 (INACTIVIDAD): solo trabaja si hace +18h que NO hay video (manual o auto) Y hay
           # menos de 3 pendientes por aprobar. Asi: si Juan no produce en 18h, la fabrica saca uno; en
           # 2 dias ya hay un par LISTOS para aprobar; nunca produce 'a lo loco'. Juan sigue aprobando.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/hidden_videos.json" --file=hidden.json --remote 2>/dev/null || echo '[]' > hidden.json
           IP=$(node pipeline/idle_check.mjs); IDLE=$(printf '%s' "$IP" | cut -d' ' -f1); PEND=$(printf '%s' "$IP" | cut -d' ' -f2)
           echo "Inactividad: ${IDLE}h desde el ultimo video · pendientes por aprobar: ${PEND}"
           CAP=3
