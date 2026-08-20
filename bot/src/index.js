@@ -410,6 +410,16 @@ async function handleApi(request, env, url) {
       const om = new Set((await r2json(env, "channel/auto2/manual_videos.json")) || []);
       state.auto2.list.forEach((v) => { v.manual = om.has(v.video_id); });
     }
+    // PENDIENTES POR APROBAR (para la ventana Resumen): privados sin programar de cada canal.
+    // Data Lens usa su inventario (hidden ya filtrado); Oddly usa su list.
+    {
+      const nowP = Date.now();
+      const isFut = (pa) => pa && Date.parse(pa) > nowP;
+      const dlPend = invAll.filter((v) => v.privacy !== "public" && !isFut(v.publish_at)).length;
+      const odPend = (state.auto2 && Array.isArray(state.auto2.list))
+        ? state.auto2.list.filter((v) => v.privacy !== "public" && !isFut(v.publish_at)).length : 0;
+      state.pending_approve = { data_lens: dlPend, oddly: odPend, total: dlPend + odPend };
+    }
     // META DE MONETIZACION (YPP) con medicion diaria del ritmo — cada canal su meta.
     try { state.monet_goal = await monetTrack(env, "data-lens", { subs: inv.subs || 0, watch_hours: ((state.totals && state.totals.watch_min) || 0) / 60 }); } catch {}
     if (state.auto2) { try { state.auto2.monet_goal = await monetTrack(env, "auto2", { subs: state.auto2.subs || 0, shorts_views: state.auto2.total_views || 0 }); } catch {} }
