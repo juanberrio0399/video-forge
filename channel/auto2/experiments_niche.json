@@ -1,6 +1,6 @@
 {
-  "_nota": "Registro de EXPERIMENTOS de nicho de Oddly. 'active' = el nicho en prueba (usa 1 slot/dia); si supera la mediana de los establecidos se PROMUEVE (pasa a 'promoted' y queda fijo), si no se DESCARTA (pasa a 'done') y se activa el siguiente de 'queue'. Vacio por ahora: los experimentos concretos (animales tiernos, ASMR sonido real) se cablean aparte (requieren agregar el nicho en sources/report/playlists).",
-  "active": null,
+  "_nota": "Registro de EXPERIMENTOS de nicho de Oddly. 'active' = el nicho en prueba (usa 1 slot/dia); si supera la mediana de los establecidos se PROMUEVE (pasa a 'promoted' y queda fijo), si no se DESCARTA (pasa a 'done') y se activa el siguiente de 'queue'. Lo maneja rebalance_oddly.mjs cada semana.",
+  "active": { "key": "animales_tiernos", "label": "Animales tiernos / ASMR", "variant": "puro" },
   "queue": [],
   "done": [],
   "promoted": []
