@@ -79,7 +79,9 @@ if (restructure) lines.push("", "⚠️ ACCION: The Data Lens necesita REESTRUCT
 
 fs.writeFileSync("brain.txt", lines.join("\n"));
 fs.writeFileSync("brain.json", JSON.stringify({
-  oddly: { verdict: odVerdict, subs: odSubs, views: odViews },
-  data_lens: { verdict: dlVerdict, restructure, subs: dlSubs, videos: dlVids, byDir },
+  at: new Date().toISOString(),
+  text: lines.join("\n"),
+  oddly: { verdict: odVerdict, msg: odMsg, subs: odSubs, views: odViews, videos: odVids },
+  data_lens: { verdict: dlVerdict, msg: dlMsg, restructure, subs: dlSubs, videos: dlVids, byDir },
 }, null, 2));
 console.log(lines.join("\n"));

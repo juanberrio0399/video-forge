@@ -401,6 +401,8 @@ async function handleApi(request, env, url) {
     }
     // RADAR DE NICHOS (canal auto #2): portafolio + ranking + recomendacion semanal.
     state.niche_radar = (await r2json(env, "channel/niche_radar.json")) || null;
+    // EL CEREBRO: diagnostico diario de salud de los 2 canales (para la ventana principal "Resumen").
+    state.brain = (await r2json(env, "channel/brain.json")) || null;
     // CANAL AUTO #2 (Oddly Loop): estado real (videos/subs/vistas/min), lo llena report_auto2.
     state.auto2 = (await r2json(env, "channel/auto2/state.json")) || null;
     // "manual" en Oddly = SOLO lo que Juan marca (channel/auto2/manual_videos.json). Por defecto del Bot.
