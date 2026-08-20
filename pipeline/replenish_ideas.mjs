@@ -58,11 +58,21 @@ if (need <= 0) {
 // Evitar duplicados: todos los temas ya planeados + publicados.
 const usedTitles = [...up.map((u) => u.topic), ...published.map((v) => v.title)].filter(Boolean);
 const learn = (process.env.LEARNINGS || "").trim();
-const prompt =
-  `Eres estratega de un canal faceless de YouTube de DATOS/DINERO en INGLES (mercado EE.UU.), estilo "how much money X makes".\n` +
-  `Propon ${need} IDEAS NUEVAS de video (largas, alta retencion), distintas y NO repetidas respecto a estas ya usadas/planeadas:\n- ${usedTitles.join("\n- ") || "(ninguna)"}\n` +
-  (learn ? `\nLo que esta FUNCIONANDO en el canal (alinea las ideas a esto):\n${learn}\n` : "") +
-  `\nDevuelve SOLO un array JSON de ${need} objetos: {"topic":"titulo tentativo en INGLES (estilo curioso, con una cifra o gancho)","why":"1 linea en ESPAÑOL de por que jala vistas"}. Temas de dinero/negocios/plataformas que la gente de EE.UU. googlea.`;
+// DIRECCION del canal (configurable). Si existe channel/direction.json, genera en ese estilo;
+// si no, cae al estilo historico (dinero/negocios). Asi el canal se puede PIVOTAR sin tocar codigo.
+let DIR = null;
+try { DIR = JSON.parse(fs.readFileSync("channel/direction.json", "utf8")); } catch {}
+const prompt = DIR
+  ? `Eres estratega de un canal faceless de YouTube de DATOS en INGLES (mercado EE.UU.).\n` +
+    `ESTILO/DIRECCION ACTUAL: ${DIR.style || ""}\n` +
+    `Rota entre estas direcciones:\n${(DIR.directions || []).map((d) => `- ${d.desc}`).join("\n")}\n` +
+    `Propon ${need} IDEAS NUEVAS de alta retencion, REPARTIDAS entre las direcciones, distintas y NO repetidas respecto a:\n- ${usedTitles.join("\n- ") || "(ninguna)"}\n` +
+    (learn ? `\nLo que esta FUNCIONANDO (alinea a esto):\n${learn}\n` : "") +
+    `\nDevuelve SOLO un array JSON de ${need} objetos: {"topic":"titulo en INGLES con cifra o gancho de curiosidad","why":"1 linea en ESPAÑOL de por que jala vistas"}.`
+  : `Eres estratega de un canal faceless de YouTube de DATOS/DINERO en INGLES (mercado EE.UU.), estilo "how much money X makes".\n` +
+    `Propon ${need} IDEAS NUEVAS de video (largas, alta retencion), distintas y NO repetidas respecto a estas ya usadas/planeadas:\n- ${usedTitles.join("\n- ") || "(ninguna)"}\n` +
+    (learn ? `\nLo que esta FUNCIONANDO en el canal (alinea las ideas a esto):\n${learn}\n` : "") +
+    `\nDevuelve SOLO un array JSON de ${need} objetos: {"topic":"titulo tentativo en INGLES (estilo curioso, con una cifra o gancho)","why":"1 linea en ESPAÑOL de por que jala vistas"}. Temas de dinero/negocios/plataformas que la gente de EE.UU. googlea.`;
 
 const ideas = await gemini(prompt);
 if (!ideas || !ideas.length) {
