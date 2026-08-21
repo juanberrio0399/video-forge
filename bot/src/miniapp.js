@@ -976,7 +976,7 @@ export const APP_HTML = `<!doctype html>
     // Tarjeta prominente: Shorts/videos PRIVADOS por revisar (privados, no programados) -> a Agenda.
     var _dlSid={}; (ST.scheduled||[]).forEach(function(s){_dlSid[s.video_id]=1;});
     var _dlPriv=(ST.all_videos||[]).filter(function(v){ if(!v.video_id||v.privacy==="public")return false; var loc=localSched[v.video_id]; if(loc==="schedule"||loc==="public")return false; return !_dlSid[v.video_id]; });
-    var _dlPend=_dlPriv.length?('<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px">👀 '+_dlPriv.length+' por revisar</div><div class="muted" style="font-size:13px;margin:4px 0 8px">Privados de The Data Lens — publícalos o prográmalos.</div><button class="btn" onclick="tab(\\'agenda\\')">Ir a revisar</button></div>'):'';
+    var _dlPend=_dlPriv.length?('<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px">👀 '+_dlPriv.length+' por revisar</div><div class="muted" style="font-size:13px;margin:4px 0 8px">Privados de The Data Lens — publícalos o prográmalos.</div><button class="btn" onclick="tab(\\'producir\\')">Ir a revisar</button></div>'):'';
     el("s-inicio").innerHTML =
       _dlPend
       +nextActionHtml()
@@ -1066,7 +1066,8 @@ export const APP_HTML = `<!doctype html>
     if(!shb) shb='<div class="card muted">Aún no hay shorts. Publica un video y dale a Sugerir.</div>';
 
     el("s-producir").innerHTML=
-      pendingThumbsHtml()
+      pendingReviewHtml()
+      +pendingThumbsHtml()
       +flowStepsHtml()
       +productionHtml()
       +nextStepHtml()
@@ -1088,7 +1089,7 @@ export const APP_HTML = `<!doctype html>
       +shb;
 
     // ===== AGENDA =====
-    el("s-agenda").innerHTML = calendarHtml()+pendingReviewHtml()+scheduledHtml()+bestTimesHtml();
+    el("s-agenda").innerHTML = calendarHtml()+scheduledHtml()+bestTimesHtml();
 
     // ===== ANALITICA ===== canal completo + analisis + fabrica + tus videos.
     var tree=ST.video_tree||[], ung=ST.video_tree_ungrouped||[];
