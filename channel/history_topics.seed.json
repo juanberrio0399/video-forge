@@ -1,0 +1,25 @@
+{
+  "_nota": "Temas semilla de 'Historia que cambio el mundo' para los Shorts. history_script los usa si la IA no propone; el workflow marca los ya usados en R2 (channel/history_used.json) para no repetir.",
+  "topics": [
+    "The night the Berlin Wall fell in 1989",
+    "How a single assassination in 1914 started World War I",
+    "The day penicillin was discovered by accident",
+    "The Cuban Missile Crisis: 13 days the world almost ended",
+    "How the printing press destroyed the old world order",
+    "The eruption of Vesuvius that froze Pompeii in time",
+    "The moment humans first walked on the Moon in 1969",
+    "How the Black Death killed half of Europe",
+    "The fall of Constantinople in 1453",
+    "The Chernobyl night that changed nuclear power forever",
+    "How Gutenberg's Bible sparked a revolution of ideas",
+    "The Trinity test: the first atomic bomb explosion",
+    "The sinking of the Titanic and the myth of the unsinkable",
+    "How the Rosetta Stone unlocked ancient Egypt",
+    "The Wright brothers' 12 seconds that gave humans the sky",
+    "The day the stock market crashed and started the Great Depression",
+    "How Rome burned and Nero watched",
+    "The discovery of the tomb of Tutankhamun in 1922",
+    "The Battle of Stalingrad: the turning point of WWII",
+    "How the transatlantic cable connected two worlds overnight"
+  ]
+}

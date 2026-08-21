@@ -1,11 +1,13 @@
 {
-  "_nota": "Direccion de contenido de The Data Lens. La lee replenish_ideas para GENERAR ideas en este estilo. Cambia esto para PIVOTAR el canal sin tocar codigo. La revision semanal la ajusta segun que rinda; si NADA rinde, se reestructura con direcciones nuevas.",
-  "label": "Data curiosa (experimento) - pivote 2026-08-20",
-  "pivot_at": "2026-08-20",
-  "style": "Videos/Shorts de DATOS con ALTA curiosidad y compartibilidad, en INGLES (mercado EE.UU.). PROHIBIDO 'how much money X company makes' y explicadores corporativos de finanzas (nicho saturado, 0 subs). Gancho de curiosidad en 2s, cifra o dato contraintuitivo, retencion alta.",
+  "_nota": "Direccion de contenido de The Data Lens. PIVOTE 2026-08-21: canal de HISTORIA. Shorts narrados estilo historiador sobre hechos que cambiaron el mundo, con footage de archivo (dominio publico). Cambia esto para re-pivotar sin tocar codigo.",
+  "label": "Historia que cambio el mundo (Shorts, estilo historiador) - pivote 2026-08-21",
+  "pivot_at": "2026-08-21",
+  "format": "shorts_history",
+  "style": "SHORTS narrados (9:16, ingles, mercado EE.UU.) sobre MOMENTOS DE LA HISTORIA que cambiaron el mundo. Voz de HISTORIADOR: autoridad, tension, detalle vivido. GANCHO brutal en los primeros 2-3 segundos (dato impactante, pregunta, 'que hubiera pasado si') para maxima retencion. Footage REAL de archivo (dominio publico/CC: Archive.org, Wikimedia, NASA). Edicion profesional: subtitulos karaoke + musica cinematica con ducking.",
+  "hook_rule": "Los primeros 8-10 palabras DEBEN frenar el scroll: cifra brutal, giro, o pregunta que abre un bucle de curiosidad. Nada de introducciones lentas.",
   "directions": [
-    { "key": "rankings", "desc": "Rankings y comparaciones visuales: 'X ranked by [metrica sorprendente]', 'X vs Y - the data nobody shows'. Retiene (esperas el #1), muy compartible." },
-    { "key": "relatable", "desc": "Datos cotidianos relatables: 'The average person spends X years/dollars on Y', 'You'll waste N hours on Z'. Curiosidad + 'a mi me pasa'." },
-    { "key": "escala", "desc": "Escala y extremos con asombro visual: 'How big/much/fast is X really', 'What $1 trillion looks like', 'If the ocean was drained'. Muy visual." }
+    { "key": "guerras_imperios", "desc": "Batallas, caidas de imperios y decisiones que redibujaron el mapa: 'El dia que un imperio cayo en 48 horas', puntos de quiebre." },
+    { "key": "inventos_ideas", "desc": "Inventos, descubrimientos e ideas que cambiaron la vida diaria de todos: 'El accidente que creo el mundo moderno'." },
+    { "key": "personajes_momentos", "desc": "Personas y momentos concretos que torcieron la historia: 'La decision de un solo hombre que salvo/hundio millones'." }
   ]
 }
