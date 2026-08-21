@@ -51,17 +51,8 @@ jobs:
       - name: Generar el reporte (metricas + monetizacion)
         run: node pipeline/channel_report.mjs state.json state_new.json report.txt
 
-      - name: Mantener la cola SIEMPRE en 10 ideas por delante
-        run: |
-          npx --yes wrangler@4 r2 object get "$BUCKET/channel/produced.json" --file=produced.json --remote 2>/dev/null || echo '{"done":[]}' > produced.json
-          # Alinear las ideas nuevas a lo que funciona (si hay aprendizajes guardados).
-          npx --yes wrangler@4 r2 object get "$BUCKET/channel/learnings.json" --file=learnings.json --remote 2>/dev/null || true
-          export LEARNINGS="$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("learnings.json","utf8")).brief||"")}catch(e){}')"
-          node pipeline/replenish_ideas.mjs state_new.json state_final.json produced.json 10 | tee replenish.txt
-          # Si agrego ideas, avisar al chat.
-          if grep -q "Cola rellenada" replenish.txt; then
-            bash pipeline/notify_telegram.sh "🧠 Cola de contenido rellenada — siempre 10 videos por delante."$'\n'"$(grep '^\s*+ #' replenish.txt)"
-          fi
+      - name: (Pivote Historia) NO rellenar cola de largos — el canal produce Shorts aparte
+        run: cp state_new.json state_final.json
 
       - name: Aprender de los errores (identificar → analizar → registrar → patrones)
         run: |
