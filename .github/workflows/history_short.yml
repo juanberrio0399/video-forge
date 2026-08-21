@@ -114,6 +114,8 @@ jobs:
           # Marcar tema como usado.
           node -e 'const fs=require("fs");let u=[];try{u=JSON.parse(fs.readFileSync("history_used.json","utf8"))}catch(e){}if(!Array.isArray(u))u=[];let t="";try{t=fs.readFileSync("chosen_topic.txt","utf8").trim()}catch(e){}if(t&&!u.includes(t))u.push(t);fs.writeFileSync("history_used_new.json",JSON.stringify(u.slice(-500)))'
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/history_used.json" --file=history_used_new.json --remote --content-type application/json
+          # Romper el cache de inventario del bot -> el Short aparece en la app enseguida (no espera 10 min).
+          npx --yes wrangler@4 r2 object delete "$BUCKET/channel/inventory_cache.json" --remote 2>/dev/null || true
 
       - name: Avisar listo (aprobar en la app)
         if: always()
