@@ -55,4 +55,5 @@ jobs:
 
       - name: Avisar
         if: always()
-        run: bash pipeline/notify_telegram.sh "🙈 Actualicé los videos ocultos de la app (${ACT:-hide}): ${IDS}. Ya no aparece(n) en el tablero."
+        run: |
+          bash pipeline/notify_telegram.sh "🙈 Actualicé los videos ocultos de la app (${ACT:-hide}). IDs ${IDS}. Ya no aparece(n) en el tablero."
