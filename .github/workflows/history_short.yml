@@ -5,6 +5,8 @@ name: Short de HISTORIA (narrado + footage de archivo)
 # Sube PRIVADO a The Data Lens (YT_) para que Juan lo apruebe/publique desde la app.
 
 on:
+  schedule:
+    - cron: "0 12 * * *"   # 1/dia (~7am Bogota): produce un Short de HISTORIA nuevo, PRIVADO, para aprobar
   workflow_dispatch:
     inputs:
       topic:
