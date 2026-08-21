@@ -12,9 +12,9 @@ on:
         required: false
         default: ""
       voice:
-        description: "Voz locutor (Charon, Iapetus, Rasalgethi, Alnilam, Orus)"
+        description: "Voz locutor (Fenrir=energico, Algenib=grave, Orus=firme, Charon=calmado)"
         required: false
-        default: "Charon"
+        default: "Fenrir"
 
 permissions:
   contents: read
@@ -38,7 +38,7 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
       TOPIC: ${{ github.event.inputs.topic }}
-      VOICE: ${{ github.event.inputs.voice || 'Charon' }}
+      VOICE: ${{ github.event.inputs.voice || 'Fenrir' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -60,9 +60,12 @@ jobs:
       - name: Guion estilo historiador (gancho + beats + queries)
         run: node pipeline/history_script.mjs script.json narration.txt
 
-      - name: Voz de locutor (Gemini TTS)
+      - name: Voz de locutor (Gemini TTS, estilo dramatico)
         run: |
-          node pipeline/gemini_tts.mjs narration.txt narration.mp3 "$VOICE"
+          # Instruccion de estilo (Gemini TTS la interpreta como direccion, NO la narra).
+          printf 'Narrate this like a gripping, high-energy history documentary: intense, dramatic, urgent pacing, strong gravitas and momentum, never calm or flat. Read only the story that follows:\n\n' > tts_input.txt
+          cat narration.txt >> tts_input.txt
+          node pipeline/gemini_tts.mjs tts_input.txt narration.mp3 "$VOICE"
           echo "duracion narracion: $(ffprobe -v error -show_entries format=duration -of default=nk=1:nw=1 narration.mp3)s"
 
       - name: Subtitulos por palabra (Whisper)

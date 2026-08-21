@@ -48,13 +48,14 @@ const PROMPT = `You are a master historian AND a viral YouTube Shorts scriptwrit
 Write a narration for a 45-55 second vertical Short, for a US/English audience.
 
 HARD RULES:
-- HOOK: the FIRST sentence (max ~10 words) must STOP the scroll — a shocking number, a dark twist, or a "what if" that opens a curiosity loop. NO slow intros, NO "Today we'll talk about". Start in the action.
-- VOICE: authoritative HISTORIAN — vivid, tense, cinematic, present-tense where it hits harder. Every sentence earns the next.
-- Build the story with rising tension; end on a punch or a reflection that reframes what they just heard.
-- Length: 130-165 words total. Short, punchy sentences.
+- HOOK: the FIRST sentence (max ~10 words) must STOP the scroll — a shocking number, a dark twist, or a "what if" that opens a curiosity loop. NO slow intros, NO "Today we'll talk about". Start mid-action, with force.
+- VOICE: authoritative HISTORIAN with URGENCY — vivid, tense, cinematic, present-tense where it hits harder. Punchy, dramatic, high-energy — like a gripping documentary trailer, NOT a calm lecture. Every sentence escalates.
+- SENTENCES: short and driving (5-12 words each). Use hard cuts and momentum. Land 2-3 mini-cliffhangers before the payoff.
+- Build rising tension; end on a punch or a reflection that reframes everything.
+- Length: 120-150 words total.
 - 100% historically accurate. No invented quotes or fake stats.
 
-Then split the narration into 6 visual BEATS. For EACH beat give a CONCRETE archive-footage search query in English that is likely to exist in PUBLIC-DOMAIN / Creative Commons archives (Archive.org, Wikimedia, NASA) — real events, places, eras (e.g. "Berlin Wall 1989 crowd", "D-Day Normandy landing 1944", "Apollo 11 launch 1969", "1929 Wall Street crash newsreel"). Prefer specific, filmable subjects over abstractions.
+Then split the narration into 6 visual BEATS. For EACH beat give a CONCRETE search query in English of a REAL, ICONIC, SEARCHABLE subject that surely exists as a historical PHOTO on Wikimedia Commons — use proper nouns, places, people and years (e.g. "Berlin Wall 1989", "Brandenburg Gate November 1989", "Gunter Schabowski press conference", "East Germans crossing Berlin Wall", "Apollo 11 launch 1969", "1929 Wall Street crash crowd"). Each beat's query MUST be visually different from the others (different place/person/moment) so the images never repeat. Avoid abstractions.
 
 Return ONLY JSON:
 {"topic":"...","title":"<=70 char high-CTR English title (no clickbait lies)","hook":"the first line","narration":"the full narration text","beats":[{"text":"beat sentence","query":"archive footage search query"}],"hashtags":["#History", "..."],"vibe":"cinematic|tension|epic"}`;
