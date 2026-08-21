@@ -341,7 +341,7 @@ async function handleApi(request, env, url) {
     const invAll = [...(inv.longs || []), ...(inv.shorts || [])];
     const fromYT = invAll
       .filter((v) => v.publish_at && Date.parse(v.publish_at) > nowMs)
-      .map((v) => ({ video_id: v.video_id, title: v.title, type: (v.seconds || 0) <= 60 ? "short" : "long", publish_at: v.publish_at }));
+      .map((v) => ({ video_id: v.video_id, title: v.title, type: (v.seconds || 0) <= 90 ? "short" : "long", publish_at: v.publish_at }));
     // + registro LOCAL (recien programados, antes de que YouTube confirme). Se descartan los que ya
     // aparecen en YouTube (evita duplicar) o que ya son publicos (ya se publicaron) o cuya hora paso.
     const schedLocal = (await r2json(env, "channel/scheduled_local.json")) || [];
@@ -881,7 +881,7 @@ async function channelInventory(env) {
         const secs = isoDurSec(v.contentDetails.duration);
         const st = v.status || {};
         const row = { video_id: v.id, title: v.snippet.title, privacy: st.privacyStatus, publish_at: st.publishAt || null, published_at: v.snippet.publishedAt.slice(0, 10), views: +((v.statistics || {}).viewCount || 0), likes: +((v.statistics || {}).likeCount || 0), seconds: secs, upload_status: st.uploadStatus || null, rejection_reason: st.rejectionReason || null };
-        if (secs > 0 && secs <= 60) shorts.push(row); else longs.push(row);
+        if (secs > 0 && secs <= 90) shorts.push(row); else longs.push(row); // <=90s: cubre Shorts que se pasan un poco de 60s
       }
     }
     longs.sort((a, b) => (a.published_at < b.published_at ? 1 : -1));
