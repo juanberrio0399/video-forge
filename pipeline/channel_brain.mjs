@@ -24,43 +24,55 @@ if (odVids < 10) { odVerdict = "🟡 arrancando"; odMsg = `${odVids} videos, fal
 else if ((odTop && odTop.avg_vpd >= 20) || odSubs > 0) { odVerdict = "🟢 sano"; odMsg = `${odSubs} subs · ${odViews.toLocaleString()} vistas · gana ${odTop ? odTop.label + " (" + odTop.avg_vpd + "/dia)" : "?"}.`; }
 else { odVerdict = "🔴 estancado"; odMsg = `${odVids} videos y nada despega — revisar formato.`; }
 
-// ---------------- THE DATA LENS ----------------
-// Direccion del experimento por heuristica de titulo (para medir cual jala).
-function dlDir(t) {
-  t = (t || "").toLowerCase();
-  if (/ranked|ranking| vs |compared/.test(t)) return "rankings";
-  if (/average person|you'll (spend|waste)|your daily|how many hours you|of your life|checks their phone/.test(t)) return "relatable";
-  if (/trillion|actually looks like|drained|to scale|how (big|much|fast|far) is/.test(t)) return "escala";
-  return "otros";
-}
+// ---------------- THE DATA LENS (canal de HISTORIA) ----------------
+// Mide por CATEGORIA (guerras/inventos/personajes) con stats EN VIVO de los video_id del mapa
+// (channel/history_map.json). Solo cuentan los Shorts PUBLICOS (los privados no tienen vistas).
+const { YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN } = process.env;
+const histMap = rj("history_map.json", []);
 const dlSubs = +((dl.channel_stats || {}).subs ?? (dl.monetization || {}).subs) || 0;
 const dlVids = +((dl.channel_stats || {}).videos) || (dl.published || []).length;
-const pivotAt = dir && dir.pivot_at ? Date.parse(dir.pivot_at) : null;
-const pubs = (dl.published || []).filter((v) => v.privacy === "public");
-const post = pivotAt ? pubs.filter((v) => v.published_at && Date.parse(v.published_at) >= pivotAt) : [];
-const byDir = {};
-for (const v of post) {
-  const d = dlDir(v.title);
-  const vpd = ((v.stats && v.stats.views) || v.views || 0) / days(v.published_at);
-  byDir[d] = byDir[d] || { n: 0, vpd: 0 };
-  byDir[d].n++; byDir[d].vpd += vpd;
+
+async function ytToken() {
+  const r = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: YT_CLIENT_ID, client_secret: YT_CLIENT_SECRET, refresh_token: YT_REFRESH_TOKEN, grant_type: "refresh_token" }) });
+  return (await r.json()).access_token;
 }
-const dirLine = Object.entries(byDir).map(([k, d]) => `${k} ${(d.vpd / d.n).toFixed(1)}/d (${d.n})`).join(" · ") || "(sin videos del experimento aun)";
+const byDir = {};
+let nTest = 0;
+if (Array.isArray(histMap) && histMap.length && YT_REFRESH_TOKEN) {
+  try {
+    const token = await ytToken();
+    const ids = [...new Set(histMap.map((x) => x.video_id).filter(Boolean))];
+    const st = {};
+    for (let i = 0; i < ids.length; i += 50) {
+      const j = await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet,status&id=${ids.slice(i, i + 50).join(",")}`, { headers: { Authorization: `Bearer ${token}` } })).json();
+      for (const v of j.items || []) st[v.id] = { views: +((v.statistics || {}).viewCount) || 0, pub: (v.snippet || {}).publishedAt, priv: (v.status || {}).privacyStatus };
+    }
+    for (const m of histMap) {
+      const s = st[m.video_id]; if (!s || s.priv !== "public" || !s.pub) continue;
+      const k = m.direction || "otros";
+      byDir[k] = byDir[k] || { n: 0, vpd: 0, views: 0 };
+      byDir[k].n++; byDir[k].vpd += s.views / days(s.pub); byDir[k].views += s.views;
+    }
+    nTest = Object.values(byDir).reduce((s, d) => s + d.n, 0);
+  } catch (e) { console.error("stats historia:", e.message); }
+}
+const dirLabel = { guerras_imperios: "Guerras/Imperios", inventos_ideas: "Inventos/Ideas", personajes_momentos: "Personajes/Momentos" };
+const dirLine = Object.entries(byDir).map(([k, d]) => `${dirLabel[k] || k} ${(d.vpd / d.n).toFixed(1)}/d (${d.n})`).join(" · ") || "(sin Shorts publicos del experimento aun)";
 
 let dlVerdict, dlMsg, restructure = false;
-const MIN_TEST = 6;    // videos minimos del experimento antes de juzgar
-const VETA = 10;       // vpd que consideramos "hay veta"
-if (!pivotAt || post.length < MIN_TEST) {
+const MIN_TEST = 9;    // ~3 por categoria antes de juzgar
+const VETA = 8;        // vpd que consideramos "hay veta" en Shorts nuevos
+if (nTest < MIN_TEST) {
   dlVerdict = "🟡 en prueba";
-  dlMsg = `pivote nuevo · ${post.length}/${MIN_TEST} videos del experimento — esperando datos (~1-2 semanas). No producir masivo hasta ver que jala.`;
+  dlMsg = `experimento de Historia · ${nTest}/${MIN_TEST} Shorts publicos medidos — juntando datos (~1-2 semanas). Aprueba/publica los del dia para que midan.`;
 } else {
   const best = Object.entries(byDir).map(([k, d]) => ({ k, vpd: d.vpd / d.n })).sort((a, b) => b.vpd - a.vpd)[0];
   if (best && best.vpd >= VETA) {
     dlVerdict = "🟢 encontro veta";
-    dlMsg = `gana «${best.k}» (${best.vpd.toFixed(1)}/dia) — hay que ESCALAR esa direccion y cortar las otras.`;
+    dlMsg = `gana «${dirLabel[best.k] || best.k}» (${best.vpd.toFixed(1)}/dia) — ESCALAR esa categoria y cortar las otras.`;
   } else {
     dlVerdict = "🔴 REESTRUCTURAR";
-    dlMsg = `probamos las 3 direcciones y NINGUNA despega. Toca reestructurar con formatos nuevos.`;
+    dlMsg = `probamos las categorias y NINGUNA despega. Toca cambiar el formato/gancho.`;
     restructure = true;
   }
 }

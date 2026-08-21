@@ -1,20 +1,25 @@
 name: Short de HISTORIA (narrado + footage de archivo)
 
-# Produce un Short 9:16 de "Historia que cambio el mundo": guion estilo historiador (gancho fuerte),
-# voz Gemini TTS, footage de archivo dominio-publico (Archive.org), subtitulos karaoke + musica.
-# Sube PRIVADO a The Data Lens (YT_) para que Juan lo apruebe/publique desde la app.
+# Produce Shorts 9:16 de "Historia que cambio el mundo": guion estilo historiador (gancho fuerte),
+# voz Gemini TTS dramatica, footage dominio-publico (Wikimedia Ken Burns + Archive), karaoke + musica.
+# EXPERIMENTO A/B/C: 3/dia, UNO por categoria (guerras/inventos/personajes) para medir cual jala.
+# Sube PRIVADO a The Data Lens (YT_) para aprobar/publicar desde la app. Registra la categoria en R2.
 
 on:
   schedule:
-    - cron: "0 12 * * *"   # 1/dia (~7am Bogota): produce un Short de HISTORIA nuevo, PRIVADO, para aprobar
+    - cron: "0 12 * * *"   # 3/dia (matriz de 3 categorias, ~7am Bogota): un Short PRIVADO por categoria
   workflow_dispatch:
     inputs:
+      direction:
+        description: "Categoria: all | guerras_imperios | inventos_ideas | personajes_momentos"
+        required: false
+        default: "all"
       topic:
-        description: "Tema (opcional). Vacio = elige uno de la semilla no usado."
+        description: "Tema exacto (opcional, para pruebas). Ignora la categoria."
         required: false
         default: ""
       voice:
-        description: "Voz locutor (Fenrir=energico, Algenib=grave, Orus=firme, Charon=calmado)"
+        description: "Voz (Fenrir=energico, Algenib=grave, Orus=firme, Charon=calmado)"
         required: false
         default: "Fenrir"
 
@@ -27,7 +32,14 @@ env:
 jobs:
   make:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
+    # En dispatch se puede pedir UNA categoria; en schedule corren las 3.
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.direction == '' || github.event.inputs.direction == 'all' || github.event.inputs.direction == matrix.direction }}
+    strategy:
+      fail-fast: false
+      max-parallel: 1   # secuencial: respeta rate limits gratis y evita choques al escribir el mapa en R2
+      matrix:
+        direction: [guerras_imperios, inventos_ideas, personajes_momentos]
     env:
       CI: "true"
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -39,6 +51,7 @@ jobs:
       YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      DIRECTION: ${{ matrix.direction }}
       TOPIC: ${{ github.event.inputs.topic }}
       VOICE: ${{ github.event.inputs.voice || 'Fenrir' }}
     steps:
@@ -56,15 +69,11 @@ jobs:
       - name: Bajar temas ya usados (para no repetir)
         run: npx --yes wrangler@4 r2 object get "$BUCKET/channel/history_used.json" --file=history_used.json --remote 2>/dev/null || echo '[]' > history_used.json
 
-      - name: Avisar arranque
-        run: bash pipeline/notify_telegram.sh "🏛️ Produciendo un Short de HISTORIA (narrado + footage de archivo). Te aviso cuando esté listo para aprobar."
-
-      - name: Guion estilo historiador (gancho + beats + queries)
+      - name: Guion estilo historiador (categoria + gancho + beats + queries)
         run: node pipeline/history_script.mjs script.json narration.txt
 
       - name: Voz de locutor (Gemini TTS, estilo dramatico)
         run: |
-          # Instruccion de estilo (Gemini TTS la interpreta como direccion, NO la narra).
           printf 'Narrate this like a gripping, high-energy history documentary: intense, dramatic, urgent pacing, strong gravitas and momentum, never calm or flat. Read only the story that follows:\n\n' > tts_input.txt
           cat narration.txt >> tts_input.txt
           node pipeline/gemini_tts.mjs tts_input.txt narration.mp3 "$VOICE"
@@ -94,9 +103,21 @@ jobs:
       - name: Subir a YouTube (privado, The Data Lens)
         run: node pipeline/short_publish.mjs short.mp4 title.txt description.txt
 
-      - name: Marcar el tema como usado (R2)
+      - name: Registrar categoria del video (mapa en R2) + marcar tema usado
         if: ${{ hashFiles('short_id.txt') != '' }}
         run: |
+          # Mapa video_id -> categoria (para que El Cerebro mida cual jala).
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/history_map.json" --file=map.json --remote 2>/dev/null || echo '[]' > map.json
+          node -e '
+            const fs=require("fs");let m=[];try{m=JSON.parse(fs.readFileSync("map.json","utf8"))}catch(e){}if(!Array.isArray(m))m=[];
+            const id=fs.readFileSync("short_id.txt","utf8").trim();
+            const dir=(fs.existsSync("chosen_direction.txt")?fs.readFileSync("chosen_direction.txt","utf8").trim():(process.env.DIRECTION||""));
+            let topic="";try{topic=fs.readFileSync("chosen_topic.txt","utf8").trim()}catch(e){}
+            if(id && !m.find(x=>x.video_id===id)) m.push({video_id:id,direction:dir,topic,at:new Date().toISOString()});
+            fs.writeFileSync("map_new.json",JSON.stringify(m.slice(-800)));
+          '
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/history_map.json" --file=map_new.json --remote --content-type application/json
+          # Marcar tema como usado.
           node -e 'const fs=require("fs");let u=[];try{u=JSON.parse(fs.readFileSync("history_used.json","utf8"))}catch(e){}if(!Array.isArray(u))u=[];let t="";try{t=fs.readFileSync("chosen_topic.txt","utf8").trim()}catch(e){}if(t&&!u.includes(t))u.push(t);fs.writeFileSync("history_used_new.json",JSON.stringify(u.slice(-500)))'
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/history_used.json" --file=history_used_new.json --remote --content-type application/json
 
@@ -105,7 +126,7 @@ jobs:
         run: |
           if [ -f short_id.txt ]; then
             VID=$(cat short_id.txt); TITLE=$(cat title.txt)
-            bash pipeline/notify_telegram.sh "🏛️ Short de HISTORIA listo (privado): ${TITLE}"$'\n'"▶️ https://youtu.be/${VID}"$'\n\n'"👉 Revísalo y publícalo desde la app (pestaña Shorts)."
+            bash pipeline/notify_telegram.sh "🏛️ Short de HISTORIA [${DIRECTION}] listo (privado): ${TITLE}"$'\n'"▶️ https://youtu.be/${VID}"$'\n\n'"👉 Revísalo y publícalo desde la app (pestaña Shorts)."
           else
-            bash pipeline/notify_telegram.sh "❌ El Short de historia falló al generar/subir. Revisa el log del workflow."
+            bash pipeline/notify_telegram.sh "❌ El Short de historia [${DIRECTION}] falló al generar/subir. Revisa el log."
           fi
