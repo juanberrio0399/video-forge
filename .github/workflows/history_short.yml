@@ -10,12 +10,8 @@ on:
     - cron: "0 12 * * *"   # 3/dia (matriz de 3 categorias, ~7am Bogota): un Short PRIVADO por categoria
   workflow_dispatch:
     inputs:
-      direction:
-        description: "Categoria: all | guerras_imperios | inventos_ideas | personajes_momentos"
-        required: false
-        default: "all"
       topic:
-        description: "Tema exacto (opcional, para pruebas). Ignora la categoria."
+        description: "Tema exacto (opcional, para pruebas). Aplica a las 3 corridas."
         required: false
         default: ""
       voice:
@@ -33,8 +29,6 @@ jobs:
   make:
     runs-on: ubuntu-latest
     timeout-minutes: 35
-    # En dispatch se puede pedir UNA categoria; en schedule corren las 3.
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.direction == '' || github.event.inputs.direction == 'all' || github.event.inputs.direction == matrix.direction }}
     strategy:
       fail-fast: false
       max-parallel: 1   # secuencial: respeta rate limits gratis y evita choques al escribir el mapa en R2
