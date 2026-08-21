@@ -26,6 +26,17 @@ const pickIdx = usedSet.size % Math.max(1, fresh.length);
 const seedTopic = (process.env.TOPIC || "").trim()
   || (fresh.length ? fresh[pickIdx] : (seed[usedSet.size % Math.max(1, seed.length)] || "A moment in history that changed the world"));
 
+// CATEGORIA (experimento A/B/C): si viene DIRECTION, la IA elige un tema DENTRO de esa direccion.
+const DIRECTION = (process.env.DIRECTION || "").trim();
+let dirDef = null;
+try { dirDef = ((JSON.parse(fs.readFileSync("channel/direction.json", "utf8")).directions) || []).find((d) => d.key === DIRECTION); } catch {}
+const recentUsed = (Array.isArray(used) ? used : []).slice(-40);
+const topicLine = (process.env.TOPIC || "").trim()
+  ? `Topic: "${seedTopic}" — a moment in history that changed the world. (You may refine or reframe the exact topic for maximum intrigue, but stay historically accurate.)`
+  : dirDef
+  ? `Pick a SPECIFIC, real, world-changing HISTORY topic in THIS category and write about it. Category "${DIRECTION}": ${dirDef.desc}\nDo NOT reuse any of these already-used topics: ${recentUsed.join(" | ") || "(none)"}.`
+  : `Topic: "${seedTopic}" — a moment in history that changed the world. (You may refine or reframe the exact topic for maximum intrigue, but stay historically accurate.)`;
+
 async function gemini(prompt, json = true) {
   for (let round = 0; round < 2; round++) for (const k of KEYS) for (const m of TEXT_MODELS) {
     try {
@@ -43,7 +54,7 @@ async function gemini(prompt, json = true) {
   return null;
 }
 
-const PROMPT = `You are a master historian AND a viral YouTube Shorts scriptwriter. Topic: "${seedTopic}" — a moment in history that changed the world. (You may refine or reframe the exact topic for maximum intrigue, but stay historically accurate.)
+const PROMPT = `You are a master historian AND a viral YouTube Shorts scriptwriter. ${topicLine}
 
 Write a narration for a 45-55 second vertical Short, for a US/English audience.
 
@@ -78,13 +89,15 @@ if (!out || !out.narration || !Array.isArray(out.beats) || !out.beats.length) {
   };
 }
 out.topic = out.topic || seedTopic;
+out.direction = DIRECTION || out.direction || "";
 out.vibe = ["cinematic", "tension", "epic"].includes((out.vibe || "").toLowerCase()) ? out.vibe.toLowerCase() : "cinematic";
 if (!Array.isArray(out.hashtags) || !out.hashtags.length) out.hashtags = ["#History", "#Shorts"];
 
 fs.writeFileSync(outScript, JSON.stringify(out, null, 2));
 fs.writeFileSync(outNarration, String(out.narration).replace(/\s+/g, " ").trim());
 fs.writeFileSync("chosen_topic.txt", out.topic);
-console.log(`GUION listo — "${out.title}"`);
+fs.writeFileSync("chosen_direction.txt", out.direction);
+console.log(`GUION listo [${out.direction || "sin-categoria"}] — "${out.title}"`);
 console.log(`Hook: ${out.hook}`);
 console.log(`Beats: ${out.beats.length} · vibe: ${out.vibe}`);
 console.log(out.beats.map((b, i) => `  ${i + 1}. [${b.query}] ${b.text}`).join("\n"));
