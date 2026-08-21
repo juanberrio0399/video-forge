@@ -135,7 +135,7 @@ L.push(`• Elegible: ${state.monetization.elegible ? "✅ SI" : "❌ todavia no
 L.push(``);
 L.push(`*Proximos videos (programacion):*`);
 for (const u of (state.upcoming || []).slice(0, 6)) {
-  L.push(`• #${u.n} · ${u.target_date} — ${u.topic}`);
+  L.push(`• #${u.n}${u.target_date ? ` · ${u.target_date}` : ""} — ${u.topic}`);
 }
 L.push(``);
 if (!anyPublic) {

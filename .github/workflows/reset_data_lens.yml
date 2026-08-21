@@ -1,0 +1,64 @@
+name: Reset The Data Lens (cero limpio - sin borrar)
+
+# AUDITA o RESETEA The Data Lens: pone privado lo publico/programado y saca TODO el inventario
+# de la app (hidden_videos.json). NO borra nada; reversible. Produccion sigue automatica.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "audit (solo listar/clasificar) | apply (ocultar y cerrar en la app)"
+        required: false
+        default: "audit"
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      MODE: ${{ github.event.inputs.mode }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Bajar estado + hidden actuales de R2
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/state.json" --file=state.json --remote 2>/dev/null || cp channel/seed.json state.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/hidden_videos.json" --file=hidden.json --remote 2>/dev/null || echo '[]' > hidden.json
+
+      - name: Auditar / aplicar
+        run: node pipeline/reset_data_lens.mjs "${MODE:-audit}"
+
+      - name: (apply) Guardar hidden_videos.json actualizado en R2
+        if: ${{ github.event.inputs.mode == 'apply' }}
+        run: |
+          if [ -f hidden_new.json ]; then
+            npx --yes wrangler@4 r2 object put "$BUCKET/channel/hidden_videos.json" --file=hidden_new.json --remote --content-type application/json
+            echo "hidden_videos.json actualizado en R2"
+          fi
+
+      - name: Avisar al chat
+        if: always()
+        run: |
+          if [ "${MODE:-audit}" = "apply" ] && [ -f reset_summary.txt ]; then
+            bash pipeline/notify_telegram.sh "$(cat reset_summary.txt)"
+          elif [ -f audit_summary.txt ]; then
+            bash pipeline/notify_telegram.sh "$(cat audit_summary.txt)"$'\n\n'"👉 Si está OK, corre este mismo workflow en modo *apply* para dejarlo en cero limpio."
+          else
+            bash pipeline/notify_telegram.sh "❌ No pude auditar The Data Lens (revisa el log)."
+          fi
