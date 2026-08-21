@@ -1,0 +1,106 @@
+name: Short de HISTORIA (narrado + footage de archivo)
+
+# Produce un Short 9:16 de "Historia que cambio el mundo": guion estilo historiador (gancho fuerte),
+# voz Gemini TTS, footage de archivo dominio-publico (Archive.org), subtitulos karaoke + musica.
+# Sube PRIVADO a The Data Lens (YT_) para que Juan lo apruebe/publique desde la app.
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Tema (opcional). Vacio = elige uno de la semilla no usado."
+        required: false
+        default: ""
+      voice:
+        description: "Voz locutor (Charon, Iapetus, Rasalgethi, Alnilam, Orus)"
+        required: false
+        default: "Charon"
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  make:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      TOPIC: ${{ github.event.inputs.topic }}
+      VOICE: ${{ github.event.inputs.voice || 'Charon' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: FFmpeg + fuentes (sin Chrome; no usamos HyperFrames)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation fonts-dejavu-core
+
+      - name: Bajar temas ya usados (para no repetir)
+        run: npx --yes wrangler@4 r2 object get "$BUCKET/channel/history_used.json" --file=history_used.json --remote 2>/dev/null || echo '[]' > history_used.json
+
+      - name: Avisar arranque
+        run: bash pipeline/notify_telegram.sh "🏛️ Produciendo un Short de HISTORIA (narrado + footage de archivo). Te aviso cuando esté listo para aprobar."
+
+      - name: Guion estilo historiador (gancho + beats + queries)
+        run: node pipeline/history_script.mjs script.json narration.txt
+
+      - name: Voz de locutor (Gemini TTS)
+        run: |
+          node pipeline/gemini_tts.mjs narration.txt narration.mp3 "$VOICE"
+          echo "duracion narracion: $(ffprobe -v error -show_entries format=duration -of default=nk=1:nw=1 narration.mp3)s"
+
+      - name: Subtitulos por palabra (Whisper)
+        run: |
+          pip install faster-whisper
+          python pipeline/whisper_words.py narration.mp3 words.json || echo "sin karaoke (uso frases)"
+
+      - name: Musica del vibe (de R2)
+        run: |
+          VIBE=$(node -e "try{let v=require('./script.json').vibe||'cinematic';if(v==='epic')v='cinematic';process.stdout.write(v)}catch(e){process.stdout.write('cinematic')}")
+          echo "vibe=$VIBE"
+          npx --yes wrangler@4 r2 object get "$BUCKET/music/$VIBE.mp3" --file=music.mp3 --remote 2>/dev/null \
+            || npx --yes wrangler@4 r2 object get "$BUCKET/music/cinematic.mp3" --file=music.mp3 --remote 2>/dev/null \
+            || echo "sin musica (queda solo la voz)"
+
+      - name: Ensamblar el Short (footage + narracion + karaoke + musica)
+        run: node pipeline/history_short.mjs script.json narration.mp3 short.mp4
+
+      - name: Preparar titulo + descripcion
+        run: |
+          node -e 'const p=require("./publish/package.json");const fs=require("fs");fs.writeFileSync("title.txt",p.title);fs.writeFileSync("description.txt",p.description)'
+          echo "Titulo:"; cat title.txt
+
+      - name: Subir a YouTube (privado, The Data Lens)
+        run: node pipeline/short_publish.mjs short.mp4 title.txt description.txt
+
+      - name: Marcar el tema como usado (R2)
+        if: ${{ hashFiles('short_id.txt') != '' }}
+        run: |
+          node -e 'const fs=require("fs");let u=[];try{u=JSON.parse(fs.readFileSync("history_used.json","utf8"))}catch(e){}if(!Array.isArray(u))u=[];let t="";try{t=fs.readFileSync("chosen_topic.txt","utf8").trim()}catch(e){}if(t&&!u.includes(t))u.push(t);fs.writeFileSync("history_used_new.json",JSON.stringify(u.slice(-500)))'
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/history_used.json" --file=history_used_new.json --remote --content-type application/json
+
+      - name: Avisar listo (aprobar en la app)
+        if: always()
+        run: |
+          if [ -f short_id.txt ]; then
+            VID=$(cat short_id.txt); TITLE=$(cat title.txt)
+            bash pipeline/notify_telegram.sh "🏛️ Short de HISTORIA listo (privado): ${TITLE}"$'\n'"▶️ https://youtu.be/${VID}"$'\n\n'"👉 Revísalo y publícalo desde la app (pestaña Shorts)."
+          else
+            bash pipeline/notify_telegram.sh "❌ El Short de historia falló al generar/subir. Revisa el log del workflow."
+          fi
