@@ -112,7 +112,7 @@ export const APP_HTML = `<!doctype html>
 <div id="toast"></div>
 <div class="nav">
   <button data-t="inicio" class="on"><span class="ic">🏠</span>Inicio</button>
-  <button data-t="producir"><span class="ic">🏭</span>Producir</button>
+  <button id="navProducir" data-t="producir"><span class="ic">🏭</span>Producir</button>
   <button data-t="agenda"><span class="ic">📅</span>Agenda</button>
   <button data-t="analitica"><span class="ic">📈</span>Analítica</button>
   <button data-t="mas"><span class="ic">⚙️</span>Más</button>
@@ -582,6 +582,16 @@ export const APP_HTML = `<!doctype html>
     return '<h2>👀 Privados por revisar ('+pend.length+')</h2>'
       +'<div class="card"><div class="muted" style="font-size:12px;margin-bottom:6px">The Data Lens sube en <b>privado</b> para que los revises. Dale <b>Programar</b> (mejor hora EEUU) y entra al calendario, o <b>Publicar ahora</b> para hacerlo público ya.</div>'+rows+'</div>';
   }
+  function categoryScoreHtml(){
+    // EXPERIMENTO A/B/C: vistas/día por categoría (del Cerebro). El líder es el que se escala.
+    var dl=(ST.brain&&ST.brain.data_lens)||{}, bd=dl.byDir||{};
+    var LBL={guerras_imperios:"⚔️ Guerras/Imperios",inventos_ideas:"💡 Inventos/Ideas",personajes_momentos:"👤 Personajes/Momentos"};
+    var rows=Object.keys(bd).map(function(k){var d=bd[k]||{};return {k:k,vpd:d.n?d.vpd/d.n:0,n:d.n||0};}).sort(function(a,b){return b.vpd-a.vpd;});
+    var body=rows.length?rows.map(function(r,i){return '<tr><td>'+(i===0&&r.vpd>0?"🏆 ":"")+esc(LBL[r.k]||r.k)+'</td><td style="text-align:right">'+r.vpd.toFixed(1)+'</td><td style="text-align:right">'+r.n+'</td></tr>';}).join(""):'<tr><td colspan="3" class="muted">Sin datos aún — publica shorts y espera ~1 semana (Analytics va 2-3 días atrás).</td></tr>';
+    return '<h2>🧪 Experimento por categoría</h2><div class="card"><div class="muted" style="font-size:12px;margin-bottom:6px">Vistas/día por categoría. El líder es el que hay que escalar.</div>'
+      +'<table style="font-size:13px;width:100%"><tr><th style="text-align:left">Categoría</th><th style="text-align:right">vistas/día</th><th style="text-align:right"># pub.</th></tr>'+body+'</table>'
+      +(dl.msg?'<div class="muted" style="font-size:12px;margin-top:8px">🧠 '+esc(dl.msg)+'</div>':'')+'</div>';
+  }
   function calendarHtml(){
     // CALENDARIO día a día: cada día con sus 2 franjas (mejores horas EEUU), lleno o libre. Meta 2/día.
     var cal=ST.calendar||[];
@@ -923,6 +933,8 @@ export const APP_HTML = `<!doctype html>
     var up = ST.upcoming||[];
     var liveTag = (activeFor(curChannel).length) ? " · 🟢 en vivo" : "";
     el("chTitle").textContent = curChannel==="auto2" ? "Auto #2" : "The Data Lens";
+    // Data Lens es automatico: la pestaña "Producir" se llama "Revisar" (revisas/publicas lo que sale solo).
+    var _np=el("navProducir"); if(_np) _np.innerHTML = (curChannel==="auto2") ? '<span class="ic">🏭</span>Producir' : '<span class="ic">🎬</span>Revisar';
     el("hd").textContent = (curChannel==="auto2"?"canal automático":"@TheDataLensHQ")+" · act. "+ (ST.updated_at? String(ST.updated_at).slice(5,16).replace("T"," "):"—") + liveTag;
     setHelp(curTab);
     // Banner de "te aviso al terminar" (G-V1): visible en TODAS las pestañas mientras haya un proceso vigilado.
@@ -1065,28 +1077,12 @@ export const APP_HTML = `<!doctype html>
     }
     if(!shb) shb='<div class="card muted">Aún no hay shorts. Publica un video y dale a Sugerir.</div>';
 
+    // Canal de HISTORIA (Shorts automáticos): revisar/publicar lo que sale solo + forzar una tanda.
     el("s-producir").innerHTML=
       pendingReviewHtml()
-      +pendingThumbsHtml()
-      +flowStepsHtml()
-      +productionHtml()
-      +nextStepHtml()
-      +matrixHtml()
-      +learningsHtml()
-      +craftHtml()
-      +(next
-        ? '<h2>Siguiente video</h2><div class="card"><div style="font-weight:800;font-size:16px">#'+(next.n||"")+' · '+esc(next.topic||"")+'</div>'
-          +'<div class="muted" style="margin:6px 0 12px">'+esc(next.why||"")+' · '+esc(next.target_date||"")+'</div>'
-          +(producing
-            ? '<div style="text-align:center;font-weight:700;color:var(--cy);padding:10px;background:rgba(34,211,238,.12);border-radius:12px">⏳ Produciendo… mira "En proceso ahora"</div>'
-            : '<button class="btn" onclick="produceVideo('+(next.n||0)+')">▶️ Producir este video</button>')
-          +'<button class="btn ghost" onclick="showTrends()">🔥 Analizar tendencias (¿alineado?)</button></div>'
-        : '<div class="card muted">🎉 Todo lo programado ya se produjo. Pídeme por el chat más temas cuando quieras.</div>')
-      +'<div id="trendsOut"></div>'
-      +'<h2>En cola (próximos temas)</h2><div class="card"><table><tr><th>#</th><th>Tema</th><th style="text-align:right">Fecha</th></tr>'+(prows||'<tr><td colspan="3" class="muted">No hay más temas en cola por ahora.</td></tr>')+'</table></div>'
-      +'<div class="card muted">Cadencia objetivo: '+esc((ST.cadence&&ST.cadence.goal)||"1 video cada 2 días")+'.</div>'
-      +'<h2 id="shortsAnchor">✂️ Shorts</h2>'
-      +shb;
+      +'<div class="card"><div style="font-weight:800;margin-bottom:4px">🏛️ Shorts de Historia (automático)</div>'
+      +'<div class="muted" style="font-size:12px;margin-bottom:8px">La fábrica saca <b>3 al día</b> sola (uno por categoría: ⚔️ guerras · 💡 inventos · 👤 personajes). Arriba revisas y publicas; o fuerza una tanda ahora.</div>'
+      +'<button class="btn" onclick="dispatch(\\'history_short.yml\\',\\'Producir 3 Shorts de historia\\')">▶️ Producir 3 Shorts ahora (1 por categoría)</button></div>';
 
     // ===== AGENDA =====
     el("s-agenda").innerHTML = calendarHtml()+scheduledHtml()+bestTimesHtml();
@@ -1121,7 +1117,8 @@ export const APP_HTML = `<!doctype html>
       +'<div id="insightsOut">'+lastInsights+'</div>'
       +'<div class="muted" style="font-size:11px;text-align:center">📹 largo · ↳🎬 sus shorts · 🔒 privado</div>';
     el("s-analitica").innerHTML=
-      goalHtml(ST.monet_goal)
+      categoryScoreHtml()
+      +goalHtml(ST.monet_goal)
       +analyticsHtml()
       +dataLensTopHtml()
       +videosCard

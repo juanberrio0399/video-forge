@@ -148,6 +148,7 @@ const APP_WORKFLOWS = new Set([
   "produce_video.yml", "seo_regen.yml", "thumbnail_only.yml", "voice_samples.yml",
   "schedule_youtube.yml", "daily_video.yml", "photo_edit.yml", "niche_radar.yml",
   "report_auto2.yml", "produce_oddly.yml", "publish_oddly.yml", "build_asmr_library.yml", "daily_oddly.yml", "set_oddly_branding.yml", "clip_pd.yml", "clip_nasa.yml", "clip_wikimedia.yml", "clip_pixabay.yml", "clip_pexels.yml", "clip_archive_cc.yml", "subir_manual.yml",
+  "history_short.yml",
 ]);
 
 // Voces disponibles para el canal (con su ejemplo en R2). engine/kvoice se usan en la voz.
