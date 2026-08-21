@@ -42,7 +42,7 @@ async function wikimediaImage(query) {
   try { pages = Object.values(((await (await tf(api)).json())?.query?.pages) || {}); } catch { return null; }
   const cand = pages
     .map((p) => ({ t: p.title, ii: (p.imageinfo || [])[0] }))
-    .filter((x) => x.ii && x.ii.width >= 1000 && /\.(jpe?g|png)(\?|$)/i.test(x.ii.thumburl || x.ii.url || ""))
+    .filter((x) => x.ii && x.ii.width >= 700 && /\.(jpe?g|png)(\?|$)/i.test(x.ii.thumburl || x.ii.url || ""))
     .map((x) => ({ ...x, lic: imgLicense(x.ii.extmetadata) }))
     .filter((x) => x.lic && !usedImg.has(x.t))
     .sort((a, b) => (b.ii.width || 0) - (a.ii.width || 0));
@@ -126,9 +126,26 @@ async function archiveVideo(query, dur, idx) {
   return null;
 }
 
-// ---------- Un segmento por beat: imagen Wikimedia (Ken Burns) -> respaldo video Archive ----------
+// Fondo cinematografico generado (ultima red de seguridad: un beat SIN material no tumba el short).
+function fallbackSegment(dur, idx) {
+  const seg = `${work}/seg${idx}.mp4`;
+  try {
+    execSync(`ffmpeg -y -f lavfi -i "gradients=s=${W}x${H}:c0=0x0b1a33:c1=0x020509:d=${dur.toFixed(2)}:speed=0.01" -t ${dur.toFixed(2)} -vf "vignette=a=PI/7,noise=alls=5:allf=t" -r ${FPS} -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p "${seg}"`, { stdio: "ignore" });
+  } catch {
+    execSync(`ffmpeg -y -f lavfi -i "color=c=0x0b1a33:s=${W}x${H}:d=${dur.toFixed(2)}" -vf "vignette" -r ${FPS} -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p "${seg}"`, { stdio: "ignore" });
+  }
+  return seg;
+}
+
+// ---------- Un segmento por beat: imagen Wikimedia (Ken Burns) -> respaldo video Archive -> fondo ----------
 async function buildSegment(beat, dur, idx) {
-  const queries = [beat.query, `${beat.query} ${topic.split(" ").slice(0, 3).join(" ")}`, topic].filter(Boolean);
+  // Escalera de queries que ACORTA (de especifica a general) -> Wikimedia no devuelve 0 por frases largas.
+  const q0 = beat.query || topic;
+  const noYear = q0.replace(/\b(1[0-9]{3}|20\d{2})\b/g, "").replace(/\s+/g, " ").trim();
+  const sig = q0.split(/\s+/).filter((w) => /^[A-Z]/.test(w) || w.length > 3);
+  const core = sig.slice(0, 3).join(" ");
+  const two = q0.split(/\s+/).slice(0, 2).join(" ");
+  const queries = [...new Set([q0, noYear, core, two, topic].filter(Boolean))];
   // 1) Imagen Wikimedia relevante y de alta resolucion.
   for (const q of queries) {
     let img = null; try { img = await wikimediaImage(q); } catch {}
@@ -149,8 +166,9 @@ async function buildSegment(beat, dur, idx) {
     let v = null; try { v = await archiveVideo(q, dur, idx); } catch {}
     if (v) { console.log(`  beat ${idx}: VIDEO archivo (${v.license})`); credits.push(v.cred); return { seg: v.seg, kind: "vid", page: v.page, license: v.license }; }
   }
-  console.error(`  beat ${idx}: sin material para "${beat.query}"`);
-  return null;
+  // 3) Ultima red: fondo cinematografico (nunca aborta la categoria).
+  console.error(`  beat ${idx}: sin material real para "${beat.query}" -> fondo cinematografico`);
+  return { seg: fallbackSegment(dur, idx), kind: "fallback", page: "", license: "" };
 }
 
 const TD = 0.4;
@@ -245,7 +263,7 @@ fs.mkdirSync("publish", { recursive: true });
 fs.writeFileSync("publish/package.json", JSON.stringify({ title, description: desc, tags: ["shorts", "history", "documentary"], language: "en" }, null, 2));
 fs.writeFileSync("clip_manifest.json", JSON.stringify({
   niche: "history", format: "9:16",
-  clips: built.map((b, i) => ({ clip_id: "h" + i, source: b.kind === "img" ? "wikimedia_commons" : "archive_pd", license: b.license, url: b.page, query: beats[i]?.query || "" })),
+  clips: built.map((b, i) => ({ clip_id: "h" + i, source: b.kind === "img" ? "wikimedia_commons" : b.kind === "vid" ? "archive_pd" : "generated_bg", license: b.license, url: b.page, query: beats[i]?.query || "" })),
   transform: { narration: true, original_audio: false, editing: true, original_script: true, sound_design: true },
 }, null, 2));
-console.log(`Short de HISTORIA listo -> ${outPath} · "${title}" · ${built.length} segmentos (${built.filter((b) => b.kind === "img").length} img / ${built.filter((b) => b.kind === "vid").length} video)`);
+console.log(`Short de HISTORIA listo -> ${outPath} · "${title}" · ${built.length} segmentos (${built.filter((b) => b.kind === "img").length} img / ${built.filter((b) => b.kind === "vid").length} video / ${built.filter((b) => b.kind === "fallback").length} fondo)`);
