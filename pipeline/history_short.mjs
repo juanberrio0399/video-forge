@@ -40,11 +40,14 @@ async function wikimediaImage(query) {
   const api = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query + " filetype:bitmap")}&gsrnamespace=6&gsrlimit=25&prop=imageinfo&iiprop=url|size|extmetadata&iiurlwidth=2200&format=json`;
   let pages = [];
   try { pages = Object.values(((await (await tf(api)).json())?.query?.pages) || {}); } catch { return null; }
+  const want = kw(query);
   const cand = pages
     .map((p) => ({ t: p.title, ii: (p.imageinfo || [])[0] }))
     .filter((x) => x.ii && x.ii.width >= 700 && /\.(jpe?g|png)(\?|$)/i.test(x.ii.thumburl || x.ii.url || ""))
     .map((x) => ({ ...x, lic: imgLicense(x.ii.extmetadata) }))
     .filter((x) => x.lic && !usedImg.has(x.t))
+    // RELEVANCIA: el titulo de la imagen debe compartir >=1 palabra clave con la query (evita fotos fuera de tema).
+    .filter((x) => { if (!want.length) return true; const tw = kw(x.t); return want.some((w) => tw.includes(w)); })
     .sort((a, b) => (b.ii.width || 0) - (a.ii.width || 0));
   const pick = cand[0];
   if (!pick) return null;
