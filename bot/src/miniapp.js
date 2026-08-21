@@ -973,8 +973,13 @@ export const APP_HTML = `<!doctype html>
     }
 
     // ===== INICIO ===== lo que necesita tu atencion + pulso del canal.
+    // Tarjeta prominente: Shorts/videos PRIVADOS por revisar (privados, no programados) -> a Agenda.
+    var _dlSid={}; (ST.scheduled||[]).forEach(function(s){_dlSid[s.video_id]=1;});
+    var _dlPriv=(ST.all_videos||[]).filter(function(v){ if(!v.video_id||v.privacy==="public")return false; var loc=localSched[v.video_id]; if(loc==="schedule"||loc==="public")return false; return !_dlSid[v.video_id]; });
+    var _dlPend=_dlPriv.length?('<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px">👀 '+_dlPriv.length+' por revisar</div><div class="muted" style="font-size:13px;margin:4px 0 8px">Privados de The Data Lens — publícalos o prográmalos.</div><button class="btn" onclick="tab(\\'agenda\\')">Ir a revisar</button></div>'):'';
     el("s-inicio").innerHTML =
-      nextActionHtml()
+      _dlPend
+      +nextActionHtml()
       +'<div class="card"><div class="row">'
       +'<div class="kpi"><div class="n">'+num(cs.subs)+'</div><div class="l">Subs</div></div>'
       +'<div class="kpi"><div class="n">'+num(cs.total_views)+'</div><div class="l">Vistas</div></div>'
