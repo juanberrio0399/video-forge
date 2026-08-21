@@ -1,0 +1,58 @@
+name: Ocultar/mostrar video en la app (hidden_videos.json)
+
+# Agrega (o quita) uno o varios video_id de channel/hidden_videos.json en R2.
+# Ocultar = se saca del tablero de la app (no lo borra de YouTube; reversible con action=show).
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_ids:
+        description: "video_id(s) separados por coma"
+        required: true
+        default: ""
+      action:
+        description: "hide (ocultar) | show (volver a mostrar)"
+        required: false
+        default: "hide"
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  hide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      IDS: ${{ github.event.inputs.video_ids }}
+      ACT: ${{ github.event.inputs.action }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Actualizar hidden_videos.json
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/hidden_videos.json" --file=hidden.json --remote 2>/dev/null || echo '[]' > hidden.json
+          node -e '
+            const fs=require("fs");
+            let h=[]; try{h=JSON.parse(fs.readFileSync("hidden.json","utf8"))}catch(e){}; if(!Array.isArray(h))h=[];
+            const set=new Set(h);
+            const ids=(process.env.IDS||"").split(",").map(s=>s.trim()).filter(Boolean);
+            const act=(process.env.ACT||"hide").toLowerCase();
+            for(const id of ids){ if(act==="show") set.delete(id); else set.add(id); }
+            fs.writeFileSync("hidden_new.json", JSON.stringify([...set]));
+            console.log(`${act} ${ids.length} · total ocultos: ${set.size}`);
+          '
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/hidden_videos.json" --file=hidden_new.json --remote --content-type application/json
+
+      - name: Avisar
+        if: always()
+        run: bash pipeline/notify_telegram.sh "🙈 Actualicé los videos ocultos de la app (${ACT:-hide}): ${IDS}. Ya no aparece(n) en el tablero."
