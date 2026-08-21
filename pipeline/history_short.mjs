@@ -148,9 +148,9 @@ if (hasMusic) {
   execSync(`ffmpeg -y -i "${bg}" -i "${narrPath}" -stream_loop -1 -i music.mp3 ` +
     `-filter_complex "[0:v]subtitles=captions.ass[v];` +
     `[2:a]volume=0.30,afade=t=in:st=0:d=0.8[mus];` +
-    `[1:a]loudnorm=I=-15:TP=-1.5[nar];` +
-    `[mus][nar]sidechaincompress=threshold=0.03:ratio=8:attack=15:release=300[mduck];` +
-    `[nar][mduck]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]" ` +
+    `[1:a]loudnorm=I=-15:TP=-1.5,asplit=2[nar1][nar2];` +
+    `[mus][nar1]sidechaincompress=threshold=0.03:ratio=8:attack=15:release=300[mduck];` +
+    `[nar2][mduck]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]" ` +
     `-map "[v]" -map "[a]" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest -movflags +faststart "${outPath}"`, { stdio: "inherit" });
 } else {
   execSync(`ffmpeg -y -i "${bg}" -i "${narrPath}" -filter_complex "[0:v]subtitles=captions.ass[v];[1:a]loudnorm=I=-15:TP=-1.5[a]" -map "[v]" -map "[a]" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -shortest -movflags +faststart "${outPath}"`, { stdio: "inherit" });
