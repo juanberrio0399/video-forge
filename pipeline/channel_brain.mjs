@@ -36,8 +36,9 @@ async function ytToken() {
   const r = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: YT_CLIENT_ID, client_secret: YT_CLIENT_SECRET, refresh_token: YT_REFRESH_TOKEN, grant_type: "refresh_token" }) });
   return (await r.json()).access_token;
 }
+const MATURE_DAYS = 5; // un Short necesita varios días publicos para medir de verdad (YouTube Analytics va 2-3 dias atras)
 const byDir = {};
-let nTest = 0;
+let nTest = 0, inmaduros = 0;
 if (Array.isArray(histMap) && histMap.length && YT_REFRESH_TOKEN) {
   try {
     const token = await ytToken();
@@ -49,6 +50,8 @@ if (Array.isArray(histMap) && histMap.length && YT_REFRESH_TOKEN) {
     }
     for (const m of histMap) {
       const s = st[m.video_id]; if (!s || s.priv !== "public" || !s.pub) continue;
+      const age = (now - Date.parse(s.pub)) / 86400000;
+      if (age < MATURE_DAYS) { inmaduros++; continue; } // muy nuevo -> aún no mide (Analytics va 2-3 días atrás); no cuenta para el veredicto
       const k = m.direction || "otros";
       byDir[k] = byDir[k] || { n: 0, vpd: 0, views: 0 };
       byDir[k].n++; byDir[k].vpd += s.views / days(s.pub); byDir[k].views += s.views;
@@ -64,7 +67,7 @@ const MIN_TEST = 9;    // ~3 por categoria antes de juzgar
 const VETA = 8;        // vpd que consideramos "hay veta" en Shorts nuevos
 if (nTest < MIN_TEST) {
   dlVerdict = "🟡 en prueba";
-  dlMsg = `experimento de Historia · ${nTest}/${MIN_TEST} Shorts publicos medidos — juntando datos (~1-2 semanas). Aprueba/publica los del dia para que midan.`;
+  dlMsg = `experimento de Historia · ${nTest}/${MIN_TEST} Shorts MADUROS (≥${MATURE_DAYS}d) medidos${inmaduros ? ` · ${inmaduros} aun nuevos, madurando` : ""} — juntando datos (~1-2 semanas). Los recien publicados necesitan varios dias antes de contar (Analytics va 2-3 dias atras).`;
 } else {
   const best = Object.entries(byDir).map(([k, d]) => ({ k, vpd: d.vpd / d.n })).sort((a, b) => b.vpd - a.vpd)[0];
   if (best && best.vpd >= VETA) {
