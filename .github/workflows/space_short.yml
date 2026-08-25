@@ -5,6 +5,8 @@ name: Short de ESPACIO (Space Facts — Oddly, video NASA)
 # Sube PRIVADO a Oddly (YT2_) para que Juan lo revise y publique desde la app. De momento disparo manual.
 
 on:
+  schedule:
+    - cron: "0 16 * * *"   # 1/día (~11am Bogotá): produce un short de espacio PRIVADO en Oddly para revisar/publicar
   workflow_dispatch:
     inputs:
       topic:
