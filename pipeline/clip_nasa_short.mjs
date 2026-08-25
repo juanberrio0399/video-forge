@@ -7,6 +7,7 @@
 import fs from "node:fs";
 import { execSync } from "node:child_process";
 import { sourceWH, smartCropVf, finishClip } from "./clip_frame.mjs";
+import { keepFootage, kwOf } from "./footage_filter.mjs";
 
 const [topic, niche = "ciencia_humor", outPath = "short.mp4"] = process.argv.slice(2);
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
@@ -20,12 +21,16 @@ console.log(`Buscando en NASA: "${topic}"…`);
 const s = await (await tf(`https://images-api.nasa.gov/search?q=${encodeURIComponent(topic)}&media_type=video&page_size=25`)).json();
 const items = (s.collection && s.collection.items) || [];
 let mp4 = null, nasaId = null, title = topic;
+const wantNasa = kwOf(topic);
 for (const it of items) {
   try {
+    const d = it.data && it.data[0];
+    // FILTRO compartido: fuera episodios producidos (texto quemado)/hardware/misión; exige el sujeto.
+    if (d && !keepFootage((d.title || "") + " " + (d.description || ""), wantNasa)) continue;
     const col = await (await tf(it.href)).json();
     const urls = (Array.isArray(col) ? col : []).filter((u) => /\.mp4$/i.test(u));
     const pick = urls.find((u) => /~orig\.mp4$/i.test(u)) || urls.find((u) => /~large\.mp4$/i.test(u)) || urls[0];
-    if (pick) { mp4 = pick.replace(/^http:/, "https:"); nasaId = (it.data && it.data[0] && it.data[0].nasa_id) || ""; title = (it.data && it.data[0] && it.data[0].title) || topic; break; }
+    if (pick) { mp4 = pick.replace(/^http:/, "https:"); nasaId = (d && d.nasa_id) || ""; title = (d && d.title) || topic; break; }
   } catch {}
 }
 if (!mp4) { console.error("NASA: sin video mp4 usable"); process.exit(1); }
