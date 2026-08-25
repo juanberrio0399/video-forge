@@ -5,32 +5,13 @@
 // Uso: node pipeline/space_short_script.mjs <script.json> <narration.txt>
 // Env: GEMINI_API_KEY(,2). Lee space_short_used.json (temas ya usados, de R2).
 import fs from "node:fs";
-import { TEXT_MODELS } from "./_models.mjs";
+import { genText } from "./llm.mjs";  // Gemini -> Cloudflare Workers AI (fallback gratis, sin cuota)
 
 const [outScript = "script.json", outNarration = "narration.txt"] = process.argv.slice(2);
-const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
-const tf = (u, o = {}, ms = 45000) => fetch(u, { ...o, signal: AbortSignal.timeout(ms) });
 
 let used = [];
 try { used = JSON.parse(fs.readFileSync("space_short_used.json", "utf8")); } catch {}
 const recentUsed = (Array.isArray(used) ? used : []).slice(-50);
-
-async function gemini(prompt) {
-  for (let round = 0; round < 2; round++) for (const k of KEYS) for (const m of TEXT_MODELS) {
-    try {
-      const res = await tf(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${k}`, {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.9 } }),
-      });
-      if (res.status === 429) { await new Promise((r) => setTimeout(r, 1500)); continue; }
-      if (!res.ok) continue;
-      const j = await res.json();
-      const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
-      if (t) return t;
-    } catch {}
-  }
-  return null;
-}
 
 const PROMPT = `You are a calm, dreamy science writer for a faceless YouTube SHORTS channel — the "space facts to fall asleep to" vibe.
 
@@ -51,7 +32,7 @@ Return ONLY JSON:
 {"topic":"the subject","title":"<=80 char calm SEO title, e.g. 'Space Facts to Fall Asleep To 🌌'","hook":"the soft first line","narration":"the full narration","beats":[{"text":"beat sentence","query":"NASA video search query"}],"hashtags":["#space","#relaxing","#Shorts","..."]}`;
 
 let out = null;
-const raw = await gemini(PROMPT);
+const raw = await genText(PROMPT, { json: true });
 if (raw) { try { out = JSON.parse(raw); } catch {} }
 
 if (!out || !out.narration || !Array.isArray(out.beats) || !out.beats.length) {
