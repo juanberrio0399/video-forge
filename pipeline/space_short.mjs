@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import { execSync } from "node:child_process";
 import { sourceWH, smartCropVf } from "./clip_frame.mjs";
+import { keepFootage, prefersGood, kwOf } from "./footage_filter.mjs";
 
 const [scriptPath = "script.json", narrPath = "narration.mp3", outPath = "short.mp4"] = process.argv.slice(2);
 const W = 1080, H = 1920, FPS = 30;
@@ -32,9 +33,15 @@ async function nasaVideo(query, dur, idx) {
     const s = await (await tf(`https://images-api.nasa.gov/search?q=${encodeURIComponent(query)}&media_type=video&page_size=20`)).json();
     items = (s.collection && s.collection.items) || [];
   } catch { return null; }
-  for (const it of items) {
-    const nasaId = it.data && it.data[0] && it.data[0].nasa_id;
-    if (!nasaId || usedVid.has(nasaId)) continue;
+  // FILTRO COMPARTIDO: fuera producido/ingeniería/misión (texto quemado, naves, cohetes); exige el SUJETO.
+  const want = kwOf(query);
+  const txtOf = (it) => (it.data[0].title || "") + " " + (it.data[0].description || "");
+  const cands = items.filter((it) => {
+    const d = it.data && it.data[0]; if (!d || !d.nasa_id || usedVid.has(d.nasa_id)) return false;
+    return keepFootage(txtOf(it), want);
+  }).sort((a, b) => prefersGood(txtOf(b)) - prefersGood(txtOf(a)));
+  for (const it of cands) {
+    const nasaId = it.data[0].nasa_id;
     const title = (it.data[0].title || query).slice(0, 90);
     let urls = [];
     try { const col = await (await tf(it.href, {}, 30000)).json(); urls = (Array.isArray(col) ? col : []).filter((u) => /\.mp4$/i.test(u)); } catch {}
@@ -109,9 +116,12 @@ async function archiveVideo(query, dur, idx) {
 async function nasaImage(query, dur, idx) {
   let items = [];
   try { const s = await (await tf(`https://images-api.nasa.gov/search?q=${encodeURIComponent(query)}&media_type=image&page_size=16`)).json(); items = (s.collection && s.collection.items) || []; } catch { return null; }
+  // Mismo filtro compartido: fuera diagramas/hardware/misión; exige el sujeto. (Las fotos de telescopio son limpias.)
+  const want = kwOf(query);
   for (const it of items) {
     const nasaId = it.data && it.data[0] && it.data[0].nasa_id;
     if (!nasaId || usedImg.has(nasaId)) continue;
+    if (!keepFootage((it.data[0].title || "") + " " + (it.data[0].description || ""), want)) continue;
     let assets = []; try { assets = await (await tf(it.href, {}, 30000)).json(); } catch {}
     const jpgs = (Array.isArray(assets) ? assets : []).filter((u) => /\.jpe?g$/i.test(u) && !/~thumb\./i.test(u));
     const pick = jpgs.find((u) => /~large\./i.test(u)) || jpgs.find((u) => /~medium\./i.test(u)) || jpgs[0];
@@ -154,16 +164,20 @@ function queryLadder(beat) {
   return [...new Set([q0, core, two, topic].filter(Boolean))];
 }
 
+// Temas donde el VIDEO real de la NASA es LIMPIO (feeds crudos, sin anotaciones): Tierra/ISS, Sol/SDO, auroras.
+// El resto (nebulosas, galaxias, planetas, espacio profundo) casi solo tiene video PRODUCIDO con texto quemado
+// -> para esos usamos IMAGEN Hubble limpia (con Ken Burns). Así ningún clip trae basura.
+const VIDEO_OK = /\bearth\b|\biss\b|space station|\bsun\b|\bsolar\b|flare|prominence|corona|aurora|from orbit|re-?entry|\bcloud|storm|hurricane|lightning|\blimb\b|day and night|city lights/i;
+
 async function buildSegment(beat, dur, idx) {
   const queries = queryLadder(beat);
-  // 1) VIDEO NASA (lo que Juan quiere: footage en movimiento).
-  for (const q of queries) { let v = null; try { v = await nasaVideo(q, dur, idx); } catch {} if (v) { console.log(`  beat ${idx}: NASA VIDEO`); credits.push(v.cred); return v; } }
-  // 2) VIDEO de Archive (respaldo en movimiento).
-  for (const q of queries) { let v = null; try { v = await archiveVideo(q, dur, idx); } catch {} if (v) { console.log(`  beat ${idx}: VIDEO archivo (${v.license})`); credits.push(v.cred); return v; } }
-  // 3) Imagen NASA con Ken Burns (solo si no hubo video).
-  for (const q of queries) { let im = null; try { im = await nasaImage(q, dur, idx); } catch {} if (im) { console.log(`  beat ${idx}: imagen NASA (Ken Burns)`); credits.push(im.cred); return im; } }
-  // 4) Última red: fondo estelar.
-  console.error(`  beat ${idx}: sin material para "${beat.query}" -> fondo estelar`);
+  const dynamic = VIDEO_OK.test(beat.query || "");
+  const tryVideo = async () => { for (const q of queries) { let v = null; try { v = await nasaVideo(q, dur, idx); } catch {} if (v) { console.log(`  beat ${idx}: NASA VIDEO`); credits.push(v.cred); return v; } } return null; };
+  const tryImage = async () => { for (const q of queries) { let im = null; try { im = await nasaImage(q, dur, idx); } catch {} if (im) { console.log(`  beat ${idx}: imagen NASA (Ken Burns)`); credits.push(im.cred); return im; } } return null; };
+  // Dinámico -> video limpio primero; espacio profundo -> imagen limpia primero. (NUNCA Archive: basura.)
+  const r = dynamic ? (await tryVideo() || await tryImage()) : (await tryImage() || await tryVideo());
+  if (r) return r;
+  console.error(`  beat ${idx}: sin material limpio para "${beat.query}" -> fondo estelar`);
   return fallbackSegment(dur, idx);
 }
 
