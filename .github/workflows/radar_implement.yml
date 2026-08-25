@@ -55,8 +55,8 @@ jobs:
           rm -f radar_pr.json radar_branch.txt radar_title.txt radar_commit.txt radar_complete.txt
           # Solo un PR COMPLETO cierra el issue. Si quedó incompleto: `Ref` (no cierra) + aviso.
           if [ "$COMPLETE" = "1" ]; then CLOSE="Closes #${ISSUE}"; NOTE=""; else CLOSE="Ref #${ISSUE}"; NOTE=" (⚠️ INCOMPLETO — revisar; NO cierra el issue)"; fi
-          git config user.name "radar-bot"
-          git config user.email "radar-bot@users.noreply.github.com"
+          git config user.name "Juan Berrio"
+          git config user.email "juandyb99@gmail.com"
           git checkout -b "$BR"
           git add -A
           git commit -m "$COMMIT" -m "Implementado por el motor del radar (Gemini). Revisar antes de merge. $CLOSE"
