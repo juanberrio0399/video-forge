@@ -404,6 +404,8 @@ async function handleApi(request, env, url) {
     state.niche_radar = (await r2json(env, "channel/niche_radar.json")) || null;
     // EL CEREBRO: diagnostico diario de salud de los 2 canales (para la ventana principal "Resumen").
     state.brain = (await r2json(env, "channel/brain.json")) || null;
+    // EL CEREBRO 2.0: estrategia aprendida (que gana / que hacer mas / que explorar), del optimizador semanal.
+    state.strategy = (await r2json(env, "channel/brain/strategy.json")) || null;
     // CANAL AUTO #2 (Oddly Loop): estado real (videos/subs/vistas/min), lo llena report_auto2.
     state.auto2 = (await r2json(env, "channel/auto2/state.json")) || null;
     // "manual" en Oddly = SOLO lo que Juan marca (channel/auto2/manual_videos.json). Por defecto del Bot.

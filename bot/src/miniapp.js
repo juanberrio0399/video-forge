@@ -900,6 +900,27 @@ export const APP_HTML = `<!doctype html>
     h+='<div class="muted" style="font-size:10px;margin-top:6px">Según la API de YouTube (rechazos/estado de subida). Los reclamos de Content ID completos solo se ven en Studio.</div></div>';
     return h;
   }
+  // CEREBRO 2.0: lo que el sistema APRENDIÓ solo (estrategia semanal: qué gana, qué hacer más, qué explorar).
+  function learnHtml(){
+    var s=ST.strategy; if(!s||!s.per_channel||!Object.keys(s.per_channel).length) return "";
+    var CH={oddly:"Oddly Loop",datalens:"The Data Lens"};
+    var rows=Object.keys(s.per_channel).map(function(k){
+      var d=s.per_channel[k]||{};
+      return '<div style="border-top:1px solid rgba(255,255,255,.06);padding:6px 0">'
+        +'<div style="font-weight:700;font-size:13px">'+esc(CH[k]||k)+'</div>'
+        +(d.focus?'<div style="font-size:12px">🏆 más de: <b>'+esc(d.focus)+'</b></div>':'')
+        +(d.best_hour?'<div class="muted" style="font-size:11px">⏰ mejor hora: '+esc(d.best_hour)+'</div>':'')
+        +(d.hook_advice?'<div class="muted" style="font-size:11px">🪝 '+esc(d.hook_advice)+'</div>':'')
+        +(d.explore?'<div class="muted" style="font-size:11px">🧪 probar: '+esc(d.explore)+'</div>':'')
+        +'</div>';
+    }).join("");
+    var when=s.at?String(s.at).slice(0,10):"";
+    return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b>🧠 Aprendizaje del Cerebro</b>'+(when?'<span class="muted" style="font-size:11px">'+esc(when)+'</span>':'')+'</div>'
+      +(s.summary?'<div class="muted" style="font-size:12px;margin:4px 0">'+esc(s.summary)+'</div>':'')
+      +rows
+      +'<div class="muted" style="font-size:10px;margin-top:6px">Aprende solo cada lunes: mide vistas reales y decide qué hacer más.</div></div>';
+  }
+
   // VENTANA PRINCIPAL: los dos canales de un vistazo (verdicto del cerebro + KPIs + entrar).
   function resumenHtml(){
     var b=ST.brain||{}, od=b.oddly||{}, dl=b.data_lens||{}, a2=ST.auto2||{}, pa=ST.pending_approve||{};
@@ -930,7 +951,8 @@ export const APP_HTML = `<!doctype html>
       +chCard("Oddly Loop","@oddlyloophq",od.verdict,od.msg,kO,"auto2",pa.oddly||0)
       +goalHtml(a2.monet_goal)
       +chCard("The Data Lens","@TheDataLensHQ",dl.verdict,dl.msg,kD,"data-lens",pa.data_lens||0)
-      +goalHtml(ST.monet_goal);
+      +goalHtml(ST.monet_goal)
+      +learnHtml();
   }
   function render(){
     var ch = ST.channel||{}, cs = ST.channel_stats||{}, mon = ST.monetization||{};
