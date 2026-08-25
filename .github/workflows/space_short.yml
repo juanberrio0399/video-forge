@@ -32,6 +32,8 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
       # Oddly Loop = YT2_* mapeado a YT_* (los uploaders leen YT_*).
       YT_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
       YT_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
@@ -70,8 +72,22 @@ jobs:
           pip install faster-whisper
           python pipeline/whisper_words.py narration.mp3 words.json || echo "sin karaoke (uso frases)"
 
-      - name: Ensamblar el short (VIDEO NASA + ambiente + subtítulos)
+      - name: Ensamblar el short (VIDEO NASA/stock + ambiente + subtítulos)
         run: node pipeline/space_short.mjs script.json narration.mp3 short.mp4
+
+      - name: Frames de muestra (para validar calidad)
+        if: ${{ hashFiles('short.mp4') != '' }}
+        run: |
+          mkdir -p frames
+          for t in 3 8 14 20 26 32 38 44; do ffmpeg -y -ss $t -i short.mp4 -frames:v 1 -q:v 3 "frames/f_${t}s.jpg" 2>/dev/null || true; done
+          ls -la frames || true
+      - name: Subir frames como artefacto
+        if: ${{ hashFiles('frames/*.jpg') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: frames
+          path: frames/
+          retention-days: 3
 
       - name: Subir a YouTube (PRIVADO, Oddly Loop)
         run: node pipeline/youtube_upload.mjs short.mp4 publish/package.json
