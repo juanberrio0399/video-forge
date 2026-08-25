@@ -108,6 +108,19 @@ jobs:
           path: thumbnail.jpg
           retention-days: 3
 
+      - name: Cerebro 2.0 — registrar los "genes" del video (aprendizaje)
+        if: ${{ hashFiles('publish/video_id.txt') != '' }}
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/learning.json" --file=learning.json --remote 2>/dev/null || echo '[]' > learning.json
+          node -e '
+            const fs=require("fs");let L=[];try{L=JSON.parse(fs.readFileSync("learning.json","utf8"))}catch(e){}if(!Array.isArray(L))L=[];
+            let s={};try{s=JSON.parse(fs.readFileSync("script.json","utf8"))}catch(e){}
+            const id=fs.readFileSync("publish/video_id.txt","utf8").trim();
+            if(id && !L.find(x=>x.video_id===id)) L.push({video_id:id, channel:"oddly", niche:"space", format:"short", subject:(s.topic||""), hook:(s.hook||""), thumb_text:(s.thumb_text||""), voice:(process.env.KVOICE||"af_heart"), footage:"stock", published_at:new Date().toISOString(), source:"space_short"});
+            fs.writeFileSync("learning_new.json",JSON.stringify(L.slice(-1000)));
+          '
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/brain/learning.json" --file=learning_new.json --remote --content-type application/json
+
       - name: Registrar tema usado + refrescar app
         if: ${{ hashFiles('publish/video_id.txt') != '' }}
         run: |
