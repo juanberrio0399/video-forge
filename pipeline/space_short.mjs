@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import { execSync } from "node:child_process";
 import { sourceWH, smartCropVf } from "./clip_frame.mjs";
-import { keepFootage, prefersGood, kwOf } from "./footage_filter.mjs";
+import { keepFootage, prefersGood, kwOf, FOOTAGE_BAD } from "./footage_filter.mjs";
 
 const [scriptPath = "script.json", narrPath = "narration.mp3", outPath = "short.mp4"] = process.argv.slice(2);
 const W = 1080, H = 1920, FPS = 30;
@@ -164,6 +164,60 @@ function queryLadder(beat) {
   return [...new Set([q0, core, two, topic].filter(Boolean))];
 }
 
+// Descarga un clip, corta una tajada y recorta a 9:16 (smart crop). Devuelve el segmento o null.
+async function cutClip(url, dur, idx, id) {
+  try {
+    const film = `${work}/clip${idx}.mp4`;
+    const r = await tf(url.replace(/^http:/, "https:"), {}, 300000);
+    if (!r.ok) return null;
+    fs.writeFileSync(film, Buffer.from(await r.arrayBuffer()));
+    const fdur = parseFloat(sh(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${film}"`).trim()) || 0;
+    if (fdur < 2) return null;
+    if (id) usedVid.add(id);
+    const start = fdur > dur + 1 ? Math.min(fdur * 0.15, fdur - dur - 0.3) : 0;
+    const { w: sw, h: sh2 } = sourceWH(film);
+    const vf = smartCropVf(W, H, sw, sh2, 0.5, "eq=contrast=1.04:saturation=1.07,vignette=a=PI/7");
+    const seg = `${work}/seg${idx}.mp4`;
+    execSync(`ffmpeg -y -stream_loop -1 -ss ${start.toFixed(2)} -i "${film}" -t ${dur.toFixed(2)} -vf "${vf}" -an -r ${FPS} -c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p "${seg}"`, { stdio: "ignore" });
+    return seg;
+  } catch { return null; }
+}
+
+// ---------- STOCK (Pexels + Pixabay): video de espacio LIMPIO y cinematográfico (sin texto quemado) ----------
+async function stockVideo(query, dur, idx) {
+  const bad = (txt) => FOOTAGE_BAD.test(String(txt || "").toLowerCase()); // el buscador ya filtra por tema -> solo rechazamos basura
+  const PEX = process.env.PEXELS_API_KEY;
+  if (PEX) {
+    try {
+      const j = await (await tf(`https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=25&orientation=portrait`, { headers: { Authorization: PEX } })).json();
+      for (const v of (j.videos || [])) {
+        if (usedVid.has("px" + v.id) || bad(v.url)) continue;
+        const files = (v.video_files || []).filter((f) => f.link && /mp4/i.test(f.file_type || f.link));
+        const pick = files.filter((f) => (f.height || 0) >= (f.width || 0)).sort((a, b) => (b.height || 0) - (a.height || 0))[0]
+          || files.filter((f) => (f.width || 0) <= 1920 && (f.width || 0) > 0).sort((a, b) => (b.width || 0) - (a.width || 0))[0] || files[0];
+        if (!pick) continue;
+        const seg = await cutClip(pick.link, dur, idx, "px" + v.id);
+        if (seg) return { seg, cred: `Video by ${(v.user && v.user.name) || "Pexels"} on Pexels · ${v.url}`, license: "pexels", page: v.url, kind: "stock_video" };
+      }
+    } catch {}
+  }
+  const PIX = process.env.PIXABAY_API_KEY;
+  if (PIX) {
+    try {
+      const j = await (await tf(`https://pixabay.com/api/videos/?key=${PIX}&q=${encodeURIComponent(query)}&per_page=25&safesearch=true&order=popular`)).json();
+      for (const h of (j.hits || [])) {
+        if (usedVid.has("pb" + h.id) || bad(h.tags)) continue;
+        const vs = h.videos || {};
+        const pick = vs.large || vs.medium || vs.small || vs.tiny;
+        if (!pick || !pick.url) continue;
+        const seg = await cutClip(pick.url, dur, idx, "pb" + h.id);
+        if (seg) return { seg, cred: `Video by ${h.user || "Pixabay"} on Pixabay · https://pixabay.com/videos/id-${h.id}/`, license: "pixabay", page: `https://pixabay.com/videos/id-${h.id}/`, kind: "stock_video" };
+      }
+    } catch {}
+  }
+  return null;
+}
+
 // Temas donde el VIDEO real de la NASA es LIMPIO (feeds crudos, sin anotaciones): Tierra/ISS, Sol/SDO, auroras.
 // El resto (nebulosas, galaxias, planetas, espacio profundo) casi solo tiene video PRODUCIDO con texto quemado
 // -> para esos usamos IMAGEN Hubble limpia (con Ken Burns). Así ningún clip trae basura.
@@ -173,9 +227,13 @@ async function buildSegment(beat, dur, idx) {
   const queries = queryLadder(beat);
   const dynamic = VIDEO_OK.test(beat.query || "");
   const tryVideo = async () => { for (const q of queries) { let v = null; try { v = await nasaVideo(q, dur, idx); } catch {} if (v) { console.log(`  beat ${idx}: NASA VIDEO`); credits.push(v.cred); return v; } } return null; };
+  const tryStock = async () => { for (const q of queries) { let v = null; try { v = await stockVideo(q, dur, idx); } catch {} if (v) { console.log(`  beat ${idx}: STOCK video (${v.license})`); credits.push(v.cred); return v; } } return null; };
   const tryImage = async () => { for (const q of queries) { let im = null; try { im = await nasaImage(q, dur, idx); } catch {} if (im) { console.log(`  beat ${idx}: imagen NASA (Ken Burns)`); credits.push(im.cred); return im; } } return null; };
-  // Dinámico -> video limpio primero; espacio profundo -> imagen limpia primero. (NUNCA Archive: basura.)
-  const r = dynamic ? (await tryVideo() || await tryImage()) : (await tryImage() || await tryVideo());
+  // Dinámico (Tierra/Sol/aurora) -> NASA video real limpio, luego stock, luego imagen.
+  // Espacio profundo (nebulosas/galaxias/planetas) -> STOCK video limpio primero (movimiento), luego imagen Hubble.
+  // NUNCA Archive.org (basura). Todo pasa por el filtro compartido.
+  const r = dynamic ? (await tryVideo() || await tryStock() || await tryImage())
+                    : (await tryStock() || await tryImage() || await tryVideo());
   if (r) return r;
   console.error(`  beat ${idx}: sin material limpio para "${beat.query}" -> fondo estelar`);
   return fallbackSegment(dur, idx);
