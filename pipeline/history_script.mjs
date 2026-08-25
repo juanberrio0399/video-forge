@@ -7,7 +7,7 @@
 // Lee (cwd): history_used.json (temas ya usados, de R2), channel/history_topics.seed.json.
 // Env: GEMINI_API_KEY(,2).
 import fs from "node:fs";
-import { TEXT_MODELS } from "./_models.mjs";
+import { genText } from "./llm.mjs";  // Gemini -> Cloudflare Workers AI (fallback gratis, sin cuota)
 
 const [outScript = "script.json", outNarration = "narration.txt"] = process.argv.slice(2);
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
@@ -37,23 +37,6 @@ const topicLine = (process.env.TOPIC || "").trim()
   ? `Pick a SPECIFIC, real, world-changing HISTORY topic in THIS category and write about it. Category "${DIRECTION}": ${dirDef.desc}\nDo NOT reuse any of these already-used topics: ${recentUsed.join(" | ") || "(none)"}.`
   : `Topic: "${seedTopic}" — a moment in history that changed the world. (You may refine or reframe the exact topic for maximum intrigue, but stay historically accurate.)`;
 
-async function gemini(prompt, json = true) {
-  for (let round = 0; round < 2; round++) for (const k of KEYS) for (const m of TEXT_MODELS) {
-    try {
-      const res = await tf(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${k}`, {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: json ? { responseMimeType: "application/json", temperature: 0.9 } : { temperature: 0.9 } }),
-      });
-      if (res.status === 429) { await new Promise((r) => setTimeout(r, 1500)); continue; }
-      if (!res.ok) continue;
-      const j = await res.json();
-      const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
-      if (t) return t;
-    } catch {}
-  }
-  return null;
-}
-
 const PROMPT = `You are a master historian AND a viral YouTube Shorts scriptwriter. ${topicLine}
 
 Write a narration for a 45-55 second vertical Short, for a US/English audience.
@@ -72,7 +55,7 @@ Return ONLY JSON:
 {"topic":"...","title":"<=70 char high-CTR English title (no clickbait lies)","hook":"the first line","narration":"the full narration text","beats":[{"text":"beat sentence","query":"archive footage search query"}],"hashtags":["#History", "..."],"vibe":"cinematic|tension|epic"}`;
 
 let out = null;
-const raw = await gemini(PROMPT, true);
+const raw = await genText(PROMPT, { json: true });
 if (raw) { try { out = JSON.parse(raw); } catch {} }
 
 // Fallback minimo si la IA falla: narracion basica del tema semilla (para no romper el pipeline).
