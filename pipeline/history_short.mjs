@@ -10,6 +10,7 @@
 import fs from "node:fs";
 import { execSync } from "node:child_process";
 import { sourceWH, smartCropVf } from "./clip_frame.mjs";
+import { FOOTAGE_BAD } from "./footage_filter.mjs";
 
 const [scriptPath = "script.json", narrPath = "narration.mp3", outPath = "short.mp4"] = process.argv.slice(2);
 const W = 1080, H = 1920, FPS = 30;
@@ -97,8 +98,10 @@ async function archiveVideo(query, dur, idx) {
   try { docs = (((await (await tf(u)).json()).response) || {}).docs || []; } catch { return null; }
   const want = new Set(kw(query));
   // Relevancia: exige que el TITULO comparta al menos una palabra clave con la query. Y dedup por id.
+  // + filtro compartido: fuera videos producidos con texto quemado / presentadores / diagramas.
   const relevant = docs.filter((d) => !usedVid.has(d.identifier)).filter((d) => {
     const title = (Array.isArray(d.title) ? d.title[0] : d.title) || "";
+    if (FOOTAGE_BAD.test(title.toLowerCase())) return false;
     return kw(title).some((w) => want.has(w));
   });
   for (const d of relevant) {
