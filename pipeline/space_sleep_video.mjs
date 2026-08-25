@@ -123,23 +123,40 @@ if (built.length === 1) {
 }
 
 // ---------- Lecho ambiental generado (pad de La menor + brisa cósmica + eco). Legal y original. ----------
+// tremolo exige f>=0.1 Hz. Envuelto en try/catch: un ambiente que falla NO debe tumbar el render.
 const amb = `${work}/ambient.m4a`;
-execSync(`ffmpeg -y ` +
-  `-f lavfi -i "sine=frequency=110:duration=${DUR.toFixed(2)}" ` +      // A2 (raíz)
-  `-f lavfi -i "sine=frequency=130.81:duration=${DUR.toFixed(2)}" ` +   // C3 (tercera menor)
-  `-f lavfi -i "sine=frequency=164.81:duration=${DUR.toFixed(2)}" ` +   // E3 (quinta)
-  `-f lavfi -i "sine=frequency=220:duration=${DUR.toFixed(2)}" ` +      // A3 (octava, sutil)
-  `-f lavfi -i "anoisesrc=duration=${DUR.toFixed(2)}:color=pink:amplitude=0.07" ` + // brisa cósmica
-  `-filter_complex "` +
-  `[0:a]volume=0.55,tremolo=f=0.06:d=0.4[d0];` +
-  `[1:a]volume=0.30,tremolo=f=0.045:d=0.5[d1];` +
-  `[2:a]volume=0.26,tremolo=f=0.05:d=0.4[d2];` +
-  `[3:a]volume=0.12[d3];` +
-  `[4:a]lowpass=f=650,volume=0.55[nz];` +
-  `[d0][d1][d2][d3][nz]amix=inputs=5:normalize=0[mx];` +
-  `[mx]lowpass=f=1500,aecho=0.8:0.85:900|1700:0.35|0.25,volume=1.1,` +
-  `afade=t=in:d=6,afade=t=out:st=${(DUR - 7).toFixed(2)}:d=7[a]" ` +
-  `-map "[a]" -c:a aac -b:a 160k "${amb}"`, { stdio: "ignore" });
+try {
+  execSync(`ffmpeg -y ` +
+    `-f lavfi -i "sine=frequency=110:duration=${DUR.toFixed(2)}" ` +      // A2 (raíz)
+    `-f lavfi -i "sine=frequency=130.81:duration=${DUR.toFixed(2)}" ` +   // C3 (tercera menor)
+    `-f lavfi -i "sine=frequency=164.81:duration=${DUR.toFixed(2)}" ` +   // E3 (quinta)
+    `-f lavfi -i "sine=frequency=220:duration=${DUR.toFixed(2)}" ` +      // A3 (octava, sutil)
+    `-f lavfi -i "anoisesrc=duration=${DUR.toFixed(2)}:color=pink:amplitude=0.07" ` + // brisa cósmica
+    `-filter_complex "` +
+    `[0:a]volume=0.55,tremolo=f=0.10:d=0.35[d0];` +
+    `[1:a]volume=0.30,tremolo=f=0.10:d=0.45[d1];` +
+    `[2:a]volume=0.26,tremolo=f=0.12:d=0.4[d2];` +
+    `[3:a]volume=0.12[d3];` +
+    `[4:a]lowpass=f=650,volume=0.55[nz];` +
+    `[d0][d1][d2][d3][nz]amix=inputs=5:normalize=0[mx];` +
+    `[mx]lowpass=f=1500,aecho=0.8:0.85:900|1700:0.35|0.25,volume=1.1,` +
+    `afade=t=in:d=6,afade=t=out:st=${(DUR - 7).toFixed(2)}:d=7[a]" ` +
+    `-map "[a]" -c:a aac -b:a 160k "${amb}"`, { stdio: "pipe" });
+} catch (e) {
+  console.error("ambiente principal falló -> ambiente simple:", String(e.message || e).slice(0, 140));
+  try {
+    execSync(`ffmpeg -y ` +
+      `-f lavfi -i "sine=frequency=110:duration=${DUR.toFixed(2)}" ` +
+      `-f lavfi -i "sine=frequency=164.81:duration=${DUR.toFixed(2)}" ` +
+      `-f lavfi -i "anoisesrc=duration=${DUR.toFixed(2)}:color=pink:amplitude=0.05" ` +
+      `-filter_complex "[0:a]volume=0.5[a0];[1:a]volume=0.22[a1];[2:a]lowpass=f=600,volume=0.5[a2];` +
+      `[a0][a1][a2]amix=inputs=3:normalize=0,lowpass=f=1400,afade=t=in:d=5,afade=t=out:st=${(DUR - 6).toFixed(2)}:d=6[a]" ` +
+      `-map "[a]" -c:a aac -b:a 160k "${amb}"`, { stdio: "pipe" });
+  } catch (e2) {
+    console.error("ambiente simple también falló -> silencio:", String(e2.message || e2).slice(0, 140));
+    execSync(`ffmpeg -y -f lavfi -i "anullsrc=r=44100:cl=stereo" -t ${DUR.toFixed(2)} -c:a aac -b:a 96k "${amb}"`, { stdio: "ignore" });
+  }
+}
 
 // ---------- Tarjeta de título elegante (primeros ~7 s, con fundido) ----------
 const FONTS = ["/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"];
