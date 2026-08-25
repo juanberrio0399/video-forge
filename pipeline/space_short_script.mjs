@@ -19,7 +19,7 @@ Write a narration for a 40-55 second VERTICAL Short. US/English audience. ONE be
 
 TONE (critical):
 - SOOTHING, warm, wonder-filled — a soft late-night voice. Calm and slow, NOT hype.
-- Gentle opening that invites wonder (e.g. "Drift with me for a moment…", "Far above you, right now…"). NO shouting, NO "you won't BELIEVE", NO hard hooks. The calm IS the hook.
+- FIRST LINE = the 2-second HOOK (retention is everything in Shorts): a quiet, wondrous scroll-stopper that opens a curiosity loop — a soft "wow" fact or gentle invitation that makes them stay (e.g. "The light you're about to see left its star before humans existed…", "Right now, a world above you is raining diamonds…", "Drift with me past the edge of the Sun…"). Warm and calm, never shouting, never "you won't BELIEVE" — but it must stop the scroll.
 - Flowing, smooth sentences. Accurate real astronomy only. Round big numbers softly.
 - 95-125 words total. End on a soft, dreamy thought.
 
@@ -29,7 +29,7 @@ Good subjects: a nebula where stars are born, Saturn's rings, Earth glowing from
 Then split the narration into 5 visual BEATS. For EACH beat, a CONCRETE English search query of a REAL space subject that surely exists as NASA VIDEO FOOTAGE (moving, not a still) — prefer motion-friendly subjects: "nebula", "galaxy flythrough", "Earth from ISS", "aurora from space", "solar flare SDO", "Saturn Cassini flyby", "Jupiter Juno flyby", "Milky Way timelapse", "space station Earth". Each beat's query VISUALLY different from the others.
 
 Return ONLY JSON:
-{"topic":"the subject","title":"<=80 char calm SEO title, e.g. 'Space Facts to Fall Asleep To 🌌'","hook":"the soft first line","narration":"the full narration","beats":[{"text":"beat sentence","query":"NASA video search query"}],"hashtags":["#space","#relaxing","#Shorts","..."]}`;
+{"topic":"the subject","title":"<=80 char calm SEO title, e.g. 'Space Facts to Fall Asleep To 🌌'","hook":"the soft first line (the 2-second hook)","thumb_text":"2-4 word punchy thumbnail hook, uppercase-friendly (e.g. 'RINGS OF ICE', 'A DYING STAR', 'DIAMOND RAIN')","narration":"the full narration","beats":[{"text":"beat sentence","query":"NASA video search query"}],"hashtags":["#space","#relaxing","#Shorts","..."]}`;
 
 let out = null;
 const raw = await genText(PROMPT, { json: true });
@@ -53,6 +53,7 @@ if (!out || !out.narration || !Array.isArray(out.beats) || !out.beats.length) {
   };
 }
 out.topic = out.topic || (out.beats[0] && out.beats[0].query) || "space";
+out.thumb_text = String(out.thumb_text || out.topic || "DEEP SPACE").toUpperCase().slice(0, 24);  // gancho corto para la miniatura
 if (!Array.isArray(out.hashtags) || !out.hashtags.length) out.hashtags = ["#space", "#relaxing", "#Shorts"];
 
 fs.writeFileSync(outScript, JSON.stringify(out, null, 2));
