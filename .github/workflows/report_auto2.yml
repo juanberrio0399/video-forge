@@ -1,11 +1,11 @@
 name: Reporte del canal auto (Oddly Loop / YT2)
 
 # Trae el estado real de Oddly Loop (videos, subs, vistas, minutos) y lo guarda en R2
-# para que la app muestre el canal Auto #2. Cron cada 6h + disparo manual/app.
+# para que la app muestre el canal Auto #2. Cron cada 2h + disparo manual/app.
 
 on:
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "0 */2 * * *"
   workflow_dispatch: {}
 
 permissions:
