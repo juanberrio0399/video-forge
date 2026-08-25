@@ -279,8 +279,16 @@ if (fs.existsSync("words.json")) {
     dia.push(`Dialogue: 0,${assTime(start)},${assTime(end)},Kar,,0,0,0,,${parts.join(" ")}`);
   }
 } else {
+  // Sin Whisper: parte cada frase en trozos cortos (<=6 palabras) para NO llenar la pantalla (máx ~2 líneas).
   const per = narrDur / Math.max(1, beats.length);
-  beats.forEach((b, i) => { dia.push(`Dialogue: 0,${assTime(i * per)},${assTime((i + 1) * per)},Kar,,0,0,0,,${asc(b.text || "")}`); });
+  beats.forEach((b, i) => {
+    const w = asc(b.text || "").split(/\s+/).filter(Boolean);
+    const CH = 6, chunks = [];
+    for (let k = 0; k < w.length; k += CH) chunks.push(w.slice(k, k + CH).join(" "));
+    if (!chunks.length) return;
+    const seg = per / chunks.length;
+    chunks.forEach((c, j) => dia.push(`Dialogue: 0,${assTime(i * per + j * seg)},${assTime(i * per + (j + 1) * seg)},Kar,,0,0,0,,${c}`));
+  });
 }
 // Estilo calmado: blanco suave, contorno leve (menos agresivo que un short de hype).
 const ass = `[Script Info]
