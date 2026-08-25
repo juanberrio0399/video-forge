@@ -5,7 +5,7 @@ name: Cerebro 2.0 (aprendizaje semanal)
 
 on:
   schedule:
-    - cron: "0 13 * * 1"   # lunes 13:00 UTC (~8am Bogotá)
+    - cron: "0 13 * * 1,4"   # lunes y jueves 13:00 UTC (~8am Bogotá) — chequea si la barra subió
   workflow_dispatch: {}
 
 permissions:
@@ -38,10 +38,11 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Bajar tabla de aprendizaje + mapa de historia (de R2)
+      - name: Bajar tabla de aprendizaje + mapa de historia + estrategia anterior (de R2)
         run: |
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/learning.json" --file=learning.json --remote 2>/dev/null || echo '[]' > learning.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/history_map.json" --file=history_map.json --remote 2>/dev/null || echo '[]' > history_map.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/strategy.json" --file=strategy_prev.json --remote 2>/dev/null || echo '{}' > strategy_prev.json
 
       - name: Aprender y decidir la estrategia
         run: node pipeline/brain_optimize.mjs

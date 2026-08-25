@@ -119,7 +119,13 @@ fs.writeFileSync("strategy.json", JSON.stringify(strategy, null, 2));
 
 // ---- Resumen humano para Telegram.
 const barOf = (p) => { const f = Math.round((p / 100) * 10); return "█".repeat(f) + "░".repeat(10 - f); };
-const lines = ["🧠 CEREBRO 2.0 — aprendizaje semanal", "", `📈 Aprendizaje: ${barOf(learnBar.overall.score)} ${learnBar.overall.score}% (${learnBar.overall.label}) · ${learnBar.overall.mature} videos maduros`, ""];
+// ¿Subió la barra vs la vez anterior? (strategy_prev.json lo baja el workflow antes de correr.)
+const prev = rj("strategy_prev.json", null);
+const prevScore = prev && prev.learning && prev.learning.overall ? prev.learning.overall.score : null;
+const rose = prevScore != null && learnBar.overall.score > prevScore + 2;
+const lines = [];
+if (rose) lines.push(`🎉 ¡LA BARRA DE APRENDIZAJE SUBIÓ! ${prevScore}% → ${learnBar.overall.score}%`, "");
+lines.push("🧠 CEREBRO 2.0 — aprendizaje", "", `📈 Aprendizaje: ${barOf(learnBar.overall.score)} ${learnBar.overall.score}% (${learnBar.overall.label}) · ${learnBar.overall.mature} videos maduros`, "");
 for (const [k, d] of Object.entries(byChannel)) {
   const s = (strategy.per_channel || {})[k] || {};
   lines.push(`📺 ${d.label} (${d.n} maduros)`);
