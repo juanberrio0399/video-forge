@@ -59,6 +59,9 @@ jobs:
       - name: Temas ya usados (no repetir)
         run: npx --yes wrangler@4 r2 object get "$BUCKET/channel/space_short_used.json" --file=space_short_used.json --remote 2>/dev/null || echo '[]' > space_short_used.json
 
+      - name: Estrategia del Cerebro 2.0 (para que el guion actúe con lo aprendido)
+        run: npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/strategy.json" --file=strategy.json --remote 2>/dev/null || echo '{}' > strategy.json
+
       - name: Guion calmado del short
         run: node pipeline/space_short_script.mjs script.json narration.txt
 
