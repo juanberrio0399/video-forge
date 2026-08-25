@@ -1,0 +1,56 @@
+name: Cerebro 2.0 (aprendizaje semanal)
+
+# Bucle de aprendizaje GRATIS: mide vistas reales -> reflexiona con LLM gratis -> escribe la estrategia
+# (channel/brain/strategy.json en R2, que leen los productores) + resumen a Telegram. Sin costo.
+
+on:
+  schedule:
+    - cron: "0 13 * * 1"   # lunes 13:00 UTC (~8am Bogotá)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  brain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      YT2_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+      YT2_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+      YT2_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Bajar tabla de aprendizaje + mapa de historia (de R2)
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/learning.json" --file=learning.json --remote 2>/dev/null || echo '[]' > learning.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/history_map.json" --file=history_map.json --remote 2>/dev/null || echo '[]' > history_map.json
+
+      - name: Aprender y decidir la estrategia
+        run: node pipeline/brain_optimize.mjs
+
+      - name: Guardar la estrategia en R2
+        if: ${{ hashFiles('strategy.json') != '' }}
+        run: npx --yes wrangler@4 r2 object put "$BUCKET/channel/brain/strategy.json" --file=strategy.json --remote --content-type application/json
+
+      - name: Enviar el aprendizaje a Telegram
+        if: always()
+        run: |
+          if [ -f brain2.txt ]; then bash pipeline/notify_telegram.sh "$(cat brain2.txt)"; fi
