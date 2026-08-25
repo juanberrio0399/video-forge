@@ -779,9 +779,13 @@ export const APP_HTML = `<!doctype html>
           var isShort=/#short/i.test(v.title||'');
           var t=v.publish_at?fmtTime(v.publish_at):'mejor hora';
           var man=v.manual; var col=man?'#c084fc':'var(--cy)';
-          return '<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid rgba(255,255,255,.06)'+(man?';border-left:3px solid #c084fc;padding-left:6px':'')+'">'
-            +'<div style="font-size:12px">'+(man?'🟣':(isShort?'📱':'🎬'))+' '+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||'').slice(0,30))+'</a>':esc((v.title||'').slice(0,30)))+(man?' <span style="color:#c084fc;font-size:10px;font-weight:700">tuyo</span>':'')+(v.niche_label?' <span class="muted" style="font-size:10px">('+esc(v.niche_label)+')</span>':'')+'</div>'
-            +'<div style="font-size:11px;color:'+col+';white-space:nowrap">🕒 '+esc(t)+'</div></div>';
+          return '<div style="padding:6px 0;border-top:1px solid rgba(255,255,255,.06)'+(man?';border-left:3px solid #c084fc;padding-left:6px':'')+'">'
+            +'<div style="display:flex;justify-content:space-between;gap:8px">'
+              +'<div style="font-size:12px">'+(man?'🟣':(isShort?'📱':'🎬'))+' '+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||'').slice(0,30))+'</a>':esc((v.title||'').slice(0,30)))+(man?' <span style="color:#c084fc;font-size:10px;font-weight:700">tuyo</span>':'')+(v.niche_label?' <span class="muted" style="font-size:10px">('+esc(v.niche_label)+')</span>':'')+'</div>'
+              +'<div style="font-size:11px;color:'+col+';white-space:nowrap">🕒 '+esc(t)+'</div>'
+            +'</div>'
+            +(v.video_id?'<div style="margin-top:4px"><button class="btn mini ghost" style="padding:2px 8px;font-size:10px" onclick="oddlyManual(\''+v.video_id+'\')">'+(man?'⚪ quitar «mío»':'🟣 marcar como mío')+'</button></div>':'')
+          +'</div>';
         }).join('');
         return '<div class="card" style="padding:10px 12px"><div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;text-transform:capitalize"><span>'+esc(dayLabel(k))+'</span><span style="color:var(--cy)">'+items.length+'</span></div>'+rows+'</div>';
       }).join('');
@@ -1317,6 +1321,15 @@ export const APP_HTML = `<!doctype html>
       }).catch(function(){toast("❌ Error de red");}); };
     if(mode==="public"&&tg&&tg.showConfirm){ tg.showConfirm("¿Publicar este video de Oddly Loop AHORA (público)?",function(ok){if(ok)go();}); } else go();
   }
+  function oddlyManual(vid){
+    // Marca/desmarca un programado de Oddly como "mío" (morado). Efecto inmediato: el /api/state
+    // re-lee manual_videos.json en vivo, así que con load() el color cambia al toque (sin esperar el reporte).
+    if(!vid){toast("sin video");return;}
+    if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("light");
+    api("/api/oddly-manual",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({video_id:vid})})
+      .then(function(r){return r.json();}).then(function(j){ if(j.ok){ toast(j.manual?"🟣 Marcado como tuyo":"Quitado de «míos»"); load(); } else toast("❌ "+(j.error||"no pude")); }).catch(function(){toast("❌ Error de red");});
+  }
+  window.oddlyManual=oddlyManual;
   function dlPublish(vid,mode){
     // The Data Lens: programar (mejor hora, token YT_) o publicar ya (set_privacy.yml). Feedback
     // optimista (localSched) + aviso activo al terminar, como en Oddly.

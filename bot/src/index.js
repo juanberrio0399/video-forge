@@ -705,6 +705,21 @@ async function handleApi(request, env, url) {
     return json({ ok: true, label: opt.label });
   }
 
+  if (url.pathname === "/api/oddly-manual" && request.method === "POST") {
+    // Marca/desmarca un video de Oddly como "mío" (manual) -> se pinta MORADO en la agenda.
+    // Toggle sobre channel/auto2/manual_videos.json. El /api/state re-lee ese archivo en vivo,
+    // asi que el color cambia al instante (sin esperar el reporte de 2h).
+    let body = {}; try { body = await request.json(); } catch {}
+    const vid = String(body.video_id || "");
+    if (!/^[A-Za-z0-9_-]{6,20}$/.test(vid)) return json({ error: "video_id inválido" }, 400);
+    const cur = (await r2json(env, "channel/auto2/manual_videos.json")) || [];
+    const set = new Set(cur);
+    let manual;
+    if (set.has(vid)) { set.delete(vid); manual = false; } else { set.add(vid); manual = true; }
+    await env.R2.put("channel/auto2/manual_videos.json", JSON.stringify([...set]), { httpMetadata: { contentType: "application/json" } });
+    return json({ ok: true, manual });
+  }
+
   if (url.pathname === "/api/thumb-approve" && request.method === "POST") {
     // Paso 1: APROBAR la miniatura (marca, NO la pone en YouTube todavia).
     let body = {};
