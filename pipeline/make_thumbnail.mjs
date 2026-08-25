@@ -8,7 +8,9 @@ import { execSync } from "node:child_process";
 
 const [video = "short.mp4", scriptPath = "script.json", out = "thumbnail.jpg"] = process.argv.slice(2);
 const script = (() => { try { return JSON.parse(fs.readFileSync(scriptPath, "utf8")); } catch { return {}; } })();
-const dur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${video}"`).toString().trim()) || 30;
+// Preferir el FONDO sin subtítulos quemados (spacework/bg.mp4) para que la miniatura no tenga doble texto.
+const src = fs.existsSync("spacework/bg.mp4") ? "spacework/bg.mp4" : video;
+const dur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${src}"`).toString().trim()) || 30;
 const at = (dur * 0.42).toFixed(1);  // un frame ~40% del video (buen momento de contenido)
 
 const FONTS = ["/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"];
@@ -31,10 +33,10 @@ const vf = [
 ].join(",");
 
 try {
-  execSync(`ffmpeg -y -ss ${at} -i "${video}" -frames:v 1 -vf "${vf}" -q:v 2 "${out}"`, { stdio: "ignore" });
+  execSync(`ffmpeg -y -ss ${at} -i "${src}" -frames:v 1 -vf "${vf}" -q:v 2 "${out}"`, { stdio: "ignore" });
 } catch (e) {
   // Respaldo sin text_align (ffmpeg viejo): centra por y fijo.
   const vf2 = vf.replace(":text_align=C", "").replace("y=h-tw-360", "y=1480");
-  execSync(`ffmpeg -y -ss ${at} -i "${video}" -frames:v 1 -vf "${vf2}" -q:v 2 "${out}"`, { stdio: "ignore" });
+  execSync(`ffmpeg -y -ss ${at} -i "${src}" -frames:v 1 -vf "${vf2}" -q:v 2 "${out}"`, { stdio: "ignore" });
 }
 console.log(`Miniatura -> ${out} · gancho "${text.replace(/\n/g, " ")}" · frame @${at}s`);
