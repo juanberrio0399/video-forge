@@ -784,7 +784,7 @@ export const APP_HTML = `<!doctype html>
               +'<div style="font-size:12px">'+(man?'🟣':(isShort?'📱':'🎬'))+' '+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||'').slice(0,30))+'</a>':esc((v.title||'').slice(0,30)))+(man?' <span style="color:#c084fc;font-size:10px;font-weight:700">tuyo</span>':'')+(v.niche_label?' <span class="muted" style="font-size:10px">('+esc(v.niche_label)+')</span>':'')+'</div>'
               +'<div style="font-size:11px;color:'+col+';white-space:nowrap">🕒 '+esc(t)+'</div>'
             +'</div>'
-            +(v.video_id?'<div style="margin-top:4px"><button class="btn mini ghost" style="padding:2px 8px;font-size:10px" onclick="oddlyManual(\''+v.video_id+'\')">'+(man?'⚪ quitar «mío»':'🟣 marcar como mío')+'</button></div>':'')
+            +(v.video_id?'<div style="margin-top:4px"><button class="btn mini ghost" style="padding:2px 8px;font-size:10px" onclick="oddlyManual(\\''+v.video_id+'\\')">'+(man?'⚪ quitar «mío»':'🟣 marcar como mío')+'</button></div>':'')
           +'</div>';
         }).join('');
         return '<div class="card" style="padding:10px 12px"><div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;text-transform:capitalize"><span>'+esc(dayLabel(k))+'</span><span style="color:var(--cy)">'+items.length+'</span></div>'+rows+'</div>';
