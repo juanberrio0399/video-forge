@@ -227,7 +227,10 @@ async function buildSegment(beat, dur, idx) {
   const queries = queryLadder(beat);
   const dynamic = VIDEO_OK.test(beat.query || "");
   const tryVideo = async () => { for (const q of queries) { let v = null; try { v = await nasaVideo(q, dur, idx); } catch {} if (v) { console.log(`  beat ${idx}: NASA VIDEO`); credits.push(v.cred); return v; } } return null; };
-  const tryStock = async () => { for (const q of queries) { let v = null; try { v = await stockVideo(q, dur, idx); } catch {} if (v) { console.log(`  beat ${idx}: STOCK video (${v.license})`); credits.push(v.cred); return v; } } return null; };
+  // Stock: prueba las queries del beat y, si no hay, queries GENÉRICAS de espacio (siempre hay video limpio)
+  // -> así casi nunca cae a imagen (Juan: nada de fotos, se ve básico).
+  const SPACE_GENERIC = ["nebula", "galaxy", "cosmos", "deep space", "starfield", "aurora borealis", "milky way", "space stars"];
+  const tryStock = async () => { for (const q of [...queries, ...SPACE_GENERIC]) { let v = null; try { v = await stockVideo(q, dur, idx); } catch {} if (v) { console.log(`  beat ${idx}: STOCK video (${v.license})`); credits.push(v.cred); return v; } } return null; };
   const tryImage = async () => { for (const q of queries) { let im = null; try { im = await nasaImage(q, dur, idx); } catch {} if (im) { console.log(`  beat ${idx}: imagen NASA (Ken Burns)`); credits.push(im.cred); return im; } } return null; };
   // STOCK primero para TODO: es la única fuente de video LIMPIO y confiable (sin texto quemado ni gráficos).
   // Luego imagen NASA real (Hubble/Spitzer, siempre limpia, con Ken Burns). NASA video queda de ÚLTIMO recurso
