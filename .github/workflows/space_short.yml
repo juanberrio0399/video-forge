@@ -95,6 +95,19 @@ jobs:
       - name: Subir a YouTube (PRIVADO, Oddly Loop)
         run: node pipeline/youtube_upload.mjs short.mp4 publish/package.json
 
+      - name: Miniatura (frame del video + gancho) y setearla
+        if: ${{ hashFiles('publish/video_id.txt') != '' }}
+        run: |
+          node pipeline/make_thumbnail.mjs short.mp4 script.json thumbnail.jpg || echo "miniatura: no generada"
+          node pipeline/set_thumbnail.mjs "$(cat publish/video_id.txt)" thumbnail.jpg || echo "miniatura: no seteada"
+      - name: Subir miniatura como artefacto (para revisar)
+        if: ${{ hashFiles('thumbnail.jpg') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: thumbnail
+          path: thumbnail.jpg
+          retention-days: 3
+
       - name: Registrar tema usado + refrescar app
         if: ${{ hashFiles('publish/video_id.txt') != '' }}
         run: |
