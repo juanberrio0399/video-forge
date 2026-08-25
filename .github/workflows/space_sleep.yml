@@ -1,0 +1,91 @@
+name: Video de SUEÑO (Space Facts to Fall Asleep To — Oddly)
+
+# Produce un video LARGO 16:9 de relajación/sueño para Oddly Loop: datos calmados del espacio
+# (narración suave estilo sleep) sobre imágenes REALES de la NASA (dominio público) con Ken Burns
+# lento + lecho ambiental generado (original) + tarjeta de título. Sube PRIVADO a Oddly (YT2_) para
+# que Juan lo revise y publique desde la app. De momento SOLO disparo manual (prueba).
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "Duración objetivo en minutos (prueba: 10)"
+        required: false
+        default: "10"
+      voice:
+        description: "Voz calmada (Charon=calmado, Rasalgethi, Iapetus)"
+        required: false
+        default: "Charon"
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  make:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      CI: "true"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+      # Oddly Loop = YT2_* mapeado a YT_* (los uploaders leen YT_*).
+      YT_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      MINUTES: ${{ github.event.inputs.minutes || '10' }}
+      VOICE: ${{ github.event.inputs.voice || 'Charon' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: FFmpeg + fuentes (serif para la tarjeta)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation fonts-dejavu-core
+
+      - name: Temas ya usados (para no repetir sujeto de apertura)
+        run: npx --yes wrangler@4 r2 object get "$BUCKET/channel/space_sleep_used.json" --file=space_sleep_used.json --remote 2>/dev/null || echo '[]' > space_sleep_used.json
+
+      - name: Guion calmado (intro + datos del espacio + outro)
+        run: node pipeline/space_sleep_script.mjs script.json narration.txt
+
+      - name: Narración por partes (voz calmada, sleep)
+        run: node pipeline/space_sleep_tts.mjs narration.txt narration.mp3 "$VOICE"
+
+      - name: Ensamblar el video (NASA + Ken Burns + ambiente + título)
+        run: node pipeline/space_sleep_video.mjs script.json narration.mp3 sleep.mp4
+
+      - name: Subir a YouTube (PRIVADO, Oddly Loop)
+        run: node pipeline/youtube_upload.mjs sleep.mp4 publish/package.json
+
+      - name: Registrar tema usado + refrescar app
+        if: ${{ hashFiles('publish/video_id.txt') != '' }}
+        run: |
+          node -e '
+            const fs=require("fs");let u=[];try{u=JSON.parse(fs.readFileSync("space_sleep_used.json","utf8"))}catch(e){}if(!Array.isArray(u))u=[];
+            let s={};try{s=JSON.parse(fs.readFileSync("script.json","utf8"))}catch(e){}
+            const key=(s.facts&&s.facts[0]&&s.facts[0].query)||s.title||"space";
+            if(key&&!u.includes(key))u.push(key);
+            fs.writeFileSync("space_sleep_used_new.json",JSON.stringify(u.slice(-300)));
+          '
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/space_sleep_used.json" --file=space_sleep_used_new.json --remote --content-type application/json
+          # Que el reporte de Oddly lo tome pronto (la app lo mostrará en la agenda).
+          npx --yes wrangler@4 r2 object delete "$BUCKET/channel/auto2/inventory_cache.json" --remote 2>/dev/null || true
+
+      - name: Avisar listo (revisar y publicar en la app)
+        if: always()
+        run: |
+          if [ -f publish/video_id.txt ]; then
+            VID=$(cat publish/video_id.txt)
+            TITLE=$(node -e 'try{process.stdout.write(require("./publish/package.json").title)}catch(e){process.stdout.write("Space Facts to Fall Asleep To")}')
+            bash pipeline/notify_telegram.sh "🌌 Video de SUEÑO listo (privado, Oddly): ${TITLE}"$'\n'"▶️ https://youtu.be/${VID}"$'\n\n'"👉 Revísalo y publícalo desde la app (Oddly)."
+          else
+            bash pipeline/notify_telegram.sh "❌ El video de sueño (Oddly) falló al generar/subir. Revisa el log de Actions."
+          fi
