@@ -84,6 +84,22 @@ for (const c of CHANNELS) {
   };
 }
 
+// ---- BARRA DE APRENDIZAJE: ¿está aprendiendo? = datos maduros (cobertura) + claridad de la señal (0-100%).
+const LEARN_TARGET = 12; // videos maduros por canal para "confiar" en lo aprendido
+function learningOf(list) {
+  const n = list.length;
+  const maturity = Math.min(1, n / LEARN_TARGET);
+  const subj = agg(list, (r) => r.subject);
+  let signal = 0;
+  if (subj.length >= 2) { const vs = subj.map((x) => x.avg_vpd), max = Math.max(...vs), mean = vs.reduce((a, b) => a + b, 0) / vs.length; signal = max > 0 ? Math.min(1, (max - mean) / max) : 0; }
+  else if (subj.length === 1) signal = 0.3;
+  const score = Math.round(100 * (0.6 * maturity + 0.4 * signal * maturity)); // la señal solo cuenta si hay datos
+  const label = score < 30 ? "recolectando datos" : score < 60 ? "aprendiendo" : score < 85 ? "con señal" : "confiado";
+  return { mature: n, target: LEARN_TARGET, maturity_pct: Math.round(maturity * 100), signal_pct: Math.round(signal * 100), score, label };
+}
+const learnBar = { per_channel: {}, overall: learningOf(mature) };
+for (const c of CHANNELS) { const list = mature.filter((r) => r.channel === c.key); if (list.length) learnBar.per_channel[c.key] = { label: c.label, ...learningOf(list) }; }
+
 // ---- Reflexión con LLM GRATIS -> estrategia accionable en JSON.
 let strategy = { at: new Date().toISOString(), note: "sin datos maduros aún", per_channel: {} };
 if (mature.length >= 3) {
@@ -98,10 +114,12 @@ Return ONLY JSON:
   if (raw) { try { strategy = { at: new Date().toISOString(), ...JSON.parse(raw) }; } catch (e) { console.error("estrategia JSON inválida:", e.message); } }
 }
 
+strategy.learning = learnBar;  // barra de aprendizaje (la lee la app)
 fs.writeFileSync("strategy.json", JSON.stringify(strategy, null, 2));
 
 // ---- Resumen humano para Telegram.
-const lines = ["🧠 CEREBRO 2.0 — aprendizaje semanal", ""];
+const barOf = (p) => { const f = Math.round((p / 100) * 10); return "█".repeat(f) + "░".repeat(10 - f); };
+const lines = ["🧠 CEREBRO 2.0 — aprendizaje semanal", "", `📈 Aprendizaje: ${barOf(learnBar.overall.score)} ${learnBar.overall.score}% (${learnBar.overall.label}) · ${learnBar.overall.mature} videos maduros`, ""];
 for (const [k, d] of Object.entries(byChannel)) {
   const s = (strategy.per_channel || {})[k] || {};
   lines.push(`📺 ${d.label} (${d.n} maduros)`);

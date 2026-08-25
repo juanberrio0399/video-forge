@@ -902,23 +902,30 @@ export const APP_HTML = `<!doctype html>
   }
   // CEREBRO 2.0: lo que el sistema APRENDIÓ solo (estrategia semanal: qué gana, qué hacer más, qué explorar).
   function learnHtml(){
-    var s=ST.strategy; if(!s||!s.per_channel||!Object.keys(s.per_channel).length) return "";
+    var s=ST.strategy; if(!s) return "";
+    var L=s.learning||{}, ov=L.overall||null, pc=s.per_channel||{};
+    if(!ov && !Object.keys(pc).length) return "";
     var CH={oddly:"Oddly Loop",datalens:"The Data Lens"};
-    var rows=Object.keys(s.per_channel).map(function(k){
-      var d=s.per_channel[k]||{};
+    function bar(p){ p=Math.max(0,Math.min(100,Math.round(p||0)));
+      var col=p<30?'var(--am)':p<60?'var(--cy)':'var(--gr)';
+      return '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span class="muted">Progreso de aprendizaje</span><span style="font-weight:700">'+p+'% · '+esc((ov&&ov.label)||"")+'</span></div>'
+        +'<div style="height:11px;background:rgba(255,255,255,.1);border-radius:6px;overflow:hidden"><div style="height:100%;width:'+p+'%;background:'+col+';transition:width .5s"></div></div>';
+    }
+    var rows=Object.keys(pc).map(function(k){
+      var d=pc[k]||{}, lc=(L.per_channel&&L.per_channel[k])||null;
       return '<div style="border-top:1px solid rgba(255,255,255,.06);padding:6px 0">'
-        +'<div style="font-weight:700;font-size:13px">'+esc(CH[k]||k)+'</div>'
+        +'<div style="display:flex;justify-content:space-between"><span style="font-weight:700;font-size:13px">'+esc(CH[k]||k)+'</span>'+(lc?'<span class="muted" style="font-size:11px">'+lc.mature+'/'+lc.target+' · '+lc.score+'%</span>':'')+'</div>'
         +(d.focus?'<div style="font-size:12px">🏆 más de: <b>'+esc(d.focus)+'</b></div>':'')
         +(d.best_hour?'<div class="muted" style="font-size:11px">⏰ mejor hora: '+esc(d.best_hour)+'</div>':'')
-        +(d.hook_advice?'<div class="muted" style="font-size:11px">🪝 '+esc(d.hook_advice)+'</div>':'')
         +(d.explore?'<div class="muted" style="font-size:11px">🧪 probar: '+esc(d.explore)+'</div>':'')
         +'</div>';
     }).join("");
     var when=s.at?String(s.at).slice(0,10):"";
     return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b>🧠 Aprendizaje del Cerebro</b>'+(when?'<span class="muted" style="font-size:11px">'+esc(when)+'</span>':'')+'</div>'
+      +(ov?'<div style="margin:8px 0 4px">'+bar(ov.score)+'</div><div class="muted" style="font-size:10px;margin-bottom:4px">'+ov.mature+' videos maduros · '+ov.maturity_pct+'% datos · '+ov.signal_pct+'% señal</div>':'')
       +(s.summary?'<div class="muted" style="font-size:12px;margin:4px 0">'+esc(s.summary)+'</div>':'')
       +rows
-      +'<div class="muted" style="font-size:10px;margin-top:6px">Aprende solo cada lunes: mide vistas reales y decide qué hacer más.</div></div>';
+      +'<div class="muted" style="font-size:10px;margin-top:6px">Sube con más videos maduros y un ganador claro. Aprende cada lunes.</div></div>';
   }
 
   // VENTANA PRINCIPAL: los dos canales de un vistazo (verdicto del cerebro + KPIs + entrar).
