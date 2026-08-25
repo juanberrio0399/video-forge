@@ -229,11 +229,11 @@ async function buildSegment(beat, dur, idx) {
   const tryVideo = async () => { for (const q of queries) { let v = null; try { v = await nasaVideo(q, dur, idx); } catch {} if (v) { console.log(`  beat ${idx}: NASA VIDEO`); credits.push(v.cred); return v; } } return null; };
   const tryStock = async () => { for (const q of queries) { let v = null; try { v = await stockVideo(q, dur, idx); } catch {} if (v) { console.log(`  beat ${idx}: STOCK video (${v.license})`); credits.push(v.cred); return v; } } return null; };
   const tryImage = async () => { for (const q of queries) { let im = null; try { im = await nasaImage(q, dur, idx); } catch {} if (im) { console.log(`  beat ${idx}: imagen NASA (Ken Burns)`); credits.push(im.cred); return im; } } return null; };
-  // Dinámico (Tierra/Sol/aurora) -> NASA video real limpio, luego stock, luego imagen.
-  // Espacio profundo (nebulosas/galaxias/planetas) -> STOCK video limpio primero (movimiento), luego imagen Hubble.
-  // NUNCA Archive.org (basura). Todo pasa por el filtro compartido.
-  const r = dynamic ? (await tryVideo() || await tryStock() || await tryImage())
-                    : (await tryStock() || await tryImage() || await tryVideo());
+  // STOCK primero para TODO: es la única fuente de video LIMPIO y confiable (sin texto quemado ni gráficos).
+  // Luego imagen NASA real (Hubble/Spitzer, siempre limpia, con Ken Burns). NASA video queda de ÚLTIMO recurso
+  // (aun con filtros mete gráficos de laboratorio con texto quemado), y solo para temas dinámicos (Tierra/Sol).
+  // NUNCA Archive.org (basura).
+  const r = (await tryStock()) || (await tryImage()) || (dynamic ? await tryVideo() : null);
   if (r) return r;
   console.error(`  beat ${idx}: sin material limpio para "${beat.query}" -> fondo estelar`);
   return fallbackSegment(dur, idx);
