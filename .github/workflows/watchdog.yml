@@ -34,14 +34,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
-      - name: Probar acceso a R2 (leer un objeto conocido)
-        run: |
-          if npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/state.json" --file=/tmp/wd_r2.json --remote 2>/tmp/wd_r2.err; then
-            echo "R2_STATUS=ok" >> "$GITHUB_ENV"
-          else
-            echo "R2_STATUS=$(tail -c 150 /tmp/wd_r2.err | tr '\n' ' ' | sed 's/[\"'\''`]//g')" >> "$GITHUB_ENV"
-          fi
-      - name: Vigilar YouTube (2 canales) + consolidar
+      - name: Vigilar R2 + YouTube (2 canales) + consolidar
         run: node pipeline/watchdog.mjs | tee wd.txt
       - name: Avisar a Telegram (manual siempre; cron solo si hay fallo)
         if: always()
