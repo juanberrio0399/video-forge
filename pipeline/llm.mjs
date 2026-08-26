@@ -8,7 +8,7 @@
 //   const raw = await genText(PROMPT, { json: true });
 //
 // Env (todas opcionales): GEMINI_API_KEY(,2), CLOUDFLARE_ACCOUNT_ID+CLOUDFLARE_API_TOKEN,
-//   GROQ_API_KEY, CEREBRAS_API_KEY, SAMBANOVA_API_KEY, OPENROUTER_API_KEY, GITHUB_MODELS_TOKEN.
+//   GROQ_API_KEY, CEREBRAS_API_KEY, SAMBANOVA_API_KEY, OPENROUTER_API_KEY, GH_MODELS_TOKEN.
 import { TEXT_MODELS } from "./_models.mjs";
 
 const tf = (u, o = {}, ms = 60000) => fetch(u, { ...o, signal: AbortSignal.timeout(ms) });
@@ -70,7 +70,7 @@ const PROVIDERS = [
   { name: "Cloudflare", run: cloudflare, on: (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN) ? 1 : 0 },
   oai("SambaNova", "https://api.sambanova.ai/v1/chat/completions", process.env.SAMBANOVA_API_KEY, "Meta-Llama-3.3-70B-Instruct"),
   oai("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", process.env.OPENROUTER_API_KEY, "meta-llama/llama-3.3-70b-instruct:free", { "HTTP-Referer": "https://github.com/juanberrio0399/video-forge", "X-Title": "video-forge" }),
-  oai("GitHub Models", "https://models.inference.ai.azure.com/chat/completions", process.env.GITHUB_MODELS_TOKEN, "gpt-4o-mini"),
+  oai("GitHub Models", "https://models.inference.ai.azure.com/chat/completions", process.env.GH_MODELS_TOKEN, "gpt-4o-mini"),
 ].filter(Boolean).filter((p) => p.on !== 0);
 
 // Chequeo de salud: prueba CADA proveedor con key y dice cuál responde (para validar keys nuevas).
