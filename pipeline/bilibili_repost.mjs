@@ -21,6 +21,9 @@ const notify = (msg) => { try { execSync(`bash pipeline/notify_telegram.sh ${JSO
 let queue = rj("bilibili_queue.json", []);
 if (!Array.isArray(queue)) queue = [];
 const posted = new Set(rj("bilibili_posted.json", []));
+let log = rj("bilibili_log.json", []);
+if (!Array.isArray(log)) log = [];
+const stamp = new Date().toISOString();
 
 const pending = queue.filter((q) => q && q.video_id && !posted.has(q.video_id));
 if (!pending.length) { console.log("Bilibili repost: nada pendiente en la cola."); process.exit(0); }
@@ -47,9 +50,11 @@ for (const item of toDo) {
     done++;
     r2del(key);                 // ← ya está en YouTube + Bilibili: limpiar R2 para no llenarlo
     posted.add(item.video_id);
+    log.unshift({ video_id: item.video_id, title: item.title || "Short", at: stamp, ok: true });
     notify(`✅ Bilibili: reposteé «${item.title}» y limpié su copia de R2.`);
   } else {
     failed++;
+    log.unshift({ video_id: item.video_id, title: item.title || "Short", at: stamp, ok: false });
     notify(`⚠️ Bilibili: no pude repostear «${item.title}». Queda en la cola para reintentar. Mira el artefacto de capturas.`);
   }
   try { fs.rmSync("video.mp4", { force: true }); } catch {}
@@ -59,6 +64,7 @@ for (const item of toDo) {
 const newQueue = queue.filter((q) => q && q.video_id && !posted.has(q.video_id));
 fs.writeFileSync("bilibili_queue_new.json", JSON.stringify(newQueue));
 fs.writeFileSync("bilibili_posted_new.json", JSON.stringify([...posted].slice(-800)));
+fs.writeFileSync("bilibili_log_new.json", JSON.stringify(log.slice(0, 40))); // últimos 40 para la app
 console.log(`\nBilibili repost: ${done} ok, ${failed} fallidos, ${newQueue.length} quedan en cola.`);
 
 function rj0(p) { try { return fs.readFileSync(p, "utf8"); } catch { return ""; } }

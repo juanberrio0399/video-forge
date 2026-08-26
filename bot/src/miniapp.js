@@ -756,6 +756,22 @@ export const APP_HTML = `<!doctype html>
       +(a&&a.at?'<div class="muted" style="font-size:10px;text-align:center">Act. '+esc(String(a.at).slice(0,16).replace("T"," "))+'</div>':'');
   }
   // AGENDA del canal auto: próximos a publicar (programados), en revisión por programar, y estado del automático.
+  function bilibiliCardHtml(){
+    var b=ST.bilibili; if(!b) return '';
+    var pend=(b.pending||[]), log=(b.log||[]);
+    var h='<div class="card" style="border:1px solid #fb7299">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center">'
+        +'<div style="font-weight:800;font-size:14px">🅱️ Bilibili · '+esc(b.channel||"Oddly")+'</div>'
+        +'<a href="https://member.bilibili.com/platform/upload/manuscript/" target="_blank" style="font-size:11px;color:#fb7299;text-decoration:none">abrir ›</a>'
+      +'</div>'
+      +'<div class="muted" style="font-size:12px;margin:4px 0 8px">Reposteo automático (al mediodía). <b>'+num(b.posted_total||0)+'</b> publicados · <b>'+pend.length+'</b> en cola.</div>';
+    if(pend.length){ h+='<div style="font-size:12px;margin-bottom:2px">🕒 <b>En cola:</b></div>'
+      +pend.slice(0,4).map(function(v){ return '<div style="font-size:12px;border-top:1px solid rgba(255,255,255,.06);padding:4px 0">• '+esc((v.title||'').slice(0,44))+'</div>'; }).join(''); }
+    if(log.length){ h+='<div style="font-size:12px;margin:8px 0 2px">📜 <b>Últimos reposteados:</b></div>'
+      +log.slice(0,5).map(function(v){ return '<div style="font-size:12px;border-top:1px solid rgba(255,255,255,.06);padding:4px 0">'+(v.ok?'✅':'⚠️')+' '+esc((v.title||'').slice(0,42))+'</div>'; }).join(''); }
+    if(!pend.length && !log.length) h+='<div class="muted" style="font-size:12px">Aún sin reposts. Cuando se produzca un Short, se repostea solo al mediodía.</div>';
+    return h+'</div>';
+  }
   function auto2AgendaHtml(){
     var list=(ST.auto2&&ST.auto2.list)||[];
     var now=new Date();
@@ -772,7 +788,8 @@ export const APP_HTML = `<!doctype html>
     prog.forEach(function(v){ var k=v.publish_at?dayKey(v.publish_at):'—'; (byDay[k]=byDay[k]||[]).push(v); });
     var days=Object.keys(byDay).sort();
     var h='<h2>📅 Calendario de Oddly Loop</h2>'
-      +'<div class="card muted" style="font-size:12px">Lo que hay <b>programado cada día</b> (tu hora). Los privados por revisar salen más abajo.<br><span style="color:#c084fc;font-weight:700">🟣 morado = tus clips manuales</span> · azul = automáticos.</div>';
+      +'<div class="card muted" style="font-size:12px">Lo que hay <b>programado cada día</b> (tu hora). Los privados por revisar salen más abajo.<br><span style="color:#c084fc;font-weight:700">🟣 morado = tus clips manuales</span> · azul = automáticos.</div>'
+      +bilibiliCardHtml();
     if(days.length){
       h+=days.map(function(k){
         var items=byDay[k].sort(function(a,b){ return (a.publish_at||'')<(b.publish_at||'')?-1:1; });
