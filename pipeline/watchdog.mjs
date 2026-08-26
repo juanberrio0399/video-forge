@@ -11,6 +11,19 @@ const CHANNELS = [
   { label: "Oddly Loop (YT2_)", cid: process.env.YT2_CLIENT_ID, sec: process.env.YT2_CLIENT_SECRET, ref: process.env.YT2_REFRESH_TOKEN },
 ];
 
+// Prueba el acceso a R2 pidiendo la lista de buckets a la API de Cloudflare (error limpio con código).
+async function checkR2() {
+  const A = process.env.CLOUDFLARE_ACCOUNT_ID, T = process.env.CLOUDFLARE_API_TOKEN;
+  if (!A || !T) return { ok: false, msg: "faltan CLOUDFLARE_ACCOUNT_ID/API_TOKEN" };
+  try {
+    const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${A}/r2/buckets`, { headers: { Authorization: `Bearer ${T}` } });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.success) return { ok: true, msg: `acceso OK (${(j.result?.buckets || []).length} buckets)` };
+    const e = j.errors?.[0];
+    return { ok: false, msg: `${r.status} ${e ? e.code + " " + e.message : JSON.stringify(j).slice(0, 120)} → falta permiso "Workers R2 Storage: Edit" en el token` };
+  } catch (e) { return { ok: false, msg: "excepción: " + (e && e.message ? e.message : e) }; }
+}
+
 // Refresca el token del canal y confirma que sirve + tiene scope (pide el canal propio).
 async function checkYT(c) {
   if (!c.cid || !c.sec || !c.ref) return { ok: false, msg: "faltan credenciales (secrets)" };
@@ -32,10 +45,10 @@ async function checkYT(c) {
 const lines = [];
 let fails = 0;
 
-// R2: el workflow ya intentó leer un objeto conocido y pasa el resultado por env R2_STATUS.
-const r2 = (process.env.R2_STATUS || "").trim();
-if (r2 === "ok") lines.push("✅ R2 (almacenamiento): lectura OK");
-else { lines.push("❌ R2 (almacenamiento): " + (r2 || "sin verificar") + "  → revisa que CLOUDFLARE_API_TOKEN tenga permiso R2 (además de Workers AI)"); fails++; }
+// R2 (almacenamiento del sistema).
+const r2 = await checkR2();
+lines.push(`${r2.ok ? "✅" : "❌"} R2 (almacenamiento): ${r2.msg}`);
+if (!r2.ok) fails++;
 
 for (const c of CHANNELS) {
   const r = await checkYT(c);
