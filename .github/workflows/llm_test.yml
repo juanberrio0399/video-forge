@@ -1,8 +1,12 @@
 name: Chequeo de IAs gratis (proveedores LLM)
 
 # Prueba qué proveedores de IA gratis están activos (tienen key y responden). Úsalo tras agregar una key.
+# WATCHDOG: además corre solo cada día y AVISA a Telegram únicamente si la cadena queda degradada
+# (menos de 2 proveedores activos), para enterarte antes de que algo falle. El disparo manual siempre reporta.
 on:
   workflow_dispatch: {}
+  schedule:
+    - cron: "0 12 * * *"   # 1/día, 7am Bogotá
 
 permissions:
   contents: read
@@ -34,4 +38,12 @@ jobs:
       - name: Avisar a Telegram
         if: always()
         run: |
-          if [ -f health.txt ]; then bash pipeline/notify_telegram.sh "🤖 IAs gratis activas:"$'\n'"$(cat health.txt)"; fi
+          ACTIVE=$(cat active_count.txt 2>/dev/null || echo 0)
+          # Manual -> siempre reporta. Cron (watchdog) -> solo si quedan < 2 proveedores (degradado).
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            bash pipeline/notify_telegram.sh "🤖 IAs gratis activas:"$'\n'"$(cat health.txt)"
+          elif [ "$ACTIVE" -lt 2 ]; then
+            bash pipeline/notify_telegram.sh "⚠️ WATCHDOG: la cadena de IA está DEGRADADA ($ACTIVE activo)."$'\n'"$(cat health.txt)"$'\n'"Revisa las keys en Actions ▸ Chequeo de IAs."
+          else
+            echo "Watchdog OK: $ACTIVE proveedores activos, sin aviso."
+          fi
