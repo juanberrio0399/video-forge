@@ -1,0 +1,36 @@
+name: Chequeo de IAs gratis (proveedores LLM)
+
+# Prueba qué proveedores de IA gratis están activos (tienen key y responden). Úsalo tras agregar una key.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+      SAMBANOVA_API_KEY: ${{ secrets.SAMBANOVA_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GITHUB_MODELS_TOKEN: ${{ secrets.GITHUB_MODELS_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Probar proveedores
+        run: node pipeline/llm_health.mjs | tee health.txt
+      - name: Avisar a Telegram
+        if: always()
+        run: |
+          if [ -f health.txt ]; then bash pipeline/notify_telegram.sh "🤖 IAs gratis activas:"$'\n'"$(cat health.txt)"; fi
