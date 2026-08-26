@@ -32,7 +32,7 @@ jobs:
           if [ -n "${{ github.event.inputs.repo }}" ]; then
             echo 'repos=["${{ github.event.inputs.repo }}"]' >> "$GITHUB_OUTPUT"
           else
-            echo 'repos=["juanberrio0399/ugpp-shield-pro","juanberrio0399/Hearthwood","juanberrio0399/claude-config"]' >> "$GITHUB_OUTPUT"
+            echo 'repos=["juanberrio0399/video-forge","juanberrio0399/serverless-rag-assistant","juanberrio0399/panel-marketing-cloud","juanberrio0399/dataforge-cloud","juanberrio0399/validador-cloud","juanberrio0399/ugpp-shield-pro","juanberrio0399/Hearthwood","juanberrio0399/claude-config","juanberrio0399/dockerized-data-tool","juanberrio0399/aws-labs","juanberrio0399/juanberrio0399.github.io"]' >> "$GITHUB_OUTPUT"
           fi
 
   scan:
@@ -41,6 +41,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       fail-fast: false
+      max-parallel: 3   # 3 repos a la vez: cubre TODOS sin saturar Gemini ni los runners
       matrix:
         repo: ${{ fromJSON(needs.prepare.outputs.repos) }}
     env:
