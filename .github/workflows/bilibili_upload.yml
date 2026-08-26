@@ -1,18 +1,17 @@
-name: Subir a Bilibili (Fase 1 — piloto)
+name: Subir a Bilibili (Playwright — Studio)
 
-# PLAN POR FASES (Bilibili = 2ª distribución, land-grab de audiencia; el ingreso internacional aún NO abre):
-#   FASE 1 (esto): subir UN video a mano para VALIDAR canal + automatización + que el endpoint sirva.
-#   FASE 2: repostear automático los Shorts públicos de Oddly (anti-duplicado), como pinterest_pin.
-#   FASE 3: watchdog de la cookie (se vence) + activar cuando abran monetización internacional.
+# Sube un video a Bilibili Studio automatizando el navegador con Playwright, EN LA NUBE (headless,
+# GitHub Actions — NO depende del PC de Juan). Usa la cookie web del creador (secret BILIBILI_COOKIE),
+# la misma con la que sube a mano. Deja capturas (shots/) + DOM (page.html) como artefacto para validar.
 #
-# Requiere el secret BILIBILI_COOKIE = contenido de cookies.json que genera `biliup login` (1 sola vez, local).
-# Sube lo que YA produces (repurpose): pásale la ruta del MP4 en R2.
+# FASES: F1 piloto (este, manual, validar) → F2 repostear autom. los Shorts públicos de Oddly → F3 watchdog cookie.
 on:
   workflow_dispatch:
     inputs:
       r2_key:
-        description: "Ruta del MP4 en R2 (p.ej. channel/auto2/renders/xxxx.mp4)"
+        description: "Ruta del MP4 en R2 (p.ej. channel/oddly/last_short.mp4)"
         required: true
+        default: "channel/oddly/last_short.mp4"
       title:
         description: "Título del video"
         required: true
@@ -24,10 +23,6 @@ on:
         description: "Tags separados por coma"
         required: false
         default: "relaxing,space,asmr,sleep"
-      tid:
-        description: "Categoría (tid). 201=Ciencia/Divulgación, 21=Vida diaria"
-        required: false
-        default: "201"
 
 permissions:
   contents: read
@@ -45,59 +40,44 @@ jobs:
       BILIBILI_COOKIE: ${{ secrets.BILIBILI_COOKIE }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
-      GH_TOKEN: ${{ github.token }}
+      BILI_TITLE: ${{ inputs.title }}
+      BILI_DESC: ${{ inputs.desc }}
+      BILI_TAG: ${{ inputs.tag }}
     steps:
       - uses: actions/checkout@v5
-      - name: Preparar cookie (acepta el texto del navegador O un cookies.json completo)
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Verificar cookie
         run: |
-          if [ -z "$BILIBILI_COOKIE" ]; then
-            echo "❌ Falta el secret BILIBILI_COOKIE."
-            exit 1
-          fi
-          node -e '
-            const raw = (process.env.BILIBILI_COOKIE || "").trim();
-            let out;
-            if (raw.startsWith("{")) {
-              out = raw; // ya es cookies.json (de `biliup login`)
-            } else {
-              // Texto del navegador: "SESSDATA=..; bili_jct=..; DedeUserID=..; DedeUserID__ckMd5=.."
-              const m = {}; raw.split(/;\s*/).forEach((p) => { const i = p.indexOf("="); if (i > 0) m[p.slice(0, i).trim()] = p.slice(i + 1).trim(); });
-              const need = ["SESSDATA", "bili_jct", "DedeUserID", "DedeUserID__ckMd5"];
-              const miss = need.filter((k) => !m[k]);
-              if (miss.length) { console.error("❌ Faltan cookies en BILIBILI_COOKIE: " + miss.join(", ")); process.exit(1); }
-              const mid = parseInt(m.DedeUserID, 10) || 0;
-              out = JSON.stringify({ cookie_info: { cookies: need.map((name) => ({ name, value: m[name] })) }, sso: ["https://passport.bilibili.com/api/v2/sso"], token_info: { mid, access_token: m.access_token || "", refresh_token: m.refresh_token || "", expires_in: 0 } });
-            }
-            require("fs").writeFileSync("cookies.json", out);
-            console.log("✅ cookie lista (" + out.length + " bytes)");
-          '
+          if [ -z "$BILIBILI_COOKIE" ]; then echo "❌ Falta el secret BILIBILI_COOKIE."; exit 1; fi
+          echo "cookie presente"
       - name: Bajar el video de R2
         run: |
           npx --yes wrangler@4 r2 object get "$BUCKET/${{ inputs.r2_key }}" --file=video.mp4 --remote
           ls -lh video.mp4
-      - name: Instalar biliup-rs (binario de release)
+      - name: Instalar Playwright (Chromium)
         run: |
-          gh release download -R biliup/biliup-rs --pattern 'biliupR-*-x86_64-linux.tar.xz' --dir bili --clobber
-          cd bili && tar xf *.tar.xz
-          BIN=$(find "$PWD" -iname 'biliup*' -type f ! -name '*.tar*' | head -1)
-          if [ -z "$BIN" ]; then echo "❌ No encontré el binario de biliup"; ls -laR; exit 1; fi
-          chmod +x "$BIN"; echo "BILIUP=$BIN" >> "$GITHUB_ENV"
-          "$BIN" --version 2>/dev/null || true
-      - name: Subir a Bilibili
-        run: |
-          # --submit web -> usa la cookie (bili_jct) para el envío final, sin necesitar access_token (login QR).
-          "$BILIUP" -u cookies.json upload video.mp4 \
-            --submit web \
-            --title "${{ inputs.title }}" \
-            --desc "${{ inputs.desc }}" \
-            --tag "${{ inputs.tag }}" \
-            --tid ${{ inputs.tid }} 2>&1 | tee up.txt
+          npm i -D playwright@1.48.0
+          npx playwright install --with-deps chromium
+      - name: Subir con Playwright a Bilibili Studio
+        run: node pipeline/bilibili_playwright.mjs video.mp4
+      - name: Guardar evidencia (capturas + DOM)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bilibili-evidence
+          path: |
+            shots/
+            page.html
+            result.txt
+          retention-days: 5
       - name: Avisar a Telegram
         if: always()
         run: |
-          if grep -qiE "success|成功|投稿成功|bvid|BV[0-9A-Za-z]{8,}" up.txt 2>/dev/null; then
-            MSG="✅ Bilibili (piloto Fase 1): subí «${{ inputs.title }}». Revisa que quedó bien en tu canal."
+          if grep -qi "^OK" result.txt 2>/dev/null; then
+            MSG="✅ Bilibili: subí «${{ inputs.title }}» vía Studio (revisa que quedó en tu canal / en revisión)."
           else
-            MSG="❌ Bilibili (piloto Fase 1): la subida de «${{ inputs.title }}» falló. Posibles causas: cookie vencida, o el endpoint de la app internacional es distinto al de biliup. Mira el log del run."
+            MSG="⚠️ Bilibili: la subida de «${{ inputs.title }}» no se confirmó. Mira el artefacto 'bilibili-evidence' (capturas) para ajustar."
           fi
           bash pipeline/notify_telegram.sh "$MSG" || true
