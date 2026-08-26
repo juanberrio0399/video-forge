@@ -55,6 +55,21 @@ async function checkBot(token) {
   } catch (e) { return { ok: false, msg: "excepción: " + (e && e.message ? e.message : e) }; }
 }
 
+// Cookie de Bilibili (para el reposteo Fase 2): la API /nav dice si la sesión sigue viva (se vence).
+async function checkBilibili() {
+  const raw = (process.env.BILIBILI_COOKIE || "").trim();
+  if (!raw) return null; // no configurado -> no aplica
+  const m = {}; raw.split(/;\s*/).forEach((p) => { const i = p.indexOf("="); if (i > 0) m[p.slice(0, i).trim()] = p.slice(i + 1).trim(); });
+  const cookie = ["SESSDATA", "bili_jct", "DedeUserID", "DedeUserID__ckMd5"].filter((n) => m[n]).map((n) => `${n}=${m[n]}`).join("; ");
+  if (!/SESSDATA=/.test(cookie)) return { ok: false, msg: "BILIBILI_COOKIE sin SESSDATA — revísala" };
+  try {
+    const r = await fetch("https://api.bilibili.com/x/web-interface/nav", { headers: { Cookie: cookie, "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" } });
+    const j = await r.json().catch(() => ({}));
+    if (j && j.code === 0 && j.data && j.data.isLogin) return { ok: true, msg: `sesión viva (${j.data.uname || "UP主"})` };
+    return { ok: false, msg: "cookie VENCIDA/inválida — renuévala: saca una nueva del navegador y actualiza el secret BILIBILI_COOKIE (si no, el repost a Bilibili fallará)" };
+  } catch (e) { return { ok: false, msg: "no pude verificar: " + (e && e.message ? e.message : e) }; }
+}
+
 const lines = [];
 let fails = 0;
 
@@ -73,6 +88,12 @@ for (const c of CHANNELS) {
 for (const [tok, label] of [[process.env.TELEGRAM_BOT_TOKEN, "Video Forge"], [process.env.RADAR_BOT_TOKEN, "Radar"]]) {
   const r = await checkBot(tok);
   if (r) { lines.push(`${r.ok ? "✅" : "❌"} Bot Telegram ${label}: ${r.msg}`); if (!r.ok) fails++; }
+}
+
+// Cookie de Bilibili (Fase 2 de reposteo): avisar si venció para renovarla a tiempo.
+{
+  const b = await checkBilibili();
+  if (b) { lines.push(`${b.ok ? "✅" : "❌"} Bilibili (cookie): ${b.msg}`); if (!b.ok) fails++; }
 }
 
 const report = lines.join("\n");
