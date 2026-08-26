@@ -22,6 +22,7 @@ const CRIT = [
   { f: "brain_optimize.yml", label: "El Cerebro (aprendizaje)", maxAgeH: 120 },      // lun+jue
   { f: "radar_scan.yml", label: "Radar — barrido semanal", maxAgeH: 216 },           // lunes (radar-bot)
   { f: "radar_groom.yml", label: "Radar — groomer", maxAgeH: 216 },                  // jueves (radar-bot)
+  { f: "bilibili_repost.yml", label: "Repost Bilibili (Oddly)", maxAgeH: 30 },       // diario mediodía
 ];
 
 async function jget(url) { const r = await fetch(url, { headers: H }); if (!r.ok) throw new Error(r.status + " " + (await r.text().catch(() => "")).slice(0, 80)); return r.json(); }
