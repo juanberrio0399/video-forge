@@ -65,7 +65,8 @@ jobs:
               const need = ["SESSDATA", "bili_jct", "DedeUserID", "DedeUserID__ckMd5"];
               const miss = need.filter((k) => !m[k]);
               if (miss.length) { console.error("❌ Faltan cookies en BILIBILI_COOKIE: " + miss.join(", ")); process.exit(1); }
-              out = JSON.stringify({ cookie_info: { cookies: need.map((name) => ({ name, value: m[name] })) }, sso: ["https://passport.bilibili.com/api/v2/sso"], token_info: {} });
+              const mid = parseInt(m.DedeUserID, 10) || 0;
+              out = JSON.stringify({ cookie_info: { cookies: need.map((name) => ({ name, value: m[name] })) }, sso: ["https://passport.bilibili.com/api/v2/sso"], token_info: { mid, access_token: m.access_token || "", refresh_token: m.refresh_token || "", expires_in: 0 } });
             }
             require("fs").writeFileSync("cookies.json", out);
             console.log("✅ cookie lista (" + out.length + " bytes)");
