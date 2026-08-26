@@ -35,6 +35,7 @@ jobs:
         run: |
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/oddly/bilibili_queue.json" --file=bilibili_queue.json --remote 2>/dev/null || echo '[]' > bilibili_queue.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/oddly/bilibili_posted.json" --file=bilibili_posted.json --remote 2>/dev/null || echo '[]' > bilibili_posted.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/oddly/bilibili_log.json" --file=bilibili_log.json --remote 2>/dev/null || echo '[]' > bilibili_log.json
       - name: Instalar Playwright (Chromium)
         run: |
           npm i -D playwright@1.48.0
@@ -46,6 +47,7 @@ jobs:
         run: |
           if [ -f bilibili_queue_new.json ]; then npx --yes wrangler@4 r2 object put "$BUCKET/channel/oddly/bilibili_queue.json" --file=bilibili_queue_new.json --content-type application/json --remote; fi
           if [ -f bilibili_posted_new.json ]; then npx --yes wrangler@4 r2 object put "$BUCKET/channel/oddly/bilibili_posted.json" --file=bilibili_posted_new.json --content-type application/json --remote; fi
+          if [ -f bilibili_log_new.json ]; then npx --yes wrangler@4 r2 object put "$BUCKET/channel/oddly/bilibili_log.json" --file=bilibili_log_new.json --content-type application/json --remote; fi
       - name: Guardar evidencia (capturas) del último intento
         if: always()
         uses: actions/upload-artifact@v4
