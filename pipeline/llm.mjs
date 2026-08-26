@@ -62,9 +62,13 @@ function oai(name, url, key, prefs, extra = {}) {
       const r = await tf(`${base}/models`, { headers: { Authorization: `Bearer ${key}`, ...extra } });
       if (r.ok) {
         const j = await r.json().catch(() => ({}));
-        const ids = ((j && (j.data || j.models || j.body)) || []).map((m) => m.id || m.name).filter(Boolean);
+        let ids = ((j && (j.data || j.models || j.body)) || []).map((m) => m.id || m.name).filter(Boolean);
+        if (process.env.LLM_DIAG && self) self._models = ids.slice(0, 40).join(" | ");
+        // Descartar modelos que NO son de chat (clasificación/guard/audio/embeddings/etc.) para no elegir uno inválido.
+        const CHAT = ids.filter((id) => !/guard|whisper|tts|embed|moderat|safety|rerank|vision|audio|transcri|prompt-guard|classif/i.test(id));
+        ids = CHAT.length ? CHAT : ids;
         for (const p of wanted) { const hit = ids.find((id) => (p instanceof RegExp ? p.test(id) : id === p)); if (hit) { model = hit; break; } }
-        if (!model && ids.length) model = ids.find((id) => /llama.*70b/i.test(id)) || ids.find((id) => /llama/i.test(id)) || ids[0];
+        if (!model && ids.length) model = ids.find((id) => /(70b|72b|8x7b|large)/i.test(id)) || ids.find((id) => /(llama|qwen|mixtral|gpt|instruct)/i.test(id)) || ids[0];
       } else if (process.env.LLM_DIAG && self) { self._err = "/models " + r.status; }
     } catch {}
     if (!model) model = wanted.find((p) => typeof p === "string") || null; // respaldo: primera preferencia literal
@@ -105,6 +109,7 @@ export async function health() {
     let ok = false, sample = "";
     try { const r = await p.run('Reply with exactly this JSON and nothing else: {"ok":true}', true); sample = String(r || "").replace(/\s+/g, " ").slice(0, 50); ok = /"?ok"?\s*:\s*true/i.test(String(r || "")); } catch (e) { sample = e.message; }
     if (!ok && !sample) sample = p._err || (p.run && p.run._err) || ""; // diagnóstico: status+body del fallo (con LLM_DIAG)
+    if (process.env.LLM_DIAG && p._models) sample += "  [models: " + p._models + "]";
     out.push({ name: p.name, ok, ms: Date.now() - t0, sample });
   }
   return out;
