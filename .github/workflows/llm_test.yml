@@ -23,6 +23,7 @@ jobs:
       GH_MODELS_TOKEN: ${{ secrets.GH_MODELS_TOKEN }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      LLM_DIAG: "1"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

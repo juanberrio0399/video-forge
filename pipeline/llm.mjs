@@ -37,7 +37,7 @@ async function cloudflare(prompt, json) {
   for (const m of ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-3.1-8b-instruct-fast", "@cf/meta/llama-3.1-8b-instruct"]) {
     try {
       const res = await tf(`https://api.cloudflare.com/client/v4/accounts/${A}/ai/run/${m}`, { method: "POST", headers: { Authorization: `Bearer ${T}`, "content-type": "application/json" }, body: JSON.stringify({ messages: [...(json ? [{ role: "system", content: "Respond ONLY with a single valid, minified JSON object. No markdown, no prose." }] : []), { role: "user", content: prompt }], temperature: 0.9, max_tokens: 2048 }) });
-      if (!res.ok) continue;
+      if (!res.ok) { if (process.env.LLM_DIAG) cloudflare._err = m + " → " + res.status + " " + (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 140); continue; }
       const j = await res.json();
       const t = (j?.result?.response || "").trim();
       if (t) return json ? cleanJson(t) : t;
@@ -54,7 +54,7 @@ function oai(name, url, key, model, extra = {}) {
       const body = { model, messages: [...(json ? [{ role: "system", content: "Respond ONLY with a single valid, minified JSON object. No markdown, no code fences, no prose." }] : []), { role: "user", content: prompt }], temperature: 0.9 };
       if (json) body.response_format = { type: "json_object" };
       const r = await tf(url, { method: "POST", headers: { Authorization: `Bearer ${key}`, "content-type": "application/json", ...extra }, body: JSON.stringify(body) });
-      if (!r.ok) return null;
+      if (!r.ok) { if (process.env.LLM_DIAG) this._err = r.status + " " + (await r.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 160); return null; }
       const j = await r.json();
       const t = j?.choices?.[0]?.message?.content || "";
       return t ? (json ? cleanJson(t) : t.trim()) : null;
@@ -80,6 +80,7 @@ export async function health() {
     const t0 = Date.now();
     let ok = false, sample = "";
     try { const r = await p.run('Reply with exactly this JSON and nothing else: {"ok":true}', true); sample = String(r || "").replace(/\s+/g, " ").slice(0, 50); ok = /"?ok"?\s*:\s*true/i.test(String(r || "")); } catch (e) { sample = e.message; }
+    if (!ok && !sample) sample = p._err || (p.run && p.run._err) || ""; // diagnóstico: status+body del fallo (con LLM_DIAG)
     out.push({ name: p.name, ok, ms: Date.now() - t0, sample });
   }
   return out;
