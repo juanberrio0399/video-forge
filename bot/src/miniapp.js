@@ -98,6 +98,7 @@ export const APP_HTML = `<!doctype html>
     <button data-ch="resumen" class="on">🏠 Resumen</button>
     <button data-ch="data-lens">The Data Lens</button>
     <button data-ch="auto2">Auto #2</button>
+    <button data-ch="bilibili">🅱️ Bilibili</button>
   </div>
 </header>
 <div class="wrap">
@@ -788,8 +789,7 @@ export const APP_HTML = `<!doctype html>
     prog.forEach(function(v){ var k=v.publish_at?dayKey(v.publish_at):'—'; (byDay[k]=byDay[k]||[]).push(v); });
     var days=Object.keys(byDay).sort();
     var h='<h2>📅 Calendario de Oddly Loop</h2>'
-      +'<div class="card muted" style="font-size:12px">Lo que hay <b>programado cada día</b> (tu hora). Los privados por revisar salen más abajo.<br><span style="color:#c084fc;font-weight:700">🟣 morado = tus clips manuales</span> · azul = automáticos.</div>'
-      +bilibiliCardHtml();
+      +'<div class="card muted" style="font-size:12px">Lo que hay <b>programado cada día</b> (tu hora). Los privados por revisar salen más abajo.<br><span style="color:#c084fc;font-weight:700">🟣 morado = tus clips manuales</span> · azul = automáticos.</div>';
     if(days.length){
       h+=days.map(function(k){
         var items=byDay[k].sort(function(a,b){ return (a.publish_at||'')<(b.publish_at||'')?-1:1; });
@@ -1002,6 +1002,19 @@ export const APP_HTML = `<!doctype html>
       el("s-inicio").innerHTML=resumenHtml();
       var _hint='<div class="card muted" style="font-size:13px">👆 Elige <b>Oddly Loop</b> o <b>The Data Lens</b> arriba para ver el detalle de esta sección.</div>';
       el("s-producir").innerHTML=_hint; el("s-agenda").innerHTML=_hint; el("s-analitica").innerHTML=_hint; el("s-mas").innerHTML=_hint;
+      return;
+    }
+
+    // BILIBILI (distribución multiplataforma) — SEPARADO de los canales de YouTube, para no interferir.
+    if(curChannel==="bilibili"){
+      el("chTitle").textContent="Bilibili";
+      el("hd").textContent="Distribución multiplataforma · act. "+(ST.updated_at?String(ST.updated_at).slice(5,16).replace("T"," "):"—");
+      el("globalStatus").innerHTML=wb;
+      var _bcard = bilibiliCardHtml() || '<div class="card muted" style="font-size:13px">Aún sin datos de Bilibili. Cuando se produzca un Short, se repostea solo al mediodía y aparecerá aquí.</div>';
+      el("s-inicio").innerHTML='<h2>🅱️ Bilibili</h2><div class="card muted" style="font-size:12px">Reposteo automático de los Shorts de Oddly a Bilibili (canal <b>Oddly_Loop</b>). Independiente de YouTube — se maneja solo.</div>'+_bcard;
+      var _bh='<div class="card muted" style="font-size:13px">Bilibili se reposta solo al mediodía. El detalle está en <b>Inicio</b>.</div>';
+      el("s-producir").innerHTML=_bh; el("s-agenda").innerHTML=_bh; el("s-analitica").innerHTML=_bh;
+      el("s-mas").innerHTML='<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:4px">🔑 Cookie de Bilibili</div><div class="muted" style="font-size:12px">El watchdog revisa a diario que la sesión siga viva. Si avisa que <b>venció</b>, saca una cookie nueva del navegador (SESSDATA, bili_jct, DedeUserID, DedeUserID__ckMd5) y actualiza el secret <b>BILIBILI_COOKIE</b> en GitHub.</div></div>';
       return;
     }
 
