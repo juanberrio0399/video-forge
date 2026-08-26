@@ -49,7 +49,7 @@ function isDup(title) {                                        // Jaccard de pal
 console.log(`Radar scan de ${REPO} — ${existing.length} issue(s) abiertos, ${tracked.length} archivos, langs: ${topLangs}`);
 
 // 2) Prompt para Gemini (con grounding de Google Search para traer fuentes reales con fecha).
-const prompt = `Eres un "Radar de proyecto": analizas un repositorio de GitHub e identificas de forma investigada acciones de ALTO VALOR para (a) MEJORAR el proyecto y (b) hacerlo CRECER. Usa Google Search para traer novedades REALES y recientes, y cita SIEMPRE fuentes con fecha.
+const prompt = `Eres un "Radar de proyecto": analizas un repositorio de GitHub e identificas de forma investigada acciones de ALTO VALOR para (a) MEJORAR lo que ya existe, (b) AGREGAR capacidades, features e INTEGRACIONES NUEVAS que le den un salto (no solo arreglar), y (c) hacerlo CRECER. Prioriza traer COSAS NUEVAS del ecosistema (APIs/herramientas/modelos/técnicas recién salidos) que el proyecto podría integrar YA. Usa Google Search para traer novedades REALES y recientes, y cita SIEMPRE fuentes con fecha.
 
 Repositorio: ${REPO}
 
