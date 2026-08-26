@@ -706,7 +706,7 @@ export const APP_HTML = `<!doctype html>
     if(!list.length) return '<h2>Videos de Oddly Loop</h2><div class="card muted" style="font-size:12px">Aún sin videos. Produce una compilación arriba 👆</div>';
     // Lo YA HECHO (público o programado) queda OCULTO; solo mostramos lo que falta REVISAR.
     var now2=new Date();
-    list=list.filter(function(v){ var pv=v.privacy==="public"; var loc=localSched[v.video_id]; var future=v.publish_at&&(new Date(v.publish_at)>now2); return !pv && !future && loc!=="schedule" && loc!=="public"; });
+    list=list.filter(function(v){ var pv=v.privacy==="public"; var loc=localSched[v.video_id]; var future=v.publish_at&&(new Date(v.publish_at)>now2); return !pv && !future && loc!=="schedule" && loc!=="public" && !v.pending_sched; });
     if(!list.length) return '<h2>Videos de Oddly Loop</h2><div class="card muted" style="font-size:12px">✅ Todo al día. Lo público y lo programado está hecho (lo ves en 📅 Agenda). Cuando produzcas uno nuevo, aparece aquí para revisar.</div>';
     return '<h2>Por revisar ('+list.length+')</h2>'+list.map(function(v){
       var pv=v.privacy==="public";
@@ -759,7 +759,8 @@ export const APP_HTML = `<!doctype html>
   function auto2AgendaHtml(){
     var list=(ST.auto2&&ST.auto2.list)||[];
     var now=new Date();
-    var isFuture=function(v){ return (v.publish_at&&(new Date(v.publish_at)>now))||localSched[v.video_id]==="schedule"; };
+    // "programando" = ya programado (publish_at futuro), o marca optimista de sesión, o marcador DURABLE del servidor (pending_sched).
+    var isFuture=function(v){ return (v.publish_at&&(new Date(v.publish_at)>now))||localSched[v.video_id]==="schedule"||!!v.pending_sched; };
     var prog=list.filter(isFuture).sort(function(a,b){ return (a.publish_at||"9")<(b.publish_at||"9")?-1:1; });
     var enRev=list.filter(function(v){ return v.privacy!=="public" && !isFuture(v) && localSched[v.video_id]!=="public"; });
     var pubCount=list.filter(function(v){ return v.privacy==="public"; }).length;
@@ -777,7 +778,8 @@ export const APP_HTML = `<!doctype html>
         var items=byDay[k].sort(function(a,b){ return (a.publish_at||'')<(b.publish_at||'')?-1:1; });
         var rows=items.map(function(v){
           var isShort=/#short/i.test(v.title||'');
-          var t=v.publish_at?fmtTime(v.publish_at):'mejor hora';
+          var isProg=!v.publish_at&&(v.pending_sched||localSched[v.video_id]==="schedule"); // en marcha, aún sin hora confirmada
+          var t=v.publish_at?fmtTime(v.publish_at):(isProg?'Programando…':'mejor hora');
           var man=v.manual; var col=man?'#c084fc':'var(--cy)';
           return '<div style="padding:6px 0;border-top:1px solid rgba(255,255,255,.06)'+(man?';border-left:3px solid #c084fc;padding-left:6px':'')+'">'
             +'<div style="display:flex;justify-content:space-between;gap:8px">'
@@ -994,7 +996,7 @@ export const APP_HTML = `<!doctype html>
       // "Por revisar" = privados que NO están programados (los programados ya se ven en Agenda) -> el
       // contador coincide con la lista de Producir (antes decía 23 pero no mostraba nada).
       var nowR=new Date();
-      var privA=((ST.auto2&&ST.auto2.list)||[]).filter(function(v){ var future=v.publish_at&&(new Date(v.publish_at)>nowR); var loc=localSched[v.video_id]; return v.privacy!=="public" && !future && loc!=="schedule" && loc!=="public"; }).length;
+      var privA=((ST.auto2&&ST.auto2.list)||[]).filter(function(v){ var future=v.publish_at&&(new Date(v.publish_at)>nowR); var loc=localSched[v.video_id]; return v.privacy!=="public" && !future && loc!=="schedule" && loc!=="public" && !v.pending_sched; }).length;
       var pendA=privA?('<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px">👀 '+privA+' video(s) por revisar</div><div class="muted" style="font-size:13px;margin:4px 0 8px">De Oddly Loop, privados. Revísalos y publica/programa en Producir.</div><button class="btn" onclick="tab(\\'producir\\')">Ir a revisar</button></div>'):'';
       // INICIO: pulso (KPIs + estado + pendientes + producir + radar)
       el("s-inicio").innerHTML = auto2KpisHtml() + goalHtml(ST.auto2 && ST.auto2.monet_goal) + statusA + pendA + auto2TopHtml() + auto2ProduceCard() + nicheRadarHtml();
@@ -1209,9 +1211,9 @@ export const APP_HTML = `<!doctype html>
         +'<div class="muted" style="font-size:12px;margin-top:3px">En proceso… te aviso al terminar. Puedes seguir usando la app.</div></div>';
     }).join("");
   }
-  function startWatch(wf,label,doneMsg,failMsg){
+  function startWatch(wf,label,doneMsg,failMsg,onFail){
     if(!wf||WATCH[wf]) return; // ya se está vigilando ese workflow
-    WATCH[wf]={label:label||"El proceso",tries:0,sawActive:false,base:watchProblemIds(wf),done:doneMsg||(label+" terminó."),fail:failMsg||(label+" falló.")};
+    WATCH[wf]={label:label||"El proceso",tries:0,sawActive:false,base:watchProblemIds(wf),done:doneMsg||(label+" terminó."),fail:failMsg||(label+" falló."),onFail:onFail};
     render();
     var iv=setInterval(function(){
       var w=WATCH[wf]; if(!w){ clearInterval(iv); return; }
@@ -1221,7 +1223,7 @@ export const APP_HTML = `<!doctype html>
         w=WATCH[wf]; if(!w){ clearInterval(iv); return; }
         // (3) ¿fallo NUEVO de este wf? (run_id que no existía al arrancar)
         var newFail=(ST.problems||[]).some(function(x){ return x.workflow===wf && x.run_id && !w.base[x.run_id]; });
-        if(newFail){ clearInterval(iv); delete WATCH[wf]; h("err"); render(); notifyDone("❌ "+w.fail); return; }
+        if(newFail){ clearInterval(iv); delete WATCH[wf]; h("err"); if(w.onFail){try{w.onFail();}catch(e){}} render(); notifyDone("❌ "+w.fail); return; }
         var on=activeHasWf(wf);
         if(on){ w.sawActive=true; }                 // (1) ya arrancó
         else if(w.sawActive){ clearInterval(iv); delete WATCH[wf]; h("ok"); render(); notifyDone("✅ "+w.done); return; } // (2) terminó
@@ -1344,9 +1346,12 @@ export const APP_HTML = `<!doctype html>
     mode=mode||"schedule";
     var go=function(){
       if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");
-      api("/api/dispatch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow:"publish_oddly.yml",inputs:{video_id:vid,mode:mode}})})
+      api("/api/oddly-publish",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({video_id:vid,mode:mode})})
       .then(function(r){return r.json();}).then(function(j){
-        if(j.ok){ localSched[vid]=mode; render(); toast(mode==="public"?"🌍 Publicando en Oddly Loop… te aviso al chat":"📅 Programado a la mejor hora ✓ te aviso al chat"); setTimeout(load,4000); startWatch("publish_oddly.yml",(mode==="public"?"Publicar":"Programar")+" en Oddly Loop",(mode==="public"?"El video de Oddly Loop quedó público.":"El video de Oddly Loop quedó programado — míralo en 📅 Agenda."),(mode==="public"?"La publicación":"La programación")+" en Oddly Loop falló."); }
+        if(j.ok){ localSched[vid]=mode; render(); toast(mode==="public"?"🌍 Publicando en Oddly Loop… te aviso al chat":"📅 Programando a la mejor hora ✓ te aviso al chat"); setTimeout(load,4000);
+          // Si el workflow FALLA, limpiar el marcador durable -> el video vuelve a "por revisar" (no se queda "programando" para siempre).
+          var clearMark=function(){ delete localSched[vid]; api("/api/oddly-publish",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({video_id:vid,clear:true})}).then(function(){setTimeout(load,600);}); };
+          startWatch("publish_oddly.yml",(mode==="public"?"Publicar":"Programar")+" en Oddly Loop",(mode==="public"?"El video de Oddly Loop quedó público.":"El video de Oddly Loop quedó programado — míralo en 📅 Agenda."),(mode==="public"?"La publicación":"La programación")+" en Oddly Loop falló. Vuelve a «por revisar».",clearMark); }
         else toast("❌ "+(j.error||"no pude"));
       }).catch(function(){toast("❌ Error de red");}); };
     if(mode==="public"&&tg&&tg.showConfirm){ tg.showConfirm("¿Publicar este video de Oddly Loop AHORA (público)?",function(ok){if(ok)go();}); } else go();
