@@ -73,6 +73,18 @@ const PROVIDERS = [
   oai("GitHub Models", "https://models.inference.ai.azure.com/chat/completions", process.env.GITHUB_MODELS_TOKEN, "gpt-4o-mini"),
 ].filter(Boolean).filter((p) => p.on !== 0);
 
+// Chequeo de salud: prueba CADA proveedor con key y dice cuál responde (para validar keys nuevas).
+export async function health() {
+  const out = [];
+  for (const p of PROVIDERS) {
+    const t0 = Date.now();
+    let ok = false, sample = "";
+    try { const r = await p.run('Reply with exactly this JSON and nothing else: {"ok":true}', true); sample = String(r || "").replace(/\s+/g, " ").slice(0, 50); ok = /"?ok"?\s*:\s*true/i.test(String(r || "")); } catch (e) { sample = e.message; }
+    out.push({ name: p.name, ok, ms: Date.now() - t0, sample });
+  }
+  return out;
+}
+
 // Genera texto probando la cadena de proveedores gratis. Devuelve string o null.
 export async function genText(prompt, { json = true } = {}) {
   for (const p of PROVIDERS) {
