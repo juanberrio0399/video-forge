@@ -165,15 +165,15 @@ try {
   while (Date.now() < t2) {
     await page.waitForTimeout(3000);
     const txt = (await page.locator("body").innerText().catch(() => "")) || "";
-    if (/投稿成功|稿件投递成功|提交成功|稿件已提交/i.test(txt)) { ok = true; break; }
+    if (/投稿成功|稿件投递成功|提交成功|稿件已提交|上传成功|恭喜你上传|成为UP主|再投一个|查看进度/i.test(txt)) { ok = true; break; }
     const onFrame = /upload\/video\/frame/.test(page.url());
     const hasSubmitBtn = await page.getByText("立即投稿", { exact: true }).count().catch(() => 0);
-    if (!onFrame && !hasSubmitBtn) { ok = true; break; } // navegó fuera del formulario => enviado
+    if (!hasSubmitBtn && !/请先|必填|不能为空/.test(txt)) { ok = true; break; } // ya no está el botón投稿 y sin errores => enviado
   }
   await shot("final");
 
   const finalTxt = (await page.locator("body").innerText().catch(() => "")) || "";
-  if (!ok) ok = /投稿成功|稿件投递成功|提交成功/i.test(finalTxt);
+  if (!ok) ok = /投稿成功|稿件投递成功|提交成功|上传成功|恭喜你上传|成为UP主|再投一个/i.test(finalTxt);
   try { fs.writeFileSync("result.txt", (ok ? "OK" : "UNKNOWN") + "\nsubmitted=" + submitted + "\nurl=" + page.url()); } catch {}
   if (ok) { log("✅ Parece enviado correctamente (revisa el canal / en revisión)."); }
   else { log("⚠️ No confirmé el éxito por texto. Revisa las capturas en shots/ y result.txt."); }
