@@ -39,9 +39,11 @@ async function cloudflare(prompt, json) {
       const res = await tf(`https://api.cloudflare.com/client/v4/accounts/${A}/ai/run/${m}`, { method: "POST", headers: { Authorization: `Bearer ${T}`, "content-type": "application/json" }, body: JSON.stringify({ messages: [...(json ? [{ role: "system", content: "Respond ONLY with a single valid, minified JSON object. No markdown, no prose." }] : []), { role: "user", content: prompt }], temperature: 0.9, max_tokens: 2048 }) });
       if (!res.ok) { if (process.env.LLM_DIAG) cloudflare._err = m + " → " + res.status + " " + (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 140); continue; }
       const j = await res.json();
-      const t = (j?.result?.response || j?.result?.output_text || "").trim();
+      let raw = j?.result?.response ?? j?.result?.output_text ?? j?.result;
+      if (raw && typeof raw === "object") raw = raw.response || raw.output_text || raw.text || (Array.isArray(raw) ? raw.map((x) => (typeof x === "string" ? x : x?.text || "")).join("") : "");
+      const t = String(raw || "").trim();
       if (t) return json ? cleanJson(t) : t;
-      if (process.env.LLM_DIAG) cloudflare._err = m + " → ok pero sin texto: " + JSON.stringify(j).replace(/\s+/g, " ").slice(0, 160);
+      if (process.env.LLM_DIAG) cloudflare._err = m + " → ok pero sin texto: " + JSON.stringify(j).replace(/\s+/g, " ").slice(0, 180);
     } catch (e) { if (process.env.LLM_DIAG) cloudflare._err = m + " → EXC " + (e && e.message ? e.message : e); }
   }
   return null;
@@ -94,15 +96,17 @@ function oai(name, url, key, prefs, extra = {}) {
   } };
 }
 
-// Cadena de proveedores GRATIS (orden por generosidad/velocidad). Se saltan los que no tengan key.
+// Cadena de proveedores GRATIS. Orden = los CONFIRMADOS que responden primero (Gemini→Groq→OpenRouter→
+// Cloudflare); Cerebras/SambaNova van al final como respaldo (hoy piden tarjeta: fallan rápido y se saltan,
+// pero se activan solos si algún día tienen cupo gratis). GitHub Models se quitó (GitHub lo está retirando).
+// Se saltan los que no tengan key. Cada oai() auto-resuelve el modelo vía /models (a prueba de renombres).
 const PROVIDERS = [
   { name: "Gemini", run: gemini, on: GKEYS.length ? 1 : 0 },
-  oai("Cerebras", "https://api.cerebras.ai/v1/chat/completions", process.env.CEREBRAS_API_KEY, [/^llama-3\.3-70b$/, /llama.*3\.3.*70b/i, /llama.*70b/i, /llama/i, /gemma/i, /qwen/i]),
   oai("Groq", "https://api.groq.com/openai/v1/chat/completions", process.env.GROQ_API_KEY, [/llama-3\.3-70b-versatile/i, /llama.*3\.3.*70b/i, /llama.*70b.*versatile/i, /llama.*70b/i, /llama.*instruct/i]),
-  { name: "Cloudflare", run: cloudflare, on: (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN) ? 1 : 0 },
-  oai("SambaNova", "https://api.sambanova.ai/v1/chat/completions", process.env.SAMBANOVA_API_KEY, [/Meta-Llama-3\.3-70B-Instruct/i, /llama.*3\.3.*70b/i, /llama.*70b/i, /llama/i]),
   oai("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", process.env.OPENROUTER_API_KEY, [/meta-llama\/llama-3\.3-70b-instruct:free/i, /llama.*3\.3.*70b.*:free/i, /llama.*70b.*:free/i, /:free/i], { "HTTP-Referer": "https://github.com/juanberrio0399/video-forge", "X-Title": "video-forge" }),
-  oai("GitHub Models", "https://models.github.ai/inference/chat/completions", process.env.GH_MODELS_TOKEN, ["openai/gpt-4o-mini", /openai\/gpt-4o-mini/i, /gpt-4o-mini/i, /gpt-4o/i, /gpt/i]),
+  { name: "Cloudflare", run: cloudflare, on: (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN) ? 1 : 0 },
+  oai("Cerebras", "https://api.cerebras.ai/v1/chat/completions", process.env.CEREBRAS_API_KEY, [/^llama-3\.3-70b$/, /llama.*3\.3.*70b/i, /llama.*70b/i, /llama/i, /gemma/i, /qwen/i]),
+  oai("SambaNova", "https://api.sambanova.ai/v1/chat/completions", process.env.SAMBANOVA_API_KEY, [/Meta-Llama-3\.3-70B-Instruct/i, /llama.*3\.3.*70b/i, /llama.*70b/i, /llama/i]),
 ].filter(Boolean).filter((p) => p.on !== 0);
 
 // Chequeo de salud: prueba CADA proveedor con key y dice cuál responde (para validar keys nuevas).
