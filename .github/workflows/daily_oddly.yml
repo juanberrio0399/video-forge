@@ -64,9 +64,12 @@ jobs:
             echo "▶ $(LABEL "$NICHE") ($VARIANT, $KIND)"
             gh workflow run produce_oddly.yml -f niche="$NICHE" -f variant="$VARIANT" -f kind="$KIND" -f publish=yes -R "$GITHUB_REPOSITORY" || echo "no pude disparar $NICHE"
           done < plan.txt
-          N=$(grep -c . plan.txt); SH=$(grep -c " short$" plan.txt); LO=$(grep -c " video$" plan.txt)
+          # `grep -c` sale con código 1 cuando cuenta 0 (p.ej. Oddly es solo-Shorts -> 0 largos); con set -e
+          # eso tumbaría el step DESPUÉS de haber disparado todo. `|| true` conserva el "0" sin fallar.
+          N=$(grep -c . plan.txt || true); SH=$(grep -c " short$" plan.txt || true); LO=$(grep -c " video$" plan.txt || true)
           bash pipeline/notify_telegram.sh "🚀 Oddly Loop — blitz del día: lancé ${N} piezas (${SH} Shorts + ${LO} largo), en las 4 categorías. Cada una se programa a su mejor hora libre (tope 2/hora)." || true
       - name: Clips graciosos del día (Archive.org CC, rotación de fails) → PRIVADOS
+        if: always()   # independiente del blitz de arriba: no lo saltes si aquel tropieza
         run: |
           # Rotación de temas de fails/graciosos por día del año. Van PRIVADOS para que Juan apruebe en la app.
           TOPICS=("funny fails" "epic fail" "funny animals" "bloopers" "skate fails" "funny cats" "funny dogs" "gaming fails" "sports fails" "funny moments" "animal fails" "fail compilation")
