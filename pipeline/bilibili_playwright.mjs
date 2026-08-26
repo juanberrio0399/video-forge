@@ -84,10 +84,10 @@ try {
 
   // 5b) 创作声明 (Declaración de autoría) — OBLIGATORIO. Abrir el dropdown, ver opciones y elegir una.
   log("→ Declaración de autoría (创作声明)…");
-  const declTrigger = page.locator('text=请选择符合您视频内容的创作声明').first();
+  const declTrigger = page.locator('input[placeholder*="创作声明"], input[placeholder*="创作声"]').first();
   if (await declTrigger.count().catch(() => 0)) {
     await declTrigger.scrollIntoViewIfNeeded().catch(() => {});
-    await declTrigger.click().catch(() => {});
+    await declTrigger.click({ force: true }).catch(() => {});
     await page.waitForTimeout(1500);
     await shot("decl_open");
     const opts = await page.locator('.el-select-dropdown__item, li[class*="option"], [class*="select-dropdown"] li, [class*="option-item"]').allInnerTexts().catch(() => []);
