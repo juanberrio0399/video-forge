@@ -412,15 +412,35 @@ async function handleApi(request, env, url) {
     if (state.auto2 && Array.isArray(state.auto2.list)) {
       const om = new Set((await r2json(env, "channel/auto2/manual_videos.json")) || []);
       state.auto2.list.forEach((v) => { v.manual = om.has(v.video_id); });
+      // MARCADOR DURABLE "🕒 Programando…" (channel/auto2/pending_sched.json): mantiene el estado
+      // aunque se recargue la app y aunque el reporte (2h) aún no refleje el cambio. Se limpia solo:
+      // si el video ya quedó público/programado (confirmado) o si pasó el TTL (backstop ~3h).
+      const pend = (await r2json(env, "channel/auto2/pending_sched.json")) || [];
+      if (pend.length) {
+        const nowMs = Date.now(), TTL = 3 * 3600 * 1000;
+        const byId = {}; state.auto2.list.forEach((v) => { byId[v.video_id] = v; });
+        const kept = [];
+        for (const p of pend) {
+          if (!p || !p.video_id) continue;
+          const v = byId[p.video_id];
+          const confirmed = v && (v.privacy === "public" || (v.publish_at && Date.parse(v.publish_at) > nowMs));
+          const expired = !p.at || (nowMs - Date.parse(p.at)) > TTL;
+          if (confirmed || expired) continue; // ya se refleja solo, o venció -> vuelve a "por revisar"
+          kept.push(p);
+          if (v) v.pending_sched = p.mode || "schedule"; // el cliente lo pinta "Programando…"
+        }
+        if (kept.length !== pend.length) { try { await env.R2.put("channel/auto2/pending_sched.json", JSON.stringify(kept), { httpMetadata: { contentType: "application/json" } }); } catch {} }
+      }
     }
     // PENDIENTES POR APROBAR (para la ventana Resumen): privados sin programar de cada canal.
-    // Data Lens usa su inventario (hidden ya filtrado); Oddly usa su list.
+    // Data Lens usa su inventario (hidden ya filtrado); Oddly usa su list. Los "🕒 Programando…"
+    // (pending_sched) NO cuentan como por-revisar: ya están en marcha.
     {
       const nowP = Date.now();
       const isFut = (pa) => pa && Date.parse(pa) > nowP;
       const dlPend = invAll.filter((v) => v.privacy !== "public" && !isFut(v.publish_at)).length;
       const odPend = (state.auto2 && Array.isArray(state.auto2.list))
-        ? state.auto2.list.filter((v) => v.privacy !== "public" && !isFut(v.publish_at)).length : 0;
+        ? state.auto2.list.filter((v) => v.privacy !== "public" && !isFut(v.publish_at) && !v.pending_sched).length : 0;
       state.pending_approve = { data_lens: dlPend, oddly: odPend, total: dlPend + odPend };
     }
     // META DE MONETIZACION (YPP) con medicion diaria del ritmo — cada canal su meta.
@@ -705,6 +725,30 @@ async function handleApi(request, env, url) {
     if (!opt) return json({ error: "voz desconocida" }, 400);
     await env.R2.put("channel/voice_choice.json", JSON.stringify({ id: opt.id, engine: opt.engine, kvoice: opt.kvoice, label: opt.label }), { httpMetadata: { contentType: "application/json" } });
     return json({ ok: true, label: opt.label });
+  }
+
+  if (url.pathname === "/api/oddly-publish" && request.method === "POST") {
+    // Programar/publicar un video de Oddly Loop CON marcador durable, para que NO se caiga y
+    // reaparezca en "por revisar" mientras el reporte (2h) refresca el inventario. Escribe
+    // channel/auto2/pending_sched.json (lo lee /api/state en vivo) -> el video sale "🕒 Programando…"
+    // hasta que quede realmente programado/público, o hasta que se limpie por fallo/TTL.
+    let body = {}; try { body = await request.json(); } catch {}
+    const vid = String(body.video_id || "");
+    if (!/^[A-Za-z0-9_-]{6,20}$/.test(vid)) return json({ error: "video_id inválido" }, 400);
+    const cur = (await r2json(env, "channel/auto2/pending_sched.json")) || [];
+    // clear=true -> quitar el marcador (lo llama el cliente cuando el workflow FALLA: vuelve a "por revisar").
+    if (body.clear) {
+      const kept = cur.filter((p) => p && p.video_id !== vid);
+      await env.R2.put("channel/auto2/pending_sched.json", JSON.stringify(kept), { httpMetadata: { contentType: "application/json" } });
+      return json({ ok: true, cleared: true });
+    }
+    const mode = body.mode === "public" ? "public" : "schedule";
+    const r = await ghDispatch(env, "publish_oddly.yml", { video_id: vid, mode });
+    if (!r.ok) return json({ ok: false, error: r.error || "no pude" });
+    const rec = { video_id: vid, mode, at: new Date().toISOString() };
+    const merged = [...cur.filter((p) => p && p.video_id !== vid), rec];
+    await env.R2.put("channel/auto2/pending_sched.json", JSON.stringify(merged), { httpMetadata: { contentType: "application/json" } });
+    return json({ ok: true, mode });
   }
 
   if (url.pathname === "/api/oddly-manual" && request.method === "POST") {
