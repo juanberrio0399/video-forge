@@ -42,9 +42,9 @@ const prompt = `Eres un implementador de cambios de código, cuidadoso y mínimo
 Formato de salida (JSON estricto):
 {
   "branch": "radar/<slug-corto>",
-  "commit_message": "<mensaje conciso>",
-  "pr_title": "<título del PR>",
-  "pr_body": "<cuerpo del PR en Markdown: qué cambia y por qué, cierra #${issueNo}>",
+  "commit_message": "<Conventional Commit: 'tipo(ámbito): resumen' en imperativo, <=72 chars, minúscula al inicio; tipos: feat|fix|refactor|perf|docs|chore|test|ci|build|style. Ej: 'ci: pin actions to major versions'. Sin emoji, sin punto final, sin mención de IA/herramienta/Gemini>",
+  "pr_title": "<título del PR conciso en imperativo, estilo profesional; sin emoji, sin mención de IA>",
+  "pr_body": "<cuerpo del PR en Markdown profesional y conciso: '## Summary' (qué cambia y por qué, 1-3 líneas) y '## Changes' (viñetas). Termina con 'Closes #${issueNo}'. Sin emoji, sin mención de IA/herramienta>",
   "summary": "<1-2 líneas de qué hiciste>",
   "edits": [
     { "path": "<ruta o glob como .github/workflows/*.yml>", "find": "<substring EXACTO actual>", "replace": "<nuevo substring>" },
@@ -58,6 +58,7 @@ Reglas:
 - Cambios MÍNIMOS: no toques lógica ni archivos no relacionados. Respeta las restricciones del issue.
 - "find" debe coincidir literalmente con el contenido actual (respeta espacios, mayúsculas, @versiones).
 - Para AGREGAR contenido nuevo (una sección, un bloque, un archivo): NO inventes un "find" que no exista hoy. Ancla en un texto que YA exista (cópialo tal cual) y en "replace" repítelo seguido del contenido nuevo; o entrega el archivo completo en "content". Un "find" inexistente hace que la edición NO aplique.
+- ESTILO PROFESIONAL (obligatorio): commit_message, pr_title y pr_body deben leerse como escritos por un ingeniero senior. NUNCA menciones IA, "motor", "radar", "Gemini", "generado" ni "automático". Sin emoji. Voz imperativa y presente. Nada de relleno.
 
 ## Issue #${issueNo}: ${issue.title}
 ${issue.body}
