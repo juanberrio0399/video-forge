@@ -68,7 +68,10 @@ function oai(name, url, key, prefs, extra = {}) {
         const CHAT = ids.filter((id) => !/guard|whisper|tts|embed|moderat|safety|rerank|vision|audio|transcri|prompt-guard|classif/i.test(id));
         ids = CHAT.length ? CHAT : ids;
         for (const p of wanted) { const hit = ids.find((id) => (p instanceof RegExp ? p.test(id) : id === p)); if (hit) { model = hit; break; } }
-        if (!model && ids.length) model = ids.find((id) => /(70b|72b|8x7b|large)/i.test(id)) || ids.find((id) => /(llama|qwen|mixtral|gpt|instruct)/i.test(id)) || ids[0];
+        if (!model && ids.length) {
+          const free = ids.filter((id) => !/gpt-oss/i.test(id)); const pool = free.length ? free : ids; // gpt-oss suele requerir pago; úsalo solo si no hay otro
+          model = pool.find((id) => /(70b|72b|8x7b|large)/i.test(id)) || pool.find((id) => /(llama|qwen|gemma|mixtral|instruct)/i.test(id)) || pool[0];
+        }
       } else if (process.env.LLM_DIAG && self) { self._err = "/models " + r.status; }
     } catch {}
     if (!model) model = wanted.find((p) => typeof p === "string") || null; // respaldo: primera preferencia literal
@@ -93,7 +96,7 @@ function oai(name, url, key, prefs, extra = {}) {
 // Cadena de proveedores GRATIS (orden por generosidad/velocidad). Se saltan los que no tengan key.
 const PROVIDERS = [
   { name: "Gemini", run: gemini, on: GKEYS.length ? 1 : 0 },
-  oai("Cerebras", "https://api.cerebras.ai/v1/chat/completions", process.env.CEREBRAS_API_KEY, [/^llama-3\.3-70b$/, /llama.*3\.3.*70b/i, /llama-4.*70b/i, /llama.*70b/i, /llama/i]),
+  oai("Cerebras", "https://api.cerebras.ai/v1/chat/completions", process.env.CEREBRAS_API_KEY, [/^llama-3\.3-70b$/, /llama.*3\.3.*70b/i, /llama.*70b/i, /llama/i, /gemma/i, /qwen/i]),
   oai("Groq", "https://api.groq.com/openai/v1/chat/completions", process.env.GROQ_API_KEY, [/llama-3\.3-70b-versatile/i, /llama.*3\.3.*70b/i, /llama.*70b.*versatile/i, /llama.*70b/i, /llama.*instruct/i]),
   { name: "Cloudflare", run: cloudflare, on: (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN) ? 1 : 0 },
   oai("SambaNova", "https://api.sambanova.ai/v1/chat/completions", process.env.SAMBANOVA_API_KEY, [/Meta-Llama-3\.3-70B-Instruct/i, /llama.*3\.3.*70b/i, /llama.*70b/i, /llama/i]),
