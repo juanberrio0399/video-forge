@@ -59,7 +59,7 @@ jobs:
           git config user.email "juandyb99@gmail.com"
           git checkout -b "$BR"
           git add -A
-          git commit -m "$COMMIT" -m "Implementado por el motor del radar (Gemini). Revisar antes de merge. $CLOSE"
+          git commit -m "$COMMIT" -m "$CLOSE"
           git push -u origin "$BR" --force
           # IDEMPOTENTE: si al reintentar ya existe un PR para esta rama, el push --force ya lo actualizó;
           # NO intentamos crear uno duplicado (eso fallaba con "already exists" y marcaba motor-fallo).
@@ -67,14 +67,14 @@ jobs:
           if [ -z "$PRURL" ]; then
             gh pr create -R "$TARGET" --base "$BASE" --head "$BR" --title "$TITLE" --body-file /tmp/radar_body.md || gh pr create -R "$TARGET" --base "$BASE" --head "$BR" --title "$TITLE" --body "$CLOSE"
             PRURL=$(gh pr view "$BR" -R "$TARGET" --json url -q .url)
-            gh issue comment "$ISSUE" -R "$TARGET" --body "🤖 Rama \`$BR\` y PR listos para revisar (sin merge)$NOTE: $PRURL"
+            gh issue comment "$ISSUE" -R "$TARGET" --body "Branch \`$BR\` and PR ready for review (not merged)$NOTE: $PRURL"
           else
             # El PR ya existía (reintento): el force-push ya actualizó su código. Ademas REFRESCAMOS su
             # titulo y cuerpo al estado ACTUAL, para que si el reintento ya quedó completo, el PR deje de
             # decir [INCOMPLETO] y pase de `Ref` a `Closes` (y así cierre el issue al mergear) — y viceversa.
             echo "PR ya existía; rama actualizada. Refresco titulo/cuerpo al estado actual (completo/incompleto)."
             gh pr edit "$PRURL" -R "$TARGET" --title "$TITLE" --body-file /tmp/radar_body.md 2>/dev/null || true
-            gh issue comment "$ISSUE" -R "$TARGET" --body "🔄 Rama \`$BR\` actualizada — el PR ya existía, ahora refleja el contenido y estado nuevos$NOTE: $PRURL"
+            gh issue comment "$ISSUE" -R "$TARGET" --body "Branch \`$BR\` updated — PR already existed and now reflects the latest changes$NOTE: $PRURL"
           fi
           echo "PR: $PRURL"
           gh issue edit "$ISSUE" -R "$TARGET" --remove-label motor-fallo 2>/dev/null || true   # limpia un fallo previo
