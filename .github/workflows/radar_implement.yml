@@ -29,6 +29,8 @@ jobs:
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
       ISSUE: ${{ github.event.inputs.issue }}
       TARGET: ${{ github.event.inputs.repo || 'juanberrio0399/video-forge' }}
