@@ -20,6 +20,8 @@ const CRIT = [
   { f: "channel_brain.yml", label: "El Cerebro (salud)", maxAgeH: 30 },              // diario
   { f: "sync_playlists.yml", label: "Sync playlists", maxAgeH: 30 },                 // diario
   { f: "brain_optimize.yml", label: "El Cerebro (aprendizaje)", maxAgeH: 120 },      // lun+jue
+  { f: "radar_scan.yml", label: "Radar — barrido semanal", maxAgeH: 216 },           // lunes (radar-bot)
+  { f: "radar_groom.yml", label: "Radar — groomer", maxAgeH: 216 },                  // jueves (radar-bot)
 ];
 
 async function jget(url) { const r = await fetch(url, { headers: H }); if (!r.ok) throw new Error(r.status + " " + (await r.text().catch(() => "")).slice(0, 80)); return r.json(); }
