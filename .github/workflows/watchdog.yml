@@ -30,6 +30,7 @@ jobs:
       YT2_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
       YT2_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      RADAR_BOT_TOKEN: ${{ secrets.RADAR_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
       GH_TOKEN: ${{ github.token }}   # token de Actions (actions:read) para vigilar los crons
     steps:

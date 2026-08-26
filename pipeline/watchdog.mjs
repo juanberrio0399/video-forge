@@ -42,6 +42,19 @@ async function checkYT(c) {
   } catch (e) { return { ok: false, msg: "excepción: " + (e && e.message ? e.message : e) }; }
 }
 
+// Salud de un bot de Telegram: getWebhookInfo dice si el webhook está puesto y sin errores (bot vivo y recibiendo).
+async function checkBot(token) {
+  if (!token) return null; // sin token configurado -> no aplica
+  try {
+    const j = await (await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`)).json();
+    if (!j.ok) return { ok: false, msg: "getWebhookInfo falló (¿token malo?)" };
+    const w = j.result || {};
+    if (!w.url) return { ok: false, msg: "webhook NO configurado — el bot no recibe mensajes" };
+    if (w.last_error_message) return { ok: false, msg: `webhook con error: ${w.last_error_message} (pendientes: ${w.pending_update_count || 0})` };
+    return { ok: true, msg: `ok (${w.pending_update_count || 0} pendientes)` };
+  } catch (e) { return { ok: false, msg: "excepción: " + (e && e.message ? e.message : e) }; }
+}
+
 const lines = [];
 let fails = 0;
 
@@ -54,6 +67,12 @@ for (const c of CHANNELS) {
   const r = await checkYT(c);
   lines.push(`${r.ok ? "✅" : "❌"} YouTube ${c.label}: ${r.msg}`);
   if (!r.ok) fails++;
+}
+
+// Bots de Telegram (Video Forge + Radar): que su webhook esté vivo.
+for (const [tok, label] of [[process.env.TELEGRAM_BOT_TOKEN, "Video Forge"], [process.env.RADAR_BOT_TOKEN, "Radar"]]) {
+  const r = await checkBot(tok);
+  if (r) { lines.push(`${r.ok ? "✅" : "❌"} Bot Telegram ${label}: ${r.msg}`); if (!r.ok) fails++; }
 }
 
 const report = lines.join("\n");
