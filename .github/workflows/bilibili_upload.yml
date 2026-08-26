@@ -48,14 +48,28 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v5
-      - name: Verificar cookie
+      - name: Preparar cookie (acepta el texto del navegador O un cookies.json completo)
         run: |
           if [ -z "$BILIBILI_COOKIE" ]; then
-            echo "❌ Falta el secret BILIBILI_COOKIE. Genera cookies.json local con 'biliup login' (QR) y pega su contenido como secret."
+            echo "❌ Falta el secret BILIBILI_COOKIE."
             exit 1
           fi
-          printf '%s' "$BILIBILI_COOKIE" > cookies.json
-          echo "cookie OK ($(wc -c < cookies.json) bytes)"
+          node -e '
+            const raw = (process.env.BILIBILI_COOKIE || "").trim();
+            let out;
+            if (raw.startsWith("{")) {
+              out = raw; // ya es cookies.json (de `biliup login`)
+            } else {
+              // Texto del navegador: "SESSDATA=..; bili_jct=..; DedeUserID=..; DedeUserID__ckMd5=.."
+              const m = {}; raw.split(/;\s*/).forEach((p) => { const i = p.indexOf("="); if (i > 0) m[p.slice(0, i).trim()] = p.slice(i + 1).trim(); });
+              const need = ["SESSDATA", "bili_jct", "DedeUserID", "DedeUserID__ckMd5"];
+              const miss = need.filter((k) => !m[k]);
+              if (miss.length) { console.error("❌ Faltan cookies en BILIBILI_COOKIE: " + miss.join(", ")); process.exit(1); }
+              out = JSON.stringify({ cookie_info: { cookies: need.map((name) => ({ name, value: m[name] })) }, sso: ["https://passport.bilibili.com/api/v2/sso"], token_info: {} });
+            }
+            require("fs").writeFileSync("cookies.json", out);
+            console.log("✅ cookie lista (" + out.length + " bytes)");
+          '
       - name: Bajar el video de R2
         run: |
           npx --yes wrangler@4 r2 object get "$BUCKET/${{ inputs.r2_key }}" --file=video.mp4 --remote
