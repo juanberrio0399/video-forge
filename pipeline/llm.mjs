@@ -118,7 +118,7 @@ export async function health() {
     let ok = false, sample = "";
     try { const r = await p.run('Reply with exactly this JSON and nothing else: {"ok":true}', true); sample = String(r || "").replace(/\s+/g, " ").slice(0, 50); ok = /"?ok"?\s*:\s*true/i.test(String(r || "")); } catch (e) { sample = e.message; }
     if (!ok && !sample) sample = p._err || (p.run && p.run._err) || ""; // diagnóstico: status+body del fallo (con LLM_DIAG)
-    if (process.env.LLM_DIAG && p._models) sample += "  [models: " + p._models + "]";
+    if (!ok && process.env.LLM_DIAG && p._models) sample += "  [models: " + p._models + "]";
     out.push({ name: p.name, ok, ms: Date.now() - t0, sample });
   }
   return out;
