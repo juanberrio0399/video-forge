@@ -39,7 +39,8 @@ async function cloudflare(prompt, json) {
       const res = await tf(`https://api.cloudflare.com/client/v4/accounts/${A}/ai/run/${m}`, { method: "POST", headers: { Authorization: `Bearer ${T}`, "content-type": "application/json" }, body: JSON.stringify({ messages: [...(json ? [{ role: "system", content: "Respond ONLY with a single valid, minified JSON object. No markdown, no prose." }] : []), { role: "user", content: prompt }], temperature: 0.9, max_tokens: 2048 }) });
       if (!res.ok) { if (process.env.LLM_DIAG) cloudflare._err = m + " → " + res.status + " " + (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 140); continue; }
       const j = await res.json();
-      let raw = j?.result?.response ?? j?.result?.output_text ?? j?.result;
+      // Workers AI devuelve o {result:{response:"..."}} (clásico) o formato OpenAI {result:{choices:[{message:{content}}]}} (modelos nuevos).
+      let raw = j?.result?.choices?.[0]?.message?.content ?? j?.result?.response ?? j?.result?.output_text ?? j?.result;
       if (raw && typeof raw === "object") raw = raw.response || raw.output_text || raw.text || (Array.isArray(raw) ? raw.map((x) => (typeof x === "string" ? x : x?.text || "")).join("") : "");
       const t = String(raw || "").trim();
       if (t) return json ? cleanJson(t) : t;
