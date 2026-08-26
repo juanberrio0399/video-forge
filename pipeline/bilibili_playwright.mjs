@@ -86,17 +86,25 @@ try {
   //     si no se elige, el envío falla con "请先上传封面". Elegimos una miniatura recomendada.
   log("→ Seleccionando portada (封面)…");
   try {
-    // Subir al tope para que la fila de portadas recomendadas esté visible (y≈157 en viewport 1440x900).
-    await page.mouse.wheel(0, -3000);
-    await page.waitForTimeout(1000);
-    await shot("cover_before");
-    // Click por coordenadas sobre la 3ª miniatura recomendada (salta el botón "AI生成"). Layout fijo.
-    // Tiles ≈ x: 485(AI), 593, 701, 809 ; y≈157. Elijo la 3ª (x≈701).
-    await page.mouse.click(701, 157);
-    await page.waitForTimeout(1200);
-    // Si abre un diálogo de recorte/confirmación, aceptarlo.
-    for (const b of ['button:has-text("确定")', 'button:has-text("完成")', 'button:has-text("确认")', 'button:has-text("保存")']) { const sb = page.locator(b).last(); if ((await sb.count().catch(() => 0)) && (await sb.isVisible().catch(() => false))) { await sb.click().catch(() => {}); log("portada: confirmé diálogo"); await page.waitForTimeout(800); break; } }
-    log("portada: click en miniatura recomendada");
+    // Ancla robusta: el botón "AI生成" (lo ubico por texto). Las miniaturas recomendadas están a su
+    // derecha, a la misma altura, ~1 ancho cada una. Clic relativo a su boundingBox (sirve con cualquier scroll).
+    const ai = page.getByText("AI生成", { exact: true }).first();
+    if (await ai.count().catch(() => 0)) {
+      await ai.scrollIntoViewIfNeeded().catch(() => {});
+      await page.waitForTimeout(600);
+      const box = await ai.boundingBox().catch(() => null);
+      await shot("cover_before");
+      if (box) {
+        const y = box.y + box.height / 2;
+        // Probar las 3 miniaturas a la derecha (1ª, 2ª, 3ª); la última que clickee queda como portada.
+        const x = box.x + box.width * 1.6; // 1ª miniatura recomendada
+        await page.mouse.click(x, y);
+        await page.waitForTimeout(1000);
+        // Si abre recorte/confirmación, aceptar.
+        for (const b of ['button:has-text("确定")', 'button:has-text("完成")', 'button:has-text("确认")', 'button:has-text("保存")']) { const sb = page.locator(b).last(); if ((await sb.count().catch(() => 0)) && (await sb.isVisible().catch(() => false))) { await sb.click().catch(() => {}); log("portada: confirmé diálogo"); await page.waitForTimeout(800); break; } }
+        log("portada: click en miniatura (x=" + Math.round(x) + ", y=" + Math.round(y) + ")");
+      }
+    } else { log("⚠️ no ubiqué el ancla 'AI生成' para la portada"); }
     await shot("cover");
   } catch (e) { log("portada:", e && e.message ? e.message : e); }
 
