@@ -1,7 +1,8 @@
-name: Watchdog de infraestructura (R2 + YouTube)
+name: Watchdog de infraestructura (R2 + YouTube + crons)
 
-# Vigila lo CRÍTICO: acceso a R2 (almacenamiento) y los tokens de YouTube de los 2 canales.
-# Si algo se rompe, publicar/agendar cae en silencio -> este chequeo lo detecta y avisa a Telegram.
+# Vigila lo CRÍTICO: acceso a R2 (almacenamiento), tokens de YouTube de los 2 canales, y que los
+# CRONS DE PRODUCCIÓN sigan vivos (desactivados por GitHub, atrasados o con fallas repetidas).
+# Si algo se rompe, publicar/agendar/producir cae en silencio -> esto lo detecta y avisa a Telegram.
 # Corre solo cada día y AVISA solo si hay un fallo (cero spam). El disparo manual siempre reporta.
 on:
   workflow_dispatch: {}
@@ -10,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  actions: read   # para leer el estado/últimos runs de los workflows de producción
 
 env:
   BUCKET: video-forge
@@ -29,21 +31,28 @@ jobs:
       YT2_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      GH_TOKEN: ${{ github.token }}   # token de Actions (actions:read) para vigilar los crons
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
-      - name: Vigilar R2 + YouTube (2 canales) + consolidar
+      - name: Vigilar R2 + YouTube (2 canales)
         run: node pipeline/watchdog.mjs | tee wd.txt
+      - name: Vigilar crons de producción
+        if: always()
+        run: node pipeline/watchdog_workflows.mjs | tee wf.txt
       - name: Avisar a Telegram (manual siempre; cron solo si hay fallo)
         if: always()
         run: |
-          FAILS=$(cat wd_fail.txt 2>/dev/null || echo 0)
+          F1=$(cat wd_fail.txt 2>/dev/null || echo 0)
+          F2=$(cat wf_fail.txt 2>/dev/null || echo 0)
+          TOTAL=$((F1 + F2))
+          BODY="$(cat wd_report.txt 2>/dev/null)"$'\n'"$(cat wf_report.txt 2>/dev/null)"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            bash pipeline/notify_telegram.sh "🩺 Watchdog infraestructura:"$'\n'"$(cat wd_report.txt)"
-          elif [ "$FAILS" -gt 0 ]; then
-            bash pipeline/notify_telegram.sh "🚨 WATCHDOG: problema de infraestructura ($FAILS)."$'\n'"$(cat wd_report.txt)"$'\n'"Publicar/agendar puede estar caído — revísalo."
+            bash pipeline/notify_telegram.sh "🩺 Watchdog (infra + crons):"$'\n'"$BODY"
+          elif [ "$TOTAL" -gt 0 ]; then
+            bash pipeline/notify_telegram.sh "🚨 WATCHDOG: $TOTAL problema(s) detectado(s)."$'\n'"$BODY"$'\n'"Algo puede estar caído — revísalo."
           else
-            echo "Watchdog OK, sin aviso."
+            echo "Watchdog OK ($TOTAL problemas), sin aviso."
           fi
