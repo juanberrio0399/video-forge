@@ -85,7 +85,9 @@ jobs:
           "$BIN" --version 2>/dev/null || true
       - name: Subir a Bilibili
         run: |
+          # --submit web -> usa la cookie (bili_jct) para el envío final, sin necesitar access_token (login QR).
           "$BILIUP" -u cookies.json upload video.mp4 \
+            --submit web \
             --title "${{ inputs.title }}" \
             --desc "${{ inputs.desc }}" \
             --tag "${{ inputs.tag }}" \
