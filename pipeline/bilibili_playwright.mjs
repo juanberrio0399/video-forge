@@ -86,34 +86,17 @@ try {
   //     si no se elige, el envío falla con "请先上传封面". Elegimos una miniatura recomendada.
   log("→ Seleccionando portada (封面)…");
   try {
-    // Subir al contenedor que realmente tiene las miniaturas (el texto y las imágenes son hermanos).
-    const label = page.getByText("系统推荐封面", { exact: false }).first();
-    let container = page;
-    if (await label.count().catch(() => 0)) {
-      const anc = label.locator("xpath=ancestor::*[.//img or .//*[contains(@style,'background-image')]][1]");
-      if (await anc.count().catch(() => 0)) container = anc.first();
-    }
-    let tiles = container.locator('img, [style*="background-image"]');
-    let c = await tiles.count().catch(() => 0);
-    if (c === 0) { // depurar: volcar el HTML del área para ajustar el selector
-      try { const html = await (await label.count().catch(() => 0) ? label.locator("xpath=ancestor::*[3]") : page.locator("body")).first().evaluate((el) => el.outerHTML).catch(() => ""); log("COVER_HTML:", (html || "").replace(/\s+/g, " ").slice(0, 700)); } catch {}
-      tiles = page.locator('[class*="cover"] img, [class*="cover"] [style*="background-image"], [class*="recommend"] img, [class*="recommend"] [style*="background-image"]');
-      c = await tiles.count().catch(() => 0);
-    }
-    log("miniaturas de portada:", c);
-    let done = false;
-    for (let i = 0; i < c; i++) {
-      const im = tiles.nth(i);
-      const box = await im.boundingBox().catch(() => null);
-      if (box && box.width > 40 && box.height > 40) {
-        await im.scrollIntoViewIfNeeded().catch(() => {});
-        await im.click({ force: true }).catch(() => {});
-        await page.waitForTimeout(1200);
-        for (const b of ['button:has-text("确定")', 'button:has-text("完成")', 'button:has-text("确认")', 'text=设为封面']) { const sb = page.locator(b).last(); if ((await sb.count().catch(() => 0)) && (await sb.isVisible().catch(() => false))) { await sb.click().catch(() => {}); await page.waitForTimeout(800); break; } }
-        done = true; log("portada elegida (tile", i + ")"); break;
-      }
-    }
-    if (!done) { const ai = page.getByText("AI生成", { exact: false }).first(); if (await ai.count().catch(() => 0)) { await ai.click().catch(() => {}); await page.waitForTimeout(6000); log("portada: usé AI生成"); } }
+    // Subir al tope para que la fila de portadas recomendadas esté visible (y≈157 en viewport 1440x900).
+    await page.mouse.wheel(0, -3000);
+    await page.waitForTimeout(1000);
+    await shot("cover_before");
+    // Click por coordenadas sobre la 3ª miniatura recomendada (salta el botón "AI生成"). Layout fijo.
+    // Tiles ≈ x: 485(AI), 593, 701, 809 ; y≈157. Elijo la 3ª (x≈701).
+    await page.mouse.click(701, 157);
+    await page.waitForTimeout(1200);
+    // Si abre un diálogo de recorte/confirmación, aceptarlo.
+    for (const b of ['button:has-text("确定")', 'button:has-text("完成")', 'button:has-text("确认")', 'button:has-text("保存")']) { const sb = page.locator(b).last(); if ((await sb.count().catch(() => 0)) && (await sb.isVisible().catch(() => false))) { await sb.click().catch(() => {}); log("portada: confirmé diálogo"); await page.waitForTimeout(800); break; } }
+    log("portada: click en miniatura recomendada");
     await shot("cover");
   } catch (e) { log("portada:", e && e.message ? e.message : e); }
 
