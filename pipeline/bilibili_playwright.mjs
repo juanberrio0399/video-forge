@@ -82,6 +82,31 @@ try {
   // 5) Descripción (opcional).
   if (DESC) { const d = page.locator('textarea[placeholder*="简介"], textarea[placeholder*="escription"]').first(); if (await d.count().catch(() => 0)) { await d.fill(DESC).catch(() => {}); } }
 
+  // 5a) PORTADA (封面) — OBLIGATORIA. Bilibili muestra portadas sugeridas pero NINGUNA queda elegida:
+  //     si no se elige, el envío falla con "请先上传封面". Elegimos una miniatura recomendada.
+  log("→ Seleccionando portada (封面)…");
+  try {
+    const panel = page.locator('div:has-text("系统推荐封面")').last();
+    const imgs = panel.locator("img");
+    const c = await imgs.count().catch(() => 0);
+    log("miniaturas de portada:", c);
+    let done = false;
+    for (let i = 0; i < c; i++) {
+      const im = imgs.nth(i);
+      const box = await im.boundingBox().catch(() => null);
+      if (box && box.width > 40 && box.height > 40) { // saltar iconos pequeños
+        await im.scrollIntoViewIfNeeded().catch(() => {});
+        await im.click({ force: true }).catch(() => {});
+        await page.waitForTimeout(1200);
+        // Si aparece un botón para confirmar la portada, clickearlo.
+        for (const b of ['button:has-text("确定")', 'button:has-text("完成")', 'text=设为封面']) { const sb = page.locator(b).last(); if ((await sb.count().catch(() => 0)) && (await sb.isVisible().catch(() => false))) { await sb.click().catch(() => {}); await page.waitForTimeout(800); break; } }
+        done = true; break;
+      }
+    }
+    if (!done) { const ai = page.getByText("AI生成", { exact: false }).first(); if (await ai.count().catch(() => 0)) { await ai.click().catch(() => {}); await page.waitForTimeout(5000); } }
+    await shot("cover");
+  } catch (e) { log("portada:", e && e.message ? e.message : e); }
+
   // 5b) 创作声明 (Declaración de autoría) — OBLIGATORIO. Abrir el dropdown, ver opciones y elegir una.
   log("→ Declaración de autoría (创作声明)…");
   const declTrigger = page.locator('input[placeholder*="创作声明"], input[placeholder*="创作声"]').first();
