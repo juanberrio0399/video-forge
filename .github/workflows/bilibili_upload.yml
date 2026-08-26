@@ -76,12 +76,12 @@ jobs:
           ls -lh video.mp4
       - name: Instalar biliup-rs (binario de release)
         run: |
-          gh release download -R biliup/biliup-rs --pattern '*x86_64*linux*gnu*' --dir bili --clobber \
-            || gh release download -R biliup/biliup-rs --pattern '*linux*' --dir bili --clobber
-          cd bili && (tar xf *.tar.* 2>/dev/null || unzip -o *.zip 2>/dev/null || true)
-          BIN=$(find "$PWD" -name biliup -type f | head -1)
-          if [ -z "$BIN" ]; then echo "❌ No pude obtener el binario de biliup"; exit 1; fi
+          gh release download -R biliup/biliup-rs --pattern 'biliupR-*-x86_64-linux.tar.xz' --dir bili --clobber
+          cd bili && tar xf *.tar.xz
+          BIN=$(find "$PWD" -iname 'biliup*' -type f ! -name '*.tar*' | head -1)
+          if [ -z "$BIN" ]; then echo "❌ No encontré el binario de biliup"; ls -laR; exit 1; fi
           chmod +x "$BIN"; echo "BILIUP=$BIN" >> "$GITHUB_ENV"
+          "$BIN" --version 2>/dev/null || true
       - name: Subir a Bilibili
         run: |
           "$BILIUP" -u cookies.json upload video.mp4 \
