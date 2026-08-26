@@ -86,25 +86,30 @@ try {
   //     si no se elige, el envío falla con "请先上传封面". Elegimos una miniatura recomendada.
   log("→ Seleccionando portada (封面)…");
   try {
-    // Ancla robusta: el botón "AI生成" (lo ubico por texto). Las miniaturas recomendadas están a su
-    // derecha, a la misma altura, ~1 ancho cada una. Clic relativo a su boundingBox (sirve con cualquier scroll).
-    const ai = page.getByText("AI生成", { exact: true }).first();
-    if (await ai.count().catch(() => 0)) {
-      await ai.scrollIntoViewIfNeeded().catch(() => {});
-      await page.waitForTimeout(600);
-      const box = await ai.boundingBox().catch(() => null);
-      await shot("cover_before");
-      if (box) {
-        const y = box.y + box.height / 2;
-        // Probar las 3 miniaturas a la derecha (1ª, 2ª, 3ª); la última que clickee queda como portada.
-        const x = box.x + box.width * 1.6; // 1ª miniatura recomendada
-        await page.mouse.click(x, y);
-        await page.waitForTimeout(1000);
-        // Si abre recorte/confirmación, aceptar.
-        for (const b of ['button:has-text("确定")', 'button:has-text("完成")', 'button:has-text("确认")', 'button:has-text("保存")']) { const sb = page.locator(b).last(); if ((await sb.count().catch(() => 0)) && (await sb.isVisible().catch(() => false))) { await sb.click().catch(() => {}); log("portada: confirmé diálogo"); await page.waitForTimeout(800); break; } }
-        log("portada: click en miniatura (x=" + Math.round(x) + ", y=" + Math.round(y) + ")");
-      }
-    } else { log("⚠️ no ubiqué el ancla 'AI生成' para la portada"); }
+    await page.getByText("系统推荐封面", { exact: false }).first().scrollIntoViewIfNeeded().catch(() => {});
+    await page.waitForTimeout(800);
+    // Buscar las miniaturas por TAMAÑO real de portada (img o div con background-image) y sus coords de viewport.
+    const cands = await page.evaluate(() => {
+      const out = [];
+      document.querySelectorAll('img, [style*="background-image"], [class*="cover"]').forEach((el) => {
+        const r = el.getBoundingClientRect();
+        const bg = getComputedStyle(el).backgroundImage;
+        const isImg = el.tagName === "IMG" && el.src && !/logo|avatar/i.test(el.src);
+        const hasBg = bg && bg !== "none" && /url\(/.test(bg);
+        if ((isImg || hasBg) && r.width >= 80 && r.width <= 240 && r.height >= 45 && r.height <= 160 && r.top > 60 && r.top < 760) {
+          out.push({ x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2), w: Math.round(r.width) });
+        }
+      });
+      return out;
+    });
+    log("cover candidates:", cands.length, JSON.stringify(cands.slice(0, 8)));
+    if (cands.length) {
+      const t = cands[cands.length - 1]; // la última suele ser la más visual
+      await page.mouse.click(t.x, t.y);
+      await page.waitForTimeout(1200);
+      for (const b of ['button:has-text("确定")', 'button:has-text("完成")', 'button:has-text("确认")', 'button:has-text("保存")']) { const sb = page.locator(b).last(); if ((await sb.count().catch(() => 0)) && (await sb.isVisible().catch(() => false))) { await sb.click().catch(() => {}); log("portada: confirmé diálogo"); await page.waitForTimeout(800); break; } }
+      log("portada: click en (" + t.x + "," + t.y + ")");
+    } else { log("⚠️ no encontré miniaturas de portada"); }
     await shot("cover");
   } catch (e) { log("portada:", e && e.message ? e.message : e); }
 
