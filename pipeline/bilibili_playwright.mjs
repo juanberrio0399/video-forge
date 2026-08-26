@@ -53,18 +53,18 @@ try {
   await page.waitForTimeout(4000);
   await shot("uploading");
 
-  // 2) Esperar a que termine la subida (aparece el editor de datos / desaparece la barra).
-  //    Señales típicas: texto de progreso 100%, o que ya podamos escribir el título.
+  // 2) Esperar a que la SUBIDA termine DE VERDAD. Señal real = texto "上传完成" (antes me confundía con
+  //    "投稿", que siempre está en el botón, y enviaba con el botón deshabilitado).
   const deadline = Date.now() + 8 * 60 * 1000; // hasta 8 min
-  let ready = false;
+  let uploaded = false;
   while (Date.now() < deadline) {
-    await page.waitForTimeout(6000);
+    await page.waitForTimeout(5000);
     const txt = (await page.locator("body").innerText().catch(() => "")) || "";
-    if (/上传完成|Upload complete|100%|投稿|Publish|Submit/i.test(txt)) { ready = true; }
-    // ¿Ya hay un campo de título editable?
-    const hasTitle = await page.locator('input[maxlength], input[placeholder*="标题"], input[placeholder*="itle"], textarea[placeholder*="itle"]').count().catch(() => 0);
-    if (ready || hasTitle) { await shot("upload_done"); break; }
+    if (/上传完成|上传成功|Upload complete|Upload successful/i.test(txt)) { uploaded = true; await shot("upload_complete"); break; }
+    const pm = txt.match(/(\d{1,3})\s*%/);
+    if (pm) log("subiendo:", pm[1] + "%");
   }
+  if (!uploaded) { log("⚠️ no detecté '上传完成' — sigo, puede que ya esté lista"); await shot("upload_timeout"); }
 
   // 3) Título: normalmente se auto-rellena con el nombre del archivo; lo reemplazamos.
   log("→ Poniendo título…");
@@ -102,13 +102,20 @@ try {
   } else { log("⚠️ No encontré el dropdown de 创作声明 (quizá ya no es obligatorio)"); }
 
   await shot("before_submit");
-  // 6) Enviar. Botón PRECISO (el real, abajo), scroll + click; luego posible diálogo de confirmación.
+  // 6) Enviar. Esperar a que el botón 立即投稿 esté HABILITADO (si la subida no terminó, está deshabilitado).
   log("→ Enviando…");
   let submitted = false;
-  const submitBtn = page.locator('button:has-text("立即投稿"), span:has-text("立即投稿")').last();
+  const submitBtn = page.locator('button:has-text("立即投稿")').last();
   if (await submitBtn.count().catch(() => 0)) {
+    for (let i = 0; i < 30; i++) { // hasta ~2.5 min esperando que se habilite
+      const dis = await submitBtn.getAttribute("disabled").catch(() => null);
+      const cls = (await submitBtn.getAttribute("class").catch(() => "")) || "";
+      if (dis === null && !/disabled|is-disabled/i.test(cls)) break;
+      if (i === 0) log("esperando que el botón投稿 se habilite (subida en curso)…");
+      await page.waitForTimeout(5000);
+    }
     await submitBtn.scrollIntoViewIfNeeded().catch(() => {});
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(400);
     await submitBtn.click({ force: true, timeout: 8000 }).catch(() => {});
     submitted = true; log("click: 立即投稿");
   }
@@ -119,22 +126,22 @@ try {
     const el = page.locator(c).last();
     if ((await el.count().catch(() => 0)) && (await el.isVisible().catch(() => false))) { await el.click().catch(() => {}); log("confirm:", c); await page.waitForTimeout(2000); break; }
   }
-  // 7) Esperar éxito: modal "投稿成功" / texto de revisión / cambio de URL.
+  // 7) Éxito ESTRICTO: solo el modal/texto real de投稿成功 o irse del formulario a gestión de稿件.
+  //    (Nada de regex flojo tipo "success"/"review" que daba falso positivo.)
   let ok = false;
   const t2 = Date.now() + 70000;
   while (Date.now() < t2) {
     await page.waitForTimeout(3000);
     const txt = (await page.locator("body").innerText().catch(() => "")) || "";
-    if (/投稿成功|稿件.*成功|提交.*审核|投递成功|Submitted|success/i.test(txt)) { ok = true; break; }
-    if (/success|manuscript|content\/manuscript|\/upload\/video\/frame\?.*success/i.test(page.url())) { ok = true; break; }
-    // ¿desapareció el botón de投稿 y aparecieron los datos del稿件? (otra señal de éxito)
-    const stillForm = await page.locator('button:has-text("立即投稿")').count().catch(() => 0);
-    if (!stillForm && /内容管理|稿件管理|My content/i.test(txt)) { ok = true; break; }
+    if (/投稿成功|稿件投递成功|提交成功|稿件已提交/i.test(txt)) { ok = true; break; }
+    const onFrame = /upload\/video\/frame/.test(page.url());
+    const hasSubmitBtn = await page.locator('button:has-text("立即投稿")').count().catch(() => 0);
+    if (!onFrame && !hasSubmitBtn) { ok = true; break; } // navegó fuera del formulario => enviado
   }
   await shot("final");
 
   const finalTxt = (await page.locator("body").innerText().catch(() => "")) || "";
-  if (!ok) ok = /投稿成功|稿件投递成功|Submitted|审核中|review/i.test(finalTxt);
+  if (!ok) ok = /投稿成功|稿件投递成功|提交成功/i.test(finalTxt);
   try { fs.writeFileSync("result.txt", (ok ? "OK" : "UNKNOWN") + "\nsubmitted=" + submitted + "\nurl=" + page.url()); } catch {}
   if (ok) { log("✅ Parece enviado correctamente (revisa el canal / en revisión)."); }
   else { log("⚠️ No confirmé el éxito por texto. Revisa las capturas en shots/ y result.txt."); }
