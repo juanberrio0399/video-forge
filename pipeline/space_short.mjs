@@ -299,27 +299,35 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Kar,Liberation Sans,92,&H00FFFFFF,&H00CFE8FF,&H00202020,&H64000000,-1,0,0,0,100,100,0,0,1,5,3,2,90,90,420,1
+Style: Kar,Liberation Sans,98,&H00FFFFFF,&H0060E0FF,&H00141414,&H7A000000,-1,0,0,0,100,100,0.6,0,1,4,2,2,110,110,470,1
 `;
 fs.writeFileSync("captions.ass", ass + `\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n${dia.join("\n")}\n`);
 
-// Lecho ambiental generado (pad de La menor + brisa cósmica + eco). Original y legal. (tremolo f>=0.1)
+// OUTRO suave: cola de ~2.6s con CTA de marca (gana suscriptores) + fundido. El ambiente sigue sonando.
+const OUTRO = 2.6, TOTAL = +(narrDur + OUTRO).toFixed(2);
+const NDUR = narrDur.toFixed(2);
+const FONTS = ["/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"];
+const FONT = FONTS.find((f) => fs.existsSync(f)) || "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+fs.writeFileSync(`${work}/outro.txt`, "Follow for more\ncalm space");
+
+// Lecho ambiental generado (pad de La menor + brisa cósmica + eco). Dura TOTAL (sigue en el outro). tremolo f>=0.1.
 const amb = `${work}/ambient.m4a`;
 try {
-  execSync(`ffmpeg -y -f lavfi -i "sine=frequency=110:duration=${narrDur.toFixed(2)}" -f lavfi -i "sine=frequency=164.81:duration=${narrDur.toFixed(2)}" -f lavfi -i "sine=frequency=220:duration=${narrDur.toFixed(2)}" -f lavfi -i "anoisesrc=duration=${narrDur.toFixed(2)}:color=pink:amplitude=0.06" -filter_complex "[0:a]volume=0.5,tremolo=f=0.10:d=0.35[d0];[1:a]volume=0.28,tremolo=f=0.12:d=0.4[d1];[2:a]volume=0.12[d2];[3:a]lowpass=f=650,volume=0.5[nz];[d0][d1][d2][nz]amix=inputs=4:normalize=0[mx];[mx]lowpass=f=1500,aecho=0.8:0.85:900|1700:0.35|0.25,volume=1.1,afade=t=in:d=1.5,afade=t=out:st=${(narrDur - 2).toFixed(2)}:d=2[a]" -map "[a]" -c:a aac -b:a 160k "${amb}"`, { stdio: "pipe" });
+  execSync(`ffmpeg -y -f lavfi -i "sine=frequency=110:duration=${TOTAL}" -f lavfi -i "sine=frequency=164.81:duration=${TOTAL}" -f lavfi -i "sine=frequency=220:duration=${TOTAL}" -f lavfi -i "anoisesrc=duration=${TOTAL}:color=pink:amplitude=0.06" -filter_complex "[0:a]volume=0.5,tremolo=f=0.10:d=0.35[d0];[1:a]volume=0.28,tremolo=f=0.12:d=0.4[d1];[2:a]volume=0.12[d2];[3:a]lowpass=f=650,volume=0.5[nz];[d0][d1][d2][nz]amix=inputs=4:normalize=0[mx];[mx]lowpass=f=1500,aecho=0.8:0.85:900|1700:0.35|0.25,volume=1.1,afade=t=in:d=1.5,afade=t=out:st=${(TOTAL - 2).toFixed(2)}:d=2[a]" -map "[a]" -c:a aac -b:a 160k "${amb}"`, { stdio: "pipe" });
 } catch (e) {
   console.error("ambiente falló -> silencio:", String(e.message || e).slice(0, 120));
-  execSync(`ffmpeg -y -f lavfi -i "anullsrc=r=44100:cl=stereo" -t ${narrDur.toFixed(2)} -c:a aac -b:a 96k "${amb}"`, { stdio: "ignore" });
+  execSync(`ffmpeg -y -f lavfi -i "anullsrc=r=44100:cl=stereo" -t ${TOTAL} -c:a aac -b:a 96k "${amb}"`, { stdio: "ignore" });
 }
 
-// Mezcla final: fondo + subtítulos + narración + ambiente con ducking (asplit: la voz no se puede reusar).
+// Mezcla final PRO: fondo + cola/outro con CTA de marca + subtítulos + audio con ducking y fundidos suaves.
+const ctaVf = `drawtext=textfile='${work}/outro.txt':fontfile='${FONT}':fontcolor=white:fontsize=66:line_spacing=14:borderw=5:bordercolor=black@0.85:shadowcolor=black@0.6:shadowx=3:shadowy=3:x=(w-text_w)/2:y=(h-text_h)/2:text_align=C:alpha='if(lt(t\\,${NDUR})\\,0\\,min(1\\,(t-${NDUR})/0.6))':enable='gte(t\\,${NDUR})'`;
 execSync(`ffmpeg -y -i "${bg}" -i "${narrPath}" -i "${amb}" ` +
-  `-filter_complex "[0:v]subtitles=captions.ass[v];` +
-  `[2:a]volume=0.6[amb];` +
-  `[1:a]loudnorm=I=-15:TP=-1.5,asplit=2[nar1][nar2];` +
+  `-filter_complex "[0:v]tpad=stop_mode=clone:stop_duration=${OUTRO},subtitles=captions.ass,${ctaVf},fade=t=in:d=0.6,fade=t=out:st=${(TOTAL - 1.3).toFixed(2)}:d=1.3[v];` +
+  `[2:a]volume=0.62[amb];` +
+  `[1:a]loudnorm=I=-15:TP=-1.5,apad=whole_dur=${TOTAL},asplit=2[nar1][nar2];` +
   `[amb][nar1]sidechaincompress=threshold=0.03:ratio=8:attack=15:release=320[aducked];` +
-  `[nar2][aducked]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]" ` +
-  `-map "[v]" -map "[a]" -r ${FPS} -c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest -movflags +faststart "${outPath}"`, { stdio: "inherit" });
+  `[nar2][aducked]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0,afade=t=in:d=0.5,afade=t=out:st=${(TOTAL - 1.6).toFixed(2)}:d=1.6[a]" ` +
+  `-map "[v]" -map "[a]" -t ${TOTAL} -r ${FPS} -c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart "${outPath}"`, { stdio: "inherit" });
 
 // Paquete SEO + manifiesto de compliance.
 const uniqCred = [...new Set(credits)];
