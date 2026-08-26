@@ -1,0 +1,86 @@
+name: Subir a Bilibili (Fase 1 — piloto)
+
+# PLAN POR FASES (Bilibili = 2ª distribución, land-grab de audiencia; el ingreso internacional aún NO abre):
+#   FASE 1 (esto): subir UN video a mano para VALIDAR canal + automatización + que el endpoint sirva.
+#   FASE 2: repostear automático los Shorts públicos de Oddly (anti-duplicado), como pinterest_pin.
+#   FASE 3: watchdog de la cookie (se vence) + activar cuando abran monetización internacional.
+#
+# Requiere el secret BILIBILI_COOKIE = contenido de cookies.json que genera `biliup login` (1 sola vez, local).
+# Sube lo que YA produces (repurpose): pásale la ruta del MP4 en R2.
+on:
+  workflow_dispatch:
+    inputs:
+      r2_key:
+        description: "Ruta del MP4 en R2 (p.ej. channel/auto2/renders/xxxx.mp4)"
+        required: true
+      title:
+        description: "Título del video"
+        required: true
+      desc:
+        description: "Descripción"
+        required: false
+        default: "Relaxing space visuals. Follow for more."
+      tag:
+        description: "Tags separados por coma"
+        required: false
+        default: "relaxing,space,asmr,sleep"
+      tid:
+        description: "Categoría (tid). 201=Ciencia/Divulgación, 21=Vida diaria"
+        required: false
+        default: "201"
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  subir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      BILIBILI_COOKIE: ${{ secrets.BILIBILI_COOKIE }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verificar cookie
+        run: |
+          if [ -z "$BILIBILI_COOKIE" ]; then
+            echo "❌ Falta el secret BILIBILI_COOKIE. Genera cookies.json local con 'biliup login' (QR) y pega su contenido como secret."
+            exit 1
+          fi
+          printf '%s' "$BILIBILI_COOKIE" > cookies.json
+          echo "cookie OK ($(wc -c < cookies.json) bytes)"
+      - name: Bajar el video de R2
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/${{ inputs.r2_key }}" --file=video.mp4 --remote
+          ls -lh video.mp4
+      - name: Instalar biliup-rs (binario de release)
+        run: |
+          gh release download -R biliup/biliup-rs --pattern '*x86_64*linux*gnu*' --dir bili --clobber \
+            || gh release download -R biliup/biliup-rs --pattern '*linux*' --dir bili --clobber
+          cd bili && (tar xf *.tar.* 2>/dev/null || unzip -o *.zip 2>/dev/null || true)
+          BIN=$(find "$PWD" -name biliup -type f | head -1)
+          if [ -z "$BIN" ]; then echo "❌ No pude obtener el binario de biliup"; exit 1; fi
+          chmod +x "$BIN"; echo "BILIUP=$BIN" >> "$GITHUB_ENV"
+      - name: Subir a Bilibili
+        run: |
+          "$BILIUP" -u cookies.json upload video.mp4 \
+            --title "${{ inputs.title }}" \
+            --desc "${{ inputs.desc }}" \
+            --tag "${{ inputs.tag }}" \
+            --tid ${{ inputs.tid }} 2>&1 | tee up.txt
+      - name: Avisar a Telegram
+        if: always()
+        run: |
+          if grep -qiE "success|成功|投稿成功|bvid|BV[0-9A-Za-z]{8,}" up.txt 2>/dev/null; then
+            MSG="✅ Bilibili (piloto Fase 1): subí «${{ inputs.title }}». Revisa que quedó bien en tu canal."
+          else
+            MSG="❌ Bilibili (piloto Fase 1): la subida de «${{ inputs.title }}» falló. Posibles causas: cookie vencida, o el endpoint de la app internacional es distinto al de biliup. Mira el log del run."
+          fi
+          bash pipeline/notify_telegram.sh "$MSG" || true
