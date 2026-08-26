@@ -22,6 +22,21 @@ const CHANNELS = [
   { key: "datalens", label: "The Data Lens", cid: process.env.YT_CLIENT_ID, sec: process.env.YT_CLIENT_SECRET, ref: process.env.YT_REFRESH_TOKEN },
 ].filter((c) => c.cid && c.sec && c.ref);
 
+// Investigación WEB con Gemini + grounding de Google Search (tendencias REALES y recientes). Gratis.
+const GKEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
+async function webResearch(query) {
+  for (const k of GKEYS) for (const m of ["gemini-flash-latest", "gemini-2.5-flash"]) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${k}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: query }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.4 } }), signal: AbortSignal.timeout(45000) });
+      if (!res.ok) continue;
+      const j = await res.json();
+      const t = (j?.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
+      if (t) return t.slice(0, 1500);
+    } catch {}
+  }
+  return "";
+}
+
 async function token(c) {
   try {
     const r = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: c.cid, client_secret: c.sec, refresh_token: c.ref, grant_type: "refresh_token" }) });
@@ -100,20 +115,33 @@ function learningOf(list) {
 const learnBar = { per_channel: {}, overall: learningOf(mature) };
 for (const c of CHANNELS) { const list = mature.filter((r) => r.channel === c.key); if (list.length) learnBar.per_channel[c.key] = { label: c.label, ...learningOf(list) }; }
 
-// ---- Reflexión con LLM GRATIS -> estrategia accionable en JSON.
-let strategy = { at: new Date().toISOString(), note: "sin datos maduros aún", per_channel: {} };
-if (mature.length >= 3) {
-  const PROMPT = `You are the growth optimizer for faceless YouTube channels. Below is REAL performance data (views/day = vpd) grouped by "genes" per channel. Decide what to DO MORE and what to EXPLORE next, per channel. Be concrete and data-driven; if a channel has few data points, say "keep gathering data" and suggest small explorations.
+// ---- Investigación WEB de tendencias (Gemini + grounding) — el cerebro consulta la web, no solo sus datos.
+const NICHE = { oddly: "calm space, satisfying, relaxation and sleep YouTube Shorts (cosmos/ASMR niche)", datalens: "history YouTube Shorts (facts and stories that changed the world)" };
+const webTrends = {};
+for (const c of CHANNELS) {
+  const q = `As of 2026, what ${NICHE[c.key] || "YouTube Shorts"} are TRENDING and getting the most views right now? What hooks (first 2 seconds), formats, video length, topics, and thumbnail styles work best? Give 3-5 concise, specific, recent bullet points.`;
+  const t = await webResearch(q);
+  if (t) { webTrends[c.key] = t; console.log(`tendencias web [${c.key}]: ${t.length} chars`); }
+}
 
-DATA:
+// ---- Reflexión con LLM GRATIS -> estrategia que COMBINA datos propios + tendencias web.
+let strategy = { at: new Date().toISOString(), note: "sin datos maduros aún", per_channel: {} };
+if (mature.length >= 3 || Object.keys(webTrends).length) {
+  const PROMPT = `You are the growth optimizer for faceless YouTube channels. Combine (A) the channel's OWN performance data and (B) fresh WEB TRENDS to decide what to DO MORE and what to EXPLORE next, per channel. Be concrete. If a channel has little data, lean on the web trends for exploration ideas.
+
+(A) OWN DATA (views/day = vpd, by "genes"):
 ${JSON.stringify(byChannel, null, 1)}
 
+(B) WEB TRENDS (researched now):
+${Object.entries(webTrends).map(([k, v]) => `[${k}]\n${v}`).join("\n\n") || "(none)"}
+
 Return ONLY JSON:
-{"per_channel":{"<channelKey>":{"focus":"the winning subject/category to make MORE of","best_hour":"best publish hour (UTC) if clear, else null","hook_advice":"1 line on hook length/style that wins","explore":"1 small new thing to test (exploration)","verdict":"one short sentence"}},"summary":"2-3 sentence overall takeaway in Spanish"}`;
+{"per_channel":{"<channelKey>":{"focus":"what to make MORE of (from data if available, else from web trends)","best_hour":"best publish hour (UTC) if clear, else null","hook_advice":"1 line on the winning hook style (use web trends)","explore":"1 fresh thing to test, ideally from a current web trend","verdict":"one short sentence"}},"summary":"2-3 sentence takeaway in Spanish combining data + trends"}`;
   const raw = await genText(PROMPT, { json: true });
   if (raw) { try { strategy = { at: new Date().toISOString(), ...JSON.parse(raw) }; } catch (e) { console.error("estrategia JSON inválida:", e.message); } }
 }
 
+strategy.web_trends = webTrends;  // tendencias web consultadas (las lee la app)
 strategy.learning = learnBar;  // barra de aprendizaje (la lee la app)
 fs.writeFileSync("strategy.json", JSON.stringify(strategy, null, 2));
 

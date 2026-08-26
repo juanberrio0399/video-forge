@@ -924,6 +924,7 @@ export const APP_HTML = `<!doctype html>
     return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b>🧠 Aprendizaje del Cerebro</b>'+(when?'<span class="muted" style="font-size:11px">'+esc(when)+'</span>':'')+'</div>'
       +(ov?'<div style="margin:8px 0 4px">'+bar(ov.score)+'</div><div class="muted" style="font-size:10px;margin-bottom:4px">'+ov.mature+' videos maduros · '+ov.maturity_pct+'% datos · '+ov.signal_pct+'% señal</div>':'')
       +(s.summary?'<div class="muted" style="font-size:12px;margin:4px 0">'+esc(s.summary)+'</div>':'')
+      +(s.web_trends&&Object.keys(s.web_trends).length?'<div style="margin:6px 0"><div class="muted" style="font-size:11px;font-weight:700">🌐 Tendencias web (consultadas por el cerebro):</div>'+Object.keys(s.web_trends).map(function(k){return '<div class="muted" style="font-size:11px;margin-top:2px"><b>'+esc(CH[k]||k)+':</b> '+esc(String(s.web_trends[k]).slice(0,220))+'…</div>';}).join('')+'</div>':'')
       +rows
       +'<div class="muted" style="font-size:10px;margin-top:6px">Sube con más videos maduros y un ganador claro. Aprende cada lunes.</div></div>';
   }
