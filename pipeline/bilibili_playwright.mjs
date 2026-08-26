@@ -102,16 +102,39 @@ try {
   } else { log("⚠️ No encontré el dropdown de 创作声明 (quizá ya no es obligatorio)"); }
 
   await shot("before_submit");
-  // 6) Enviar / publicar.
+  // 6) Enviar. Botón PRECISO (el real, abajo), scroll + click; luego posible diálogo de confirmación.
   log("→ Enviando…");
-  const submitSel = ['text=立即投稿', 'text=Submit', 'text=Publish', 'button:has-text("投稿")', 'button:has-text("Publish")', 'button:has-text("Submit")'];
   let submitted = false;
-  for (const s of submitSel) { const el = page.locator(s).first(); if (await el.count().catch(() => 0)) { await el.click({ timeout: 8000 }).catch(() => {}); submitted = true; log("click:", s); break; } }
-  await page.waitForTimeout(6000);
-  await shot("after_submit");
+  const submitBtn = page.locator('button:has-text("立即投稿"), span:has-text("立即投稿")').last();
+  if (await submitBtn.count().catch(() => 0)) {
+    await submitBtn.scrollIntoViewIfNeeded().catch(() => {});
+    await page.waitForTimeout(500);
+    await submitBtn.click({ force: true, timeout: 8000 }).catch(() => {});
+    submitted = true; log("click: 立即投稿");
+  }
+  await page.waitForTimeout(2500);
+  await shot("after_click");
+  // Diálogo de confirmación (si aparece).
+  for (const c of ['button:has-text("确定")', 'button:has-text("确认")', 'button:has-text("继续投稿")', 'button:has-text("继续")', 'button:has-text("知道了")']) {
+    const el = page.locator(c).last();
+    if ((await el.count().catch(() => 0)) && (await el.isVisible().catch(() => false))) { await el.click().catch(() => {}); log("confirm:", c); await page.waitForTimeout(2000); break; }
+  }
+  // 7) Esperar éxito: modal "投稿成功" / texto de revisión / cambio de URL.
+  let ok = false;
+  const t2 = Date.now() + 70000;
+  while (Date.now() < t2) {
+    await page.waitForTimeout(3000);
+    const txt = (await page.locator("body").innerText().catch(() => "")) || "";
+    if (/投稿成功|稿件.*成功|提交.*审核|投递成功|Submitted|success/i.test(txt)) { ok = true; break; }
+    if (/success|manuscript|content\/manuscript|\/upload\/video\/frame\?.*success/i.test(page.url())) { ok = true; break; }
+    // ¿desapareció el botón de投稿 y aparecieron los datos del稿件? (otra señal de éxito)
+    const stillForm = await page.locator('button:has-text("立即投稿")').count().catch(() => 0);
+    if (!stillForm && /内容管理|稿件管理|My content/i.test(txt)) { ok = true; break; }
+  }
+  await shot("final");
 
   const finalTxt = (await page.locator("body").innerText().catch(() => "")) || "";
-  const ok = /投稿成功|稿件投递成功|Submitted|success|审核|review/i.test(finalTxt);
+  if (!ok) ok = /投稿成功|稿件投递成功|Submitted|审核中|review/i.test(finalTxt);
   try { fs.writeFileSync("result.txt", (ok ? "OK" : "UNKNOWN") + "\nsubmitted=" + submitted + "\nurl=" + page.url()); } catch {}
   if (ok) { log("✅ Parece enviado correctamente (revisa el canal / en revisión)."); }
   else { log("⚠️ No confirmé el éxito por texto. Revisa las capturas en shots/ y result.txt."); }
