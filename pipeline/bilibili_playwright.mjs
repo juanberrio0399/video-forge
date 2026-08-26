@@ -105,20 +105,21 @@ try {
   // 6) Enviar. Esperar a que el botón 立即投稿 esté HABILITADO (si la subida no terminó, está deshabilitado).
   log("→ Enviando…");
   let submitted = false;
-  const submitBtn = page.locator('button:has-text("立即投稿")').last();
+  // El botón es un span/div (no <button>). getByText exacto encuentra el elemento clickable más pequeño.
+  const submitBtn = page.getByText("立即投稿", { exact: true }).last();
   if (await submitBtn.count().catch(() => 0)) {
-    for (let i = 0; i < 30; i++) { // hasta ~2.5 min esperando que se habilite
-      const dis = await submitBtn.getAttribute("disabled").catch(() => null);
+    for (let i = 0; i < 24; i++) { // esperar a que se habilite (clase disabled del contenedor)
       const cls = (await submitBtn.getAttribute("class").catch(() => "")) || "";
-      if (dis === null && !/disabled|is-disabled/i.test(cls)) break;
-      if (i === 0) log("esperando que el botón投稿 se habilite (subida en curso)…");
+      const pcls = (await submitBtn.locator("xpath=ancestor-or-self::*[contains(@class,'btn') or contains(@class,'button')][1]").getAttribute("class").catch(() => "")) || "";
+      if (!/disabled|is-disabled/i.test(cls + " " + pcls)) break;
+      if (i === 0) log("esperando que el botón投稿 se habilite…");
       await page.waitForTimeout(5000);
     }
     await submitBtn.scrollIntoViewIfNeeded().catch(() => {});
     await page.waitForTimeout(400);
     await submitBtn.click({ force: true, timeout: 8000 }).catch(() => {});
     submitted = true; log("click: 立即投稿");
-  }
+  } else { log("⚠️ no encontré el botón 立即投稿"); }
   await page.waitForTimeout(2500);
   await shot("after_click");
   // Diálogo de confirmación (si aparece).
@@ -135,7 +136,7 @@ try {
     const txt = (await page.locator("body").innerText().catch(() => "")) || "";
     if (/投稿成功|稿件投递成功|提交成功|稿件已提交/i.test(txt)) { ok = true; break; }
     const onFrame = /upload\/video\/frame/.test(page.url());
-    const hasSubmitBtn = await page.locator('button:has-text("立即投稿")').count().catch(() => 0);
+    const hasSubmitBtn = await page.getByText("立即投稿", { exact: true }).count().catch(() => 0);
     if (!onFrame && !hasSubmitBtn) { ok = true; break; } // navegó fuera del formulario => enviado
   }
   await shot("final");
