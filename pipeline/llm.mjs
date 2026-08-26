@@ -39,9 +39,10 @@ async function cloudflare(prompt, json) {
       const res = await tf(`https://api.cloudflare.com/client/v4/accounts/${A}/ai/run/${m}`, { method: "POST", headers: { Authorization: `Bearer ${T}`, "content-type": "application/json" }, body: JSON.stringify({ messages: [...(json ? [{ role: "system", content: "Respond ONLY with a single valid, minified JSON object. No markdown, no prose." }] : []), { role: "user", content: prompt }], temperature: 0.9, max_tokens: 2048 }) });
       if (!res.ok) { if (process.env.LLM_DIAG) cloudflare._err = m + " → " + res.status + " " + (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 140); continue; }
       const j = await res.json();
-      const t = (j?.result?.response || "").trim();
+      const t = (j?.result?.response || j?.result?.output_text || "").trim();
       if (t) return json ? cleanJson(t) : t;
-    } catch {}
+      if (process.env.LLM_DIAG) cloudflare._err = m + " → ok pero sin texto: " + JSON.stringify(j).replace(/\s+/g, " ").slice(0, 160);
+    } catch (e) { if (process.env.LLM_DIAG) cloudflare._err = m + " → EXC " + (e && e.message ? e.message : e); }
   }
   return null;
 }
@@ -101,7 +102,7 @@ const PROVIDERS = [
   { name: "Cloudflare", run: cloudflare, on: (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN) ? 1 : 0 },
   oai("SambaNova", "https://api.sambanova.ai/v1/chat/completions", process.env.SAMBANOVA_API_KEY, [/Meta-Llama-3\.3-70B-Instruct/i, /llama.*3\.3.*70b/i, /llama.*70b/i, /llama/i]),
   oai("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", process.env.OPENROUTER_API_KEY, [/meta-llama\/llama-3\.3-70b-instruct:free/i, /llama.*3\.3.*70b.*:free/i, /llama.*70b.*:free/i, /:free/i], { "HTTP-Referer": "https://github.com/juanberrio0399/video-forge", "X-Title": "video-forge" }),
-  oai("GitHub Models", "https://models.inference.ai.azure.com/chat/completions", process.env.GH_MODELS_TOKEN, ["gpt-4o-mini", /gpt-4o-mini/i, /gpt-4o/i, /gpt/i]),
+  oai("GitHub Models", "https://models.github.ai/inference/chat/completions", process.env.GH_MODELS_TOKEN, ["openai/gpt-4o-mini", /openai\/gpt-4o-mini/i, /gpt-4o-mini/i, /gpt-4o/i, /gpt/i]),
 ].filter(Boolean).filter((p) => p.on !== 0);
 
 // Chequeo de salud: prueba CADA proveedor con key y dice cuál responde (para validar keys nuevas).
