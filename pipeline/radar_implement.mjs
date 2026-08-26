@@ -105,6 +105,21 @@ async function callGemini(promptText) {
     }
     if (r < 4) { console.error(`  (ronda ${r + 1} sin éxito — espero y reintento; Google puede estar sobrecargado)`); await wait(8000); }
   }
+  // Fallback GRATIS: Cloudflare Workers AI (Llama 3.3) para que el motor no se caiga por cuota de Gemini.
+  const CF_ACCT = process.env.CLOUDFLARE_ACCOUNT_ID, CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
+  if (CF_ACCT && CF_TOKEN) {
+    for (const m of ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-3.1-8b-instruct"]) {
+      try {
+        const res = await tf(`https://api.cloudflare.com/client/v4/accounts/${CF_ACCT}/ai/run/${m}`, { method: "POST", headers: { Authorization: `Bearer ${CF_TOKEN}`, "content-type": "application/json" }, body: JSON.stringify({ messages: [{ role: "system", content: "Respond ONLY with a single valid, minified JSON object matching the requested schema. No markdown, no code fences, no prose." }, { role: "user", content: promptText }], temperature: 0.1, max_tokens: 4096 }) }, 90000);
+        if (!res.ok) { console.error(`  CF ${m}: HTTP ${res.status}`); continue; }
+        const j = await res.json();
+        let t = (j?.result?.response || "").replace(/```json|```/g, "").trim();
+        const a = t.indexOf("{"), b = t.lastIndexOf("}"); if (a >= 0 && b > a) t = t.slice(a, b + 1);
+        let p = null; try { p = JSON.parse(t); } catch { console.error(`  CF ${m}: JSON inválido`); continue; }
+        if (p && Array.isArray(p.edits) && p.edits.length) { console.log(`  respuesta de Cloudflare Workers AI (${m}, fallback gratis)`); return p; }
+      } catch (e) { console.error(`  CF ${m}: ${e.message}`); }
+    }
+  }
   return null;
 }
 
