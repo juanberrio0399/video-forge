@@ -82,6 +82,25 @@ try {
   // 5) Descripción (opcional).
   if (DESC) { const d = page.locator('textarea[placeholder*="简介"], textarea[placeholder*="escription"]').first(); if (await d.count().catch(() => 0)) { await d.fill(DESC).catch(() => {}); } }
 
+  // 5b) 创作声明 (Declaración de autoría) — OBLIGATORIO. Abrir el dropdown, ver opciones y elegir una.
+  log("→ Declaración de autoría (创作声明)…");
+  const declTrigger = page.locator('text=请选择符合您视频内容的创作声明').first();
+  if (await declTrigger.count().catch(() => 0)) {
+    await declTrigger.scrollIntoViewIfNeeded().catch(() => {});
+    await declTrigger.click().catch(() => {});
+    await page.waitForTimeout(1500);
+    await shot("decl_open");
+    const opts = await page.locator('.el-select-dropdown__item, li[class*="option"], [class*="select-dropdown"] li, [class*="option-item"]').allInnerTexts().catch(() => []);
+    log("创作声明 opciones:", JSON.stringify(opts));
+    // Preferir "无"/"none"/"原创"/"自制"; si no, la primera opción real.
+    const pref = ["无以上", "无", "none", "原创", "自制", "self"];
+    let picked = false;
+    for (const p of pref) { const el = page.locator(`.el-select-dropdown__item:has-text("${p}"), li:has-text("${p}")`).first(); if (await el.count().catch(() => 0)) { await el.click().catch(() => {}); picked = true; log("创作声明 elegido:", p); break; } }
+    if (!picked) { const first = page.locator('.el-select-dropdown__item, li[class*="option"]').first(); if (await first.count().catch(() => 0)) { await first.click().catch(() => {}); log("创作声明: elegí la 1ª opción"); } }
+    await page.waitForTimeout(800);
+    await shot("decl_selected");
+  } else { log("⚠️ No encontré el dropdown de 创作声明 (quizá ya no es obligatorio)"); }
+
   await shot("before_submit");
   // 6) Enviar / publicar.
   log("→ Enviando…");
