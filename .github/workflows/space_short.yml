@@ -103,6 +103,10 @@ jobs:
       - name: Subir a YouTube (PRIVADO, Oddly Loop)
         run: node pipeline/youtube_upload.mjs short.mp4 publish/package.json
 
+      - name: Guardar el MP4 en R2 (para reposteo multiplataforma — Bilibili, etc.)
+        if: ${{ hashFiles('short.mp4') != '' }}
+        run: npx --yes wrangler@4 r2 object put "$BUCKET/channel/oddly/last_short.mp4" --file=short.mp4 --content-type video/mp4 --remote || echo "no pude guardar el MP4 en R2 (no crítico)"
+
       - name: Miniatura (frame del video + gancho) y setearla
         if: ${{ hashFiles('publish/video_id.txt') != '' }}
         run: |
