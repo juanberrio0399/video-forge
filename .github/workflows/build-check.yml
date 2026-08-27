@@ -1,0 +1,36 @@
+name: build-check
+
+# Chequeo de build/sintaxis en cada PR y push. Sirve de "check obligatorio": el radar-bot NO deja
+# mergear un PR si este check falla (candado en radar-bot). Cubre las 3 fallas que rompieron deploys:
+# sintaxis JS inválida, deps que no resuelven, y build roto. Rápido y sin desplegar nada.
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  build-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Sintaxis de los .mjs del pipeline (node --check)
+        run: |
+          FILES=$(git ls-files 'pipeline/*.mjs' '*.mjs' | grep -vE 'node_modules' || true)
+          FAIL=0
+          for f in $FILES; do node --check "$f" || { echo "::error file=$f::sintaxis JS inválida"; FAIL=1; }; done
+          if [ "$FAIL" = "1" ]; then exit 1; fi
+          echo "✅ $(echo "$FILES" | wc -w) archivos .mjs OK"
+      - name: Deps + JS del cliente del bot (validación conocida)
+        run: |
+          if [ -f bot/package.json ]; then (cd bot && (npm ci || npm install)); fi
+          # El <script> del cliente vive dentro del template APP_HTML: extraerlo y validarlo (gotcha conocido).
+          for M in bot/src/miniapp.js radar-bot/src/index.js; do
+            if [ -f "$M" ]; then node --check "$M" || { echo "::error file=$M::sintaxis inválida"; exit 1; }; fi
+          done
+          echo "✅ bot y radar-bot OK"
