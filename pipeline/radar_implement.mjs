@@ -41,6 +41,10 @@ const prompt = `Eres un implementador de cambios de código, cuidadoso y mínimo
 
 ⛔ SOLO GRATIS: nunca introduzcas dependencias, APIs, servicios o SDKs de PAGO (ni planes premium/pro, suscripciones, o cosas que pidan tarjeta). Usa solo open-source o free tier sin tarjeta. Si el issue exige algo de pago para funcionar, NO lo implementes: devuelve edits vacío y explica en "summary" que se omite por ser de pago.
 
+⚙️ NADA QUE REQUIERA CONFIGURACIÓN MANUAL EXTERNA: si implementar el issue exige un paso MANUAL fuera del código para poder funcionar/mergearse —conectar un servidor MCP (p.ej. Brave), obtener y pegar una API key/token/secret, crear/configurar una cuenta o servicio externo, autorizar OAuth, o cualquier setup que un humano deba hacer aparte— NO lo implementes. En ese caso (o si es de pago) devuelve EXACTAMENTE este JSON en vez de "edits":
+{ "skip": true, "skip_reason": "manual" | "paid", "skip_note": "<1 frase: qué config manual/pago hace falta>" }
+El objetivo es no abrir PRs a medias que no se puedan mergear sin ese paso manual. Sí implementa (con "edits") todo lo que sea 100% código/config-en-repo y no dependa de nada externo por configurar.
+
 Formato de salida (JSON estricto):
 {
   "branch": "radar/<slug-corto>",
@@ -102,6 +106,7 @@ async function callGemini(promptText) {
         const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
         if (!t) continue;
         let p = null; try { p = JSON.parse(t); } catch { console.error(`  ${m}: JSON invalido`); continue; }
+        if (p && p.skip === true) { console.log(`  ${m}: SKIP (${p.skip_reason || "manual"})`); return p; } // el motor decidió no implementar (config manual / pago)
         if (p && Array.isArray(p.edits) && p.edits.length) { console.log(`  respuesta de ${m}`); return p; } // solo un plan valido (con edits) cuenta
       } catch (e) { console.error(`  ${m}: ${e.message}`); }
     }
@@ -118,6 +123,7 @@ async function callGemini(promptText) {
         let t = (j?.result?.response || "").replace(/```json|```/g, "").trim();
         const a = t.indexOf("{"), b = t.lastIndexOf("}"); if (a >= 0 && b > a) t = t.slice(a, b + 1);
         let p = null; try { p = JSON.parse(t); } catch { console.error(`  CF ${m}: JSON inválido`); continue; }
+        if (p && p.skip === true) { console.log(`  CF ${m}: SKIP (${p.skip_reason || "manual"})`); return p; }
         if (p && Array.isArray(p.edits) && p.edits.length) { console.log(`  respuesta de Cloudflare Workers AI (${m}, fallback gratis)`); return p; }
       } catch (e) { console.error(`  CF ${m}: ${e.message}`); }
     }
@@ -127,6 +133,15 @@ async function callGemini(promptText) {
 
 await discoverModels();
 const plan = await callGemini(prompt);
+// SKIP: el issue requiere config manual (MCP, API key, cuenta externa, OAuth) o es de pago -> NO se
+// implementa. Se deja PENDIENTE (marcador para que el workflow comente y NO lo marque como fallo).
+if (plan && plan.skip === true) {
+  const reason = plan.skip_reason === "paid" ? "es de pago" : "requiere configuración manual";
+  const note = (plan.skip_note || "").toString().slice(0, 300);
+  fs.writeFileSync("radar_skip.txt", `${reason}${note ? ": " + note : ""}`);
+  console.log(`PENDIENTE (no se implementa): ${reason}${note ? " — " + note : ""}`);
+  process.exit(0);
+}
 if (!plan || !Array.isArray(plan.edits) || !plan.edits.length) { console.error("Gemini no devolvió un plan de ediciones usable."); process.exit(3); }
 
 // 3) Aplicar las ediciones.
