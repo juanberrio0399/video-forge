@@ -107,6 +107,19 @@ async function doAction(env, action, repo, number) {
   if (action === "merge") {
     const pr = (await prMap(env, repo))[String(number)];
     if (!pr) return `🔎 No hay PR abierto para el #${number}.`;
+    // CANDADO DE BUILD: no mergear si el CI del PR no está en verde (evita mergear builds rotos).
+    try {
+      const full = await (await gh(env, `/repos/${repo}/pulls/${pr.number}`)).json();
+      const sha = full && full.head && full.head.sha;
+      if (sha) {
+        const cr = await (await gh(env, `/repos/${repo}/commits/${sha}/check-runs`)).json();
+        const runs = (cr && cr.check_runs) || [];
+        const failed = runs.filter((r) => r.status === "completed" && !["success", "neutral", "skipped"].includes(r.conclusion));
+        const pending = runs.filter((r) => r.status !== "completed");
+        if (failed.length) return `🚫 No mergeo el PR #${pr.number}: el CI/build FALLA (${failed.map((r) => r.name).join(", ")}). Arréglalo antes de mergear.`;
+        if (pending.length) return `⏳ El CI del PR #${pr.number} aún corre (${pending.map((r) => r.name).join(", ")}). Espera a que quede ✅ verde y reintenta el merge.`;
+      }
+    } catch { /* si no puedo leer el estado, no bloqueo (mejor dejar mergear que trancar por un error de lectura) */ }
     const m = await gh(env, `/repos/${repo}/pulls/${pr.number}/merge`, { method: "PUT", body: JSON.stringify({ merge_method: "squash" }) });
     if (m.ok) return `✅ PR #${pr.number} mergeado. El issue #${number} se cierra solo.`;
     const e = await m.json().catch(() => ({}));
