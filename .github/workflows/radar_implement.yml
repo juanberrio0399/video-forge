@@ -49,6 +49,15 @@ jobs:
       - name: Crear rama + PR (sin merge)
         working-directory: target
         run: |
+          # PENDIENTE por config manual (MCP/API key/cuenta externa) o de pago -> NO es un fallo: se deja
+          # el issue abierto con un aviso, sin motor-fallo (no se puede/queremos mergear sin ese paso).
+          if [ -f radar_skip.txt ]; then
+            REASON=$(cat radar_skip.txt)
+            echo "Pendiente (no se implementa): $REASON"
+            gh issue comment "$ISSUE" -R "$TARGET" --body "⏸️ Pendiente: este issue $REASON, así que el motor NO lo implementa (no se puede mergear sin ese paso). Queda abierto hasta configurarlo/decidirlo a mano." || true
+            gh issue edit "$ISSUE" -R "$TARGET" --remove-label motor-fallo 2>/dev/null || true
+            exit 0
+          fi
           [ ! -f radar_pr.json ] && { echo "El motor no produjo cambios (sin PR)."; gh issue comment "$ISSUE" -R "$TARGET" --body "⚠️ El motor no pudo generar cambios para este issue. Requiere implementación manual." || true; exit 1; }
           BR=$(cat radar_branch.txt); TITLE=$(cat radar_title.txt); COMMIT=$(cat radar_commit.txt)
           COMPLETE=$(cat radar_complete.txt 2>/dev/null || echo 1)   # 1=todas las ediciones aplicaron
