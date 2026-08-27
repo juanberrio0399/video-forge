@@ -1,0 +1,42 @@
+name: Vigilar OpenCut (automatización / MCP para video-forge)
+
+# Revisa cada semana si OpenCut saca el modo headless/automatización + MCP server + Editor API
+# (lo que permitiría integrarlo a video-forge). Avisa a Telegram SOLO cuando aparece una señal nueva.
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 14 * * 3"   # miércoles 9am Bogotá
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GH_TOKEN: ${{ github.token }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Bajar estado previo (de R2)
+        run: npx --yes wrangler@4 r2 object get "$BUCKET/channel/opencut_watch.json" --file=opencut_watch.json --remote 2>/dev/null || echo '{}' > opencut_watch.json
+      - name: Vigilar OpenCut
+        run: node pipeline/opencut_watch.mjs | tee watch.txt
+      - name: Guardar estado (a R2)
+        if: always()
+        run: |
+          if [ -f opencut_watch_new.json ]; then npx --yes wrangler@4 r2 object put "$BUCKET/channel/opencut_watch.json" --file=opencut_watch_new.json --content-type application/json --remote; fi
+      - name: Avisar a Telegram (solo si hay señal nueva)
+        if: always()
+        run: |
+          if [ -f opencut_alert.txt ]; then bash pipeline/notify_telegram.sh "$(cat opencut_alert.txt)"; fi
