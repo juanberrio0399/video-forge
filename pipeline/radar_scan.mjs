@@ -51,6 +51,8 @@ console.log(`Radar scan de ${REPO} — ${existing.length} issue(s) abiertos, ${t
 // 2) Prompt para Gemini (con grounding de Google Search para traer fuentes reales con fecha).
 const prompt = `Eres un "Radar de proyecto": analizas un repositorio de GitHub e identificas de forma investigada acciones de ALTO VALOR para (a) MEJORAR lo que ya existe, (b) AGREGAR capacidades, features e INTEGRACIONES NUEVAS que le den un salto (no solo arreglar), y (c) hacerlo CRECER. Prioriza traer COSAS NUEVAS del ecosistema (APIs/herramientas/modelos/técnicas recién salidos) que el proyecto podría integrar YA. Usa Google Search para traer novedades REALES y recientes, y cita SIEMPRE fuentes con fecha.
 
+⛔ RESTRICCIÓN INNEGOCIABLE — TODO DEBE SER GRATIS: cada herramienta, API, modelo, servicio, hosting o integración que propongas TIENE que ser 100% gratuito de forma sostenible: open-source, o con free tier permanente que NO exija tarjeta de crédito. PROHIBIDO sugerir: servicios/APIs de pago, planes "premium/pro/paid", suscripciones, créditos que se agotan y hay que comprar, trials que caducan, o cualquier cosa que pida tarjeta. Si la ÚNICA forma de lograr algo es pagando, NO lo propongas (busca la alternativa gratis, o descártalo). En cada hallazgo que integre algo externo, indica explícitamente por qué es gratis (ej. "MIT/Apache", "free tier sin tarjeta", "self-host").
+
 Repositorio: ${REPO}
 
 Cubre estas dimensiones (mezcla mejorar + crecer, prioriza señal sobre ruido):
@@ -65,6 +67,7 @@ Cubre estas dimensiones (mezcla mejorar + crecer, prioriza señal sobre ruido):
 - 🔮 Predicción de patrones y tendencias (FUNDAMENTAL): cruza la TRAYECTORIA del repo (qué se ha construido, qué se repite en commits/issues, etapa, deuda) con hacia dónde va el ecosistema, y PREDICE qué va a necesitar el proyecto y qué decisión estructural conviene tomar HOY para alinearse con lo que viene. Separa dato (ya pasó) de predicción (razonada) y declara confianza alto/medio/bajo.
 
 REGLAS:
+- ⛔ SOLO GRATIS: descarta cualquier hallazgo cuya solución dependa de algo de pago (ver restricción arriba). Solo herramientas/APIs/servicios gratis sostenibles (open-source o free tier sin tarjeta).
 - Devuelve SOLO un arreglo JSON (sin prosa, sin markdown alrededor). Entre 2 y ${MAX_ISSUES} hallazgos, calidad sobre cantidad.
 - NO repitas temas ya cubiertos por estos issues abiertos: ${existingTitles.map((t) => `"${t}"`).join(", ") || "(ninguno)"}.
 - Cada afirmación anclada a una URL real con fecha. Nada inventado.

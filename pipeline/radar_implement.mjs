@@ -39,6 +39,8 @@ const fileCtx = mentioned.slice(0, 12).map((p) => {
 
 const prompt = `Eres un implementador de cambios de código, cuidadoso y mínimo. Te doy un GitHub Issue (con su sección "Prompt para implementar") y contexto del repositorio. Devuelve SOLO JSON con las ediciones EXACTAS y NECESARIAS para implementarlo. Nada de explicaciones fuera del JSON.
 
+⛔ SOLO GRATIS: nunca introduzcas dependencias, APIs, servicios o SDKs de PAGO (ni planes premium/pro, suscripciones, o cosas que pidan tarjeta). Usa solo open-source o free tier sin tarjeta. Si el issue exige algo de pago para funcionar, NO lo implementes: devuelve edits vacío y explica en "summary" que se omite por ser de pago.
+
 Formato de salida (JSON estricto):
 {
   "branch": "radar/<slug-corto>",
