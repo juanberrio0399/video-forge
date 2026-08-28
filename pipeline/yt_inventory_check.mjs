@@ -30,5 +30,28 @@ for (let i = 0; i < onlySearch.length; i += 50) {
 }
 console.log(`Playlist uploads: ${upIds.size} videos`);
 console.log(`search.forMine:   ${searchIds.size} videos`);
-console.log(`SOLO en search (los que la app se perdía): ${onlySearch.length} — de esos, PRIVADOS: ${privados}`);
-console.log(detalles.slice(0, 20).map((d) => "  • " + d).join("\n"));
+console.log(`SOLO en search: ${onlySearch.length} — de esos PRIVADOS: ${privados}`);
+
+// === REPLICAR EL CÁLCULO DEL WORKER: inventario (todos) − hidden -> pendientes (private, no programado) ===
+const allIds = [...new Set([...upIds, ...searchIds])];
+const rows = [];
+for (let i = 0; i < allIds.length; i += 50) {
+  const j = await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status,contentDetails&id=${allIds.slice(i, i + 50).join(",")}`, { headers: H })).json();
+  for (const v of j.items || []) rows.push({ id: v.id, privacy: v.status?.privacyStatus, publishAt: v.status?.publishAt || null, title: (v.snippet.title || "").slice(0, 45) });
+}
+// Leer hidden_videos.json de R2 (necesita CLOUDFLARE_*). Si no, hidden vacío.
+let hidden = new Set();
+try {
+  const { execSync } = await import("node:child_process");
+  execSync(`npx --yes wrangler@4 r2 object get "video-forge/channel/hidden_videos.json" --file=hid.json --remote`, { stdio: "pipe" });
+  const fs = await import("node:fs");
+  hidden = new Set(JSON.parse(fs.readFileSync("hid.json", "utf8")));
+} catch (e) { console.log("(no pude leer hidden_videos.json:", e.message.slice(0, 60), ")"); }
+
+const now = Date.now();
+const notHidden = rows.filter((r) => !hidden.has(r.id));
+const pend = notHidden.filter((r) => r.privacy !== "public" && !(r.publishAt && Date.parse(r.publishAt) > now));
+console.log(`\n=== Cálculo del worker ===`);
+console.log(`Total videos: ${rows.length} · ocultos(hidden): ${rows.length - notHidden.length} · NO ocultos: ${notHidden.length}`);
+console.log(`PENDIENTES por aprobar (private, no programado, no oculto): ${pend.length}`);
+console.log(pend.slice(0, 15).map((r) => `  • ${r.id} ${r.privacy} — ${r.title}`).join("\n"));
