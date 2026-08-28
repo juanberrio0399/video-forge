@@ -55,3 +55,10 @@ console.log(`\n=== Cálculo del worker ===`);
 console.log(`Total videos: ${rows.length} · ocultos(hidden): ${rows.length - notHidden.length} · NO ocultos: ${notHidden.length}`);
 console.log(`PENDIENTES por aprobar (private, no programado, no oculto): ${pend.length}`);
 console.log(pend.slice(0, 15).map((r) => `  • ${r.id} ${r.privacy} — ${r.title}`).join("\n"));
+
+// Estado de Shorts de Historia conocidos (¿ocultos? ¿en inventario?)
+console.log(`\n=== Shorts de Historia conocidos ===`);
+for (const id of ["FWnioEUAKOM", "T_rSqV07xw4", "-0tU7MjDNe4", "73booCGbAaU", "NXk52UP7EnU", "NtWYlaqBMlw"]) {
+  const r = rows.find((x) => x.id === id);
+  console.log(`  ${id}: ${r ? `privacy=${r.privacy} oculto=${hidden.has(id)} programado=${!!r.publishAt} — ${r.title}` : "NO está en el inventario (ni playlist ni search)"}`);
+}
