@@ -56,6 +56,12 @@ console.log(`Total videos: ${rows.length} · ocultos(hidden): ${rows.length - no
 console.log(`PENDIENTES por aprobar (private, no programado, no oculto): ${pend.length}`);
 console.log(pend.slice(0, 15).map((r) => `  • ${r.id} ${r.privacy} — ${r.title}`).join("\n"));
 
+// PÚBLICOS y PROGRAMADOS (no ocultos) — lo que la app debería reflejar.
+const publicos = notHidden.filter((r) => r.privacy === "public");
+const programados = notHidden.filter((r) => r.privacy !== "public" && r.publishAt && Date.parse(r.publishAt) > now);
+console.log(`\nPúblicos (no ocultos): ${publicos.length} · Programados (futuros): ${programados.length}`);
+console.log("Programados:\n" + programados.map((r) => `  📅 ${r.publishAt} — ${r.title}`).join("\n"));
+
 // Estado de Shorts de Historia conocidos (¿ocultos? ¿en inventario?)
 console.log(`\n=== Shorts de Historia conocidos ===`);
 for (const id of ["FWnioEUAKOM", "T_rSqV07xw4", "-0tU7MjDNe4", "73booCGbAaU", "NXk52UP7EnU", "NtWYlaqBMlw"]) {
