@@ -1,0 +1,93 @@
+name: Short DATA SHOCK (visual, The Data Lens) — experimento paralelo
+
+# Formato VISUAL para The Data Lens: números shock de historia sobre imágenes icónicas, sound-off first,
+# sin narración. Corto (~22s) y AGRESIVO (2/día) para forzar tracción. Sube PRIVADO a The Data Lens (YT_).
+# Registra categoría "data_shock" en el mapa -> El Cerebro compara este formato vs el narrado.
+on:
+  schedule:
+    - cron: "0 15 * * *"   # ~10am Bogotá (aparte del narrado de las 12 UTC)
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Tema exacto (opcional)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  make:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        slot: [a, b]   # 2/día (agresivo)
+    env:
+      CI: "true"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+      SAMBANOVA_API_KEY: ${{ secrets.SAMBANOVA_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GH_MODELS_TOKEN: ${{ secrets.GH_MODELS_TOKEN }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      TOPIC: ${{ github.event.inputs.topic }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: FFmpeg + fuentes
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core fonts-liberation
+      - name: Guion DATA SHOCK (números + queries)
+        run: node pipeline/data_shock_script.mjs "$TOPIC"
+      - name: Música (de R2)
+        run: npx --yes wrangler@4 r2 object get "$BUCKET/music/cinematic.mp3" --file=music.mp3 --remote 2>/dev/null || echo "sin música"
+      - name: Ensamblar el Short visual
+        run: node pipeline/data_shock_short.mjs script.json short.mp4
+      - name: Frames de validación (incluye hook + un número)
+        if: ${{ hashFiles('short.mp4') != '' }}
+        run: |
+          mkdir -p frames
+          for t in 0.8 3 8 14 20; do ffmpeg -y -ss $t -i short.mp4 -frames:v 1 -q:v 3 "frames/t${t}.jpg" 2>/dev/null || true; done
+      - name: Subir frames (artefacto)
+        if: ${{ hashFiles('frames/*.jpg') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: datashock-frames-${{ matrix.slot }}
+          path: frames/
+          retention-days: 3
+      - name: Preparar título + descripción
+        run: node -e 'const p=require("./publish/package.json");const fs=require("fs");fs.writeFileSync("title.txt",p.title);fs.writeFileSync("description.txt",p.description)'
+      - name: Subir a YouTube (privado, The Data Lens)
+        run: node pipeline/short_publish.mjs short.mp4 title.txt description.txt
+      - name: Registrar categoría "data_shock" (mapa en R2)
+        if: ${{ hashFiles('short_id.txt') != '' }}
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/history_map.json" --file=map.json --remote 2>/dev/null || echo '[]' > map.json
+          node -e '
+            const fs=require("fs");let m=[];try{m=JSON.parse(fs.readFileSync("map.json","utf8"))}catch(e){}if(!Array.isArray(m))m=[];
+            const id=fs.readFileSync("short_id.txt","utf8").trim();
+            let topic="";try{topic=(require("./script.json").topic||"")}catch(e){}
+            if(id && !m.find(x=>x.video_id===id)) m.push({video_id:id,direction:"data_shock",topic,at:new Date().toISOString()});
+            fs.writeFileSync("map_new.json",JSON.stringify(m.slice(-800)));
+          '
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/history_map.json" --file=map_new.json --remote --content-type application/json
+          npx --yes wrangler@4 r2 object delete "$BUCKET/channel/inventory_cache.json" --remote 2>/dev/null || true
+      - name: Avisar
+        if: always()
+        run: |
+          if [ -f short_id.txt ]; then bash pipeline/notify_telegram.sh "📊 DATA SHOCK (visual) listo en The Data Lens: $(cat title.txt 2>/dev/null)"$'\n'"▶️ https://youtu.be/$(cat short_id.txt)"; fi
