@@ -89,7 +89,8 @@ async function buildState(env) {
     try {
       const [map, r] = await Promise.all([prMap(env, repo), gh(env, `/repos/${repo}/issues?labels=radar&state=open&per_page=50`)]);
       if (r.ok) {
-        const list = (await r.json()).filter((is) => !is.pull_request);
+        // Fuera los que NO requieren acción: los issues-reporte del propio radar ("resumen de la corrida").
+        const list = (await r.json()).filter((is) => !is.pull_request && !/resumen de la corrida/i.test(is.title || ""));
         for (const is of list) issues.push({ number: is.number, title: is.title, url: is.html_url, prio: prioOf(is.body), err: (is.labels || []).some((l) => l.name === "motor-fallo"), manual: (is.labels || []).some((l) => l.name === "manual"), pr: map[String(is.number)] || null });
         issues.sort((a, b) => rank(a.prio) - rank(b.prio));
       } else { error = true; }
