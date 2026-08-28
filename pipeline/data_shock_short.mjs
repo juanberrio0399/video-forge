@@ -80,12 +80,15 @@ fs.writeFileSync(`${work}/hook.txt`, hookCard);
 const hookFs = Math.max(42, Math.min(80, Math.round(900 / Math.max(7, hookCard.length) / 0.66)));
 let ov = FONT ? `,drawtext=textfile='${work}/hook.txt':fontfile='${FONT}':fontcolor=white:fontsize=${hookFs}:borderw=9:bordercolor=black@0.9:shadowx=4:shadowy=4:x=(w-text_w)/2:y=(h*0.12):text_align=C:enable='lt(t\\,2.5)':alpha='if(lt(t\\,0.3)\\,t/0.3\\,if(lt(t\\,2.0)\\,1\\,max(0\\,(2.5-t)/0.5)))'` : "";
 facts.forEach((f, i) => {
-  fs.writeFileSync(`${work}/num${i}.txt`, String(f.num || "")); fs.writeFileSync(`${work}/lbl${i}.txt`, String(f.label || ""));
+  const lbl = String(f.label || "");
+  fs.writeFileSync(`${work}/num${i}.txt`, String(f.num || "")); fs.writeFileSync(`${work}/lbl${i}.txt`, lbl);
   const numFs = Math.max(56, Math.min(146, Math.round(900 / Math.max(5, String(f.num || "").length) / 0.66)));
+  // Etiqueta también ADAPTATIVA: nunca se sale del cuadro (presupuesto ~980px, ~0.60/char), tope 72 para no competir con el número en oro.
+  const lblFs = Math.max(36, Math.min(72, Math.round(980 / Math.max(8, lbl.length) / 0.60)));
   const en = `enable='between(t\\,${(i * PER).toFixed(2)}\\,${((i + 1) * PER).toFixed(2)})'`;
   if (FONT) {
     ov += `,drawtext=textfile='${work}/num${i}.txt':fontfile='${FONT}':fontcolor=gold:fontsize=${numFs}:borderw=13:bordercolor=black@0.92:shadowx=5:shadowy=5:x=(w-text_w)/2:y=(h*0.30):text_align=C:${en}`;
-    ov += `,drawtext=textfile='${work}/lbl${i}.txt':fontfile='${FONT}':fontcolor=white:fontsize=66:borderw=8:bordercolor=black@0.9:x=(w-text_w)/2:y=(h*0.30)+185:text_align=C:${en}`;
+    ov += `,drawtext=textfile='${work}/lbl${i}.txt':fontfile='${FONT}':fontcolor=white:fontsize=${lblFs}:borderw=8:bordercolor=black@0.9:x=(w-text_w)/2:y=(h*0.30)+185:text_align=C:${en}`;
   }
 });
 
