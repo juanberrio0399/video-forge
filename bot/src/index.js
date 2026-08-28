@@ -951,6 +951,17 @@ async function channelInventory(env) {
       ids.push(...(j.items || []).map((i) => i.contentDetails.videoId));
       page = j.nextPageToken || "";
     } while (page && ids.length < 200);
+    // ⚠️ La playlist de "uploads" NO incluye los videos subidos DIRECTAMENTE como PRIVADOS (p.ej. los
+    // Shorts de Historia que suben privados para revisar). search.list?forMine=true SÍ los devuelve.
+    // Sin esto, los privados nuevos nunca aparecían para aprobar en la app.
+    try {
+      let spage = "", got = 0;
+      do {
+        const s = await (await fetch(`https://www.googleapis.com/youtube/v3/search?part=id&forMine=true&type=video&order=date&maxResults=50&pageToken=${spage}`, { headers: H })).json();
+        for (const it of s.items || []) { const vid = it.id && it.id.videoId; if (vid && !ids.includes(vid)) ids.push(vid); }
+        spage = s.nextPageToken || ""; got += (s.items || []).length;
+      } while (spage && got < 150);
+    } catch {}
     const longs = [], shorts = [];
     for (let i = 0; i < ids.length; i += 50) {
       const j = await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status,statistics,contentDetails&id=${ids.slice(i, i + 50).join(",")}`, { headers: H })).json();
