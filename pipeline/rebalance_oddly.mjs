@@ -17,7 +17,8 @@ const cad = rj("cadence.json", {});
 const exp = rj("exp.json", { active: null, queue: [], done: [], promoted: [] });
 
 // Nichos FIJOS del canal (siempre existen). A estos se suman los experimentos PROMOVIDOS.
-const BASE = ["satisfying", "narrativas", "ciencia_humor", "naturaleza_relax"];
+// animales_tiernos ya es GANADOR probado (79.5 vpd, top del canal) -> ciudadano permanente.
+const BASE = ["satisfying", "narrativas", "ciencia_humor", "naturaleza_relax", "animales_tiernos"];
 const CUT = 0.4;          // corta nichos con vpd < 40% del ganador
 const EXP_MIN_VIDS = 4;   // datos minimos para juzgar un experimento
 
@@ -25,6 +26,7 @@ const EXP_MIN_VIDS = 4;   // datos minimos para juzgar un experimento
 const LABEL2KEY = {
   "Satisfying / ASMR": "satisfying", "Narrativas": "narrativas",
   "Ciencia + humor": "ciencia_humor", "Naturaleza / relax": "naturaleza_relax",
+  "Animales tiernos / ASMR": "animales_tiernos",
 };
 const rank = {}; // key -> {vpd, videos}
 for (const r of (state.niche_ranking || [])) {
