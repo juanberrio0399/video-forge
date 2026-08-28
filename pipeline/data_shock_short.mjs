@@ -41,58 +41,60 @@ async function wikimediaImage(query) {
   return { url: pick.ii.thumburl || pick.ii.url, page: pick.ii.descriptionshorturl || pick.ii.descriptionurl, lic: pick.lic, artist: stripHtml(ex.Artist?.value) || "Wikimedia Commons", title: pick.t.replace(/^File:/, "") };
 }
 
-// Segmento: Ken Burns + NÚMERO gigante (oro) + etiqueta (blanco), texto por archivo (sin problemas de escape).
-function factSegment(imgPath, num, label, dur, idx) {
+// Ken Burns OSCURECIDO (para que el número en oro resalte) desde una imagen de alta resolución.
+function kbDim(imgPath, dur, idx) {
   const frames = Math.max(2, Math.round(dur * FPS));
-  const z = idx % 2 === 0 ? `'min(zoom+0.0011,1.24)'` : `'if(eq(on,0),1.24,max(zoom-0.0011,1.0))'`;
-  fs.writeFileSync(`${work}/num${idx}.txt`, String(num || ""));
-  fs.writeFileSync(`${work}/lbl${idx}.txt`, String(label || ""));
-  const numFs = Math.max(60, Math.min(160, Math.round(960 / Math.max(5, String(num || "").length) / 0.6))); // que no se salga del cuadro
-  const numDt = FONT ? `,drawtext=textfile='${work}/num${idx}.txt':fontfile='${FONT}':fontcolor=gold:fontsize=${numFs}:borderw=13:bordercolor=black@0.92:shadowcolor=black@0.55:shadowx=5:shadowy=5:x=(w-text_w)/2:y=(h*0.28):text_align=C` : "";
-  const lblDt = FONT ? `,drawtext=textfile='${work}/lbl${idx}.txt':fontfile='${FONT}':fontcolor=white:fontsize=66:borderw=8:bordercolor=black@0.9:x=(w-text_w)/2:y=(h*0.28)+185:text_align=C` : "";
+  const z = idx % 2 === 0 ? `'min(zoom+0.0009,1.2)'` : `'if(eq(on,0),1.2,max(zoom-0.0009,1.0))'`;
   const vf = `scale=${Math.round(W * 1.3)}:${Math.round(H * 1.3)}:force_original_aspect_ratio=increase,crop=${Math.round(W * 1.3)}:${Math.round(H * 1.3)},` +
-    `zoompan=z=${z}:x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=${frames}:s=${W}x${H}:fps=${FPS},eq=contrast=1.08:saturation=1.1,unsharp=3:3:0.4,vignette=a=PI/7${numDt}${lblDt}`;
-  const seg = `${work}/seg${idx}.mp4`;
-  execSync(`ffmpeg -y -loop 1 -i "${imgPath}" -t ${dur.toFixed(2)} -vf "${vf}" -an -r ${FPS} -c:v libx264 -preset medium -crf 19 -pix_fmt yuv420p "${seg}"`, { stdio: "ignore" });
-  return seg;
-}
-// Segmento de respaldo: fondo oscuro degradado + número (si no hubo imagen).
-function fallbackSegment(num, label, dur, idx) {
-  fs.writeFileSync(`${work}/num${idx}.txt`, String(num || "")); fs.writeFileSync(`${work}/lbl${idx}.txt`, String(label || ""));
-  const numDt = FONT ? `,drawtext=textfile='${work}/num${idx}.txt':fontfile='${FONT}':fontcolor=gold:fontsize=160:borderw=6:bordercolor=black:x=(w-text_w)/2:y=(h*0.30):text_align=C` : "";
-  const lblDt = FONT ? `,drawtext=textfile='${work}/lbl${idx}.txt':fontfile='${FONT}':fontcolor=white:fontsize=68:x=(w-text_w)/2:y=(h*0.30)+195:text_align=C` : "";
-  const seg = `${work}/seg${idx}.mp4`;
-  execSync(`ffmpeg -y -f lavfi -i color=c=0x0d1b2a:s=${W}x${H}:d=${dur.toFixed(2)}:r=${FPS} -vf "vignette=a=PI/6${numDt}${lblDt}" -c:v libx264 -preset medium -crf 19 -pix_fmt yuv420p "${seg}"`, { stdio: "ignore" });
-  return seg;
+    `zoompan=z=${z}:x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=${frames}:s=${W}x${H}:fps=${FPS},eq=brightness=-0.30:saturation=1.05:contrast=1.02,vignette=a=PI/5`;
+  const s = `${work}/bg${idx}.mp4`;
+  execSync(`ffmpeg -y -loop 1 -i "${imgPath}" -t ${dur.toFixed(2)} -vf "${vf}" -an -r ${FPS} -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p "${s}"`, { stdio: "ignore" });
+  return s;
 }
 
-const PER = 5.0; // s por fact
-const segs = [];
+const PER = 5.0;
+const total = +(facts.length * PER).toFixed(2);
+
+// 1) Reunir TODAS las imágenes que existan (los números abstractos no tienen foto propia -> se usan de fondo).
+const imgPaths = [];
 for (let i = 0; i < facts.length; i++) {
-  const f = facts[i];
-  let img = null; try { img = await wikimediaImage(f.query); } catch {}
-  if (img) {
-    try { const buf = Buffer.from(await (await tf(img.url)).arrayBuffer()); fs.writeFileSync(`${work}/img${i}.jpg`, buf); segs.push(factSegment(`${work}/img${i}.jpg`, f.num, f.label, PER, i)); credits.push(`${img.title} — ${img.artist} · ${img.page} · ${img.lic.toUpperCase()}`); console.log(`  ${i + 1}. IMG "${img.title}" — ${f.num}`); continue; } catch (e) { console.error("img fail:", e.message); }
-  }
-  segs.push(fallbackSegment(f.num, f.label, PER, i)); console.log(`  ${i + 1}. FONDO — ${f.num}`);
+  let img = null; try { img = await wikimediaImage(facts[i].query); } catch {}
+  if (img) { try { const buf = Buffer.from(await (await tf(img.url)).arrayBuffer()); const p = `${work}/img${i}.jpg`; fs.writeFileSync(p, buf); imgPaths.push(p); credits.push(`${img.title} — ${img.artist} · ${img.page} · ${img.lic.toUpperCase()}`); console.log(`  IMG "${img.title}"`); } catch {} }
 }
-if (!segs.length) { console.error("sin segmentos"); process.exit(1); }
+console.log(`imágenes: ${imgPaths.length}/${facts.length}`);
 
-// Concatenar
-fs.writeFileSync(`${work}/list.txt`, segs.map((s) => `file '${s.split("/").pop()}'`).join("\n"));
-execSync(`ffmpeg -y -f concat -safe 0 -i ${work}/list.txt -c copy ${work}/joined.mp4`, { stdio: "ignore" });
+// 2) FONDO oscurecido para TODA la duración: Ken Burns sobre las imágenes cicladas; si no hay ninguna, gradiente sobrio.
+const bg = `${work}/bg.mp4`;
+if (imgPaths.length) {
+  const per = total / imgPaths.length;
+  const segs = imgPaths.map((p, i) => kbDim(p, per, i));
+  fs.writeFileSync(`${work}/bglist.txt`, segs.map((s) => `file '${s.split("/").pop()}'`).join("\n"));
+  execSync(`ffmpeg -y -f concat -safe 0 -i ${work}/bglist.txt -c copy "${bg}"`, { stdio: "ignore" });
+} else {
+  execSync(`ffmpeg -y -f lavfi -i color=c=0x0d1b2a:s=${W}x${H}:d=${total}:r=${FPS} -vf "vignette=a=PI/6" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p "${bg}"`, { stdio: "ignore" });
+}
 
-// Hook card (primeros 2.5s) + música (o silencio) en la mezcla final.
+// 3) Overlays: hook card (0-2.5s) + cada número+etiqueta en su ventana de tiempo, sobre el fondo.
 const hookCard = String(script.hook_card || script.title || "DATA SHOCK").toUpperCase().replace(/[\r\n]+/g, " ").slice(0, 32);
 fs.writeFileSync(`${work}/hook.txt`, hookCard);
 const hookFs = Math.max(48, Math.min(88, Math.round(960 / Math.max(7, hookCard.length) / 0.6)));
-const hookDt = FONT ? `,drawtext=textfile='${work}/hook.txt':fontfile='${FONT}':fontcolor=white:fontsize=${hookFs}:borderw=9:bordercolor=black@0.9:shadowcolor=black@0.55:shadowx=4:shadowy=4:x=(w-text_w)/2:y=(h*0.12):text_align=C:enable='lt(t\\,2.5)':alpha='if(lt(t\\,0.3)\\,t/0.3\\,if(lt(t\\,2.0)\\,1\\,max(0\\,(2.5-t)/0.5)))'` : "";
-const total = (segs.length * PER).toFixed(2);
+let ov = FONT ? `,drawtext=textfile='${work}/hook.txt':fontfile='${FONT}':fontcolor=white:fontsize=${hookFs}:borderw=9:bordercolor=black@0.9:shadowx=4:shadowy=4:x=(w-text_w)/2:y=(h*0.12):text_align=C:enable='lt(t\\,2.5)':alpha='if(lt(t\\,0.3)\\,t/0.3\\,if(lt(t\\,2.0)\\,1\\,max(0\\,(2.5-t)/0.5)))'` : "";
+facts.forEach((f, i) => {
+  fs.writeFileSync(`${work}/num${i}.txt`, String(f.num || "")); fs.writeFileSync(`${work}/lbl${i}.txt`, String(f.label || ""));
+  const numFs = Math.max(60, Math.min(160, Math.round(960 / Math.max(5, String(f.num || "").length) / 0.6)));
+  const en = `enable='between(t\\,${(i * PER).toFixed(2)}\\,${((i + 1) * PER).toFixed(2)})'`;
+  if (FONT) {
+    ov += `,drawtext=textfile='${work}/num${i}.txt':fontfile='${FONT}':fontcolor=gold:fontsize=${numFs}:borderw=13:bordercolor=black@0.92:shadowx=5:shadowy=5:x=(w-text_w)/2:y=(h*0.30):text_align=C:${en}`;
+    ov += `,drawtext=textfile='${work}/lbl${i}.txt':fontfile='${FONT}':fontcolor=white:fontsize=66:borderw=8:bordercolor=black@0.9:x=(w-text_w)/2:y=(h*0.30)+185:text_align=C:${en}`;
+  }
+});
+
+// 4) Música (o silencio) + render final.
 const hasMusic = fs.existsSync("music.mp3");
 if (hasMusic) {
-  execSync(`ffmpeg -y -i ${work}/joined.mp4 -stream_loop -1 -i music.mp3 -filter_complex "[0:v]format=yuv420p${hookDt}[v];[1:a]volume=0.5,afade=t=in:st=0:d=0.6,afade=t=out:st=${(total - 0.8)}:d=0.8[a]" -map "[v]" -map "[a]" -t ${total} -r ${FPS} -c:v libx264 -preset medium -crf 19 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest -movflags +faststart "${outPath}"`, { stdio: "inherit" });
+  execSync(`ffmpeg -y -i "${bg}" -stream_loop -1 -i music.mp3 -filter_complex "[0:v]format=yuv420p${ov}[v];[1:a]volume=0.5,afade=t=in:st=0:d=0.6,afade=t=out:st=${(total - 0.8)}:d=0.8[a]" -map "[v]" -map "[a]" -t ${total} -r ${FPS} -c:v libx264 -preset medium -crf 19 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest -movflags +faststart "${outPath}"`, { stdio: "inherit" });
 } else {
-  execSync(`ffmpeg -y -i ${work}/joined.mp4 -f lavfi -i anullsrc=r=44100:cl=stereo -filter_complex "[0:v]format=yuv420p${hookDt}[v]" -map "[v]" -map 1:a -t ${total} -r ${FPS} -c:v libx264 -preset medium -crf 19 -pix_fmt yuv420p -c:a aac -b:a 128k -shortest -movflags +faststart "${outPath}"`, { stdio: "inherit" });
+  execSync(`ffmpeg -y -i "${bg}" -f lavfi -i anullsrc=r=44100:cl=stereo -filter_complex "[0:v]format=yuv420p${ov}[v]" -map "[v]" -map 1:a -t ${total} -r ${FPS} -c:v libx264 -preset medium -crf 19 -pix_fmt yuv420p -c:a aac -b:a 128k -shortest -movflags +faststart "${outPath}"`, { stdio: "inherit" });
 }
 
 // Paquete SEO + manifiesto
@@ -101,4 +103,4 @@ const title = ((script.title || "History in Numbers").slice(0, 92) + " #Shorts")
 const desc = [script.hook_card || "", "", ((script.hashtags || ["#History", "#Shorts"]).join(" ") + " #Shorts #history #dataviz").trim(), "", "Archival images (public domain / Creative Commons):", ...uniq, "", "Data-visual short. Historical facts for educational purposes."].join("\n");
 fs.mkdirSync("publish", { recursive: true });
 fs.writeFileSync("publish/package.json", JSON.stringify({ title, description: desc, tags: ["shorts", "history", "data", "facts"], language: "en" }, null, 2));
-console.log(`DATA SHOCK listo -> ${outPath} · "${title}" · ${segs.length} facts · ${total}s`);
+console.log(`DATA SHOCK listo -> ${outPath} · "${title}" · ${facts.length} facts · ${imgPaths.length} imgs · ${total}s`);
