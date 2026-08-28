@@ -32,7 +32,7 @@ async function wikimediaImage(query) {
     .filter((x) => x.ii && x.ii.width >= 700 && /\.(jpe?g|png)(\?|$)/i.test(x.ii.thumburl || x.ii.url || ""))
     .map((x) => ({ ...x, lic: imgLicense(x.ii.extmetadata) }))
     .filter((x) => x.lic && !usedImg.has(x.t))
-    .filter((x) => !/portable antiquities|\bscale\b|\bruler\b|specimen|catalogue|\bobverse\b|\breverse\b|\bcoin\b|banknote|postage|\bstamp\b|coat of arms|\bcrest\b|\bseal\b|\bflag\b|\blogo\b|\bmap\b|diagram|\bchart\b/i.test(x.t))
+    .filter((x) => !/portable antiquities|scale bar|\bruler\b|specimen|catalogue|\bobverse\b|\breverse\b|\blogo\b|diagram|infographic|\bicon\b|screenshot/i.test(x.t))
     .filter((x) => { if (!want.length) return true; const tw = kw(x.t); return want.some((w) => tw.includes(w)); })
     .sort((a, b) => (b.ii.width || 0) - (a.ii.width || 0))[0];
   if (!pick) return null;

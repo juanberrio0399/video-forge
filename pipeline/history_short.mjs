@@ -48,7 +48,7 @@ async function wikimediaImage(query) {
     .map((x) => ({ ...x, lic: imgLicense(x.ii.extmetadata) }))
     .filter((x) => x.lic && !usedImg.has(x.t))
     // Evitar fotos de CATÁLOGO de museo (aburridas para un Short): monedas con regla, especímenes, logos, mapas, banderas…
-    .filter((x) => !/portable antiquities|\bscale\b|\bruler\b|specimen|catalogue|\bobverse\b|\breverse\b|\bcoin\b|banknote|postage|\bstamp\b|coat of arms|\bcrest\b|\bseal\b|\bflag\b|\blogo\b|\bmap\b|diagram|\bchart\b/i.test(x.t))
+    .filter((x) => !/portable antiquities|scale bar|\bruler\b|specimen|catalogue|\bobverse\b|\breverse\b|\blogo\b|diagram|infographic|\bicon\b|screenshot/i.test(x.t))
     // RELEVANCIA: el titulo de la imagen debe compartir >=1 palabra clave con la query (evita fotos fuera de tema).
     .filter((x) => { if (!want.length) return true; const tw = kw(x.t); return want.some((w) => tw.includes(w)); })
     .sort((a, b) => (b.ii.width || 0) - (a.ii.width || 0));
