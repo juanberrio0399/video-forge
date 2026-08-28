@@ -33,7 +33,7 @@ async function wikimediaImage(query) {
     .map((x) => ({ ...x, lic: imgLicense(x.ii.extmetadata) }))
     .filter((x) => x.lic && !usedImg.has(x.t))
     .filter((x) => !/portable antiquities|scale bar|\bruler\b|specimen|catalogue|\bobverse\b|\breverse\b|\blogo\b|diagram|infographic|\bicon\b|screenshot/i.test(x.t))
-    .filter((x) => !/\barmy\b|\bmilitary\b|soldier|obstacle course|competition|\bsquad\b|\bnato\b|aircraft|helicopter|warship|missile|astronaut|spacecraft|\b20[0-2]\d\b|\b199\d\b/i.test(x.t))
+    .filter((x) => !/\barmy\b|\bmilitary\b|soldier|obstacle course|competition|\bsquad\b|\bnato\b|aircraft|helicopter|warship|missile|astronaut|spacecraft|ghost town|mining town/i.test(x.t))
     .filter((x) => { if (!want.length) return true; const tw = kw(x.t); return want.some((w) => tw.includes(w)); })
     .sort((a, b) => (b.ii.width || 0) - (a.ii.width || 0))[0];
   if (!pick) return null;
