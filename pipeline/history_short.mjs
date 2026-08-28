@@ -242,7 +242,7 @@ const hookCard = String(script.hook_card || (script.hook || script.title || "").
 fs.writeFileSync("hookcard.txt", hookCard);
 const HOOKFONT = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"].find((p) => fs.existsSync(p)) || "";
 // Tamaño adaptativo para que NUNCA se salga del cuadro (1080px con margen). ~0.6*fontsize por char en bold.
-const hookFs = Math.max(48, Math.min(90, Math.round(960 / Math.max(7, hookCard.length) / 0.6)));
+const hookFs = Math.max(42, Math.min(80, Math.round(900 / Math.max(7, hookCard.length) / 0.66)));
 const hookVf = HOOKFONT
   ? `,drawtext=textfile='hookcard.txt':fontfile='${HOOKFONT}':fontcolor=white:fontsize=${hookFs}:borderw=9:bordercolor=black@0.9:shadowcolor=black@0.55:shadowx=4:shadowy=4:x=(w-text_w)/2:y=(h*0.26):text_align=C:line_spacing=10:enable='lt(t\\,2.8)':alpha='if(lt(t\\,0.35)\\,t/0.35\\,if(lt(t\\,2.3)\\,1\\,max(0\\,(2.8-t)/0.5)))'`
   : "";
