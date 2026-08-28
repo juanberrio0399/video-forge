@@ -47,6 +47,8 @@ async function wikimediaImage(query) {
     .filter((x) => x.ii && x.ii.width >= 700 && /\.(jpe?g|png)(\?|$)/i.test(x.ii.thumburl || x.ii.url || ""))
     .map((x) => ({ ...x, lic: imgLicense(x.ii.extmetadata) }))
     .filter((x) => x.lic && !usedImg.has(x.t))
+    // Evitar fotos de CATÁLOGO de museo (aburridas para un Short): monedas con regla, especímenes, logos, mapas, banderas…
+    .filter((x) => !/portable antiquities|\bscale\b|\bruler\b|specimen|catalogue|\bobverse\b|\breverse\b|\bcoin\b|banknote|postage|\bstamp\b|coat of arms|\bcrest\b|\bseal\b|\bflag\b|\blogo\b|\bmap\b|diagram|\bchart\b/i.test(x.t))
     // RELEVANCIA: el titulo de la imagen debe compartir >=1 palabra clave con la query (evita fotos fuera de tema).
     .filter((x) => { if (!want.length) return true; const tw = kw(x.t); return want.some((w) => tw.includes(w)); })
     .sort((a, b) => (b.ii.width || 0) - (a.ii.width || 0));
@@ -236,11 +238,13 @@ fs.writeFileSync("captions.ass", ass + `\n[Events]\nFormat: Layer, Start, End, S
 console.log(`captions.ass: ${dia.length} lineas`);
 
 // GANCHO VISUAL: texto grande en los primeros ~2.8s (85% ve SIN sonido -> el hook debe LEERSE al instante).
-const hookCard = String(script.hook_card || (script.hook || script.title || "").split(/\s+/).slice(0, 5).join(" ") || "HISTORY").toUpperCase().replace(/[\r\n]+/g, " ").slice(0, 42);
+const hookCard = String(script.hook_card || (script.hook || script.title || "").split(/\s+/).slice(0, 5).join(" ") || "HISTORY").toUpperCase().replace(/[\r\n]+/g, " ").slice(0, 32);
 fs.writeFileSync("hookcard.txt", hookCard);
 const HOOKFONT = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"].find((p) => fs.existsSync(p)) || "";
+// Tamaño adaptativo para que NUNCA se salga del cuadro (1080px con margen). ~0.6*fontsize por char en bold.
+const hookFs = Math.max(48, Math.min(90, Math.round(960 / Math.max(7, hookCard.length) / 0.6)));
 const hookVf = HOOKFONT
-  ? `,drawtext=textfile='hookcard.txt':fontfile='${HOOKFONT}':fontcolor=white:fontsize=100:borderw=9:bordercolor=black@0.9:shadowcolor=black@0.55:shadowx=4:shadowy=4:x=(w-text_w)/2:y=(h*0.26):text_align=C:line_spacing=10:enable='lt(t\\,2.8)':alpha='if(lt(t\\,0.35)\\,t/0.35\\,if(lt(t\\,2.3)\\,1\\,max(0\\,(2.8-t)/0.5)))'`
+  ? `,drawtext=textfile='hookcard.txt':fontfile='${HOOKFONT}':fontcolor=white:fontsize=${hookFs}:borderw=9:bordercolor=black@0.9:shadowcolor=black@0.55:shadowx=4:shadowy=4:x=(w-text_w)/2:y=(h*0.26):text_align=C:line_spacing=10:enable='lt(t\\,2.8)':alpha='if(lt(t\\,0.35)\\,t/0.35\\,if(lt(t\\,2.3)\\,1\\,max(0\\,(2.8-t)/0.5)))'`
   : "";
 console.log(`Hook card: "${hookCard}"${HOOKFONT ? "" : " (⚠️ sin fuente, sin overlay)"}`);
 

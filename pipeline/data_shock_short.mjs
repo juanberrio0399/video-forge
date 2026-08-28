@@ -32,6 +32,7 @@ async function wikimediaImage(query) {
     .filter((x) => x.ii && x.ii.width >= 700 && /\.(jpe?g|png)(\?|$)/i.test(x.ii.thumburl || x.ii.url || ""))
     .map((x) => ({ ...x, lic: imgLicense(x.ii.extmetadata) }))
     .filter((x) => x.lic && !usedImg.has(x.t))
+    .filter((x) => !/portable antiquities|\bscale\b|\bruler\b|specimen|catalogue|\bobverse\b|\breverse\b|\bcoin\b|banknote|postage|\bstamp\b|coat of arms|\bcrest\b|\bseal\b|\bflag\b|\blogo\b|\bmap\b|diagram|\bchart\b/i.test(x.t))
     .filter((x) => { if (!want.length) return true; const tw = kw(x.t); return want.some((w) => tw.includes(w)); })
     .sort((a, b) => (b.ii.width || 0) - (a.ii.width || 0))[0];
   if (!pick) return null;
@@ -46,7 +47,8 @@ function factSegment(imgPath, num, label, dur, idx) {
   const z = idx % 2 === 0 ? `'min(zoom+0.0011,1.24)'` : `'if(eq(on,0),1.24,max(zoom-0.0011,1.0))'`;
   fs.writeFileSync(`${work}/num${idx}.txt`, String(num || ""));
   fs.writeFileSync(`${work}/lbl${idx}.txt`, String(label || ""));
-  const numDt = FONT ? `,drawtext=textfile='${work}/num${idx}.txt':fontfile='${FONT}':fontcolor=gold:fontsize=150:borderw=13:bordercolor=black@0.92:shadowcolor=black@0.55:shadowx=5:shadowy=5:x=(w-text_w)/2:y=(h*0.28):text_align=C` : "";
+  const numFs = Math.max(60, Math.min(160, Math.round(960 / Math.max(5, String(num || "").length) / 0.6))); // que no se salga del cuadro
+  const numDt = FONT ? `,drawtext=textfile='${work}/num${idx}.txt':fontfile='${FONT}':fontcolor=gold:fontsize=${numFs}:borderw=13:bordercolor=black@0.92:shadowcolor=black@0.55:shadowx=5:shadowy=5:x=(w-text_w)/2:y=(h*0.28):text_align=C` : "";
   const lblDt = FONT ? `,drawtext=textfile='${work}/lbl${idx}.txt':fontfile='${FONT}':fontcolor=white:fontsize=66:borderw=8:bordercolor=black@0.9:x=(w-text_w)/2:y=(h*0.28)+185:text_align=C` : "";
   const vf = `scale=${Math.round(W * 1.3)}:${Math.round(H * 1.3)}:force_original_aspect_ratio=increase,crop=${Math.round(W * 1.3)}:${Math.round(H * 1.3)},` +
     `zoompan=z=${z}:x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=${frames}:s=${W}x${H}:fps=${FPS},eq=contrast=1.08:saturation=1.1,unsharp=3:3:0.4,vignette=a=PI/7${numDt}${lblDt}`;
@@ -81,9 +83,10 @@ fs.writeFileSync(`${work}/list.txt`, segs.map((s) => `file '${s.split("/").pop()
 execSync(`ffmpeg -y -f concat -safe 0 -i ${work}/list.txt -c copy ${work}/joined.mp4`, { stdio: "ignore" });
 
 // Hook card (primeros 2.5s) + música (o silencio) en la mezcla final.
-const hookCard = String(script.hook_card || script.title || "DATA SHOCK").toUpperCase().replace(/[\r\n]+/g, " ").slice(0, 42);
+const hookCard = String(script.hook_card || script.title || "DATA SHOCK").toUpperCase().replace(/[\r\n]+/g, " ").slice(0, 32);
 fs.writeFileSync(`${work}/hook.txt`, hookCard);
-const hookDt = FONT ? `,drawtext=textfile='${work}/hook.txt':fontfile='${FONT}':fontcolor=white:fontsize=96:borderw=9:bordercolor=black@0.9:shadowcolor=black@0.55:shadowx=4:shadowy=4:x=(w-text_w)/2:y=(h*0.12):text_align=C:enable='lt(t\\,2.5)':alpha='if(lt(t\\,0.3)\\,t/0.3\\,if(lt(t\\,2.0)\\,1\\,max(0\\,(2.5-t)/0.5)))'` : "";
+const hookFs = Math.max(48, Math.min(88, Math.round(960 / Math.max(7, hookCard.length) / 0.6)));
+const hookDt = FONT ? `,drawtext=textfile='${work}/hook.txt':fontfile='${FONT}':fontcolor=white:fontsize=${hookFs}:borderw=9:bordercolor=black@0.9:shadowcolor=black@0.55:shadowx=4:shadowy=4:x=(w-text_w)/2:y=(h*0.12):text_align=C:enable='lt(t\\,2.5)':alpha='if(lt(t\\,0.3)\\,t/0.3\\,if(lt(t\\,2.0)\\,1\\,max(0\\,(2.5-t)/0.5)))'` : "";
 const total = (segs.length * PER).toFixed(2);
 const hasMusic = fs.existsSync("music.mp3");
 if (hasMusic) {
