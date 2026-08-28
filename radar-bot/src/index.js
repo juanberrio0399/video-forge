@@ -90,7 +90,7 @@ async function buildState(env) {
       const [map, r] = await Promise.all([prMap(env, repo), gh(env, `/repos/${repo}/issues?labels=radar&state=open&per_page=50`)]);
       if (r.ok) {
         const list = (await r.json()).filter((is) => !is.pull_request);
-        for (const is of list) issues.push({ number: is.number, title: is.title, url: is.html_url, prio: prioOf(is.body), err: (is.labels || []).some((l) => l.name === "motor-fallo"), pr: map[String(is.number)] || null });
+        for (const is of list) issues.push({ number: is.number, title: is.title, url: is.html_url, prio: prioOf(is.body), err: (is.labels || []).some((l) => l.name === "motor-fallo"), manual: (is.labels || []).some((l) => l.name === "manual"), pr: map[String(is.number)] || null });
         issues.sort((a, b) => rank(a.prio) - rank(b.prio));
       } else { error = true; }
     } catch { error = true; }
@@ -250,9 +250,9 @@ function homeView(){
     +'<div class="k"><span class="kn" style="color:var(--acc)">'+pend+'</span><span class="kl">por merge</span></div>'
     +(fails?'<div class="k"><span class="kn" style="color:var(--r)">'+fails+'</span><span class="kl">fallos</span></div>':"")+'</div>';
   var cards=ST.repos.map(function(r,i){
-    var c=counts(r),p=r.issues.filter(function(x){return x.pr;}).length,f=r.issues.filter(function(x){return x.err;}).length;
+    var c=counts(r),p=r.issues.filter(function(x){return x.pr;}).length,f=r.issues.filter(function(x){return x.err;}).length,m=r.issues.filter(function(x){return x.manual&&!x.pr;}).length;
     return '<div class="card repo tap" data-act="repo" data-i="'+i+'">'
-      +'<div class="rhead"><span class="rn">'+esc(r.short)+'</span><span class="meta">'+(r.error?'<span class="badge" style="color:var(--r)">⚠️</span>':"")+(f?'<span class="badge" style="color:var(--r)">❌ '+f+'</span>':"")+(p?'<span class="badge">🔧 '+p+'</span>':"")+r.issues.length+'<span class="chev">›</span></span></div>'
+      +'<div class="rhead"><span class="rn">'+esc(r.short)+'</span><span class="meta">'+(r.error?'<span class="badge" style="color:var(--r)">⚠️</span>':"")+(f?'<span class="badge" style="color:var(--r)">❌ '+f+'</span>':"")+(m?'<span class="badge" style="color:var(--y)">🖐️ '+m+'</span>':"")+(p?'<span class="badge">🔧 '+p+'</span>':"")+r.issues.length+'<span class="chev">›</span></span></div>'
       +'<div class="pills">'+pill("alta",c.alta,i)+pill("media",c.media,i)+pill("baja",c.baja,i)+(c.none?pill("none",c.none,i):"")+'</div></div>';
   }).join("");
   document.getElementById("view").innerHTML=kpi+cards;
@@ -264,6 +264,11 @@ function issueCard(r,is){
     acts='<div class="waitb" style="background:transparent;color:var(--hint);border:1px dashed var(--line)">📄 Reporte del radar — no requiere acción</div>';
   }else if(running){
     acts='<div class="waitb"><span class="dot"></span>Motor corriendo… te aviso al terminar</div>';
+  }else if(is.manual&&!is.pr){
+    // Requiere configuración TUYA (MCP, recursos Cloudflare, settings de GitHub, APIs experimentales…).
+    // NO se implementa con un PR: no hay Ejecutar ni Merge. Solo abrir el issue con el paso a paso.
+    acts='<button class="b" data-act="open" data-url="'+esc(is.url)+'">📋 Ver pasos</button>'
+      +'<button class="b g" data-act="close" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">✅ Ya lo configuré</button>';
   }else if(!is.pr){
     acts='<button class="b" data-act="run" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">'+(is.err?"🔁 Reintentar":"⚙️ Ejecutar")+'</button>'
       +'<button class="b d" data-act="close" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">Descartar</button>';
@@ -274,7 +279,7 @@ function issueCard(r,is){
     acts='<button class="b" data-act="merge" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">🔀 Merge</button>'
       +'<button class="b g" data-act="open" data-url="'+esc(is.pr.url)+'">📄 Ver PR</button>';
   }
-  var st=running?'<div class="st" style="color:var(--acc)">⏳ Puede tardar unos minutos — no cierres, te aviso cuando termine</div>':(is.pr?'<div class="st">🔧 PR #'+is.pr.number+(is.pr.incomplete?' ⚠️ INCOMPLETO':'')+(REVIEWED[k]?" · revisado ✓":" · revísalo antes de mergear")+'</div>':(is.err?'<div class="st" style="color:var(--r)">❌ El motor falló aquí — reintenta o impleméntalo manual</div>':""));
+  var st=running?'<div class="st" style="color:var(--acc)">⏳ Puede tardar unos minutos — no cierres, te aviso cuando termine</div>':(is.pr?'<div class="st">🔧 PR #'+is.pr.number+(is.pr.incomplete?' ⚠️ INCOMPLETO':'')+(REVIEWED[k]?" · revisado ✓":" · revísalo antes de mergear")+'</div>':(is.manual?'<div class="st" style="color:var(--y)">🖐️ Necesita tu configuración — toca 📋 Ver pasos y hazlo tú</div>':(is.err?'<div class="st" style="color:var(--r)">❌ El motor falló aquí — reintenta o impleméntalo manual</div>':"")));
   return '<div class="card issue" style="--pc:'+p.c+'">'
     +'<div class="itop"><span class="ip" style="color:'+p.c+'">'+p.e+" "+p.l+'</span><span class="inum">#'+is.number+'</span></div>'
     +'<div class="ititle">'+esc(is.title)+"</div>"+st
@@ -284,10 +289,11 @@ function issueCard(r,is){
 function repoView(){
   var r=ST.repos[CUR]||{issues:[]},items=r.issues;
   if(FILTER!==null)items=items.filter(function(x){return (x.prio||"none")===FILTER;});
-  var pend=items.filter(function(x){return x.pr;}),fail=items.filter(function(x){return !x.pr&&x.err;}),todo=items.filter(function(x){return !x.pr&&!x.err;}),html="";
+  var pend=items.filter(function(x){return x.pr;}),fail=items.filter(function(x){return !x.pr&&x.err&&!x.manual;}),manual=items.filter(function(x){return !x.pr&&x.manual;}),todo=items.filter(function(x){return !x.pr&&!x.err&&!x.manual;}),html="";
   if(r.error)html+='<div class="fbar" style="color:var(--r)"><span>⚠️ No pude cargar este repo (GitHub no respondió)</span><button class="link" data-act="refresh">Reintentar ⟳</button></div>';
   if(FILTER!==null){var p=PR[FILTER];html+='<div class="fbar"><span>'+p.e+" "+p.l+" · "+items.length+'</span><button class="link" data-act="clear">Quitar ✕</button></div>';}
   if(fail.length)html+=sec("❌ Falló el motor",fail.length)+fail.map(function(is){return issueCard(r,is);}).join("");
+  if(manual.length)html+=sec("🖐️ Requiere tu configuración",manual.length)+manual.map(function(is){return issueCard(r,is);}).join("");
   if(pend.length)html+=sec("🔧 Pendientes por merge",pend.length)+pend.map(function(is){return issueCard(r,is);}).join("");
   if(todo.length)html+=sec("🆕 Por trabajar",todo.length)+todo.map(function(is){return issueCard(r,is);}).join("");
   if(!html&&!r.error)html=empty("✅","Nada por aquí"+(FILTER!==null?" con ese filtro":""),FILTER!==null?"Quita el filtro para ver todo.":"El barrido semanal irá dejando novedades.");

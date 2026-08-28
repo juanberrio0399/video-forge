@@ -42,7 +42,8 @@ const prompt = `Eres un implementador de cambios de código, cuidadoso y mínimo
 ⛔ SOLO GRATIS: nunca introduzcas dependencias, APIs, servicios o SDKs de PAGO (ni planes premium/pro, suscripciones, o cosas que pidan tarjeta). Usa solo open-source o free tier sin tarjeta. Si el issue exige algo de pago para funcionar, NO lo implementes: devuelve edits vacío y explica en "summary" que se omite por ser de pago.
 
 ⚙️ NADA QUE REQUIERA CONFIGURACIÓN MANUAL EXTERNA: si implementar el issue exige un paso MANUAL fuera del código para poder funcionar/mergearse —conectar un servidor MCP (p.ej. Brave), obtener y pegar una API key/token/secret, crear/configurar una cuenta o servicio externo, autorizar OAuth, o cualquier setup que un humano deba hacer aparte— NO lo implementes. En ese caso (o si es de pago) devuelve EXACTAMENTE este JSON en vez de "edits":
-{ "skip": true, "skip_reason": "manual" | "paid", "skip_note": "<1 frase: qué config manual/pago hace falta>" }
+{ "skip": true, "skip_reason": "manual" | "paid", "skip_note": "<1 frase: qué config manual/pago hace falta>", "steps": ["<paso 1 accionable que el DUEÑO del repo debe hacer a mano>", "<paso 2>", "..."] }
+Cuando skip_reason es "manual", "steps" es OBLIGATORIO: el paso a paso EXACTO que una persona debe hacer por su cuenta para dejar esto configurado (rutas, nombres de recursos, dónde hacer clic, qué pegar). Escríbelo en español, en imperativo, claro y sin tecnicismos innecesarios; NUNCA menciones IA/motor/Gemini/automático. Para "paid", "steps" puede ir vacío.
 El objetivo es no abrir PRs a medias que no se puedan mergear sin ese paso manual. Sí implementa (con "edits") todo lo que sea 100% código/config-en-repo y no dependa de nada externo por configurar.
 
 Formato de salida (JSON estricto):
@@ -139,7 +140,11 @@ if (plan && plan.skip === true) {
   const reason = plan.skip_reason === "paid" ? "es de pago" : "requiere configuración manual";
   const note = (plan.skip_note || "").toString().slice(0, 300);
   fs.writeFileSync("radar_skip.txt", `${reason}${note ? ": " + note : ""}`);
-  console.log(`PENDIENTE (no se implementa): ${reason}${note ? " — " + note : ""}`);
+  fs.writeFileSync("radar_skip_reason.txt", plan.skip_reason === "paid" ? "paid" : "manual");
+  // Paso a paso (solo manual): el workflow lo publica en el issue como checklist y marca el label `manual`.
+  const steps = Array.isArray(plan.steps) ? plan.steps.map((s) => String(s || "").trim()).filter(Boolean).slice(0, 12) : [];
+  fs.writeFileSync("radar_steps.json", JSON.stringify(steps));
+  console.log(`PENDIENTE (no se implementa): ${reason}${note ? " — " + note : ""}${steps.length ? ` — ${steps.length} pasos` : ""}`);
   process.exit(0);
 }
 if (!plan || !Array.isArray(plan.edits) || !plan.edits.length) { console.error("Gemini no devolvió un plan de ediciones usable."); process.exit(3); }

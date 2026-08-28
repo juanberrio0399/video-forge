@@ -53,9 +53,19 @@ jobs:
           # el issue abierto con un aviso, sin motor-fallo (no se puede/queremos mergear sin ese paso).
           if [ -f radar_skip.txt ]; then
             REASON=$(cat radar_skip.txt)
+            KIND=$(cat radar_skip_reason.txt 2>/dev/null || echo manual)
             echo "Pendiente (no se implementa): $REASON"
-            gh issue comment "$ISSUE" -R "$TARGET" --body "⏸️ Pendiente: este issue $REASON, así que el motor NO lo implementa (no se puede mergear sin ese paso). Queda abierto hasta configurarlo/decidirlo a mano." || true
             gh issue edit "$ISSUE" -R "$TARGET" --remove-label motor-fallo 2>/dev/null || true
+            if [ "$KIND" = "manual" ]; then
+              # Config manual del dueño: marca `manual` (el bot lo muestra en "🖐️ Requiere tu configuración",
+              # SIN botón de merge) y publica el PASO A PASO como checklist para que sepa qué hacer.
+              STEPS=$(node -e 'const fs=require("fs");try{const s=JSON.parse(fs.readFileSync("radar_steps.json","utf8"));if(Array.isArray(s)&&s.length)process.stdout.write(s.map(x=>"- [ ] "+x).join("\n"))}catch(e){}' 2>/dev/null)
+              gh label create manual -R "$TARGET" --color F2B234 --description "Requiere config manual del dueño (no se resuelve con PR)" 2>/dev/null || true
+              gh issue edit "$ISSUE" -R "$TARGET" --add-label manual 2>/dev/null || true
+              gh issue comment "$ISSUE" -R "$TARGET" --body "$(printf '## 🖐️ Requiere configuración manual mía\n\nEsto no se resuelve con un PR de código: %s. Pasos que debo hacer:\n\n%s\n\nCuando lo deje configurado, cierro este issue.' "$REASON" "${STEPS:-- [ ] (revisar el issue: falta detallar los pasos)}")" || true
+            else
+              gh issue comment "$ISSUE" -R "$TARGET" --body "⏸️ Pendiente: este issue $REASON, así que no se implementa. Queda abierto hasta decidirlo a mano." || true
+            fi
             exit 0
           fi
           [ ! -f radar_pr.json ] && { echo "El motor no produjo cambios (sin PR)."; gh issue comment "$ISSUE" -R "$TARGET" --body "⚠️ El motor no pudo generar cambios para este issue. Requiere implementación manual." || true; exit 1; }
