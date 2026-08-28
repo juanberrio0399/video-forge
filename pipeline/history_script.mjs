@@ -39,20 +39,21 @@ const topicLine = (process.env.TOPIC || "").trim()
 
 const PROMPT = `You are a master historian AND a viral YouTube Shorts scriptwriter. ${topicLine}
 
-Write a narration for a 45-55 second vertical Short, for a US/English audience.
+Write a narration for a TIGHT 25-35 second vertical Short, for a US/English audience. (Data 2026: Shorts over ~40s bleed retention; the algorithm sweet spot is 20-30s. Keep it lean and fast.)
 
 HARD RULES:
-- HOOK: the FIRST sentence (max ~10 words) must STOP the scroll — a shocking number, a dark twist, or a "what if" that opens a curiosity loop. NO slow intros, NO "Today we'll talk about". Start mid-action, with force.
-- VOICE: authoritative HISTORIAN with URGENCY — vivid, tense, cinematic, present-tense where it hits harder. Punchy, dramatic, high-energy — like a gripping documentary trailer, NOT a calm lecture. Every sentence escalates.
-- SENTENCES: short and driving (5-12 words each). Use hard cuts and momentum. Land 2-3 mini-cliffhangers before the payoff.
-- Build rising tension; end on a punch or a reflection that reframes everything.
-- Length: 120-150 words total.
+- HOOK: the FIRST sentence (max ~8 words) must STOP the scroll — a shocking number, a dark twist, or a "what if" that opens a curiosity loop. NO slow intros, NO "Today we'll talk about". Start mid-action, with force.
+- HOOK CARD: also give a "hook_card" — the hook compressed to **≤5 words, ALL CAPS-worthy, punchy** — it will be BURNED as big bold text on the very first frame so scrollers who watch WITHOUT sound (85% of them) get grabbed instantly. Make it a curiosity gap (e.g. "THE 75-DAY SIEGE", "1 MISTAKE, 200M DEAD", "THE LIE YOU BELIEVE").
+- VOICE: authoritative HISTORIAN with URGENCY — vivid, tense, cinematic, present-tense where it hits harder. Punchy, dramatic — like a gripping documentary trailer, NOT a calm lecture. Every sentence escalates.
+- SENTENCES: short and driving (5-11 words each). Hard cuts, momentum. Land 1-2 mini-cliffhangers before the payoff.
+- Build rising tension; end on a punch that reframes everything AND a 3-word call to linger/follow.
+- Length: 65-85 words total (that is ~25-35s spoken). Do NOT exceed 85 words.
 - 100% historically accurate. No invented quotes or fake stats.
 
-Then split the narration into 6 visual BEATS. For EACH beat give a CONCRETE search query in English of a REAL, ICONIC, SEARCHABLE subject that surely exists as a historical PHOTO on Wikimedia Commons — use proper nouns, places, people and years (e.g. "Berlin Wall 1989", "Brandenburg Gate November 1989", "Gunter Schabowski press conference", "East Germans crossing Berlin Wall", "Apollo 11 launch 1969", "1929 Wall Street crash crowd"). Each beat's query MUST be visually different from the others (different place/person/moment) so the images never repeat. Avoid abstractions.
+Then split the narration into 4-5 visual BEATS. For EACH beat give a CONCRETE search query in English of a REAL, ICONIC, SEARCHABLE subject that surely exists as a historical PHOTO on Wikimedia Commons — use proper nouns, places, people and years (e.g. "Berlin Wall 1989", "Brandenburg Gate November 1989", "Gunter Schabowski press conference", "East Germans crossing Berlin Wall", "Apollo 11 launch 1969", "1929 Wall Street crash crowd"). Each beat's query MUST be visually different from the others (different place/person/moment) so the images never repeat. Avoid abstractions.
 
 Return ONLY JSON:
-{"topic":"...","title":"<=70 char high-CTR English title (no clickbait lies)","hook":"the first line","narration":"the full narration text","beats":[{"text":"beat sentence","query":"archive footage search query"}],"hashtags":["#History", "..."],"vibe":"cinematic|tension|epic"}`;
+{"topic":"...","title":"<=70 char high-CTR English title (no clickbait lies)","hook":"the first line","hook_card":"<=5 words, punchy, for the opening on-screen text","narration":"the full narration text","beats":[{"text":"beat sentence","query":"archive footage search query"}],"hashtags":["#History", "..."],"vibe":"cinematic|tension|epic"}`;
 
 let out = null;
 const raw = await genText(PROMPT, { json: true });

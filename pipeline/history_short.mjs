@@ -235,18 +235,27 @@ Style: Kar,Liberation Sans,108,&H0022D3EE,&H00FFFFFF,&H00000000,&H96000000,-1,0,
 fs.writeFileSync("captions.ass", ass + `\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n${dia.join("\n")}\n`);
 console.log(`captions.ass: ${dia.length} lineas`);
 
-// Mezcla final: fondo + subtitulos quemados + narracion + musica con ducking (asplit: la voz no se puede reusar).
+// GANCHO VISUAL: texto grande en los primeros ~2.8s (85% ve SIN sonido -> el hook debe LEERSE al instante).
+const hookCard = String(script.hook_card || (script.hook || script.title || "").split(/\s+/).slice(0, 5).join(" ") || "HISTORY").toUpperCase().replace(/[\r\n]+/g, " ").slice(0, 42);
+fs.writeFileSync("hookcard.txt", hookCard);
+const HOOKFONT = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"].find((p) => fs.existsSync(p)) || "";
+const hookVf = HOOKFONT
+  ? `,drawtext=textfile='hookcard.txt':fontfile='${HOOKFONT}':fontcolor=white:fontsize=100:borderw=9:bordercolor=black@0.9:shadowcolor=black@0.55:shadowx=4:shadowy=4:x=(w-text_w)/2:y=(h*0.26):text_align=C:line_spacing=10:enable='lt(t\\,2.8)':alpha='if(lt(t\\,0.35)\\,t/0.35\\,if(lt(t\\,2.3)\\,1\\,max(0\\,(2.8-t)/0.5)))'`
+  : "";
+console.log(`Hook card: "${hookCard}"${HOOKFONT ? "" : " (⚠️ sin fuente, sin overlay)"}`);
+
+// Mezcla final: fondo + hook + subtitulos quemados + narracion + musica con ducking (asplit: la voz no se puede reusar).
 const hasMusic = fs.existsSync("music.mp3");
 if (hasMusic) {
   execSync(`ffmpeg -y -i "${bg}" -i "${narrPath}" -stream_loop -1 -i music.mp3 ` +
-    `-filter_complex "[0:v]subtitles=captions.ass[v];` +
+    `-filter_complex "[0:v]subtitles=captions.ass${hookVf}[v];` +
     `[2:a]volume=0.28,afade=t=in:st=0:d=0.8[mus];` +
     `[1:a]loudnorm=I=-14:TP=-1.5,asplit=2[nar1][nar2];` +
     `[mus][nar1]sidechaincompress=threshold=0.03:ratio=9:attack=12:release=280[mduck];` +
     `[nar2][mduck]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]" ` +
     `-map "[v]" -map "[a]" -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest -movflags +faststart "${outPath}"`, { stdio: "inherit" });
 } else {
-  execSync(`ffmpeg -y -i "${bg}" -i "${narrPath}" -filter_complex "[0:v]subtitles=captions.ass[v];[1:a]loudnorm=I=-14:TP=-1.5[a]" -map "[v]" -map "[a]" -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest -movflags +faststart "${outPath}"`, { stdio: "inherit" });
+  execSync(`ffmpeg -y -i "${bg}" -i "${narrPath}" -filter_complex "[0:v]subtitles=captions.ass${hookVf}[v];[1:a]loudnorm=I=-14:TP=-1.5[a]" -map "[v]" -map "[a]" -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest -movflags +faststart "${outPath}"`, { stdio: "inherit" });
 }
 
 // Paquete SEO + manifiesto de compliance (footage con licencia/atribucion).
