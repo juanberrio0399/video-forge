@@ -33,6 +33,7 @@ async function wikimediaImage(query) {
     .map((x) => ({ ...x, lic: imgLicense(x.ii.extmetadata) }))
     .filter((x) => x.lic && !usedImg.has(x.t))
     .filter((x) => !/portable antiquities|scale bar|\bruler\b|specimen|catalogue|\bobverse\b|\breverse\b|\blogo\b|diagram|infographic|\bicon\b|screenshot/i.test(x.t))
+    .filter((x) => !/\barmy\b|\bmilitary\b|soldier|obstacle course|competition|\bsquad\b|\bnato\b|aircraft|helicopter|warship|missile|astronaut|spacecraft|\b20[0-2]\d\b|\b199\d\b/i.test(x.t))
     .filter((x) => { if (!want.length) return true; const tw = kw(x.t); return want.some((w) => tw.includes(w)); })
     .sort((a, b) => (b.ii.width || 0) - (a.ii.width || 0))[0];
   if (!pick) return null;
@@ -71,8 +72,8 @@ for (let i = 0; i < facts.length; i++) await grabImg(facts[i].query, `f${i}`);
 // FALLBACK: DATA SHOCK VIVE de la imagen icónica. Si Wikimedia devolvió poco, busca por tema/título/etiquetas
 // (y términos de época) hasta tener al menos 2 imágenes, para no quedar en gradiente pelado.
 if (imgPaths.length < 2) {
-  const extra = [script.topic, script.title, ...(facts.map((f) => f.label))]
-    .concat([`${script.topic} historical painting`, `${script.topic} history photograph`, `${script.topic} historical engraving`])
+  // Solo consultas basadas en el TEMA (las etiquetas sueltas traían basura: "conquer Europe" -> "Obstacle Course").
+  const extra = [`${script.topic} historical painting`, `${script.topic} history engraving`, `${script.topic} historical photograph`, `${script.topic} medieval art`, script.topic]
     .filter(Boolean);
   for (const q of extra) { if (imgPaths.length >= 3) break; await grabImg(q, "x"); }
 }
