@@ -244,7 +244,7 @@ const HOOKFONT = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/
 // Tamaño adaptativo para que NUNCA se salga del cuadro (1080px con margen). ~0.6*fontsize por char en bold.
 const hookFs = Math.max(42, Math.min(80, Math.round(900 / Math.max(7, hookCard.length) / 0.66)));
 const hookVf = HOOKFONT
-  ? `,drawtext=textfile='hookcard.txt':fontfile='${HOOKFONT}':fontcolor=white:fontsize=${hookFs}:borderw=9:bordercolor=black@0.9:shadowcolor=black@0.55:shadowx=4:shadowy=4:x=(w-text_w)/2:y=(h*0.26):text_align=C:line_spacing=10:enable='lt(t\\,2.8)':alpha='if(lt(t\\,0.35)\\,t/0.35\\,if(lt(t\\,2.3)\\,1\\,max(0\\,(2.8-t)/0.5)))'`
+  ? `,drawtext=textfile='hookcard.txt':fontfile='${HOOKFONT}':expansion=none:fontcolor=white:fontsize=${hookFs}:borderw=9:bordercolor=black@0.9:shadowcolor=black@0.55:shadowx=4:shadowy=4:x=(w-text_w)/2:y=(h*0.26):text_align=C:line_spacing=10:enable='lt(t\\,2.8)':alpha='if(lt(t\\,0.35)\\,t/0.35\\,if(lt(t\\,2.3)\\,1\\,max(0\\,(2.8-t)/0.5)))'`
   : "";
 console.log(`Hook card: "${hookCard}"${HOOKFONT ? "" : " (⚠️ sin fuente, sin overlay)"}`);
 
