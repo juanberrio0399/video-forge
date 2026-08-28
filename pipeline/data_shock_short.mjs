@@ -18,7 +18,7 @@ const stripHtml = (s) => String(s || "").replace(/<[^>]+>/g, "").replace(/\s+/g,
 function imgLicense(ex) {
   const s = ((ex?.LicenseShortName?.value || "") + " " + (ex?.License?.value || "") + " " + (ex?.UsageTerms?.value || "")).toLowerCase();
   if (/public domain|pd-|cc0/.test(s)) return "public-domain";
-  if (/cc[ -]by[ -]sa/.test(s)) return null;
+  if (/cc[ -]by[ -]sa/.test(s)) return "cc-by-sa"; // se acepta con atribución (crédito en la descripción) -> amplía mucho el pool
   if (/cc[ -]by/.test(s)) return "cc-by";
   return null;
 }
@@ -57,9 +57,24 @@ const total = +(facts.length * PER).toFixed(2);
 
 // 1) Reunir TODAS las imágenes que existan (los números abstractos no tienen foto propia -> se usan de fondo).
 const imgPaths = [];
-for (let i = 0; i < facts.length; i++) {
-  let img = null; try { img = await wikimediaImage(facts[i].query); } catch {}
-  if (img) { try { const buf = Buffer.from(await (await tf(img.url)).arrayBuffer()); const p = `${work}/img${i}.jpg`; fs.writeFileSync(p, buf); imgPaths.push(p); credits.push(`${img.title} — ${img.artist} · ${img.page} · ${img.lic.toUpperCase()}`); console.log(`  IMG "${img.title}"`); } catch {} }
+async function grabImg(query, tag) {
+  let img = null; try { img = await wikimediaImage(query); } catch {}
+  if (!img) return false;
+  try {
+    const buf = Buffer.from(await (await tf(img.url)).arrayBuffer());
+    const p = `${work}/img${imgPaths.length}${tag}.jpg`; fs.writeFileSync(p, buf);
+    imgPaths.push(p); credits.push(`${img.title} — ${img.artist} · ${img.page} · ${img.lic.toUpperCase()}`);
+    console.log(`  IMG "${img.title}"`); return true;
+  } catch { return false; }
+}
+for (let i = 0; i < facts.length; i++) await grabImg(facts[i].query, `f${i}`);
+// FALLBACK: DATA SHOCK VIVE de la imagen icónica. Si Wikimedia devolvió poco, busca por tema/título/etiquetas
+// (y términos de época) hasta tener al menos 2 imágenes, para no quedar en gradiente pelado.
+if (imgPaths.length < 2) {
+  const extra = [script.topic, script.title, ...(facts.map((f) => f.label))]
+    .concat([`${script.topic} historical painting`, `${script.topic} history photograph`, `${script.topic} historical engraving`])
+    .filter(Boolean);
+  for (const q of extra) { if (imgPaths.length >= 3) break; await grabImg(q, "x"); }
 }
 console.log(`imágenes: ${imgPaths.length}/${facts.length}`);
 
