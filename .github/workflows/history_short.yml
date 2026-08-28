@@ -94,6 +94,20 @@ jobs:
       - name: Ensamblar el Short (footage + narracion + karaoke + musica)
         run: node pipeline/history_short.mjs script.json narration.mp3 short.mp4
 
+      - name: Frames de validacion (incluye el hook card ~0.8s)
+        if: ${{ hashFiles('short.mp4') != '' }}
+        run: |
+          mkdir -p frames
+          for t in 0.8 1.6 6 16 28; do ffmpeg -y -ss $t -i short.mp4 -frames:v 1 -q:v 3 "frames/t${t}.jpg" 2>/dev/null || true; done
+          ls -1 frames || true
+      - name: Subir frames (artefacto)
+        if: ${{ hashFiles('frames/*.jpg') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: history-frames-${{ strategy.job-index }}
+          path: frames/
+          retention-days: 3
+
       - name: Preparar titulo + descripcion
         run: |
           node -e 'const p=require("./publish/package.json");const fs=require("fs");fs.writeFileSync("title.txt",p.title);fs.writeFileSync("description.txt",p.description)'
