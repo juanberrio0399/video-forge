@@ -69,7 +69,7 @@ Cada canal maneja sus estados, procesos, producción, agendado y credenciales **
 
 ## Licencia
 
-Licencia: Apache-2.0 — © 2026 Juan Berrio. Ver LICENSE y NOTICE.
+Licencia: Apache-2.0 — © 2025 Juan Berrio. Ver LICENSE y NOTICE.
 
 ## Descubribilidad y Social Preview
 
