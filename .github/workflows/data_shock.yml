@@ -27,7 +27,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        slot: [a, b]   # 2/día (agresivo)
+        slot: [a, b, c]   # 3/día (único formato del canal ahora; junta datos más rápido)
     env:
       CI: "true"
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
