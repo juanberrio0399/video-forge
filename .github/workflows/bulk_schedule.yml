@@ -1,0 +1,52 @@
+name: Programar lote (The Data Lens)
+
+# Programa (auto-publica a mejor hora) una lista de video_ids que ya estan PRIVADOS en el canal.
+# Reusa scheduled_times -> best_slot -> youtube_schedule (mismo patron que la produccion).
+on:
+  workflow_dispatch:
+    inputs:
+      ids:
+        description: "video_ids separados por coma"
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  sched:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      IDS: ${{ github.event.inputs.ids }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Programar cada video a su mejor hora libre (escalonado)
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/best_hours.json" --file=best_hours.json --remote 2>/dev/null || echo '{}' > best_hours.json
+          OCC=$(node pipeline/scheduled_times.mjs)
+          N=0
+          for VID in $(echo "$IDS" | tr ', ' '\n\n' | grep -v '^$'); do
+            SLOT=$(node pipeline/best_slot.mjs "$OCC")
+            rm -f schedule_result.txt
+            node pipeline/youtube_schedule.mjs "$VID" "$SLOT" || true
+            if grep -q "PROGRAMADO" schedule_result.txt 2>/dev/null; then
+              echo "OK $VID -> $SLOT"; OCC="$OCC,$SLOT"; N=$((N+1))
+            else
+              echo "skip $VID (ya publico o error)"
+            fi
+          done
+          echo "programados: $N"
+          bash pipeline/notify_telegram.sh "📅 Lote DATA SHOCK: programé $N videos de The Data Lens a sus mejores horas (escalonados, tope 2/hora). Se publican solos." || true
