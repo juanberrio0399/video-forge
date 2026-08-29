@@ -72,8 +72,18 @@ jobs:
           retention-days: 3
       - name: Preparar título + descripción
         run: node -e 'const p=require("./publish/package.json");const fs=require("fs");fs.writeFileSync("title.txt",p.title);fs.writeFileSync("description.txt",p.description)'
-      - name: Subir a YouTube (privado, The Data Lens)
+      - name: Subir a YouTube (The Data Lens)
         run: node pipeline/short_publish.mjs short.mp4 title.txt description.txt
+      - name: Auto-programar a la mejor hora (se publica solo, sin aprobar)
+        if: ${{ hashFiles('short_id.txt') != '' }}
+        run: |
+          VID=$(cat short_id.txt)
+          # best_hours del canal si hay datos; si no, best_slot usa horas de research
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/best_hours.json" --file=best_hours.json --remote 2>/dev/null || echo '{}' > best_hours.json
+          OCC=$(node pipeline/scheduled_times.mjs)
+          SLOT=$(node pipeline/best_slot.mjs "$OCC")
+          echo "$SLOT" > schedule_slot.txt
+          node pipeline/youtube_schedule.mjs "$VID" "$SLOT" || true
       - name: Registrar categoría "data_shock" (mapa en R2)
         if: ${{ hashFiles('short_id.txt') != '' }}
         run: |
@@ -90,4 +100,4 @@ jobs:
       - name: Avisar
         if: always()
         run: |
-          if [ -f short_id.txt ]; then bash pipeline/notify_telegram.sh "📊 DATA SHOCK (visual) listo en The Data Lens: $(cat title.txt 2>/dev/null)"$'\n'"▶️ https://youtu.be/$(cat short_id.txt)"; fi
+          if [ -f short_id.txt ]; then bash pipeline/notify_telegram.sh "📊 DATA SHOCK PROGRAMADO en The Data Lens (se publica solo $(cat schedule_slot.txt 2>/dev/null) UTC): $(cat title.txt 2>/dev/null)"$'\n'"▶️ https://youtu.be/$(cat short_id.txt)"; fi

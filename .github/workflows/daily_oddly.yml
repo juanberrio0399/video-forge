@@ -68,10 +68,11 @@ jobs:
           # eso tumbaría el step DESPUÉS de haber disparado todo. `|| true` conserva el "0" sin fallar.
           N=$(grep -c . plan.txt || true); SH=$(grep -c " short$" plan.txt || true); LO=$(grep -c " video$" plan.txt || true)
           bash pipeline/notify_telegram.sh "🚀 Oddly Loop — blitz del día: lancé ${N} piezas (${SH} Shorts + ${LO} largo), en las 4 categorías. Cada una se programa a su mejor hora libre (tope 2/hora)." || true
-      - name: Clips graciosos del día (Archive.org CC, rotación de fails) → PRIVADOS
+      - name: Clips graciosos del día (Archive.org CC, rotación de fails) → AUTO-PROGRAMADOS
         if: always()   # independiente del blitz de arriba: no lo saltes si aquel tropieza
         run: |
-          # Rotación de temas de fails/graciosos por día del año. Van PRIVADOS para que Juan apruebe en la app.
+          # Rotación de temas de fails/graciosos por día del año. Auto-programados (publish=yes): pasan la
+          # PUERTA de compliance y se agendan solos a la mejor hora. Juan despublica cualquiera que no le guste.
           TOPICS=("funny fails" "epic fail" "funny animals" "bloopers" "skate fails" "funny cats" "funny dogs" "gaming fails" "sports fails" "funny moments" "animal fails" "fail compilation")
           DOY=$(date -u +%j); NT=${#TOPICS[@]}
           T1="${TOPICS[$((10#$DOY % NT))]}"
@@ -79,7 +80,7 @@ jobs:
           T3="${TOPICS[$(((10#$DOY + 8) % NT))]}"
           for T in "$T1" "$T2" "$T3"; do
             echo "▶ Clip gracioso (Archive CC): $T"
-            gh workflow run clip_archive_cc.yml -f topic="$T" -f niche="graciosos" -f publish=no -R "$GITHUB_REPOSITORY" || echo "no pude disparar $T"
+            gh workflow run clip_archive_cc.yml -f topic="$T" -f niche="graciosos" -f publish=yes -R "$GITHUB_REPOSITORY" || echo "no pude disparar $T"
             sleep 60
           done
-          bash pipeline/notify_telegram.sh "😹 Oddly Loop — 3 clips graciosos del día (Archive CC): «$T1», «$T2» y «$T3» → PRIVADOS para revisar y aprobar en la app." || true
+          bash pipeline/notify_telegram.sh "😹 Oddly Loop — 3 clips graciosos del día (Archive CC): «$T1», «$T2» y «$T3» → AUTO-PROGRAMADOS (se publican solos; despublica los que no te gusten)." || true
