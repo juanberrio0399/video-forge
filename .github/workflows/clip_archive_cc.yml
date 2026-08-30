@@ -42,7 +42,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
       TOPIC: ${{ github.event.inputs.topic || 'funny animals' }}
       NICHE: ${{ github.event.inputs.niche || 'graciosos' }}
-      PUBLISH: ${{ github.event.inputs.publish || 'no' }}
+      PUBLISH: ${{ github.event.inputs.publish || 'yes' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
