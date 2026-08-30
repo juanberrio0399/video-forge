@@ -68,10 +68,11 @@ for (const th of threads) {
   const text = clean(sn.textOriginal);
   if (!text || text.length < 2) { replied.add(cid); continue; }
   if (looksSpam(text)) { replied.add(cid); continue; }   // no responder spam/links
+  if (!/[aeiouáéíóú]/i.test(text)) { replied.add(cid); continue; }   // gibberish sin vocales (ej. "gjghjfhtv")
 
-  const prompt = `Eres el CREADOR de un canal de YouTube respondiendo un comentario. Responde MUY natural y humano, CORTO (una sola frase, máximo ~12 palabras), casual y genuino, en el MISMO idioma del comentario. Sin hashtags; máximo 1 emoji y solo si encaja de verdad. Si el comentario es negativo o troll, responde con ligereza y sin discutir, o simplemente agradece. Nunca prometas nada ni inventes datos. Devuelve SOLO el texto de la respuesta.
+  const prompt = `You are the CREATOR of a YouTube channel replying to a comment. Reply in a VERY natural, human, SHORT way: ONE sentence, max ~12 words, casual and genuine. Reply in the SAME LANGUAGE as the comment — DEFAULT TO ENGLISH (this is an English channel). No hashtags; at most 1 emoji, only if it truly fits. If the comment is negative or trolling, reply lightly without arguing, or just thank them. Never promise anything or make up facts. Return ONLY the reply text, nothing else.
 
-Comentario: "${text.slice(0, 400)}"`;
+Comment: "${text.slice(0, 400)}"`;
   let ans = "";
   try { ans = clean(await genText(prompt, { json: false })); } catch (e) { console.error("LLM:", e.message); continue; }
   ans = ans.replace(/^["'\s]+|["'\s]+$/g, "").slice(0, 180);
