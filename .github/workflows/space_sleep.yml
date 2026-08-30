@@ -62,8 +62,17 @@ jobs:
       - name: Ensamblar el video (NASA + Ken Burns + ambiente + título)
         run: node pipeline/space_sleep_video.mjs script.json narration.mp3 sleep.mp4
 
-      - name: Subir a YouTube (PRIVADO, Oddly Loop)
+      - name: Subir a YouTube (Oddly Loop)
         run: node pipeline/youtube_upload.mjs sleep.mp4 publish/package.json
+
+      - name: Auto-programar a la mejor hora (se publica solo, sin aprobar)
+        if: ${{ hashFiles('publish/video_id.txt') != '' }}
+        run: |
+          VID=$(cat publish/video_id.txt)
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/best_hours.json" --file=best_hours.json --remote 2>/dev/null || echo '{}' > best_hours.json
+          OCC=$(node pipeline/scheduled_times.mjs)
+          SLOT=$(node pipeline/best_slot.mjs "$OCC")
+          node pipeline/youtube_schedule.mjs "$VID" "$SLOT" || true
 
       - name: Registrar tema usado + refrescar app
         if: ${{ hashFiles('publish/video_id.txt') != '' }}
@@ -85,7 +94,7 @@ jobs:
           if [ -f publish/video_id.txt ]; then
             VID=$(cat publish/video_id.txt)
             TITLE=$(node -e 'try{process.stdout.write(require("./publish/package.json").title)}catch(e){process.stdout.write("Space Facts to Fall Asleep To")}')
-            bash pipeline/notify_telegram.sh "🌌 Video de SUEÑO listo (privado, Oddly): ${TITLE}"$'\n'"▶️ https://youtu.be/${VID}"$'\n\n'"👉 Revísalo y publícalo desde la app (Oddly)."
+            bash pipeline/notify_telegram.sh "🌌 Video de SUEÑO auto-programado (Oddly, se publica solo): ${TITLE}"$'\n'"▶️ https://youtu.be/${VID}"
           else
             bash pipeline/notify_telegram.sh "❌ El video de sueño (Oddly) falló al generar/subir. Revisa el log de Actions."
           fi
