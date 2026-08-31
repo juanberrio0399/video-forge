@@ -572,7 +572,7 @@ export const APP_HTML = `<!doctype html>
     // PRIVADOS por revisar: The Data Lens sube en privado (para que Juan revise). Aquí salen con
     // acciones Programar/Publicar (igual que Oddly), así la agenda NO queda en blanco.
     var all=ST.all_videos||[]; var sid={}; (ST.scheduled||[]).forEach(function(s){sid[s.video_id]=1;});
-    var pend=all.filter(function(v){ if(!v.video_id||v.privacy==="public")return false; var loc=localSched[v.video_id]; if(loc==="schedule"||loc==="public")return false; return !sid[v.video_id]; });
+    var pend=all.filter(function(v){ if(!v.video_id||v.privacy==="public")return false; if(v.publish_at)return false; var loc=localSched[v.video_id]; if(loc==="schedule"||loc==="public")return false; return !sid[v.video_id]; });
     if(!pend.length) return "";
     var rows=pend.slice(0,20).map(function(v){
       return '<div style="border-top:1px solid rgba(255,255,255,.06);padding:8px 0">'
@@ -706,8 +706,8 @@ export const APP_HTML = `<!doctype html>
     var list=(ST.auto2&&ST.auto2.list)||[];
     if(!list.length) return '<h2>Videos de Oddly Loop</h2><div class="card muted" style="font-size:12px">Aún sin videos. Produce una compilación arriba 👆</div>';
     // Lo YA HECHO (público o programado) queda OCULTO; solo mostramos lo que falta REVISAR.
-    var now2=new Date();
-    list=list.filter(function(v){ var pv=v.privacy==="public"; var loc=localSched[v.video_id]; var future=v.publish_at&&(new Date(v.publish_at)>now2); return !pv && !future && loc!=="schedule" && loc!=="public" && !v.pending_sched; });
+    // "programado" = tiene publish_at (pasado o futuro): ya se agendó, no está por revisar aunque su hora ya pasó.
+    list=list.filter(function(v){ var pv=v.privacy==="public"; var loc=localSched[v.video_id]; return !pv && !v.publish_at && loc!=="schedule" && loc!=="public" && !v.pending_sched; });
     if(!list.length) return '<h2>Videos de Oddly Loop</h2><div class="card muted" style="font-size:12px">✅ Todo al día. Lo público y lo programado está hecho (lo ves en 📅 Agenda). Cuando produzcas uno nuevo, aparece aquí para revisar.</div>';
     return '<h2>Por revisar ('+list.length+')</h2>'+list.map(function(v){
       var pv=v.privacy==="public";

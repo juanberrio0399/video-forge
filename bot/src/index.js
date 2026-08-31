@@ -331,8 +331,8 @@ async function handleApi(request, env, url) {
     state.shorts_public = (inv.shorts || []).filter((s) => s.privacy === "public").length;
     // Lista compacta de TODOS los videos (largos + shorts) con tipo, vistas y duracion.
     state.all_videos = [
-      ...(inv.longs || []).map((v) => ({ type: "long", video_id: v.video_id, title: v.title, privacy: v.privacy, views: v.views, seconds: v.seconds, watch_min: v.watch_min || 0, avg_sec: v.avg_sec || 0 })),
-      ...(inv.shorts || []).map((v) => ({ type: "short", video_id: v.video_id, title: v.title, privacy: v.privacy, views: v.views, seconds: v.seconds, watch_min: v.watch_min || 0, avg_sec: v.avg_sec || 0 })),
+      ...(inv.longs || []).map((v) => ({ type: "long", video_id: v.video_id, title: v.title, privacy: v.privacy, publish_at: v.publish_at || null, views: v.views, seconds: v.seconds, watch_min: v.watch_min || 0, avg_sec: v.avg_sec || 0 })),
+      ...(inv.shorts || []).map((v) => ({ type: "short", video_id: v.video_id, title: v.title, privacy: v.privacy, publish_at: v.publish_at || null, views: v.views, seconds: v.seconds, watch_min: v.watch_min || 0, avg_sec: v.avg_sec || 0 })),
     ];
     state.analytics_ok = !!inv.analytics_ok;
     state.analytics = inv.analytics || null;
@@ -451,11 +451,11 @@ async function handleApi(request, env, url) {
     // Data Lens usa su inventario (hidden ya filtrado); Oddly usa su list. Los "🕒 Programando…"
     // (pending_sched) NO cuentan como por-revisar: ya están en marcha.
     {
-      const nowP = Date.now();
-      const isFut = (pa) => pa && Date.parse(pa) > nowP;
-      const dlPend = invAll.filter((v) => v.privacy !== "public" && !isFut(v.publish_at)).length;
+      // "por aprobar" = privado y SIN publish_at (no programado). Si tiene publish_at (pasado o futuro)
+      // ya fue programado -> no cuenta (aunque su hora ya pasó y el reporte esté un poco viejo).
+      const dlPend = invAll.filter((v) => v.privacy !== "public" && !v.publish_at).length;
       const odPend = (state.auto2 && Array.isArray(state.auto2.list))
-        ? state.auto2.list.filter((v) => v.privacy !== "public" && !isFut(v.publish_at) && !v.pending_sched).length : 0;
+        ? state.auto2.list.filter((v) => v.privacy !== "public" && !v.publish_at && !v.pending_sched).length : 0;
       state.pending_approve = { data_lens: dlPend, oddly: odPend, total: dlPend + odPend };
     }
     // META DE MONETIZACION (YPP) con medicion diaria del ritmo — cada canal su meta.
@@ -487,7 +487,7 @@ async function handleApi(request, env, url) {
       const st = (vledger[v.video_id] || {}).stages || {};
       // La miniatura ya viene resuelta en el inventario cacheado (evita 1 R2.head por video en CADA request).
       const thumbUrl = v.thumb_url || null;
-      const scheduled = !!(v.publish_at && Date.parse(v.publish_at) > Date.now());
+      const scheduled = !!v.publish_at; // tiene hora de publicación = ya programado (no "por revisar")
       return {
         video_id: v.video_id, title: v.title, public: v.privacy === "public", scheduled, publish_at: v.publish_at || null,
         views: v.views, watch_min: v.watch_min || 0, manual: manualSet.has(v.video_id), niche_label: dlLabel(v.title),
