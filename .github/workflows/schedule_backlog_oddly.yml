@@ -3,6 +3,8 @@ name: Programar backlog de Oddly (privados -> mejor hora)
 # Descubre los videos PRIVADOS sin programar de Oddly (YT2) y los agenda a la mejor hora libre.
 # One-shot: se dispara a mano cuando hay que limpiar el backlog.
 on:
+  schedule:
+    - cron: "41 */6 * * *"   # auto-sana cada 6h: si a un video le falló la programación, lo agenda solo
   workflow_dispatch: {}
 
 permissions:
