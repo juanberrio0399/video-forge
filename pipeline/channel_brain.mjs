@@ -106,6 +106,21 @@ const lines = [
 ];
 if (restructure) lines.push("", "⚠️ ACCION: The Data Lens necesita REESTRUCTURA. Dile a Claude: «reestructura Data Lens con direcciones nuevas».");
 
+// REGLA DURA: la fecha NO se mueve. Si un canal va atrás, se ESCALA la agresividad (no se alarga el plazo).
+// El ritmo/día necesario ya sube solo cada día que pasa (need / daysLeft con deadline fijo).
+lines.push("", "🎯 Meta fin-2026 FIJA — no se alarga. Si un canal va atrás, se ESCALA (sí o sí): Oddly = más volumen del ganador; Data Lens = reestructurar el formato. El ritmo/día necesario sube solo con cada día que pasa.");
+// Señal para el optimizador: cuánta agresividad de volumen empujar en Oddly (a mayor brecha vs meta, más).
+const odSubsPerDay = +(Math.max(0, 1000 - odSubs) / daysLeft).toFixed(2);
+const odViewsPerDay = Math.ceil(Math.max(0, 10000000 - odViews) / daysLeft);
+const odGap = odSubs >= 1000 && odViews >= 10000000 ? 0 : 1;   // aún no elegible -> empujar
+const aggressiveness = {
+  at: new Date().toISOString(), deadline: "2026-12-31", deadline_fixed: true, days_left: daysLeft,
+  oddly: { behind: !!odGap, subs: odSubs, subs_per_day_needed: odSubsPerDay, views_per_day_needed: odViewsPerDay,
+           cadence_total: odGap ? 12 : 8 },   // atrás -> 12/día (más volumen del ganador); elegible -> 8 normal
+  data_lens: { behind: dlSubs < 1000, note: restructure ? "reestructurar formato (el volumen no arregla 0 vistas)" : "medir" },
+};
+fs.writeFileSync("aggressiveness.json", JSON.stringify(aggressiveness, null, 2));
+
 fs.writeFileSync("brain.txt", lines.join("\n"));
 fs.writeFileSync("brain.json", JSON.stringify({
   at: new Date().toISOString(),

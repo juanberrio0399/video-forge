@@ -35,6 +35,7 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/state.json" --file=state.json --remote 2>/dev/null || echo '{}' > state.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/cadence.json" --file=cadence.json --remote 2>/dev/null || cp channel/auto2/cadence.seed.json cadence.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/experiments_niche.json" --file=exp.json --remote 2>/dev/null || cp channel/auto2/experiments_niche.json exp.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/aggressiveness.json" --file=aggressiveness.json --remote 2>/dev/null || echo '{}' > aggressiveness.json
 
       - name: Recalcular la cadencia (auto-optimizador)
         run: node pipeline/rebalance_oddly.mjs

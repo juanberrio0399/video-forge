@@ -43,7 +43,9 @@ jobs:
         run: node pipeline/channel_brain.mjs
 
       - name: Guardar el diagnostico en R2 (para la ventana principal del bot)
-        run: npx --yes wrangler@4 r2 object put "$BUCKET/channel/brain.json" --file=brain.json --content-type application/json --remote
+        run: |
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/brain.json" --file=brain.json --content-type application/json --remote
+          [ -f aggressiveness.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/brain/aggressiveness.json" --file=aggressiveness.json --content-type application/json --remote || true
 
       - name: Enviar el pulso a Telegram
         run: bash pipeline/notify_telegram.sh "$(cat brain.txt)"

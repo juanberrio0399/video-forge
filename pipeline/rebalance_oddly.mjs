@@ -35,7 +35,11 @@ for (const r of (state.niche_ranking || [])) {
 }
 const vpdOf = (k) => (rank[k] ? rank[k].vpd : 0);
 
-const TOTAL = Object.values(cad.shorts_per_category || {}).reduce((a, b) => a + (+b || 0), 0) || 8;
+// AGRESIVIDAD del Cerebro: la meta (fin-2026) es FIJA. Si Oddly va atrás, se ESCALA el volumen
+// (no se alarga el plazo) -> usa la cadencia agresiva que manda el Cerebro (aggressiveness.json).
+const aggr = rj("aggressiveness.json", {});
+const aggrTotal = aggr && aggr.oddly && aggr.oddly.behind ? +aggr.oddly.cadence_total : 0;
+const TOTAL = aggrTotal || Object.values(cad.shorts_per_category || {}).reduce((a, b) => a + (+b || 0), 0) || 8;
 const promoted = new Set(exp.promoted || []);
 const done = exp.done || [];
 let active = exp.active || null;   // { key, label, variant }
