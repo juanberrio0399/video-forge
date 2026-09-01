@@ -459,8 +459,9 @@ async function handleApi(request, env, url) {
       state.pending_approve = { data_lens: dlPend, oddly: odPend, total: dlPend + odPend };
     }
     // META DE MONETIZACION (YPP) con medicion diaria del ritmo — cada canal su meta.
-    try { state.monet_goal = await monetTrack(env, "data-lens", { subs: inv.subs || 0, watch_hours: ((state.totals && state.totals.watch_min) || 0) / 60 }); } catch {}
-    if (state.auto2) { try { state.auto2.monet_goal = await monetTrack(env, "auto2", { subs: state.auto2.subs || 0, shorts_views: state.auto2.total_views || 0 }); } catch {} }
+    const dlLikes = invAll.reduce((s, v) => s + (v.likes || 0), 0);
+    try { state.monet_goal = await monetTrack(env, "data-lens", { subs: inv.subs || 0, watch_hours: ((state.totals && state.totals.watch_min) || 0) / 60, views: inv.total_views || 0, likes: dlLikes }); } catch {}
+    if (state.auto2) { const odLikes = (state.auto2.list || []).reduce((s, v) => s + (v.likes || 0), 0); try { state.auto2.monet_goal = await monetTrack(env, "auto2", { subs: state.auto2.subs || 0, shorts_views: state.auto2.total_views || 0, likes: odLikes }); } catch {} }
     // ARBOL de Videos: cada LARGO con sus SHORTS anidados debajo (pestaña Videos, como la pidio Juan).
     // Mapeo short->padre: ledger persistente (channel/shorts_map.json) + el plan actual (for_video_id).
     const shortsMap = (await r2json(env, "channel/shorts_map.json")) || {};
@@ -1019,13 +1020,16 @@ const dlLabel = (title) => DL_LABEL[dlNiche(title)];
 // Cada canal su meta segun su enfoque. Editable aqui. El ritmo se mide con los ultimos 7 dias
 // de snapshots (channel/…/monetization_history.json) para saber si vamos en camino o atras.
 const MONET_GOALS = {
-  "data-lens": { path: "longform", deadline: "2027-02-17", targets: [
+  "data-lens": { path: "longform", deadline: "2026-12-31", targets: [
     { key: "subs", label: "Suscriptores", target: 1000 },
     { key: "watch_hours", label: "Horas vistas", target: 4000 },
+    { key: "views", label: "Vistas", target: 200000 },
+    { key: "likes", label: "Likes", target: 3000 },
   ] },
-  "auto2": { path: "shorts", deadline: "2026-11-15", targets: [
+  "auto2": { path: "shorts", deadline: "2026-12-31", targets: [
     { key: "subs", label: "Suscriptores", target: 1000 },
     { key: "shorts_views", label: "Vistas de Shorts", target: 10000000 },
+    { key: "likes", label: "Likes", target: 100000 },
   ] },
 };
 async function monetTrack(env, chKey, current) {
