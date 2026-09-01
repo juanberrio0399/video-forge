@@ -123,6 +123,9 @@ export const APP_HTML = `<!doctype html>
   if (tg) { tg.ready(); tg.expand(); }
   var INIT = tg ? tg.initData : "";
   var ST = {};
+  // MODO MONITOR: todo es automático (el Cerebro produce/programa/publica solo). La app NO muestra
+  // botones de producir/aprobar/publicar/programar; queda como tablero. Se conserva "Mis Clips" (subir manual).
+  var MONITOR = true;
   // Navegacion NATIVA de Telegram: haptics, boton Atras y color del header segun el tema.
   function h(t){ try{ var H=tg&&tg.HapticFeedback; if(!H)return; if(t==="sel")H.selectionChanged(); else if(t==="ok")H.notificationOccurred("success"); else if(t==="err")H.notificationOccurred("error"); else H.impactOccurred(t||"light"); }catch(e){} }
   try{ tg&&tg.setHeaderColor&&tg.setHeaderColor("bg_color"); }catch(e){}
@@ -1029,9 +1032,10 @@ export const APP_HTML = `<!doctype html>
       var privA=((ST.auto2&&ST.auto2.list)||[]).filter(function(v){ var future=v.publish_at&&(new Date(v.publish_at)>nowR); var loc=localSched[v.video_id]; return v.privacy!=="public" && !future && loc!=="schedule" && loc!=="public" && !v.pending_sched; }).length;
       var pendA=privA?('<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px">👀 '+privA+' video(s) por revisar</div><div class="muted" style="font-size:13px;margin:4px 0 8px">De Oddly Loop, privados. Revísalos y publica/programa en Producir.</div><button class="btn" onclick="tab(\\'producir\\')">Ir a revisar</button></div>'):'';
       // INICIO: pulso (KPIs + estado + pendientes + producir + radar)
-      el("s-inicio").innerHTML = auto2KpisHtml() + goalHtml(ST.auto2 && ST.auto2.monet_goal) + statusA + pendA + auto2TopHtml() + auto2ProduceCard() + nicheRadarHtml();
+      el("s-inicio").innerHTML = auto2KpisHtml() + goalHtml(ST.auto2 && ST.auto2.monet_goal) + statusA + pendA + auto2TopHtml() + (MONITOR?'':auto2ProduceCard()) + nicheRadarHtml();
       // PRODUCIR: sus videos CON acciones (publicar/programar) + producir + nota
-      el("s-producir").innerHTML = statusA + auto2VideosHtml(true) + auto2ProduceCard()
+      el("s-producir").innerHTML = statusA + auto2VideosHtml(!MONITOR) + (MONITOR?'':auto2ProduceCard())
+        + (MONITOR?'<div class="card muted" style="font-size:12px">🤖 <b>Automático:</b> el Cerebro produce, programa y publica solo. Aquí solo miras el estado. Abajo puedes subir un video tuyo si quieres.</div>':'')
         + '<div class="card"><div style="font-weight:800;margin-bottom:4px">🎬 Mis Clips (subir uno tuyo)</div>'
         + '<div class="muted" style="font-size:12px;margin-bottom:6px">Sube un video generado por IA: le pongo título, descripción y #, lo programo a la mejor hora libre y lo agrego a la playlist <b>Mis Clips</b>.</div>'
         + '<label class="file" for="fClip">🎬 Elegir video (máx ~100MB)</label><input id="fClip" type="file" accept="video/*" class="hide">'
@@ -1056,8 +1060,8 @@ export const APP_HTML = `<!doctype html>
     var _dlPriv=(ST.all_videos||[]).filter(function(v){ if(!v.video_id||v.privacy==="public")return false; var loc=localSched[v.video_id]; if(loc==="schedule"||loc==="public")return false; return !_dlSid[v.video_id]; });
     var _dlPend=_dlPriv.length?('<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px">👀 '+_dlPriv.length+' por revisar</div><div class="muted" style="font-size:13px;margin:4px 0 8px">Privados de The Data Lens — publícalos o prográmalos.</div><button class="btn" onclick="tab(\\'producir\\')">Ir a revisar</button></div>'):'';
     el("s-inicio").innerHTML =
-      _dlPend
-      +nextActionHtml()
+      (MONITOR?'':_dlPend)
+      +(MONITOR?'':nextActionHtml())
       +'<div class="card"><div class="row">'
       +'<div class="kpi"><div class="n">'+num(cs.subs)+'</div><div class="l">Subs</div></div>'
       +'<div class="kpi"><div class="n">'+num(cs.total_views)+'</div><div class="l">Vistas</div></div>'
@@ -1145,10 +1149,9 @@ export const APP_HTML = `<!doctype html>
 
     // Canal de HISTORIA (Shorts automáticos): revisar/publicar lo que sale solo + forzar una tanda.
     el("s-producir").innerHTML=
-      pendingReviewHtml()
-      +'<div class="card"><div style="font-weight:800;margin-bottom:4px">🏛️ Shorts de Historia (automático)</div>'
-      +'<div class="muted" style="font-size:12px;margin-bottom:8px">La fábrica saca <b>3 al día</b> sola (uno por categoría: ⚔️ guerras · 💡 inventos · 👤 personajes). Arriba revisas y publicas; o fuerza una tanda ahora.</div>'
-      +'<button class="btn" onclick="dispatch(\\'history_short.yml\\',\\'Producir 3 Shorts de historia\\')">▶️ Producir 3 Shorts ahora (1 por categoría)</button></div>';
+      (MONITOR?'':pendingReviewHtml())
+      +'<div class="card"><div style="font-weight:800;margin-bottom:4px">🤖 The Data Lens (automático)</div>'
+      +'<div class="muted" style="font-size:12px">El Cerebro produce, programa y publica los Shorts solo (formato DATA SHOCK, 3/día). No tienes que aprobar ni programar nada — solo despublica en YouTube si algo no te gusta.</div></div>';
 
     // ===== AGENDA =====
     el("s-agenda").innerHTML = calendarHtml()+scheduledHtml()+bestTimesHtml();
