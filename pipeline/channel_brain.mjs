@@ -80,15 +80,29 @@ if (nTest < MIN_TEST) {
   }
 }
 
+// ---- META DE MONETIZACION (fin 2026) + AGRESIVIDAD ----
+// Cuánto/día hace falta de subs y vistas para cumplir YPP antes del 31-dic → qué tan fuerte empujar.
+const DEADLINE = Date.parse("2026-12-31T23:59:59Z");
+const daysLeft = Math.max(1, Math.ceil((DEADLINE - now) / 86400000));
+const dlViews = +((dl.channel_stats || {}).total_views ?? (dl.monetization || {}).views) || 0;
+const monetLine = (subs, views, viewsTarget) => {
+  const subPace = (Math.max(0, 1000 - subs) / daysLeft).toFixed(1);
+  const vPace = Math.ceil(Math.max(0, viewsTarget - views) / daysLeft);
+  const ok = subs >= 1000 && views >= viewsTarget;
+  return `💰 meta fin-2026 (${daysLeft}d): subs ${subs}/1000 (~${subPace}/día) · vistas ${views.toLocaleString()}/${viewsTarget.toLocaleString()} (~${vPace.toLocaleString()}/día) ${ok ? "✅ elegible" : "🔴 hay que empujar"}`;
+};
+
 const lines = [
   "🧠 CEREBRO — salud de los canales",
   "",
   `📺 Oddly Loop: ${odVerdict}`,
   `   ${odMsg}`,
+  `   ${monetLine(odSubs, odViews, 10000000)}`,
   "",
   `📊 The Data Lens: ${dlVerdict}`,
   `   ${dlMsg}`,
   `   direcciones: ${dirLine}`,
+  `   ${monetLine(dlSubs, dlViews, 200000)}`,
 ];
 if (restructure) lines.push("", "⚠️ ACCION: The Data Lens necesita REESTRUCTURA. Dile a Claude: «reestructura Data Lens con direcciones nuevas».");
 
