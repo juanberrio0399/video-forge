@@ -1,13 +1,12 @@
 {
-  "_nota": "Config del Oddly Clipper. 'sources' = videos CC de YouTube a procesar (o deja 'search' para buscar por tema). SOLO se procesan los que tengan licencia Creative Commons; los demas se descartan.",
+  "_nota": "Config del Oddly Clipper. Fuente = archive.org (descarga en HD, sin bloqueos). 'sources' = URLs archive.org/details/... a procesar directo; si esta vacio y search.enabled=true, busca por 'temas'. La licencia NO descarta nada: solo se muestra como etiqueta.",
   "sources": [],
   "search": {
     "enabled": true,
-    "fuente": "ambos",
-    "temas": ["funny", "comedy", "bloopers", "funny animals"],
+    "fuente": "archive",
+    "temas": ["documentary", "history", "true crime", "unsolved mystery", "classic comedy tv show"],
     "por_tema": 8,
-    "solo_cc": false,
-    "duracion_min_video": 60
+    "duracion_min_video": 300
   },
   "mostrar_top": 8,
   "clips_per_video": 2,

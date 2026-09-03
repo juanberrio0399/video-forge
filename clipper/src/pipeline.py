@@ -87,10 +87,10 @@ def _source_key(url: str) -> str:
     return url
 
 
-def _buscar_top(cfg: dict, proc: set) -> list:
-    """Busca (segun fuente), quita los ya procesados, guarda el TOP en R2 y lo devuelve."""
+def _buscar_nuevos(cfg: dict, excluir: set) -> list:
+    """Busca en la fuente configurada y devuelve candidatos que NO esten en 'excluir'. No guarda."""
     s = cfg.get("search", {})
-    fuente = (s.get("fuente") or "youtube").lower()   # "youtube" | "archive" | "ambos"
+    fuente = (s.get("fuente") or "archive").lower()   # "archive" | "youtube" | "ambos"
     temas = s.get("temas", [])
     por = s.get("por_tema", 8)
     mind = s.get("duracion_min_video", 60)
@@ -98,67 +98,93 @@ def _buscar_top(cfg: dict, proc: set) -> list:
     tops = []
     if fuente in ("archive", "ambos"):
         from src import search_archive
-        print("\n🔎 Buscando en Archive.org (CC / dominio publico)...")
+        print("\n🔎 Buscando en Archive.org (HD)...")
         tops += (search_archive.top_videos(temas, por, mind, ntop).get("top") or [])
     if fuente in ("youtube", "ambos"):
-        print("\n🔎 Buscando en YouTube (filtro Creative Commons)...")
+        print("\n🔎 Buscando en YouTube...")
         tops += (search.top_videos(temas, por, mind, ntop).get("top") or [])
     tops.sort(key=lambda v: v.get("score", 0), reverse=True)
-    antes = len(tops)
-    tops = [t for t in tops if _source_key(t.get("url", "")) not in proc]
-    if antes > len(tops):
-        print(f"   (omiti {antes - len(tops)} video(s) que ya habias procesado antes)")
-    top = tops[:ntop]
-    if top:
-        publish.guardar_top(top)   # guarda el TOP para reusar los pendientes la proxima corrida
-    return top
+    out, ya = [], set(excluir)
+    for t in tops:
+        k = _source_key(t.get("url", ""))
+        if k in ya:
+            continue
+        ya.add(k)
+        out.append(t)
+    return out
 
 
 def seleccionar_interactivo(cfg: dict) -> list:
-    """TOP de videos para elegir por numero. Si quedan PENDIENTES del ultimo TOP, ofrece esos
-    (sin re-buscar); si no, busca nuevos. 'nuevos' fuerza otra busqueda."""
+    """Muestra el TOP: reusa tu lista anterior y la RELLENA con nuevos hasta completar.
+    Eliges cuales apruebas; luego te muestra los NO aprobados por si quieres OMITIR alguno
+    (para que no vuelva). Los omitidos se guardan; los demas siguen para la proxima."""
     proc = publish.cargar_procesados()
+    desc = publish.cargar_descartados()
+    excluidos = proc | desc
     ntop = cfg.get("mostrar_top", 8)
-    pendientes = [t for t in publish.cargar_top() if _source_key(t.get("url", "")) not in proc]
-    reusando = bool(pendientes)
-    if reusando:
-        top = pendientes[:ntop]
-        print(f"\n📋 Retomando tu ultima lista: {len(top)} video(s) que faltaban de tu TOP anterior.")
-    else:
-        top = _buscar_top(cfg, proc)
+
+    # 1) Reusar lo anterior (quitando ya procesados y omitidos)
+    top = [t for t in publish.cargar_top() if _source_key(t.get("url", "")) not in excluidos]
+    reusados = len(top)
+    if reusados:
+        print(f"\n📋 Retomo tu lista anterior: {reusados} video(s) pendiente(s).")
+
+    # 2) Rellenar hasta 'mostrar_top' con nuevos (si faltan)
+    if len(top) < ntop:
+        ya = excluidos | {_source_key(t.get("url", "")) for t in top}
+        nuevos = _buscar_nuevos(cfg, ya)[: ntop - len(top)]
+        if reusados and nuevos:
+            print(f"   (+ agrego {len(nuevos)} nuevo(s) para completar el TOP)")
+        top += nuevos
+    top = top[:ntop]
+
     if not top:
         print("   No hay videos para mostrar. Ajusta los temas en config.json -> search.temas.")
         return []
-    while True:
-        print("\n🏆 TOP videos (el mejor primero):\n")
-        for i, v in enumerate(top, 1):
-            print(f"  {i}. [{v.get('score','')}/100] {v['title'][:62]}")
-            print(f"       {v.get('razon','')}")
-            print(f"       ▶ VERLO: {v['url']}")
-        extra = "   ·   'nuevos' = buscar otra lista" if reusando else ""
-        print(f"\n👉 Que numero(s) apruebas?  (ej: 1   o   1,3   ·   'todos'   ·   ENTER = el #1{extra})")
-        print("   (abre el link 'VERLO' en tu navegador para revisarlo antes de elegir)")
-        try:
-            sel = input("   > ").strip().lower()
-        except EOFError:
-            sel = ""
-        if sel == "nuevos" and reusando:
-            top = _buscar_top(cfg, proc)
-            reusando = False
-            if not top:
-                print("   No encontre nuevos videos.")
-                return []
-            continue
-        break
+
+    publish.guardar_top(top)   # guarda el TOP actualizado para reusarlo la proxima vez
+
+    # 3) Mostrar y pedir APROBACION
+    print("\n🏆 TOP videos (Archive.org, el mejor primero):\n")
+    for i, v in enumerate(top, 1):
+        print(f"  {i}. [{v.get('score','')}/100] {v['title'][:62]}")
+        print(f"       {v.get('razon','')}")
+        print(f"       ▶ VERLO: {v['url']}")
+    print("\n👉 Que numero(s) APRUEBAS para procesar?  (ej: 1   o   1,3   ·   'todos'   ·   ENTER = el #1)")
+    print("   (abre el link 'VERLO' en tu navegador para revisarlo antes de elegir)")
+    try:
+        sel = input("   > ").strip().lower()
+    except EOFError:
+        sel = ""
     if sel == "":
-        elegidos = [top[0]]
+        aprob_idx = [1]
     elif sel in ("todos", "all"):
-        elegidos = top
+        aprob_idx = list(range(1, len(top) + 1))
     else:
-        idxs = [int(x) for x in sel.replace(" ", "").split(",") if x.isdigit() and 1 <= int(x) <= len(top)]
-        elegidos = [top[i - 1] for i in idxs] or [top[0]]
-    print(f"\n✓ Procesando {len(elegidos)} video(s): " + ", ".join(f"#{top.index(e) + 1}" for e in elegidos))
-    return [e["url"] for e in elegidos]
+        aprob_idx = [int(x) for x in sel.replace(" ", "").split(",")
+                     if x.isdigit() and 1 <= int(x) <= len(top)] or [1]
+    aprobados = [top[i - 1] for i in aprob_idx]
+
+    # 4) Mostrar los NO aprobados y ofrecer OMITIR (para que no vuelvan)
+    no_aprob = [i for i in range(1, len(top) + 1) if i not in aprob_idx]
+    if no_aprob:
+        print("\n🚫 No aprobaste estos (siguen en tu lista para la proxima):")
+        for i in no_aprob:
+            print(f"  {i}. {top[i - 1]['title'][:62]}")
+        print("👉 Quieres OMITIR alguno para que NO vuelva a salir?  (numeros · ENTER = ninguno)")
+        try:
+            som = input("   > ").strip()
+        except EOFError:
+            som = ""
+        omit_idx = [int(x) for x in som.replace(" ", "").split(",")
+                    if x.isdigit() and int(x) in no_aprob]
+        if omit_idx:
+            keys = [_source_key(top[i - 1].get("url", "")) for i in omit_idx]
+            publish.marcar_descartados(keys)
+            print(f"   ✓ Omiti {len(keys)} video(s): no volveran a salir en el TOP.")
+
+    print(f"\n✓ Procesando {len(aprobados)} video(s): " + ", ".join(f"#{i}" for i in aprob_idx))
+    return [e["url"] for e in aprobados]
 
 
 def main():

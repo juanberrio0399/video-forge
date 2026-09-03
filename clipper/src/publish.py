@@ -67,6 +67,32 @@ def marcar_procesado(source_key: str):
         print(f"   (aviso) no pude guardar en el historial anti-duplicados: {e}")
 
 
+# --- Descartados por ti (los que OMITISTE: no vuelven a salir en el TOP) ---
+def cargar_descartados() -> set:
+    try:
+        s3 = _s3()
+        bucket = os.getenv("R2_BUCKET", "video-forge")
+        data = json.loads(s3.get_object(Bucket=bucket, Key="clipper/descartados.json")["Body"].read())
+        return set(data if isinstance(data, list) else [])
+    except Exception:
+        return set()
+
+
+def marcar_descartados(keys) -> None:
+    keys = [k for k in keys if k]
+    if not keys:
+        return
+    try:
+        s3 = _s3()
+        bucket = os.getenv("R2_BUCKET", "video-forge")
+        cur = cargar_descartados()
+        cur.update(keys)
+        s3.put_object(Bucket=bucket, Key="clipper/descartados.json",
+                      Body=json.dumps(sorted(cur)).encode(), ContentType="application/json")
+    except Exception as e:
+        print(f"   (aviso) no pude guardar los omitidos: {e}")
+
+
 def enviar_a_r2(short_path: str, titulo: str, atribucion: str, clip: dict, cfg: dict, source_url: str) -> dict:
     """Sube el MP4 + metadata a R2 pending y actualiza el indice que lee el bot."""
     bucket = os.getenv("R2_BUCKET", "video-forge")

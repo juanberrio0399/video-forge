@@ -1,17 +1,16 @@
-"""Busca videos LARGOS con licencia Creative Commons en YouTube y arma un TOP rankeado.
-
-Usa el FILTRO NATIVO de YouTube "Creative Commons" (sp=EgIwAQ==) -> los resultados ya vienen
-filtrados a CC (mucho mejor que buscar el texto 'creative commons' y verificar uno por uno).
-download.py re-verifica la licencia real como candado final antes de descargar.
+"""Busca videos LARGOS en YouTube y arma un TOP rankeado.
+SIN filtro de Creative Commons - descarga cualquier video.
 """
+
 import json
 import subprocess
 from urllib.parse import quote
 
 from src import tools
 
-# Codigo del filtro "Creative Commons" de la busqueda de YouTube (Filters -> Creative Commons).
-YT_CC_FILTER = "EgIQAQ%3D%3D"
+# SIN filtro de Creative Commons - buscar cualquier video
+# Eliminamos el filtro sp=EgIwAQ== que era para CC
+YT_NO_FILTER = ""
 
 
 def _run(args, timeout=120):
@@ -20,7 +19,8 @@ def _run(args, timeout=120):
 
 
 def _buscar(tema: str, n: int) -> list:
-    url = f"https://www.youtube.com/results?search_query={quote(tema)}&sp={YT_CC_FILTER}"
+    # URL sin filtro de licencia - busca cualquier video
+    url = f"https://www.youtube.com/results?search_query={quote(tema)}"
     out, rc = _run(tools.ytdlp() + ["--flat-playlist", "-J", "--no-warnings", "--playlist-end", str(n), url])
     if rc != 0 or not out:
         return []
@@ -56,5 +56,5 @@ def top_videos(temas: list, por_tema: int, min_dur: int, cuantos: int) -> dict:
         for v in top:
             v["score"] = round(60 * (v["duration"] / dmax) + 40 * (v["views"] / vmax))
             horas = round(v["duration"] / 3600, 1)
-            v["razon"] = f"{horas}h . {v['views']:,} vistas . {v['tema']} . YouTube CC"
+            v["razon"] = f"{horas}h . {v['views']:,} vistas . {v['tema']} . YouTube (sin filtro)"
     return {"categorias": temas, "top": top}
