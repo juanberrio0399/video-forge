@@ -984,6 +984,35 @@ export const APP_HTML = `<!doctype html>
       +goalHtml(ST.monet_goal)
       +learnHtml();
   }
+  // ===== SEMANA A SEMANA ===== (📈 Analítica). Lee ST.weekly (weekly_stats.json).
+  function fmtWk(iso){ var p=(iso||"").split("-"); return p.length===3?(p[2]+"/"+p[1]):iso; }
+  function weeklyHtml(chKey){
+    var W=ST.weekly&&ST.weekly.channels&&ST.weekly.channels[chKey];
+    if(!W||!(W.weeks&&W.weeks.length)) return '<div class="card muted" style="font-size:12px">📈 <b>Semana a semana:</b> aún generando el historial (se llena solo cada día). Vuelve mañana.</div>';
+    var weeks=W.weeks.slice(-6);
+    var d=new Date(); var b=(d.getUTCDay()+6)%7; d.setUTCDate(d.getUTCDate()-b); var curW=d.toISOString().slice(0,10);
+    var mx=Math.max.apply(null, weeks.map(function(w){return w.views||0;}).concat([1]));
+    var rows=weeks.map(function(w,i){
+      var prev=i>0?weeks[i-1].views:null, dlt="";
+      if(prev!=null){var df=(w.views||0)-prev, pc=prev?Math.round(df/prev*100):0, col=df>=0?"#22c55e":"var(--am,#f59e0b)"; dlt=' <span style="color:'+col+';font-size:11px;white-space:nowrap">'+(df>=0?"▲":"▼")+(pc>=0?"+":"")+pc+'%</span>';}
+      var partial=(w.week===curW||(w.days||7)<7);
+      var bw=Math.round(((w.views||0)/mx)*100);
+      var likes=W.has_engagement?(' · ❤ '+num(w.likes||0)):"";
+      var subs=(w.subs_net!=null)?(' · '+(w.subs_net>=0?"+":"")+w.subs_net+' subs'):"";
+      return '<div style="border-top:1px solid rgba(128,128,128,.15);padding:6px 0">'
+        +'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">'
+          +'<div style="font-size:12px;font-weight:600">'+fmtWk(w.week)+(partial?' <span class="muted" style="font-weight:400;font-size:10px">⏳parcial</span>':'')+'</div>'
+          +'<div style="font-size:13px;font-weight:700">'+num(w.views||0)+' <span class="muted" style="font-weight:400">vistas</span>'+dlt+'</div>'
+        +'</div>'
+        +'<div style="height:6px;background:rgba(128,128,128,.12);border-radius:4px;margin:4px 0"><div style="height:6px;width:'+bw+'%;background:var(--cy);border-radius:4px"></div></div>'
+        +'<div class="muted" style="font-size:11px">'+(w.watch_min||0)+' min'+likes+subs+'</div>'
+      +'</div>';
+    }).join("");
+    return '<h2>📈 Semana a semana</h2><div class="card">'
+      +'<div class="muted" style="font-size:12px;margin-bottom:4px">'+esc(W.name||chKey)+' · '+num(W.subs||0)+' subs · '+num(W.total_views||0)+' vistas de por vida</div>'
+      +rows
+      +'<div class="muted" style="font-size:10px;margin-top:8px">⏱️ La semana en curso queda <b>parcial</b>: YouTube Analytics procesa con 2-3 días de retraso (no es una caída). Semanas ISO (lunes).</div></div>';
+  }
   function render(){
     var ch = ST.channel||{}, cs = ST.channel_stats||{}, mon = ST.monetization||{};
     var up = ST.upcoming||[];
@@ -1045,7 +1074,7 @@ export const APP_HTML = `<!doctype html>
       // AGENDA: próximos a publicar (programados) + en revisión + estado del automático + mejores horas
       el("s-agenda").innerHTML = auto2AgendaHtml();
       // ANALITICA: KPIs + top 3 + sin-vistas + radar (sin listar todos los videos)
-      el("s-analitica").innerHTML = auto2KpisHtml() + goalHtml(ST.auto2 && ST.auto2.monet_goal) + auto2TopHtml() + nicheRadarHtml();
+      el("s-analitica").innerHTML = weeklyHtml("oddly") + auto2KpisHtml() + goalHtml(ST.auto2 && ST.auto2.monet_goal) + auto2TopHtml() + nicheRadarHtml();
       // MAS: info + refrescar
       el("s-mas").innerHTML = '<h2>⚙️ Canal automático</h2><div class="card muted" style="font-size:12px">Oddly Loop · @oddlyloophq · compilaciones ASMR/satisfying legales, automáticas. Solo fuentes con licencia (puerta de compliance).</div>'
         + '<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:2px">🎨 Marca del canal</div><div class="muted" style="font-size:12px;margin-bottom:8px">Aplica el banner, la descripción y los tags por API. El avatar te lo mando por Telegram para que lo subas en Studio (la API no lo permite).</div><button class="btn ghost" onclick="dispatch(\\'set_oddly_branding.yml\\',\\'Aplicar marca del canal\\')">🎨 Aplicar marca del canal</button></div>'
@@ -1186,7 +1215,8 @@ export const APP_HTML = `<!doctype html>
       +'<div id="insightsOut">'+lastInsights+'</div>'
       +'<div class="muted" style="font-size:11px;text-align:center">📹 largo · ↳🎬 sus shorts · 🔒 privado</div>';
     el("s-analitica").innerHTML=
-      categoryScoreHtml()
+      weeklyHtml("data_lens")
+      +categoryScoreHtml()
       +goalHtml(ST.monet_goal)
       +analyticsHtml()
       +dataLensTopHtml()

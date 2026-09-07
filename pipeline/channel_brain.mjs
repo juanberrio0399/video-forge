@@ -15,6 +15,30 @@ const dir = rj("channel/direction.json", null) || rj("direction.json", null);
 const now = Date.now();
 const days = (iso) => (iso ? Math.max(1, (now - Date.parse(iso)) / 86400000) : 1);
 
+// ---- TENDENCIA SEMANA A SEMANA (de weekly_stats.json; la llena weekly_stats.yml) ----
+// El Cerebro ahora TAMBIEN mira vistas/likes/subs semana contra semana, usando solo
+// semanas COMPLETAS (la semana en curso va parcial por el retraso de Analytics de 2-3 dias).
+const weekly = rj("weekly_stats.json", null);
+function weekTrend(chKey) {
+  const c = weekly && weekly.channels && weekly.channels[chKey];
+  if (!c || !Array.isArray(c.weeks) || c.weeks.length < 2) return null;
+  const full = c.weeks.filter((w) => (w.days || 7) >= 7);
+  const use = full.length >= 2 ? full : c.weeks;
+  const last = use[use.length - 1], prev = use[use.length - 2];
+  const dv = (last.views || 0) - (prev.views || 0);
+  const pct = prev.views ? Math.round((dv / prev.views) * 100) : 0;
+  const twoDown = use.length >= 3 && (use[use.length - 1].views || 0) < (use[use.length - 2].views || 0) && (use[use.length - 2].views || 0) < (use[use.length - 3].views || 0);
+  const tag = pct <= -25 ? `⚠️ cayó ${Math.abs(pct)}%` : pct >= 25 ? `⬆️ subió ${pct}%` : `➡️ estable (${pct >= 0 ? "+" : ""}${pct}%)`;
+  return { week: last.week, views: last.views || 0, prev_views: prev.views || 0, delta_pct: pct, likes: last.likes || 0, subs_net: (last.subs_net != null ? last.subs_net : null), two_down: twoDown, tag };
+}
+function trendLine(t) {
+  if (!t) return "📈 semana a semana: (aún juntando historial, ~1 semana)";
+  const eng = (t.likes ? ` · ❤ ${t.likes}` : "") + (t.subs_net != null ? ` · ${t.subs_net >= 0 ? "+" : ""}${t.subs_net} subs` : "");
+  return `📈 última semana: ${t.views.toLocaleString()} vistas ${t.tag} (vs ${t.prev_views.toLocaleString()})${eng}${t.two_down ? " · 📉 2 semanas a la baja — REVISAR" : ""}`;
+}
+const odTrend = weekTrend("oddly");
+const dlTrend = weekTrend("data_lens");
+
 // ---------------- ODDLY LOOP ----------------
 const odSubs = +od.subs || 0, odViews = +od.total_views || 0, odVids = +od.videos || 0;
 const odRank = (od.niche_ranking || []).slice().sort((a, b) => (b.avg_vpd || 0) - (a.avg_vpd || 0));
@@ -97,10 +121,12 @@ const lines = [
   "",
   `📺 Oddly Loop: ${odVerdict}`,
   `   ${odMsg}`,
+  `   ${trendLine(odTrend)}`,
   `   ${monetLine(odSubs, odViews, 10000000)}`,
   "",
   `📊 The Data Lens: ${dlVerdict}`,
   `   ${dlMsg}`,
+  `   ${trendLine(dlTrend)}`,
   `   direcciones: ${dirLine}`,
   `   ${monetLine(dlSubs, dlViews, 200000)}`,
 ];
@@ -127,5 +153,6 @@ fs.writeFileSync("brain.json", JSON.stringify({
   text: lines.join("\n"),
   oddly: { verdict: odVerdict, msg: odMsg, subs: odSubs, views: odViews, videos: odVids },
   data_lens: { verdict: dlVerdict, msg: dlMsg, restructure, subs: dlSubs, videos: dlVids, byDir },
+  weekly: { oddly: odTrend, data_lens: dlTrend },
 }, null, 2));
 console.log(lines.join("\n"));

@@ -37,28 +37,40 @@ function mondayUTC(dstr) {
   if (!token) { console.error(CH, "no access_token:", JSON.stringify(tr).slice(0, 200)); process.exit(1); }
   const H = { Authorization: `Bearer ${token}` };
 
-  // 2) serie diaria de Analytics (últimos ~63 días)
+  // 2) serie diaria de Analytics (últimos ~63 días). Métricas: vistas, minutos, likes,
+  //    subs ganados y perdidos. Si el permiso no da todas, baja al set que sí funcione.
   const end = isoDay(new Date());
   const start = isoDay(new Date(Date.now() - 63 * 86400 * 1000));
   const base = `https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=${start}&endDate=${end}&dimensions=day&sort=day`;
-  let rows = [], gotSubs = true;
-  let r = await tf(`${base}&metrics=views,estimatedMinutesWatched,subscribersGained`, { headers: H });
-  if (!r.ok) { // reintento sin subs (por si el scope/permiso no lo permite)
-    gotSubs = false;
-    r = await tf(`${base}&metrics=views,estimatedMinutesWatched`, { headers: H });
+  // sets ordenados: se prueban de más completo a más básico; 'cols' dice qué columna es qué.
+  const SETS = [
+    { m: "views,estimatedMinutesWatched,likes,subscribersGained,subscribersLost", cols: { views: 1, min: 2, likes: 3, sg: 4, sl: 5 } },
+    { m: "views,estimatedMinutesWatched,likes", cols: { views: 1, min: 2, likes: 3 } },
+    { m: "views,estimatedMinutesWatched", cols: { views: 1, min: 2 } },
+  ];
+  let rows = [], cols = null;
+  for (const s of SETS) {
+    const r = await tf(`${base}&metrics=${s.m}`, { headers: H });
+    if (r.ok) { rows = (await r.json()).rows || []; cols = s.cols; break; }
+    if (s === SETS[SETS.length - 1]) { console.error(CH, "analytics falló", r.status, (await r.text()).slice(0, 200)); process.exit(1); }
   }
-  if (!r.ok) { console.error(CH, "analytics falló", r.status, (await r.text()).slice(0, 200)); process.exit(1); }
-  rows = (await r.json()).rows || [];
+  const g = (row, i) => (i == null ? 0 : (+row[i] || 0));
 
   // 3) agrupar por semana (lunes)
   const wk = {};
   for (const row of rows) {
-    const d = row[0], views = +row[1] || 0, min = Math.round(+row[2] || 0), subs = gotSubs ? (+row[3] || 0) : 0;
-    const k = mondayUTC(d);
-    (wk[k] = wk[k] || { week: k, views: 0, watch_min: 0, subs_gained: 0, days: 0 });
-    wk[k].views += views; wk[k].watch_min += min; wk[k].subs_gained += subs; wk[k].days++;
+    const k = mondayUTC(row[0]);
+    (wk[k] = wk[k] || { week: k, views: 0, watch_min: 0, likes: 0, subs_gained: 0, subs_lost: 0, days: 0 });
+    wk[k].views += g(row, cols.views);
+    wk[k].watch_min += Math.round(g(row, cols.min));
+    wk[k].likes += g(row, cols.likes);
+    wk[k].subs_gained += g(row, cols.sg);
+    wk[k].subs_lost += g(row, cols.sl);
+    wk[k].days++;
   }
-  const fresh = Object.values(wk).sort((a, b) => (a.week < b.week ? -1 : 1));
+  // subs_net por semana (ganados - perdidos)
+  const fresh = Object.values(wk).sort((a, b) => (a.week < b.week ? -1 : 1))
+    .map((w) => ({ ...w, subs_net: w.subs_gained - w.subs_lost }));
 
   // 4) totales actuales del canal (subs + vistas de por vida)
   let subs = 0, total_views = 0, name = "";
@@ -77,7 +89,7 @@ function mondayUTC(dstr) {
   const kept = minNew ? prev.filter((w) => w.week < minNew) : prev;
   const weeks = [...kept, ...fresh].slice(-26); // ~6 meses
 
-  all.channels[CH] = { name, subs, total_views, lag_days: 3, has_subs: gotSubs, weeks };
+  all.channels[CH] = { name, subs, total_views, lag_days: 3, has_subs: cols.sg != null, has_engagement: cols.likes != null, weeks };
   all.updated = new Date().toISOString();
   fs.writeFileSync(FILE, JSON.stringify(all));
   console.log(CH, "OK — semanas:", weeks.length, "| última:", JSON.stringify(fresh[fresh.length - 1] || null));

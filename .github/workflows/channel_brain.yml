@@ -38,6 +38,7 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/state.json" --file=dl_state.json --remote 2>/dev/null || echo '{}' > dl_state.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/state.json" --file=oddly_state.json --remote 2>/dev/null || echo '{}' > oddly_state.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/history_map.json" --file=history_map.json --remote 2>/dev/null || echo '[]' > history_map.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/weekly_stats.json" --file=weekly_stats.json --remote 2>/dev/null || echo '{}' > weekly_stats.json
 
       - name: Diagnostico (el cerebro)
         run: node pipeline/channel_brain.mjs

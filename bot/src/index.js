@@ -406,6 +406,8 @@ async function handleApi(request, env, url) {
     state.brain = (await r2json(env, "channel/brain.json")) || null;
     // EL CEREBRO 2.0: estrategia aprendida (que gana / que hacer mas / que explorar), del optimizador semanal.
     state.strategy = (await r2json(env, "channel/brain/strategy.json")) || null;
+    // ANALISIS SEMANA A SEMANA (ambos canales): lo llena weekly_stats.yml (Analytics diario -> semanas ISO).
+    state.weekly = (await r2json(env, "channel/weekly_stats.json")) || null;
     // CANAL AUTO #2 (Oddly Loop): estado real (videos/subs/vistas/min), lo llena report_auto2.
     state.auto2 = (await r2json(env, "channel/auto2/state.json")) || null;
     // "manual" en Oddly = SOLO lo que Juan marca (channel/auto2/manual_videos.json). Por defecto del Bot.

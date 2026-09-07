@@ -6,7 +6,7 @@ name: Historial semanal (ambos canales) -> R2
 
 on:
   schedule:
-    - cron: "30 13 * * *"   # diario 13:30 UTC (justo tras el Cerebro de las 13:00)
+    - cron: "45 12 * * *"   # diario 12:45 UTC (ANTES del Cerebro de las 13:00, para que lo lea fresco)
   workflow_dispatch: {}
 
 permissions:
