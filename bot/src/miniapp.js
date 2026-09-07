@@ -988,13 +988,15 @@ export const APP_HTML = `<!doctype html>
   function fmtWk(iso){ var p=(iso||"").split("-"); return p.length===3?(p[2]+"/"+p[1]):iso; }
   // Mini gráfica de barras SVG (responsive, tema-aware). rows=[{label,value,partial}].
   function svgBars(rows, color){
-    var W=320,H=110,padB=16,padT=12,padL=3,padR=3, n=rows.length; if(!n) return "";
+    var W=320,H=120,padB=16,padT=16,padL=3,padR=3, n=rows.length; if(!n) return "";
     var max=Math.max.apply(null, rows.map(function(r){return r.value||0;}).concat([1]));
     var bw=(W-padL-padR)/n;
     var bars=rows.map(function(r,i){
-      var h=Math.max(1, Math.round(((r.value||0)/max)*(H-padT-padB)));
-      var x=padL+i*bw+bw*0.15, w=Math.max(1,bw*0.7), y=H-padB-h;
-      return '<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="'+h+'" rx="1.5" fill="'+(r.partial?"url(#hb)":color)+'" opacity="'+(r.partial?"0.55":"1")+'"><title>'+esc(r.label)+': '+num(r.value||0)+(r.partial?" (parcial)":"")+'</title></rect>';
+      var val=r.value||0;
+      var h=Math.max(1, Math.round((val/max)*(H-padT-padB)));
+      var x=padL+i*bw+bw*0.15, w=Math.max(1,bw*0.7), y=H-padB-h, cx=x+w/2;
+      var lbl=val>0?'<text x="'+cx.toFixed(1)+'" y="'+(y-2.5).toFixed(1)+'" font-size="8" fill="var(--fg,#e6e8ee)" text-anchor="middle" font-weight="700">'+num(val)+'</text>':"";
+      return '<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="'+h+'" rx="1.5" fill="'+(r.partial?"url(#hb)":color)+'" opacity="'+(r.partial?"0.55":"1")+'"><title>'+esc(r.label)+': '+num(val)+(r.partial?" (parcial)":"")+'</title></rect>'+lbl;
     }).join("");
     function lab(i){ var x=padL+i*bw+bw*0.5; return '<text x="'+x.toFixed(1)+'" y="'+(H-4)+'" font-size="8" fill="var(--hint,#8a8a8a)" text-anchor="middle">'+esc(rows[i].label)+'</text>'; }
     var xl=[lab(0)]; if(n>2) xl.push(lab(Math.floor((n-1)/2))); if(n>1) xl.push(lab(n-1));
