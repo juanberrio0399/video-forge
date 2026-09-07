@@ -37,10 +37,19 @@ function mondayUTC(dstr) {
   if (!token) { console.error(CH, "no access_token:", JSON.stringify(tr).slice(0, 200)); process.exit(1); }
   const H = { Authorization: `Bearer ${token}` };
 
-  // 2) serie diaria de Analytics (últimos ~63 días). Métricas: vistas, minutos, likes,
-  //    subs ganados y perdidos. Si el permiso no da todas, baja al set que sí funcione.
+  // 2) info del canal PRIMERO: nombre, subs y vistas de por vida + fecha de creación
+  //    (para bajar la serie DESDE EL DÍA 1 del canal, no solo los últimos días).
+  let subs = 0, total_views = 0, name = "", created = "";
+  try {
+    const ch = await (await tf("https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true", { headers: H })).json();
+    const it = ch.items && ch.items[0];
+    if (it) { subs = +((it.statistics || {}).subscriberCount) || 0; total_views = +((it.statistics || {}).viewCount) || 0; name = (it.snippet || {}).title || ""; created = ((it.snippet || {}).publishedAt || "").slice(0, 10); }
+  } catch {}
+
+  // 3) serie diaria de Analytics DESDE EL INICIO del canal (respaldo 2025-01-01).
+  //    Métricas: vistas, minutos, likes, subs ganados/perdidos. Si el permiso no da todas, baja el set.
   const end = isoDay(new Date());
-  const start = isoDay(new Date(Date.now() - 63 * 86400 * 1000));
+  const start = (created && created >= "2015-01-01") ? created : "2025-01-01";
   const base = `https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=${start}&endDate=${end}&dimensions=day&sort=day`;
   // sets ordenados: se prueban de más completo a más básico; 'cols' dice qué columna es qué.
   const SETS = [
@@ -72,14 +81,6 @@ function mondayUTC(dstr) {
   const fresh = Object.values(wk).sort((a, b) => (a.week < b.week ? -1 : 1))
     .map((w) => ({ ...w, subs_net: w.subs_gained - w.subs_lost }));
 
-  // 4) totales actuales del canal (subs + vistas de por vida)
-  let subs = 0, total_views = 0, name = "";
-  try {
-    const ch = await (await tf("https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true", { headers: H })).json();
-    const it = ch.items && ch.items[0];
-    if (it) { subs = +((it.statistics || {}).subscriberCount) || 0; total_views = +((it.statistics || {}).viewCount) || 0; name = (it.snippet || {}).title || ""; }
-  } catch {}
-
   // 5) merge: conservar semanas viejas (antes de la ventana) + reemplazar las recientes
   let all = {};
   try { all = JSON.parse(fs.readFileSync(FILE, "utf8")); } catch {}
@@ -87,7 +88,7 @@ function mondayUTC(dstr) {
   const prev = (all.channels[CH] && all.channels[CH].weeks) || [];
   const minNew = fresh.length ? fresh[0].week : null;
   const kept = minNew ? prev.filter((w) => w.week < minNew) : prev;
-  const weeks = [...kept, ...fresh].slice(-26); // ~6 meses
+  const weeks = [...kept, ...fresh].slice(-120); // desde el día 1 (tope ~2 años)
 
   all.channels[CH] = { name, subs, total_views, lag_days: 3, has_subs: cols.sg != null, has_engagement: cols.likes != null, weeks };
   all.updated = new Date().toISOString();

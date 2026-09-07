@@ -984,34 +984,47 @@ export const APP_HTML = `<!doctype html>
       +goalHtml(ST.monet_goal)
       +learnHtml();
   }
-  // ===== SEMANA A SEMANA ===== (📈 Analítica). Lee ST.weekly (weekly_stats.json).
+  // ===== RESUMEN SEMANAL (gráficas) ===== (📈 Analítica). Lee ST.weekly (weekly_stats.json).
   function fmtWk(iso){ var p=(iso||"").split("-"); return p.length===3?(p[2]+"/"+p[1]):iso; }
+  // Mini gráfica de barras SVG (responsive, tema-aware). rows=[{label,value,partial}].
+  function svgBars(rows, color){
+    var W=320,H=110,padB=16,padT=12,padL=3,padR=3, n=rows.length; if(!n) return "";
+    var max=Math.max.apply(null, rows.map(function(r){return r.value||0;}).concat([1]));
+    var bw=(W-padL-padR)/n;
+    var bars=rows.map(function(r,i){
+      var h=Math.max(1, Math.round(((r.value||0)/max)*(H-padT-padB)));
+      var x=padL+i*bw+bw*0.15, w=Math.max(1,bw*0.7), y=H-padB-h;
+      return '<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="'+h+'" rx="1.5" fill="'+(r.partial?"url(#hb)":color)+'" opacity="'+(r.partial?"0.55":"1")+'"><title>'+esc(r.label)+': '+num(r.value||0)+(r.partial?" (parcial)":"")+'</title></rect>';
+    }).join("");
+    function lab(i){ var x=padL+i*bw+bw*0.5; return '<text x="'+x.toFixed(1)+'" y="'+(H-4)+'" font-size="8" fill="var(--hint,#8a8a8a)" text-anchor="middle">'+esc(rows[i].label)+'</text>'; }
+    var xl=[lab(0)]; if(n>2) xl.push(lab(Math.floor((n-1)/2))); if(n>1) xl.push(lab(n-1));
+    return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block">'
+      +'<defs><pattern id="hb" width="4" height="4" patternTransform="rotate(45)" patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="4" stroke="'+color+'" stroke-width="2"/></pattern></defs>'
+      +bars+xl.join("")+'</svg>';
+  }
   function weeklyHtml(chKey){
     var W=ST.weekly&&ST.weekly.channels&&ST.weekly.channels[chKey];
-    if(!W||!(W.weeks&&W.weeks.length)) return '<div class="card muted" style="font-size:12px">📈 <b>Semana a semana:</b> aún generando el historial (se llena solo cada día). Vuelve mañana.</div>';
-    var weeks=W.weeks.slice(-6);
+    if(!W||!(W.weeks&&W.weeks.length)) return '<h2>📈 Resumen semanal</h2><div class="card muted" style="font-size:12px">Aún generando el historial (se llena solo cada día). Vuelve mañana.</div>';
+    var weeks=W.weeks; // DESDE EL DÍA 1
     var d=new Date(); var b=(d.getUTCDay()+6)%7; d.setUTCDate(d.getUTCDate()-b); var curW=d.toISOString().slice(0,10);
-    var mx=Math.max.apply(null, weeks.map(function(w){return w.views||0;}).concat([1]));
-    var rows=weeks.map(function(w,i){
-      var prev=i>0?weeks[i-1].views:null, dlt="";
-      if(prev!=null){var df=(w.views||0)-prev, pc=prev?Math.round(df/prev*100):0, col=df>=0?"#22c55e":"var(--am,#f59e0b)"; dlt=' <span style="color:'+col+';font-size:11px;white-space:nowrap">'+(df>=0?"▲":"▼")+(pc>=0?"+":"")+pc+'%</span>';}
-      var partial=(w.week===curW||(w.days||7)<7);
-      var bw=Math.round(((w.views||0)/mx)*100);
-      var likes=W.has_engagement?(' · ❤ '+num(w.likes||0)):"";
-      var subs=(w.subs_net!=null)?(' · '+(w.subs_net>=0?"+":"")+w.subs_net+' subs'):"";
-      return '<div style="border-top:1px solid rgba(128,128,128,.15);padding:6px 0">'
-        +'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">'
-          +'<div style="font-size:12px;font-weight:600">'+fmtWk(w.week)+(partial?' <span class="muted" style="font-weight:400;font-size:10px">⏳parcial</span>':'')+'</div>'
-          +'<div style="font-size:13px;font-weight:700">'+num(w.views||0)+' <span class="muted" style="font-weight:400">vistas</span>'+dlt+'</div>'
-        +'</div>'
-        +'<div style="height:6px;background:rgba(128,128,128,.12);border-radius:4px;margin:4px 0"><div style="height:6px;width:'+bw+'%;background:var(--cy);border-radius:4px"></div></div>'
-        +'<div class="muted" style="font-size:11px">'+(w.watch_min||0)+' min'+likes+subs+'</div>'
-      +'</div>';
-    }).join("");
-    return '<h2>📈 Semana a semana</h2><div class="card">'
-      +'<div class="muted" style="font-size:12px;margin-bottom:4px">'+esc(W.name||chKey)+' · '+num(W.subs||0)+' subs · '+num(W.total_views||0)+' vistas de por vida</div>'
-      +rows
-      +'<div class="muted" style="font-size:10px;margin-top:8px">⏱️ La semana en curso queda <b>parcial</b>: YouTube Analytics procesa con 2-3 días de retraso (no es una caída). Semanas ISO (lunes).</div></div>';
+    function isPar(w){ return w.week===curW||(w.days||7)<7; }
+    // Series: vistas/semana, likes/semana, seguidores TOTAL acumulado (suma de subs netos desde el día 1)
+    var cum=0;
+    var viewRows=weeks.map(function(w){return {label:fmtWk(w.week),value:w.views||0,partial:isPar(w)};});
+    var likeRows=weeks.map(function(w){return {label:fmtWk(w.week),value:w.likes||0,partial:isPar(w)};});
+    var subRows=weeks.map(function(w){cum+=(w.subs_net||0);return {label:fmtWk(w.week),value:cum,partial:isPar(w)};});
+    function delta(rows){ if(rows.length<2) return ""; var a=rows[rows.length-2].value, c=rows[rows.length-1].value, df=c-a, pc=a?Math.round(df/a*100):0, col=df>=0?"#22c55e":"var(--am,#f59e0b)"; return ' <span style="color:'+col+';font-size:11px;white-space:nowrap">'+(df>=0?"▲":"▼")+(pc>=0?"+":"")+pc+'%</span>'; }
+    function chart(title, rows, color){
+      return '<div class="card" style="padding:10px 8px">'
+        +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><div style="font-size:13px;font-weight:700">'+title+'</div><div class="muted" style="font-size:11px;white-space:nowrap">últ: '+num(rows[rows.length-1].value)+delta(rows)+'</div></div>'
+        +svgBars(rows,color)+'</div>';
+    }
+    return '<h2>📈 Resumen semanal (desde el día 1)</h2>'
+      +'<div class="muted" style="font-size:12px;margin:0 2px 8px">'+esc(W.name||chKey)+' · lunes a domingo · '+weeks.length+' semanas · '+num(W.subs||0)+' subs · '+num(W.total_views||0)+' vistas de por vida</div>'
+      +chart("👁 Vistas por semana", viewRows, "var(--cy)")
+      +(W.has_engagement?chart("❤ Likes por semana", likeRows, "#f43f5e"):"")
+      +chart("👥 Seguidores (total)", subRows, "#22c55e")
+      +'<div class="muted" style="font-size:10px;margin:2px 2px 10px">⏳ La última barra (rayada) va parcial: YouTube Analytics tarda 2-3 días. Semanas ISO (lunes a domingo). Toca una barra para ver el valor.</div>';
   }
   function render(){
     var ch = ST.channel||{}, cs = ST.channel_stats||{}, mon = ST.monetization||{};
