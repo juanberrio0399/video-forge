@@ -1,0 +1,42 @@
+name: Historial semanal (ambos canales) -> R2
+
+# Baja Analytics diario de The Data Lens (YT1) y Oddly Loop (YT2), lo agrega por
+# semana (lunes) y lo persiste en channel/weekly_stats.json para el tablero "Analítica".
+# La semana en curso queda PARCIAL (Analytics tarda 2-3 días) y la app la marca.
+
+on:
+  schedule:
+    - cron: "30 13 * * *"   # diario 13:30 UTC (justo tras el Cerebro de las 13:00)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  weekly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      YT2_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+      YT2_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+      YT2_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Construir historial semanal de ambos canales
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/weekly_stats.json" --file=weekly_stats.json --remote 2>/dev/null || echo '{}' > weekly_stats.json
+          node pipeline/weekly_stats.mjs data_lens
+          node pipeline/weekly_stats.mjs oddly
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/weekly_stats.json" --file=weekly_stats.json --remote --content-type application/json
+          echo "--- resultado ---"; cat weekly_stats.json
