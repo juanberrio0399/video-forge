@@ -98,7 +98,7 @@ jobs:
           fi
 
       - name: Subir insumos de las fases
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: phases-in
           path: phases/**
@@ -250,7 +250,7 @@ jobs:
 
       - name: Subir la fase renderizada
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: phase-out-${{ matrix.phase }}
           path: |
@@ -480,7 +480,7 @@ jobs:
 
       - name: Subir artifact final
         if: ${{ hashFiles('renders/video.mp4') != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: video
           path: renders/video.mp4
