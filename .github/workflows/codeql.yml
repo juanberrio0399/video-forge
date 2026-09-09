@@ -1,0 +1,32 @@
+name: CodeQL (análisis de seguridad del código)
+
+# SAST de GitHub: escanea el JavaScript/TS (bot + pipeline) buscando patrones
+# vulnerables (inyección, XSS, secretos en flujo, etc.). Gratis en repos públicos.
+# Los hallazgos salen en la pestaña Security -> Code scanning.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"   # lunes 06:00 UTC (barrido semanal)
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analizar JavaScript/TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Inicializar CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - name: Analizar
+        uses: github/codeql-action/analyze@v3

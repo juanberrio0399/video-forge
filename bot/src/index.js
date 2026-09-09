@@ -41,7 +41,7 @@ export default {
 
     // 1) Verificar que el POST viene de Telegram (header secreto).
     const got = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
-    if (!env.TELEGRAM_WEBHOOK_SECRET || got !== env.TELEGRAM_WEBHOOK_SECRET) {
+    if (!env.TELEGRAM_WEBHOOK_SECRET || !safeEqual(got, env.TELEGRAM_WEBHOOK_SECRET)) {
       return new Response("forbidden", { status: 403 });
     }
 
@@ -79,7 +79,7 @@ async function handleWatch(request, env, key, token) {
   // aunque alguien adivine la URL + el chat_id. Los video/ del canal (que van a YouTube) siguen abiertos.
   if (key.startsWith("recipe/")) {
     const good = await watchToken(env, key);
-    if (!good || token !== good) return new Response("no autorizado", { status: 403 });
+    if (!good || !safeEqual(token, good)) return new Response("no autorizado", { status: 403 });
   }
   const rangeHeader = request.headers.get("Range");
   let opts = {};
@@ -115,6 +115,16 @@ async function hmacBytes(keyBytes, msg) {
 const toHex = (u8) => [...u8].map((b) => b.toString(16).padStart(2, "0")).join("");
 // Token firmado para enlaces /watch de contenido personal (recipe/). Mismo secreto
 // que usan los workflows (TELEGRAM_BOT_TOKEN), asi el que arma el reel puede firmar el link.
+// Comparacion en tiempo CONSTANTE de secretos/hex (evita ataques de timing). Para
+// tokens/HMAC de longitud fija; la comparacion de longitud no filtra nada util aqui.
+function safeEqual(a, b) {
+  a = String(a == null ? "" : a); b = String(b == null ? "" : b);
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 async function watchToken(env, key) {
   if (!env.TELEGRAM_BOT_TOKEN) return null;
   const h = toHex(await hmacBytes(new TextEncoder().encode(env.TELEGRAM_BOT_TOKEN), "watch:" + key));
@@ -132,7 +142,7 @@ async function validateInitData(initData, env) {
   const dcs = [...params.entries()].map(([k, v]) => `${k}=${v}`).sort().join("\n");
   const secret = await hmacBytes(new TextEncoder().encode("WebAppData"), env.TELEGRAM_BOT_TOKEN);
   const check = toHex(await hmacBytes(secret, dcs));
-  if (check !== hash) return null;
+  if (!safeEqual(check, hash)) return null;
   // Frescura: rechazar initData de mas de 24 h (cierra el replay a largo plazo).
   const authDate = +(params.get("auth_date") || 0);
   if (!authDate || (Date.now() / 1000 - authDate) > 86400) return null;

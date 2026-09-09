@@ -29,12 +29,16 @@ jobs:
         with:
           node-version: "22"
       - name: Verificar
-        run: node pipeline/youtube_verify.mjs "${{ github.event.inputs.video_id }}"
+        env:   # input por env (no interpolar ${{ }} directo en la shell) — anti inyección
+          IN_VIDEO_ID: ${{ github.event.inputs.video_id }}
+        run: node pipeline/youtube_verify.mjs "$IN_VIDEO_ID"
       - name: Avisar al chat
         if: always()
+        env:
+          IN_VIDEO_ID: ${{ github.event.inputs.video_id }}
         run: |
           if [ -f verify_msg.txt ]; then
             bash pipeline/notify_telegram.sh "$(cat verify_msg.txt)"
           else
-            bash pipeline/notify_telegram.sh "❌ No pude verificar el video ${{ github.event.inputs.video_id }} (revisa el log)."
+            bash pipeline/notify_telegram.sh "❌ No pude verificar el video $IN_VIDEO_ID (revisa el log)."
           fi

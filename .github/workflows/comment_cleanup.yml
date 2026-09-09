@@ -32,4 +32,7 @@ jobs:
         with:
           node-version: "22"
       - name: Borrar respuestas en español
-        run: node pipeline/comment_cleanup.mjs "${{ github.event.inputs.label }}" "${{ github.event.inputs.hours }}"
+        env:   # inputs por env (no interpolar ${{ }} directo en la shell) — anti inyección
+          IN_LABEL: ${{ github.event.inputs.label }}
+          IN_HOURS: ${{ github.event.inputs.hours }}
+        run: node pipeline/comment_cleanup.mjs "$IN_LABEL" "$IN_HOURS"

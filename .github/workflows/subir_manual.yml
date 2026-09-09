@@ -44,7 +44,7 @@ jobs:
           node-version: "22"
 
       - name: Instalar ffmpeg (binario listo, sin apt/candados)
-        uses: federicocarboni/setup-ffmpeg@v3
+        uses: federicocarboni/setup-ffmpeg@36c6454b5a2348e7794ba2d82a21506605921e3d # v3 (pin a SHA por seguridad de cadena de suministro)
         continue-on-error: true
 
       - name: Bajar el clip de R2

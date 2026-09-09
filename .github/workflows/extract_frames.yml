@@ -29,14 +29,18 @@ jobs:
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Bajar el video de R2
-        run: npx --yes wrangler@4 r2 object get "$BUCKET/${{ github.event.inputs.key }}" --file=v.mp4 --remote
+        env:   # input por env (no interpolar ${{ }} directo en la shell) — anti inyección
+          IN_KEY: ${{ github.event.inputs.key }}
+        run: npx --yes wrangler@4 r2 object get "$BUCKET/$IN_KEY" --file=v.mp4 --remote
       - name: Extraer frames
+        env:
+          IN_TIMES: ${{ github.event.inputs.times || '1 5 12 20 30' }}
         run: |
           mkdir -p frames
           DUR=$(ffprobe -v error -show_entries format=duration -of default=nk=1:nw=1 v.mp4)
           echo "duracion=$DUR"
           # -ss DESPUES de -i = seek PRECISO por frame (no salta al keyframe).
-          for t in ${{ github.event.inputs.times || '1 5 12 20 30' }}; do
+          for t in $IN_TIMES; do
             ffmpeg -y -i v.mp4 -ss $t -frames:v 1 -q:v 3 "frames/f_${t}s.jpg" 2>/dev/null || true
           done
           ls -la frames/

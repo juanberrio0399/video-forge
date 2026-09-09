@@ -1,0 +1,25 @@
+version: 2
+# Dependabot: alertas y PRs automáticos cuando una dependencia tiene versión nueva o
+# vulnerabilidad conocida. Gratis en repos públicos. Revisar cada PR antes de mergear.
+updates:
+  - package-ecosystem: "npm"
+    directory: "/bot"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
