@@ -40,3 +40,8 @@ jobs:
           node pipeline/weekly_stats.mjs oddly
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/weekly_stats.json" --file=weekly_stats.json --remote --content-type application/json
           echo "--- resultado ---"; cat weekly_stats.json
+      - name: Baseline por canal (mediana -> rendimiento relativo)
+        run: |
+          node pipeline/baseline.mjs weekly_stats.json
+          [ -s baseline.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/baseline.json" --file=baseline.json --remote --content-type application/json || true
+          [ -s baseline_auto2.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/baseline.json" --file=baseline_auto2.json --remote --content-type application/json || true
