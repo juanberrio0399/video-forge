@@ -158,17 +158,23 @@ export const APP_HTML = `<!doctype html>
   };
   function setHelp(t){ var e=el("tabHelp"); if(e) e.textContent=TABHELP[t]||""; }
   function setVSort(s){ vSort=s; render(); }
+  // Gráficas semanales: mostrar lo MÁS RECIENTE (scroll al final). Robusto: espera al layout
+  // con doble requestAnimationFrame (el SVG tarda en medir su ancho real) + respaldo por si tarda.
+  function scrollWkEnd(){
+    var f=function(){ try{ document.querySelectorAll("#s-analitica .wksc").forEach(function(dv){ dv.scrollLeft=dv.scrollWidth; }); }catch(e){} };
+    try{ requestAnimationFrame(function(){ requestAnimationFrame(f); }); }catch(e){ f(); }
+    setTimeout(f, 300);
+  }
   function tab(name){
     curTab=name;
     ["inicio","producir","agenda","analitica","mas"].forEach(function(t){el("s-"+t).classList.toggle("hide",t!==name);});
     document.querySelectorAll(".nav button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-t")===name);});
     setHelp(name);
     var sec=el("s-"+name); if(sec){ sec.classList.remove("fadein"); void sec.offsetWidth; sec.classList.add("fadein"); }
-    // Gráficas semanales: arrancar mostrando lo MÁS RECIENTE (scroll al final).
-    if(name==="analitica"){ setTimeout(function(){ try{ document.querySelectorAll("#s-analitica .wksc").forEach(function(dv){ dv.scrollLeft=dv.scrollWidth; }); }catch(e){} }, 30); }
+    if(name==="analitica") scrollWkEnd();
     h("sel"); backBtnSync();
   }
-  function setChannel(ch){ curChannel=ch; document.querySelectorAll(".chsel button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-ch")===ch);}); h("sel"); render(); backBtnSync(); }
+  function setChannel(ch){ curChannel=ch; document.querySelectorAll(".chsel button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-ch")===ch);}); h("sel"); render(); if(curTab==="analitica") scrollWkEnd(); backBtnSync(); }
   document.querySelectorAll(".nav button").forEach(function(b){b.onclick=function(){tab(b.getAttribute("data-t"));};});
   document.querySelectorAll(".chsel button").forEach(function(b){b.onclick=function(){setChannel(b.getAttribute("data-ch"));};});
   (function(){ var rb=el("btnRefresh"); if(rb) rb.onclick=function(){ h("light"); toast("Actualizando…"); load(); }; })();
