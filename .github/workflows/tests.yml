@@ -1,0 +1,27 @@
+name: Tests (vitest)
+
+# Fase 0 del Brain OS: red de tests de regresión. Corre en cada push/PR a main
+# para no romper producción a ciegas (hoy había 0 tests para 106 scripts + el Worker).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Instalar dependencias
+        run: npm install --no-audit --no-fund
+      - name: Correr tests
+        run: npm test
