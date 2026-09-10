@@ -12,10 +12,6 @@
 
 import { APP_HTML } from "./miniapp.js";
 
-// PERF: cache en memoria (por isolate) de las corridas de GitHub — evita ~900ms de la API de
-// GitHub en navegación rápida. Las corridas activas cambian lento; 15s de frescura es suficiente.
-let _runsCache = { at: 0, runs: null };
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -619,7 +615,7 @@ async function handleApi(request, env, url) {
     // Avanzar PROXIMOS: quitar los que ya se produjeron (channel/produced.json = {done:[ns]}).
     // PERF: TODAS estas son independientes -> EN PARALELO (antes ~8 lecturas R2 + uso de R2 + la
     // llamada a GitHub, todo en serie = el grueso del retraso de ~2s por carga).
-    const [producedR, learn, elog, toolsHealthR, craft, r2u, reg, vchoice, runsRes] = await Promise.all([
+    const [producedR, learn, elog, toolsHealthR, craft, r2u, reg, vchoice, runsCacheR] = await Promise.all([
       r2json(env, "channel/produced.json"),      // temas ya producidos (avanza la cola)
       r2json(env, "channel/learnings.json"),      // mejora continua (aprendizajes)
       r2json(env, "channel/error_log.json"),      // aprendizajes de errores
@@ -628,8 +624,7 @@ async function handleApi(request, env, url) {
       r2Usage(env),                               // uso de R2 (limite 10GB)
       r2json(env, "voice/registry.json"),         // voces disponibles
       r2json(env, "channel/voice_choice.json"),   // voz elegida
-      // corridas de Actions: si están cacheadas (<15s) resuelve al instante; si no, va a GitHub (en paralelo).
-      (_runsCache.runs && Date.now() - _runsCache.at < 15000) ? Promise.resolve({ _cached: true }) : ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=50`),
+      r2json(env, "channel/_cache/actions_runs.json"), // corridas de Actions CACHEADAS en R2 (15s)
     ]);
     // Avanzar PROXIMOS: quitar los ya producidos + respaldo por # de largos PUBLICOS.
     const produced = producedR || { done: [] };
@@ -658,9 +653,15 @@ async function handleApi(request, env, url) {
     };
     _T("post-reads");
     // Corridas: activas (en proceso) + PROBLEMAS (fallidas recientes, con el paso que fallo).
+    // PERF: cache en R2 (compartido entre isolates). Si es fresco (<15s) evita la llamada a GitHub (~900ms).
     let runs;
-    if (runsRes && runsRes._cached) { runs = _runsCache.runs || []; }
-    else { runs = (runsRes && runsRes.ok) ? ((await runsRes.json()).workflow_runs || []) : []; _runsCache = { at: Date.now(), runs }; }
+    if (runsCacheR && runsCacheR.at && Date.now() - Date.parse(runsCacheR.at) < 15000) {
+      runs = runsCacheR.runs || [];
+    } else {
+      const runsRes = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=50`);
+      runs = runsRes.ok ? ((await runsRes.json()).workflow_runs || []) : [];
+      try { await env.R2.put("channel/_cache/actions_runs.json", JSON.stringify({ at: new Date().toISOString(), runs }), { httpMetadata: { contentType: "application/json" } }); } catch {}
+    }
     // Activas CON paso actual + % + ETA (para verlo en vivo en la app, cortito).
     const actRuns = runs.filter((r) => r.status !== "completed");
     // PERF: el detalle de pasos de las primeras 3 activas, EN PARALELO (antes una tras otra en el loop).
@@ -698,15 +699,18 @@ async function handleApi(request, env, url) {
       // hacer clic en "Ver el error" (/api/error-detail). Asi /api/state no explota en subrequests.
       state.problems.push({ name: r.name, step: "", url: r.html_url, run_id: r.id, workflow: (r.path || "").split("/").pop() });
     }
-    // PRODUCCION actual: calificacion de la IA (calidad del render) + paquete SEO + preview.
-    const quality = await r2json(env, "video/0001-youtube-money/quality.json");
-    const pkg = await r2json(env, "video/0001-youtube-money/package.json");
+    // PRODUCCION actual: calificacion de la IA + paquete SEO + preview. PERF: las 6 lecturas EN PARALELO.
+    const [quality, pkg, idoRes, thHead, renderPending, approvedFlag] = await Promise.all([
+      r2json(env, "video/0001-youtube-money/quality.json"),
+      r2json(env, "video/0001-youtube-money/package.json"),
+      env.R2.get("video/0001-youtube-money/video_id.txt").catch(() => null),
+      env.R2.head("video/0001-youtube-money/thumbnail.jpg").catch(() => null),
+      r2json(env, "video/0001-youtube-money/render_pending.json"),
+      r2json(env, "video/0001-youtube-money/seo_approved.json"),
+    ]);
     let seoVideoId = null;
-    try { const ido = await env.R2.get("video/0001-youtube-money/video_id.txt"); if (ido) seoVideoId = (await ido.text()).trim(); } catch {}
-    let thumbUrl = null;
-    try { const th = await env.R2.head("video/0001-youtube-money/thumbnail.jpg"); if (th) thumbUrl = "/watch/video/0001-youtube-money/thumbnail.jpg"; } catch {}
-    const renderPending = await r2json(env, "video/0001-youtube-money/render_pending.json");
-    const approvedFlag = await r2json(env, "video/0001-youtube-money/seo_approved.json");
+    if (idoRes) { try { seoVideoId = (await idoRes.text()).trim(); } catch {} }
+    const thumbUrl = thHead ? "/watch/video/0001-youtube-money/thumbnail.jpg" : null;
     // Aprobado solo si el titulo aprobado == el titulo actual (si regeneras el SEO, se resetea).
     const isApproved = !!(approvedFlag && approvedFlag.approved && pkg && approvedFlag.title === pkg.title);
     // El video de producción YA está publicado (público) => el paso SEO terminó, se oculta.
