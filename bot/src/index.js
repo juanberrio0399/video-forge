@@ -21,11 +21,15 @@ export default {
       return new Response(APP_HTML, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
     }
     if (url.pathname.startsWith("/api/")) {
+      const t0 = Date.now();
       try {
-        return await handleApi(request, env, url);
+        const resp = await handleApi(request, env, url);
+        console.log(`[api] ${url.pathname} ${Date.now() - t0}ms`);   // validar tiempos con los logs (wrangler tail)
+        return resp;
       } catch (e) {
-        // Nunca dejar la app en blanco por un error del servidor: devolver JSON legible.
-        return new Response(JSON.stringify({ error: "server", detail: (e && e.message) || "error" }), { status: 500, headers: { "content-type": "application/json" } });
+        // Registrar el error COMPLETO en el servidor (para depurar), pero NO filtrar detalles al cliente.
+        console.error(`[api] ${url.pathname} ERROR ${Date.now() - t0}ms: ${(e && e.stack) || e}`);
+        return new Response(JSON.stringify({ error: "server" }), { status: 500, headers: { "content-type": "application/json" } });
       }
     }
     // Ver el video por link (streaming desde R2). Telegram por bot no deja mandar
@@ -454,9 +458,12 @@ async function handleApi(request, env, url) {
     }
     // BILIBILI (repost multiplataforma, Fase 2): cola pendiente + log de reposteados, para verlo en la app.
     try {
-      const bq = (await r2json(env, "channel/oddly/bilibili_queue.json")) || [];
-      const blog = (await r2json(env, "channel/oddly/bilibili_log.json")) || [];
-      const posted = (await r2json(env, "channel/oddly/bilibili_posted.json")) || [];
+      const [bqR, blogR, postedR] = await Promise.all([
+        r2json(env, "channel/oddly/bilibili_queue.json"),
+        r2json(env, "channel/oddly/bilibili_log.json"),
+        r2json(env, "channel/oddly/bilibili_posted.json"),
+      ]);
+      const bq = bqR || [], blog = blogR || [], posted = postedR || [];
       const postedSet = new Set(Array.isArray(posted) ? posted : []);
       const pending = (Array.isArray(bq) ? bq : []).filter((q) => q && q.video_id && !postedSet.has(q.video_id));
       state.bilibili = {
@@ -484,16 +491,21 @@ async function handleApi(request, env, url) {
     if (state.auto2) { const odLikes = (state.auto2.list || []).reduce((s, v) => s + (v.likes || 0), 0); try { state.auto2.monet_goal = await monetTrack(env, "auto2", { subs: state.auto2.subs || 0, shorts_views: state.auto2.total_views || 0, likes: odLikes }); } catch {} }
     // ARBOL de Videos: cada LARGO con sus SHORTS anidados debajo (pestaña Videos, como la pidio Juan).
     // Mapeo short->padre: ledger persistente (channel/shorts_map.json) + el plan actual (for_video_id).
-    const shortsMap = (await r2json(env, "channel/shorts_map.json")) || {};
+    // PERF: shorts_map + videos + manual son independientes -> en PARALELO.
+    const [shortsMapR, vledgerR, manualR] = await Promise.all([
+      r2json(env, "channel/shorts_map.json"),     // mapa short->padre (ledger persistente)
+      r2json(env, "channel/videos.json"),          // ledger de la fabrica (ETAPAS de cada video)
+      r2json(env, "channel/manual_videos.json"),   // ids marcados como "manual" por Juan
+    ]);
+    const shortsMap = shortsMapR || {};
     if (plan.for_video_id) (plan.shorts || []).forEach((s) => { if (s.video_id) shortsMap[s.video_id] = plan.for_video_id; });
     const byParent = {};
     (inv.shorts || []).forEach((sh) => { const p = shortsMap[sh.video_id]; if (p) (byParent[p] = byParent[p] || []).push(sh); });
-    // Ledger de la fabrica (channel/videos.json): se usa para las ETAPAS de cada video.
-    const vledger = (await r2json(env, "channel/videos.json")) || {};
+    const vledger = vledgerR || {};
     // "manual" = SOLO lo que Juan marca a mano (channel/manual_videos.json). Por defecto TODO es del
     // Bot (toda la produccion se sube por la fabrica). Juan avisa cuando sube algo manual y ese id
     // entra a la lista. Asi ningun video del Bot sale como "manual" por un ledger incompleto.
-    const manualSet = new Set((await r2json(env, "channel/manual_videos.json")) || []);
+    const manualSet = new Set(manualR || []);
     const slimV = (v) => ({ video_id: v.video_id, title: (v.title || "").replace(/ #Shorts$/, ""), privacy: v.privacy, views: v.views || 0, watch_min: v.watch_min || 0, manual: manualSet.has(v.video_id), niche_label: dlLabel(v.title) });
     state.video_tree = (inv.longs || []).map((l) => ({ ...slimV(l), shorts: (byParent[l.video_id] || []).map(slimV) }));
     const groupedIds = new Set(Object.values(byParent).flat().map((s) => s.video_id));
