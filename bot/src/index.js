@@ -12,6 +12,10 @@
 
 import { APP_HTML } from "./miniapp.js";
 
+// PERF: cache en memoria (por isolate) de las corridas de GitHub — evita ~900ms de la API de
+// GitHub en navegación rápida. Las corridas activas cambian lento; 15s de frescura es suficiente.
+let _runsCache = { at: 0, runs: null };
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -624,7 +628,8 @@ async function handleApi(request, env, url) {
       r2Usage(env),                               // uso de R2 (limite 10GB)
       r2json(env, "voice/registry.json"),         // voces disponibles
       r2json(env, "channel/voice_choice.json"),   // voz elegida
-      ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=50`), // corridas de Actions
+      // corridas de Actions: si están cacheadas (<15s) resuelve al instante; si no, va a GitHub (en paralelo).
+      (_runsCache.runs && Date.now() - _runsCache.at < 15000) ? Promise.resolve({ _cached: true }) : ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=50`),
     ]);
     // Avanzar PROXIMOS: quitar los ya producidos + respaldo por # de largos PUBLICOS.
     const produced = producedR || { done: [] };
@@ -653,7 +658,9 @@ async function handleApi(request, env, url) {
     };
     _T("post-reads");
     // Corridas: activas (en proceso) + PROBLEMAS (fallidas recientes, con el paso que fallo).
-    const runs = runsRes.ok ? ((await runsRes.json()).workflow_runs || []) : [];
+    let runs;
+    if (runsRes && runsRes._cached) { runs = _runsCache.runs || []; }
+    else { runs = (runsRes && runsRes.ok) ? ((await runsRes.json()).workflow_runs || []) : []; _runsCache = { at: Date.now(), runs }; }
     // Activas CON paso actual + % + ETA (para verlo en vivo en la app, cortito).
     const actRuns = runs.filter((r) => r.status !== "completed");
     // PERF: el detalle de pasos de las primeras 3 activas, EN PARALELO (antes una tras otra en el loop).
@@ -1089,9 +1096,12 @@ async function monetTrack(env, chKey, current) {
   const snap = { date: today };
   goal.targets.forEach((t) => { snap[t.key] = Math.round(current[t.key] || 0); });
   // Un snapshot por dia (idempotente): si el ultimo es de hoy lo refresca, si no lo agrega.
-  if (hist.length && hist[hist.length - 1].date === today) hist[hist.length - 1] = snap; else hist.push(snap);
+  const last = hist.length ? hist[hist.length - 1] : null;
+  // PERF: si el snapshot de hoy ya está guardado IGUAL, NO reescribir R2 (evita un R2.put de ~700ms por carga).
+  const unchanged = last && last.date === today && goal.targets.every((t) => last[t.key] === snap[t.key]);
+  if (last && last.date === today) hist[hist.length - 1] = snap; else hist.push(snap);
   hist = hist.slice(-120);
-  try { await env.R2.put(hkey, JSON.stringify(hist), { httpMetadata: { contentType: "application/json" } }); } catch {}
+  if (!unchanged) { try { await env.R2.put(hkey, JSON.stringify(hist), { httpMetadata: { contentType: "application/json" } }); } catch {} }
   const daysLeft = Math.max(0, Math.ceil((Date.parse(goal.deadline) - Date.now()) / 86400000));
   const win = hist.filter((h) => (Date.parse(today) - Date.parse(h.date)) / 86400000 <= 7);
   const reqs = goal.targets.map((t) => {
