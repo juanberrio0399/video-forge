@@ -1027,7 +1027,7 @@ export const APP_HTML = `<!doctype html>
         +svgBars(rows,color)+'</div>';
     }
     return '<h2>📈 Resumen semanal (desde el día 1)</h2>'
-      +'<div class="muted" style="font-size:12px;margin:0 2px 8px">'+esc(W.name||chKey)+' · lunes a domingo · '+weeks.length+' semanas · '+num(W.subs||0)+' subs · '+num(W.total_views||0)+' vistas de por vida</div>'
+      +'<div class="muted" style="font-size:12px;margin:0 2px 8px">'+esc(W.name||chKey)+' · lunes a domingo · '+weeks.length+' semanas (vistas por semana, no acumulado)</div>'
       +chart("👁 Vistas por semana", viewRows, "var(--cy)")
       +(W.has_engagement?chart("❤ Likes por semana", likeRows, "#f43f5e"):"")
       +chart("👥 Seguidores (total)", subRows, "#22c55e")
