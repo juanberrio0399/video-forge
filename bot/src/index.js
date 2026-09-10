@@ -497,8 +497,14 @@ async function handleApi(request, env, url) {
     }
     // META DE MONETIZACION (YPP) con medicion diaria del ritmo — cada canal su meta.
     const dlLikes = invAll.reduce((s, v) => s + (v.likes || 0), 0);
-    try { state.monet_goal = await monetTrack(env, "data-lens", { subs: inv.subs || 0, watch_hours: ((state.totals && state.totals.watch_min) || 0) / 60, views: inv.total_views || 0, likes: dlLikes }); } catch {}
-    if (state.auto2) { const odLikes = (state.auto2.list || []).reduce((s, v) => s + (v.likes || 0), 0); try { state.auto2.monet_goal = await monetTrack(env, "auto2", { subs: state.auto2.subs || 0, shorts_views: state.auto2.total_views || 0, likes: odLikes }); } catch {} }
+    // PERF: las 2 metas de monetizacion en PARALELO (cada una lee+escribe R2).
+    const odLikes = state.auto2 ? (state.auto2.list || []).reduce((s, v) => s + (v.likes || 0), 0) : 0;
+    const [dlMonet, odMonet] = await Promise.all([
+      monetTrack(env, "data-lens", { subs: inv.subs || 0, watch_hours: ((state.totals && state.totals.watch_min) || 0) / 60, views: inv.total_views || 0, likes: dlLikes }).catch(() => null),
+      state.auto2 ? monetTrack(env, "auto2", { subs: state.auto2.subs || 0, shorts_views: state.auto2.total_views || 0, likes: odLikes }).catch(() => null) : Promise.resolve(null),
+    ]);
+    if (dlMonet) state.monet_goal = dlMonet;
+    if (state.auto2 && odMonet) state.auto2.monet_goal = odMonet;
     _T("monet");
     // ARBOL de Videos: cada LARGO con sus SHORTS anidados debajo (pestaña Videos, como la pidio Juan).
     // Mapeo short->padre: ledger persistente (channel/shorts_map.json) + el plan actual (for_video_id).
@@ -607,11 +613,22 @@ async function handleApi(request, env, url) {
       latest_video_id: latestPublic.video_id || null,
     };
     // Avanzar PROXIMOS: quitar los que ya se produjeron (channel/produced.json = {done:[ns]}).
-    const produced = (await r2json(env, "channel/produced.json")) || { done: [] };
+    // PERF: TODAS estas son independientes -> EN PARALELO (antes ~8 lecturas R2 + uso de R2 + la
+    // llamada a GitHub, todo en serie = el grueso del retraso de ~2s por carga).
+    const [producedR, learn, elog, toolsHealthR, craft, r2u, reg, vchoice, runsRes] = await Promise.all([
+      r2json(env, "channel/produced.json"),      // temas ya producidos (avanza la cola)
+      r2json(env, "channel/learnings.json"),      // mejora continua (aprendizajes)
+      r2json(env, "channel/error_log.json"),      // aprendizajes de errores
+      r2json(env, "channel/tools_health.json"),   // salud de herramientas
+      r2json(env, "channel/craft_feedback.json"), // auto-mejora del render
+      r2Usage(env),                               // uso de R2 (limite 10GB)
+      r2json(env, "voice/registry.json"),         // voces disponibles
+      r2json(env, "channel/voice_choice.json"),   // voz elegida
+      ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=50`), // corridas de Actions
+    ]);
+    // Avanzar PROXIMOS: quitar los ya producidos + respaldo por # de largos PUBLICOS.
+    const produced = producedR || { done: [] };
     const doneSet = new Set(produced.done || []);
-    // Avanza los proximos: quita los ya producidos (produced.json, señal principal) Y los
-    // cubiertos por la cantidad de largos PUBLICOS (auto-avance de respaldo si falta produced.json).
-    // Usa PUBLICOS (no todos) para que un largo privado/borrador no oculte temas de la cola.
     const publicLongCount = (state.published || []).filter((v) => v.privacy === "public").length;
     state.upcoming = (state.upcoming || []).filter((u) => !doneSet.has(u.n) && u.n > publicLongCount);
     // Metricas frescas del canal (del inventario, cada 10 min).
@@ -621,44 +638,33 @@ async function handleApi(request, env, url) {
       state.monetization.subs = inv.subs;
     }
     state.inventory_at = inv.at;
-    // MEJORA CONTINUA: aprendizajes (métricas reales + tendencias) que se aplican al próximo
-    // guion. Los genera pipeline/learnings.mjs antes de producir y los guarda en R2.
-    const learn = await r2json(env, "channel/learnings.json");
     state.learnings = learn ? { brief: learn.brief || "", source: learn.source || "", top: (learn.top || []).slice(0, 5), at: learn.generated_at || null } : null;
-    // Aprendizajes de ERRORES (identificados + analizados por IA + patrones). "Aprende dia con dia."
-    const elog = await r2json(env, "channel/error_log.json");
     state.error_learnings = elog ? { incidents: (elog.incidents || []).slice(-6).reverse(), patterns: elog.patterns || [], at: elog.updated_at || null } : null;
-    // Salud de las herramientas diarias (APIs gratis).
-    state.tools_health = await r2json(env, "channel/tools_health.json");
-    // AUTO-MEJORA del render: lo que aprendió del último video y aplica al siguiente.
-    const craft = await r2json(env, "channel/craft_feedback.json");
+    state.tools_health = toolsHealthR;
     state.craft = craft ? { footage: craft.footage_feedback || "", hook: craft.hook || "", score: craft.score || 0, fixes: craft.fixes || {}, at: craft.at || null } : null;
-    // Uso de R2 (alerta para que siga gratis: limite 10 GB).
-    const r2u = await r2Usage(env);
     const usedGb = (r2u.bytes || 0) / (1024 * 1024 * 1024);
     state.r2 = { used_gb: Math.round(usedGb * 100) / 100, count: r2u.count || 0, limit_gb: 10, pct: Math.min(100, Math.round((usedGb / 10) * 100)) };
     let voices = [];
-    const reg = await r2json(env, "voice/registry.json");
     if (reg) voices = Object.values(reg).map((v) => v.label);
     state.voices = voices;
-    // Selector de voz del canal (con ejemplos para escuchar).
-    const vchoice = await r2json(env, "channel/voice_choice.json");
     state.voices_pick = {
       current: (vchoice && vchoice.id) || "gemini_charon",
       options: VOICE_OPTIONS.map((v) => ({ id: v.id, label: v.label, sample_url: "/watch/" + v.sample })),
     };
+    _T("post-reads");
     // Corridas: activas (en proceso) + PROBLEMAS (fallidas recientes, con el paso que fallo).
-    const runsRes = await ghApi(env, `/repos/${env.GH_REPO}/actions/runs?per_page=50`);
     const runs = runsRes.ok ? ((await runsRes.json()).workflow_runs || []) : [];
     // Activas CON paso actual + % + ETA (para verlo en vivo en la app, cortito).
     const actRuns = runs.filter((r) => r.status !== "completed");
+    // PERF: el detalle de pasos de las primeras 3 activas, EN PARALELO (antes una tras otra en el loop).
+    const jobsRes = await Promise.all(actRuns.slice(0, 3).map((r) => ghApi(env, `/repos/${env.GH_REPO}/actions/runs/${r.id}/jobs`).catch(() => ({ ok: false }))));
     state.active = [];
     for (let ai = 0; ai < actRuns.length; ai++) {
       const r = actRuns[ai];
       const mins = r.run_started_at ? Math.max(0, Math.round((Date.now() - Date.parse(r.run_started_at)) / 60000)) : 0;
       let step = r.status === "queued" ? "en cola…" : "iniciando…";
-      // Solo pido el detalle de pasos de las primeras 3 activas (ahorra subrequests de Cloudflare).
-      const jr = ai < 3 ? await ghApi(env, `/repos/${env.GH_REPO}/actions/runs/${r.id}/jobs`) : { ok: false };
+      // Solo las primeras 3 activas tienen detalle (se pidieron arriba en paralelo).
+      const jr = ai < 3 ? jobsRes[ai] : { ok: false };
       if (jr.ok) {
         const jobs = (await jr.json()).jobs || [];
         const job = jobs.find((j) => j.status === "in_progress") || jobs[0];
