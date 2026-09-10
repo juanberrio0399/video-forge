@@ -1,5 +1,6 @@
-// gen_image.mjs — Generación de imagen nativa con Gemini (gemini-2.5-flash-image) con fallback a Pollinations (Flux)
-// Uso: node pipeline/gen_image.mjs "PROMPT" [salida.png]
+// gen_image.mjs — Generación de imagen: Flux.1-schnell (HuggingFace, alta fidelidad,
+// PRIORITARIO en prompts con texto/realismo) + Gemini nativo, con fallback a Pollinations (Flux).
+// Todo gratis. Uso: node pipeline/gen_image.mjs "PROMPT" [salida.png]
 
 import fs from "node:fs";
 import path from "node:path";
@@ -25,9 +26,48 @@ async function dlPollinations(prompt, dest) {
   return dest;
 }
 
+// Flux.1-schnell vía Hugging Face Inference API (gratis con HF_TOKEN). Alta fidelidad,
+// especialmente para TEXTO en la imagen y REALISMO. Lanza si no hay token o si falla.
+async function generateFluxImage(prompt, dest) {
+  const token = process.env.HF_TOKEN;
+  if (!token) throw new Error("sin HF_TOKEN");
+  console.log(`[gen_image] Flux.1-schnell (HuggingFace) para: "${prompt.slice(0, 60)}..."`);
+  const res = await fetch("https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "image/png" },
+    body: JSON.stringify({ inputs: prompt, parameters: { width: 1280, height: 720 } }),
+    signal: AbortSignal.timeout(60000),
+  });
+  const ct = res.headers.get("content-type") || "";
+  if (!res.ok || !ct.startsWith("image/")) {
+    // HF devuelve JSON (p.ej. {error, estimated_time}) mientras el modelo "despierta" o si falla.
+    const t = await res.text().catch(() => "");
+    throw new Error(`HF ${res.status} (${ct}): ${t.slice(0, 140)}`);
+  }
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length < 2000) throw new Error(`imagen muy chica (${buf.length}b)`);
+  const dir = path.dirname(dest);
+  if (dir && dir !== ".") fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(dest, buf);
+  console.log(`[gen_image] Guardado (Flux.1-schnell) en ${dest} (${buf.length} bytes)`);
+  return dest;
+}
+
+// ¿Conviene Flux primero? Sí en prompts con TEXTO o REALISMO (donde Flux.1-schnell brilla).
+const FLUX_HINT = /\b(text|words?|sign|signage|label|poster|logo|number|title|caption|typography|realistic|realism|photo(graph|realistic)?|portrait|face|product|hyperrealistic)\b/i;
+
 export async function generateImage(prompt, outPath = "out.png") {
   const dir = path.dirname(outPath);
   if (dir && dir !== ".") fs.mkdirSync(dir, { recursive: true });
+
+  // 1) Flux PRIMERO si hay token y el prompt pide texto/realismo.
+  const HF = process.env.HF_TOKEN;
+  let triedFlux = false;
+  if (HF && FLUX_HINT.test(prompt)) {
+    triedFlux = true;
+    try { return await generateFluxImage(prompt, outPath); }
+    catch (err) { console.warn(`[gen_image] Flux (prioritario) falló: ${err.message}`); }
+  }
 
   const IMG_MODELS = ["gemini-2.5-flash-image", "gemini-3.1-flash-lite-image", "gemini-2.0-flash-preview-image-generation"];
   for (const key of API_KEYS) for (const model of IMG_MODELS) {
@@ -73,6 +113,12 @@ export async function generateImage(prompt, outPath = "out.png") {
     } catch (err) {
       console.warn(`[gen_image] Error llamando a Gemini: ${err.message}`);
     }
+  }
+
+  // Flux como fallback de alta fidelidad antes de Pollinations (si hay token y no se probó ya).
+  if (HF && !triedFlux) {
+    try { return await generateFluxImage(prompt, outPath); }
+    catch (err) { console.warn(`[gen_image] Flux (fallback) falló: ${err.message}`); }
   }
 
   // Fallback seguro a Pollinations
