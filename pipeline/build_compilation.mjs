@@ -64,7 +64,21 @@ const hasVoice = (() => { try { return !!voicePath && fs.existsSync(voicePath) &
 const work = "comp"; fs.mkdirSync(work, { recursive: true });
 const manifest = { niche, format, clips: [], transform: { narration: hasVoice, editing: true, original_script: true, sound_design: !!profile.keepAudio } };
 
-async function dl(url, dest) { const r = await fetch(url); fs.writeFileSync(dest, Buffer.from(await r.arrayBuffer())); }
+async function dl(url, dest) {
+  const r = await fetch(url, { signal: AbortSignal.timeout(30000), redirect: "follow" });
+  if (!r.ok) throw new Error(`descarga HTTP ${r.status}`);
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (buf.length < 10000) throw new Error(`descarga ${buf.length}b (muy chica, no es video)`);
+  fs.writeFileSync(dest, buf);
+  // validar que sea un video real (evita correr ffmpeg sobre HTML/basura de una fuente rota)
+  try { execSync(`ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "${dest}"`, { stdio: ["ignore", "pipe", "ignore"] }); }
+  catch { throw new Error("la fuente no devolvió un video válido"); }
+}
+// ffmpeg capturando el stderr real (para ver el MOTIVO si falla, no un genérico "Command failed").
+function ff(cmd) {
+  try { execSync(cmd, { stdio: ["ignore", "ignore", "pipe"] }); }
+  catch (e) { const err = (e.stderr ? e.stderr.toString() : "").trim().split("\n").filter(Boolean).slice(-3).join(" | "); throw new Error("ffmpeg: " + (err || (e.message || "").split("\n")[0])); }
+}
 
 // Fuentes LEGALES (licencia comercial). Cada una devuelve {url, source, license}.
 async function pexels(q) {
@@ -238,12 +252,12 @@ async function makeClip(i) {
     // Nichos de SONIDO (ASMR/relax): conservamos el audio original del clip. Si el clip no
     // trae audio, le ponemos silencio para que todos los clips tengan pista (join uniforme).
     if (hasAudio(raw)) {
-      execSync(`ffmpeg -y -stream_loop -1 -i "${raw}" -t ${dur} -vf "${vf}" -r ${FPS} -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -ar 44100 -ac 2 "${out}"`, { stdio: "ignore" });
+      ff(`ffmpeg -y -stream_loop -1 -i "${raw}" -t ${dur} -vf "${vf}" -r ${FPS} -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -ar 44100 -ac 2 "${out}"`);
     } else {
-      execSync(`ffmpeg -y -stream_loop -1 -i "${raw}" -f lavfi -i anullsrc=r=44100:cl=stereo -t ${dur} -vf "${vf}" -map 0:v -map 1:a -r ${FPS} -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac "${out}"`, { stdio: "ignore" });
+      ff(`ffmpeg -y -stream_loop -1 -i "${raw}" -f lavfi -i anullsrc=r=44100:cl=stereo -t ${dur} -vf "${vf}" -map 0:v -map 1:a -r ${FPS} -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac "${out}"`);
     }
   } else {
-    execSync(`ffmpeg -y -stream_loop -1 -i "${raw}" -t ${dur} -vf "${vf}" -an -r ${FPS} -c:v libx264 -preset veryfast -pix_fmt yuv420p "${out}"`, { stdio: "ignore" });
+    ff(`ffmpeg -y -stream_loop -1 -i "${raw}" -t ${dur} -vf "${vf}" -an -r ${FPS} -c:v libx264 -preset veryfast -pix_fmt yuv420p "${out}"`);
   }
   fs.rmSync(raw, { force: true });
   manifest.clips.push({ clip_id: `clip${i}`, source: got.source, license: got.license, url: got.url, query: q });
