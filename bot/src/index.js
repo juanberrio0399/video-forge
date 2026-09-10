@@ -317,6 +317,7 @@ async function handleApi(request, env, url) {
   const chatId = env.OWNER_CHAT_ID;
 
   if (url.pathname === "/api/state") {
+    const _t0 = Date.now(); const _T = (l) => console.log(`[t] ${l} ${Date.now() - _t0}ms`);   // DEBUG timers
     // PERF: arranca en PARALELO las lecturas base + el inventario. channelInventory hace llamadas a
     // YouTube; que las lecturas de R2 corran a la vez (no en serie) ahorra idas y vueltas.
     const [stateRaw, planRaw, hiddenRaw, inv] = await Promise.all([
@@ -325,6 +326,7 @@ async function handleApi(request, env, url) {
       r2json(env, "channel/hidden_videos.json"),
       channelInventory(env),   // inventario REAL (cacheado 10 min): largos + shorts + subs/vistas
     ]);
+    _T("base+inv");
     const state = stateRaw || {};
     const plan = planRaw || {};
     const approvedShorts = (plan.shorts || []).filter((s) => s.approved);
@@ -350,6 +352,7 @@ async function handleApi(request, env, url) {
     const missingIds = planShorts.filter((s) => s.video_id && !invById[s.video_id]).map((s) => s.video_id);
     const ytMissing = missingIds.length ? await ytStatus(env, missingIds) : {};
     const yt = { ...invById, ...ytMissing };
+    _T(`yt(missing=${missingIds.length})`);
     // Contadores: cuantos videos largos y cuantos shorts (lo que pidio Juan).
     state.long_count = (state.published || []).length;
     state.shorts_count = (inv.shorts || []).length;
@@ -438,6 +441,7 @@ async function handleApi(request, env, url) {
     state.strategy = strategyJson || null;
     state.weekly = weeklyJson || null;
     state.auto2 = auto2Json || null;
+    _T("radar-block");
     // "manual" en Oddly = SOLO lo que Juan marca (channel/auto2/manual_videos.json). Por defecto del Bot.
     if (state.auto2 && Array.isArray(state.auto2.list)) {
       const om = new Set((await r2json(env, "channel/auto2/manual_videos.json")) || []);
@@ -495,6 +499,7 @@ async function handleApi(request, env, url) {
     const dlLikes = invAll.reduce((s, v) => s + (v.likes || 0), 0);
     try { state.monet_goal = await monetTrack(env, "data-lens", { subs: inv.subs || 0, watch_hours: ((state.totals && state.totals.watch_min) || 0) / 60, views: inv.total_views || 0, likes: dlLikes }); } catch {}
     if (state.auto2) { const odLikes = (state.auto2.list || []).reduce((s, v) => s + (v.likes || 0), 0); try { state.auto2.monet_goal = await monetTrack(env, "auto2", { subs: state.auto2.subs || 0, shorts_views: state.auto2.total_views || 0, likes: odLikes }); } catch {} }
+    _T("monet");
     // ARBOL de Videos: cada LARGO con sus SHORTS anidados debajo (pestaña Videos, como la pidio Juan).
     // Mapeo short->padre: ledger persistente (channel/shorts_map.json) + el plan actual (for_video_id).
     // PERF: shorts_map + videos + manual son independientes -> en PARALELO.
