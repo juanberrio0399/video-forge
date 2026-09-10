@@ -32,7 +32,7 @@ async function generateFluxImage(prompt, dest) {
   const token = process.env.HF_TOKEN;
   if (!token) throw new Error("sin HF_TOKEN");
   console.log(`[gen_image] Flux.1-schnell (HuggingFace) para: "${prompt.slice(0, 60)}..."`);
-  const res = await fetch("https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell", {
+  const res = await fetch("https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "image/png" },
     body: JSON.stringify({ inputs: prompt, parameters: { width: 1280, height: 720 } }),
