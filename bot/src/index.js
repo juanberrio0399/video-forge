@@ -313,14 +313,19 @@ async function handleApi(request, env, url) {
   const chatId = env.OWNER_CHAT_ID;
 
   if (url.pathname === "/api/state") {
-    const state = await r2json(env, "channel/state.json") || {};
-    const plan = await r2json(env, "shorts/0001-youtube-money/plan.json") || {};
+    // PERF: arranca en PARALELO las lecturas base + el inventario. channelInventory hace llamadas a
+    // YouTube; que las lecturas de R2 corran a la vez (no en serie) ahorra idas y vueltas.
+    const [stateRaw, planRaw, hiddenRaw, inv] = await Promise.all([
+      r2json(env, "channel/state.json"),
+      r2json(env, "shorts/0001-youtube-money/plan.json"),
+      r2json(env, "channel/hidden_videos.json"),
+      channelInventory(env),   // inventario REAL (cacheado 10 min): largos + shorts + subs/vistas
+    ]);
+    const state = stateRaw || {};
+    const plan = planRaw || {};
     const approvedShorts = (plan.shorts || []).filter((s) => s.approved);
-    // Inventario REAL del canal (cacheado 10 min): largos + shorts + subs/vistas.
-    // Asi la lista de publicados y el contador se actualizan solos al subir/publicar.
-    const inv = await channelInventory(env);
     // OCULTOS (duplicados retirados): fuera de TODA la app (arbol, matriz, contadores...).
-    const hidden = new Set((await r2json(env, "channel/hidden_videos.json")) || []);
+    const hidden = new Set(hiddenRaw || []);
     if (hidden.size) {
       inv.longs = (inv.longs || []).filter((v) => !hidden.has(v.video_id));
       inv.shorts = (inv.shorts || []).filter((v) => !hidden.has(v.video_id));
@@ -410,16 +415,19 @@ async function handleApi(request, env, url) {
         problems, ai: (await r2json(env, "channel/analysis.json")) || null,
       };
     }
-    // RADAR DE NICHOS (canal auto #2): portafolio + ranking + recomendacion semanal.
-    state.niche_radar = (await r2json(env, "channel/niche_radar.json")) || null;
-    // EL CEREBRO: diagnostico diario de salud de los 2 canales (para la ventana principal "Resumen").
-    state.brain = (await r2json(env, "channel/brain.json")) || null;
-    // EL CEREBRO 2.0: estrategia aprendida (que gana / que hacer mas / que explorar), del optimizador semanal.
-    state.strategy = (await r2json(env, "channel/brain/strategy.json")) || null;
-    // ANALISIS SEMANA A SEMANA (ambos canales): lo llena weekly_stats.yml (Analytics diario -> semanas ISO).
-    state.weekly = (await r2json(env, "channel/weekly_stats.json")) || null;
-    // CANAL AUTO #2 (Oddly Loop): estado real (videos/subs/vistas/min), lo llena report_auto2.
-    state.auto2 = (await r2json(env, "channel/auto2/state.json")) || null;
+    // PERF: estas 5 lecturas son independientes -> en PARALELO (antes una tras otra).
+    const [nicheRadar, brainJson, strategyJson, weeklyJson, auto2Json] = await Promise.all([
+      r2json(env, "channel/niche_radar.json"),    // radar de nichos (Oddly)
+      r2json(env, "channel/brain.json"),           // el Cerebro (salud diaria de los 2 canales)
+      r2json(env, "channel/brain/strategy.json"),  // estrategia aprendida (Cerebro 2.0)
+      r2json(env, "channel/weekly_stats.json"),    // análisis semana a semana (Analytics ISO)
+      r2json(env, "channel/auto2/state.json"),     // estado real de Oddly Loop
+    ]);
+    state.niche_radar = nicheRadar || null;
+    state.brain = brainJson || null;
+    state.strategy = strategyJson || null;
+    state.weekly = weeklyJson || null;
+    state.auto2 = auto2Json || null;
     // "manual" en Oddly = SOLO lo que Juan marca (channel/auto2/manual_videos.json). Por defecto del Bot.
     if (state.auto2 && Array.isArray(state.auto2.list)) {
       const om = new Set((await r2json(env, "channel/auto2/manual_videos.json")) || []);
