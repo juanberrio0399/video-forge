@@ -341,9 +341,15 @@ async function handleApi(request, env, url) {
         return { video_id: v.video_id, title: v.title, privacy: v.privacy, published_at: v.published_at, n: seed.n, ai_score: seed.ai_score, stats: { views: v.views, likes: v.likes } };
       });
     }
-    // Privacidad/vistas frescas de TODOS los shorts subidos (del plan).
+    // PERF: privacidad/vistas de los shorts del plan. El INVENTARIO ya las trae (fresco/cacheado),
+    // así que se usan de ahí; SOLO se pide a YouTube por los que no estén en el inventario (normalmente
+    // ninguno). Antes esto era una llamada a YouTube en CADA carga (~4s); ahora casi siempre 0 llamadas.
     const planShorts = plan.shorts || [];
-    const yt = await ytStatus(env, planShorts.filter((s) => s.video_id).map((s) => s.video_id));
+    const invById = {};
+    for (const v of [...(inv.longs || []), ...(inv.shorts || [])]) invById[v.video_id] = { privacy: v.privacy, views: v.views };
+    const missingIds = planShorts.filter((s) => s.video_id && !invById[s.video_id]).map((s) => s.video_id);
+    const ytMissing = missingIds.length ? await ytStatus(env, missingIds) : {};
+    const yt = { ...invById, ...ytMissing };
     // Contadores: cuantos videos largos y cuantos shorts (lo que pidio Juan).
     state.long_count = (state.published || []).length;
     state.shorts_count = (inv.shorts || []).length;
