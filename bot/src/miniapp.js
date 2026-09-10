@@ -164,6 +164,8 @@ export const APP_HTML = `<!doctype html>
     document.querySelectorAll(".nav button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-t")===name);});
     setHelp(name);
     var sec=el("s-"+name); if(sec){ sec.classList.remove("fadein"); void sec.offsetWidth; sec.classList.add("fadein"); }
+    // Gráficas semanales: arrancar mostrando lo MÁS RECIENTE (scroll al final).
+    if(name==="analitica"){ setTimeout(function(){ try{ document.querySelectorAll("#s-analitica .wksc").forEach(function(dv){ dv.scrollLeft=dv.scrollWidth; }); }catch(e){} }, 30); }
     h("sel"); backBtnSync();
   }
   function setChannel(ch){ curChannel=ch; document.querySelectorAll(".chsel button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-ch")===ch);}); h("sel"); render(); backBtnSync(); }
@@ -986,23 +988,26 @@ export const APP_HTML = `<!doctype html>
   }
   // ===== RESUMEN SEMANAL (gráficas) ===== (📈 Analítica). Lee ST.weekly (weekly_stats.json).
   function fmtWk(iso){ var p=(iso||"").split("-"); return p.length===3?(p[2]+"/"+p[1]):iso; }
-  // Mini gráfica de barras SVG (responsive, tema-aware). rows=[{label,value,partial}].
+  // Mini gráfica de barras SVG. rows=[{label,value,partial}]. Cada barra lleva su VALOR arriba
+  // y su FECHA abajo, en tamaño legible; si no caben, el contenedor hace scroll horizontal.
   function svgBars(rows, color){
-    var W=320,H=120,padB=16,padT=16,padL=3,padR=3, n=rows.length; if(!n) return "";
+    var n=rows.length; if(!n) return "";
+    var slot=44, W=Math.max(300, n*slot), H=152, padB=24, padT=22, padL=4, padR=4;
     var max=Math.max.apply(null, rows.map(function(r){return r.value||0;}).concat([1]));
     var bw=(W-padL-padR)/n;
     var bars=rows.map(function(r,i){
       var val=r.value||0;
-      var h=Math.max(1, Math.round((val/max)*(H-padT-padB)));
-      var x=padL+i*bw+bw*0.15, w=Math.max(1,bw*0.7), y=H-padB-h, cx=x+w/2;
-      var lbl=val>0?'<text x="'+cx.toFixed(1)+'" y="'+(y-2.5).toFixed(1)+'" font-size="8" fill="var(--fg,#e6e8ee)" text-anchor="middle" font-weight="700">'+num(val)+'</text>':"";
-      return '<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="'+h+'" rx="1.5" fill="'+(r.partial?"url(#hb)":color)+'" opacity="'+(r.partial?"0.55":"1")+'"><title>'+esc(r.label)+': '+num(val)+(r.partial?" (parcial)":"")+'</title></rect>'+lbl;
+      var h=Math.max(2, Math.round((val/max)*(H-padT-padB)));
+      var x=padL+i*bw+bw*0.18, w=Math.max(2,bw*0.64), y=H-padB-h, cx=x+w/2;
+      var vlbl=val>0?'<text x="'+cx.toFixed(1)+'" y="'+(y-5).toFixed(1)+'" font-size="12" fill="var(--fg,#e6e8ee)" text-anchor="middle" font-weight="700">'+num(val)+'</text>':"";
+      var dlbl='<text x="'+cx.toFixed(1)+'" y="'+(H-8)+'" font-size="11" fill="var(--hint,#8a8a8a)" text-anchor="middle">'+esc(r.label)+'</text>'
+             +(r.partial?'<text x="'+cx.toFixed(1)+'" y="'+(H-1)+'" font-size="7" fill="var(--am,#f59e0b)" text-anchor="middle">parcial</text>':"");
+      return '<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="'+h+'" rx="2" fill="'+(r.partial?"url(#hb)":color)+'" opacity="'+(r.partial?"0.55":"1")+'"><title>'+esc(r.label)+': '+num(val)+(r.partial?" (parcial)":"")+'</title></rect>'+vlbl+dlbl;
     }).join("");
-    function lab(i){ var x=padL+i*bw+bw*0.5; return '<text x="'+x.toFixed(1)+'" y="'+(H-4)+'" font-size="8" fill="var(--hint,#8a8a8a)" text-anchor="middle">'+esc(rows[i].label)+'</text>'; }
-    var xl=[lab(0)]; if(n>2) xl.push(lab(Math.floor((n-1)/2))); if(n>1) xl.push(lab(n-1));
-    return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block">'
+    return '<div class="wksc" style="overflow-x:auto;-webkit-overflow-scrolling:touch">'
+      +'<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" style="display:block;max-width:none">'
       +'<defs><pattern id="hb" width="4" height="4" patternTransform="rotate(45)" patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="4" stroke="'+color+'" stroke-width="2"/></pattern></defs>'
-      +bars+xl.join("")+'</svg>';
+      +bars+'</svg></div>';
   }
   function weeklyHtml(chKey){
     var W=ST.weekly&&ST.weekly.channels&&ST.weekly.channels[chKey];
