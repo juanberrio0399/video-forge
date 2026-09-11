@@ -1,0 +1,37 @@
+name: Memoria episódica (por video) -> R2
+
+# Brain OS Fase 2: construye un "episodio" por video (hechos + rendimiento relativo al baseline
+# por-video del canal) desde el inventario que ya vive en R2. Base del aprendizaje por-video.
+# Nada de producción lo consume aún (lo hará una fase posterior del bot/cerebro).
+
+on:
+  schedule:
+    - cron: "0 14 * * *"   # diario 14:00 UTC (tras weekly_stats/baseline y el Cerebro)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  episodes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Construir episodios de ambos canales
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/inventory_cache.json" --file=inv_dl.json --remote 2>/dev/null || echo '{}' > inv_dl.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/state.json" --file=inv_od.json --remote 2>/dev/null || echo '{}' > inv_od.json
+          node pipeline/episodes.mjs inv_dl.json episodes.json
+          node pipeline/episodes.mjs inv_od.json episodes_auto2.json
+          [ -s episodes.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/episodes.json" --file=episodes.json --remote --content-type application/json || true
+          [ -s episodes_auto2.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/episodes.json" --file=episodes_auto2.json --remote --content-type application/json || true
