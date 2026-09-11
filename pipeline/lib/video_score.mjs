@@ -80,7 +80,8 @@ export function scoreVideo(ep = {}, ret = null, opts = {}) {
 export function findOutliers(episodes, opts = {}) {
   const factor = opts.factor != null ? opts.factor : 1.5;
   const matureDays = opts.matureDays != null ? opts.matureDays : MATURE_DAYS;
-  const eps = (episodes || []).filter((e) => e && e.age_days != null && e.age_days >= matureDays);
+  const minViews = opts.minViews != null ? opts.minViews : MIN_VIEWS; // piso de vistas: evita "outliers" de baseline casi-cero
+  const eps = (episodes || []).filter((e) => e && e.age_days != null && e.age_days >= matureDays && (Number(e.views) || 0) >= minViews);
   const outliers = eps
     .filter((e) => e.vs_baseline_pct != null && (100 + Number(e.vs_baseline_pct)) / 100 >= factor)
     .map((e) => ({ video_id: e.video_id, title: e.title || "", format: e.format || null, hook_type: classifyHook(e.title), vpd: e.vpd != null ? e.vpd : null, vs_baseline_pct: e.vs_baseline_pct }))

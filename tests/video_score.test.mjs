@@ -35,12 +35,13 @@ describe("scoreVideo — veredicto", () => {
 
 describe("findOutliers", () => {
   const eps = [
-    { video_id: "o1", title: "Why this?", age_days: 10, vs_baseline_pct: 120, vpd: 22, format: "short" }, // ratio 2.2
-    { video_id: "o2", title: "How that works", age_days: 10, vs_baseline_pct: 60, vpd: 16, format: "short" },  // ratio 1.6
-    { video_id: "n1", title: "Cute animals", age_days: 10, vs_baseline_pct: -10, vpd: 9, format: "short" },   // ratio 0.9
-    { video_id: "y1", title: "Big one", age_days: 1, vs_baseline_pct: 300, vpd: 40, format: "short" },        // joven -> excluido
+    { video_id: "o1", title: "Why this?", age_days: 10, views: 800, vs_baseline_pct: 120, vpd: 22, format: "short" }, // ratio 2.2
+    { video_id: "o2", title: "How that works", age_days: 10, views: 600, vs_baseline_pct: 60, vpd: 16, format: "short" },  // ratio 1.6
+    { video_id: "n1", title: "Cute animals", age_days: 10, views: 300, vs_baseline_pct: -10, vpd: 9, format: "short" },   // ratio 0.9
+    { video_id: "y1", title: "Big one", age_days: 1, views: 900, vs_baseline_pct: 300, vpd: 40, format: "short" },        // joven -> excluido
+    { video_id: "p1", title: "Why tiny?", age_days: 10, views: 8, vs_baseline_pct: 500, vpd: 30, format: "short" },       // pocas vistas -> excluido (baseline casi-cero)
   ];
-  it("solo maduros que superan el factor", () => {
+  it("solo maduros, con vistas suficientes, que superan el factor", () => {
     const r = findOutliers(eps, { factor: 1.5 });
     expect(r.count).toBe(2);
     expect(r.outliers.map((o) => o.video_id)).toEqual(["o1", "o2"]);
