@@ -1,0 +1,44 @@
+name: HookNeuron + evidencia de hipótesis -> R2
+
+# Brain OS Fase 4b: clasifica hooks (memoria ganadores/fallidos) y AÑADE evidencia real al registro
+# de hipótesis desde episodios + retención. Cierra el loop retención -> aprendizaje -> hipótesis.
+
+on:
+  schedule:
+    - cron: "0 16 * * *"   # tras retención (15:00) y episodios/hipótesis
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  hooks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Hooks + evidencia (Data Lens)
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/episodes.json" --file=ep.json --remote 2>/dev/null || echo '{}' > ep.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/retention.json" --file=ret.json --remote 2>/dev/null || echo '{}' > ret.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/hypotheses.json" --file=hyp.json --remote 2>/dev/null || echo '[]' > hyp.json
+          node pipeline/hooks.mjs ep.json ret.json hyp.json hooks.json
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/brain/hooks.json" --file=hooks.json --remote --content-type application/json
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/brain/hypotheses.json" --file=hyp.json --remote --content-type application/json
+      - name: Hooks + evidencia (Oddly) — mismo registro global
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/episodes.json" --file=ep2.json --remote 2>/dev/null || echo '{}' > ep2.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/retention.json" --file=ret2.json --remote 2>/dev/null || echo '{}' > ret2.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/hypotheses.json" --file=hyp.json --remote 2>/dev/null || echo '[]' > hyp.json
+          node pipeline/hooks.mjs ep2.json ret2.json hyp.json hooks_auto2.json
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/hooks.json" --file=hooks_auto2.json --remote --content-type application/json
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/brain/hypotheses.json" --file=hyp.json --remote --content-type application/json
