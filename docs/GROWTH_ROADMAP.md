@@ -30,8 +30,10 @@ Investigación semanal (GitHub Actions + Gemini con búsqueda): tendencias, comp
 - `lib/alerts.mjs` + `alerts.mjs` + `alerts.yml` (diario): reglas puras sobre la memoria existente — **crecimiento cayendo** (subs/vistas 7d vs 7d previos), **saturación de formato** (cohorte reciente vs vieja), **dependencia de un nicho** (concentración del reparto), **pipeline parado** (sin publicar hace >4d), **meta atrasada**. Avisa por Telegram SOLO warn/critical (sin ruido). R2: `channel/*/alerts.json`.
 - Pendiente (necesita datos que aún no guardamos): caída de retención/CTR con histórico propio, competidor acelerando, "reutilizado".
 
-## Fase 5 — Protocolo de 2 agentes (validación cruzada)
-Cruzar el **Growth Radar** con el **repo-radar** (u otro): comparar hipótesis, coincidencias, contradicciones; clasificar CONFIRMADA/PROBABLE/INCIERTA/CONTRADICTORIA/REQUIERE EXPERIMENTO/DESCARTADA. Nunca repetir el mismo sesgo sin comprobarlo con datos.
+## ✅ Fase 5 — Protocolo de 2 agentes (HECHO)
+- `lib/cross_validate.mjs` + `cross_validate.mjs` + `cross_validate.yml` (domingos): cruza el **Growth Radar** (externo, `channel/growth_radar.json`) con la **evidencia interna** medida (hipótesis + A/B + outliers) por canal. Extrae afirmaciones tagueadas por evidencia, las matchea por keywords (sinónimos ES/EN de las palancas) y clasifica **CONFIRMADA / PROBABLE / CONTRADICTORIA / REQUIERE_EXPERIMENTO / INCIERTA**. Avisa por Telegram lo accionable → `channel/*/cross_validation.json`. Nunca da por cierto un "hack" externo sin cruzarlo con datos.
+
+**ROADMAP GROWTH COMPLETO (Fases 0-5).**
 
 ## Modos (siempre disponibles en el chat, sin build)
 - **WAR ROOM** → estrategia máxima 72h: TOP 5 acciones/experimentos/videos/hooks/formatos.

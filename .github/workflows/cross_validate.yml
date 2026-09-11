@@ -1,0 +1,50 @@
+name: Validación cruzada (2 agentes) -> R2 + Telegram
+
+# Growth Roadmap Fase 5: cruza el Growth Radar (investigación externa) con nuestra evidencia
+# interna medida (hipótesis + A/B + outliers) por canal y clasifica cada afirmación
+# (CONFIRMADA/PROBABLE/CONTRADICTORIA/REQUIERE_EXPERIMENTO/INCIERTA). Nunca dar por cierto un
+# "hack" externo sin cruzarlo con los datos. Solo lectura.
+on:
+  schedule:
+    - cron: "0 18 * * 0"   # domingos 18:00 UTC (tras growth_radar y el reporte de experimentos)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  cross:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Externo (Growth Radar) + hipótesis compartidas
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/growth_radar.json" --file=radar.json --remote 2>/dev/null || echo '{}' > radar.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/hypotheses.json" --file=hyps.json --remote 2>/dev/null || echo '[]' > hyps.json
+      - name: Cruce — The Data Lens
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/ab_tests.json" --file=ab.json --remote 2>/dev/null || echo '{}' > ab.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/scores.json" --file=sc.json --remote 2>/dev/null || echo '{}' > sc.json
+          node pipeline/cross_validate.mjs data-lens radar.json hyps.json ab.json sc.json cross.json
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/cross_validation.json" --file=cross.json --remote --content-type application/json || true
+          [ -s cross_text.txt ] && bash pipeline/notify_telegram.sh "$(cat cross_text.txt)" || echo "Data Lens: sin cruce accionable"
+      - name: Cruce — Oddly Loop
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/ab_tests.json" --file=ab2.json --remote 2>/dev/null || echo '{}' > ab2.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/scores.json" --file=sc2.json --remote 2>/dev/null || echo '{}' > sc2.json
+          rm -f cross_text.txt
+          node pipeline/cross_validate.mjs auto2 radar.json hyps.json ab2.json sc2.json cross2.json
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/cross_validation.json" --file=cross2.json --remote --content-type application/json || true
+          [ -s cross_text.txt ] && bash pipeline/notify_telegram.sh "$(cat cross_text.txt)" || echo "Oddly: sin cruce accionable"
