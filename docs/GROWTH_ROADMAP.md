@@ -21,10 +21,10 @@ Investigación semanal (GitHub Actions + Gemini con búsqueda): tendencias, comp
 - `lib/video_score.mjs` + `video_scores.mjs` (en `episodes.yml`): score 0-100 por video (rendimiento vs baseline + retención/hook + engagement, ponderado por confianza) → veredicto **SCALE / ITERATE / TEST_AGAIN / STOP**.
 - **Outliers propios** (`findOutliers`): maduros con vistas suficientes que superan la mediana → extrae patrón (hook/formato) → sugiere experimento. R2: `channel/scores.json` + `channel/auto2/scores.json`.
 
-## 🔭 Fase 3 — A/B systematic + banco de creativos (EN CONSTRUCCIÓN)
+## ✅ Fase 3 — A/B systematic + banco de creativos (HECHO)
 - **Banco de creativos** (`lib/creative_bank.mjs`): ideas/hooks/títulos con estado (BACKLOG→TESTING→WINNER/KILLED) y prioridad `IMPACTO × PROBABILIDAD × VELOCIDAD ÷ COSTE` → P0/P1/P2/P3/KILL. Se auto-siembra desde los outliers de Fase 2. R2: `channel/brain/creative_bank.json`.
-- **Reporte semanal de experimentos** (`lib/experiment_report.mjs` + `experiment_report.yml`, domingos): ensambla monetización/veredictos/ganadores/outliers/hipótesis/próximo-a-probar/plan desde los registros ya calculados → Telegram + `channel/*/experiment_report.json`.
-- Pendiente de Fase 3: A/B de una variable a la vez (hook/título/thumbnail/duración/CTA) atado a un video real.
+- **A/B por cohortes** (`lib/ab_test.mjs` + `ab_tests.mjs` en `episodes.yml`): una variable a la vez (hook), sobre videos REALES ya scoreados; agrupa por variante, mide vs baseline, decide GANADOR con muestra+lift (sin p-values falsos). R2: `channel/*/ab_tests.json`.
+- **Reporte semanal de experimentos** (`lib/experiment_report.mjs` + `experiment_report.yml`, domingos): ensambla monetización/veredictos/ganadores/outliers/hipótesis/**A/B**/próximo-a-probar/plan → Telegram + `channel/*/experiment_report.json`.
 
 ## Fase 4 — Alertas
 Caída de retención/CTR/subs, saturación de formato, cambio de tendencia, competidor acelerando, riesgo de políticas/copyright, contenido posiblemente "reutilizado", dependencia de una sola fuente de tráfico.
