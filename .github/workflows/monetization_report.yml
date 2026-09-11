@@ -1,0 +1,49 @@
+name: Monetization Dashboard + Brain Report -> R2
+
+# Brain OS Fase 6: lee el historial diario de ambos canales, calcula readiness + War Room 60 días
+# (foco/riesgo/proxima-accion) y sube el registro del dashboard a R2 (lo lee la Mini App). El Brain
+# Report va por Telegram los lunes (pulso semanal, sin spam). Todo en la nube, sin PC, gratis.
+on:
+  schedule:
+    - cron: "30 15 * * *"   # diario 15:30 UTC (tras retencion 15:00; antes de hooks 16:00)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Bajar historial de monetización (ambos canales)
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/monetization_history.json" --file=dl.json --remote 2>/dev/null || echo '[]' > dl.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/monetization_history.json" --file=od.json --remote 2>/dev/null || echo '[]' > od.json
+
+      - name: Calcular dashboard + Brain Report
+        run: node pipeline/monetization_report.mjs dl.json od.json monetization_report.json
+
+      - name: Subir dashboard a R2
+        run: npx --yes wrangler@4 r2 object put "$BUCKET/channel/brain/monetization_report.json" --file=monetization_report.json --content-type application/json --remote
+
+      - name: Brain Report por Telegram (solo lunes)
+        run: |
+          if [ "$(date -u +%u)" = "1" ] && [ -s brain_report.txt ]; then
+            bash pipeline/notify_telegram.sh "$(cat brain_report.txt)"
+          else
+            echo "No es lunes (o sin reporte): dashboard subido, sin Telegram."
+          fi
