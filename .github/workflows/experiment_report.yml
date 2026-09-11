@@ -1,0 +1,51 @@
+name: Reporte semanal de experimentos + Banco de creativos -> R2
+
+# Growth Roadmap Fase 3: mantiene el BANCO de creativos (sembrado desde los outliers de Fase 2)
+# y arma el reporte semanal por canal (qué gana / qué cortar / qué probar / plan) desde los
+# registros que ya viven en R2. Sube report + bank y avisa por Telegram. Solo lectura de datos.
+on:
+  schedule:
+    - cron: "0 17 * * 0"   # domingos 17:00 UTC (tras episodios/scores/hooks/monetización de la semana)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Registros compartidos (hipótesis + monetización + decisión)
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/hypotheses.json" --file=hyps.json --remote 2>/dev/null || echo '[]' > hyps.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/monetization_report.json" --file=monet.json --remote 2>/dev/null || echo '{}' > monet.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/decision.json" --file=decision.json --remote 2>/dev/null || echo '{}' > decision.json
+      - name: Reporte + banco — The Data Lens
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/scores.json" --file=sc.json --remote 2>/dev/null || echo '{}' > sc.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/creative_bank.json" --file=bank.json --remote 2>/dev/null || echo '[]' > bank.json
+          node pipeline/experiment_report.mjs data-lens sc.json hyps.json monet.json decision.json bank.json report.json bank_new.json
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/brain/experiment_report.json" --file=report.json --remote --content-type application/json || true
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/brain/creative_bank.json" --file=bank_new.json --remote --content-type application/json || true
+          bash pipeline/notify_telegram.sh "$(cat report_text.txt)" || true
+      - name: Reporte + banco — Oddly Loop
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/scores.json" --file=sc2.json --remote 2>/dev/null || echo '{}' > sc2.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/creative_bank.json" --file=bank2.json --remote 2>/dev/null || echo '[]' > bank2.json
+          node pipeline/experiment_report.mjs auto2 sc2.json hyps.json monet.json decision.json bank2.json report2.json bank2_new.json
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/experiment_report.json" --file=report2.json --remote --content-type application/json || true
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/creative_bank.json" --file=bank2_new.json --remote --content-type application/json || true
+          bash pipeline/notify_telegram.sh "$(cat report_text.txt)" || true
