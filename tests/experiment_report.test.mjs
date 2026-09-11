@@ -32,6 +32,12 @@ describe("buildReport", () => {
     expect(r.next_to_test.length).toBe(1);
     expect(r.next_to_test[0].text).toBe("Probar hook pregunta");
   });
+  it("integra A/B: ganador entra al plan y a ab_tests", () => {
+    const ab = { experiments: [{ id: "hook", variable: "hook_type", verdict: "WINNER:question", leader: "question", lift: 40, measured: {} }] };
+    const r2 = buildReport({ channel: "data-lens", scores, hypotheses, monetization, bank, ab });
+    expect(r2.ab_tests.length).toBe(1);
+    expect(r2.plan.join(" ")).toMatch(/gana "question"/);
+  });
 });
 
 describe("formatReport", () => {

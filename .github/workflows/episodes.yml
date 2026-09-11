@@ -44,3 +44,10 @@ jobs:
           node pipeline/video_scores.mjs episodes_auto2.json ret_od.json scores_auto2.json || true
           [ -s scores.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/scores.json" --file=scores.json --remote --content-type application/json || true
           [ -s scores_auto2.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/scores.json" --file=scores_auto2.json --remote --content-type application/json || true
+      - name: A/B por cohortes (hook) — Growth Fase 3
+        run: |
+          # A/B de UNA variable (hook) por cohortes sobre los videos ya scoreados. Solo medición.
+          node pipeline/ab_tests.mjs scores.json ab.json || true
+          node pipeline/ab_tests.mjs scores_auto2.json ab_auto2.json || true
+          [ -s ab.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/ab_tests.json" --file=ab.json --remote --content-type application/json || true
+          [ -s ab_auto2.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/ab_tests.json" --file=ab_auto2.json --remote --content-type application/json || true
