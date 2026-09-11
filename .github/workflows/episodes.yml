@@ -1,8 +1,8 @@
-name: Memoria episódica (por video) -> R2
+name: Memoria episódica + Score por video -> R2
 
-# Brain OS Fase 2: construye un "episodio" por video (hechos + rendimiento relativo al baseline
-# por-video del canal) desde el inventario que ya vive en R2. Base del aprendizaje por-video.
-# Nada de producción lo consume aún (lo hará una fase posterior del bot/cerebro).
+# Brain OS Fase 2 + Growth Fase 2: construye un "episodio" por video (hechos + rendimiento
+# relativo al baseline del canal) desde el inventario en R2, y con eso PUNTÚA cada video
+# (score 0-100 + veredicto SCALE/ITERATE/TEST_AGAIN/STOP) y detecta OUTLIERS propios.
 
 on:
   schedule:
@@ -35,3 +35,12 @@ jobs:
           node pipeline/episodes.mjs inv_od.json episodes_auto2.json
           [ -s episodes.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/episodes.json" --file=episodes.json --remote --content-type application/json || true
           [ -s episodes_auto2.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/episodes.json" --file=episodes_auto2.json --remote --content-type application/json || true
+      - name: Score por video + outliers (Growth Fase 2)
+        run: |
+          # Retención (si existe) para enriquecer el score; si falta, el score usa solo rendimiento+engagement.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/retention.json" --file=ret_dl.json --remote 2>/dev/null || echo '{}' > ret_dl.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/retention.json" --file=ret_od.json --remote 2>/dev/null || echo '{}' > ret_od.json
+          node pipeline/video_scores.mjs episodes.json ret_dl.json scores.json || true
+          node pipeline/video_scores.mjs episodes_auto2.json ret_od.json scores_auto2.json || true
+          [ -s scores.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/scores.json" --file=scores.json --remote --content-type application/json || true
+          [ -s scores_auto2.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/scores.json" --file=scores_auto2.json --remote --content-type application/json || true
