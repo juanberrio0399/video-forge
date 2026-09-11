@@ -26,8 +26,9 @@ Investigación semanal (GitHub Actions + Gemini con búsqueda): tendencias, comp
 - **A/B por cohortes** (`lib/ab_test.mjs` + `ab_tests.mjs` en `episodes.yml`): una variable a la vez (hook), sobre videos REALES ya scoreados; agrupa por variante, mide vs baseline, decide GANADOR con muestra+lift (sin p-values falsos). R2: `channel/*/ab_tests.json`.
 - **Reporte semanal de experimentos** (`lib/experiment_report.mjs` + `experiment_report.yml`, domingos): ensambla monetización/veredictos/ganadores/outliers/hipótesis/**A/B**/próximo-a-probar/plan → Telegram + `channel/*/experiment_report.json`.
 
-## Fase 4 — Alertas
-Caída de retención/CTR/subs, saturación de formato, cambio de tendencia, competidor acelerando, riesgo de políticas/copyright, contenido posiblemente "reutilizado", dependencia de una sola fuente de tráfico.
+## ✅ Fase 4 — Alertas (HECHO)
+- `lib/alerts.mjs` + `alerts.mjs` + `alerts.yml` (diario): reglas puras sobre la memoria existente — **crecimiento cayendo** (subs/vistas 7d vs 7d previos), **saturación de formato** (cohorte reciente vs vieja), **dependencia de un nicho** (concentración del reparto), **pipeline parado** (sin publicar hace >4d), **meta atrasada**. Avisa por Telegram SOLO warn/critical (sin ruido). R2: `channel/*/alerts.json`.
+- Pendiente (necesita datos que aún no guardamos): caída de retención/CTR con histórico propio, competidor acelerando, "reutilizado".
 
 ## Fase 5 — Protocolo de 2 agentes (validación cruzada)
 Cruzar el **Growth Radar** con el **repo-radar** (u otro): comparar hipótesis, coincidencias, contradicciones; clasificar CONFIRMADA/PROBABLE/INCIERTA/CONTRADICTORIA/REQUIERE EXPERIMENTO/DESCARTADA. Nunca repetir el mismo sesgo sin comprobarlo con datos.
