@@ -16,15 +16,21 @@ const it = (g.items || [])[0];
 if (!it) { console.error(`video no encontrado: ${vid}`); process.exit(1); }
 const title = (it.snippet && it.snippet.title) || "";
 const was = (it.status && it.status.privacyStatus) || "?";
-if (was === "private") { console.log(`ya estaba PRIVADO: ${vid} — ${title}`); process.exit(0); }
+const schedAt = (it.status && it.status.publishAt) || null; // OJO: un video PROGRAMADO está en "private" CON publishAt
+const scheduled = schedAt && Date.parse(schedAt) > Date.now();
+// Solo saltar si ya está privado Y sin programación futura (nada que despublicar/desprogramar).
+if (was === "private" && !scheduled) { console.log(`ya estaba PRIVADO (sin programar): ${vid} — ${title}`); process.exit(0); }
 
+// PUT sin publishAt -> pone privado Y borra la programación futura.
 const r = await tf("https://www.googleapis.com/youtube/v3/videos?part=status", {
   method: "PUT", headers: { ...H, "content-type": "application/json" },
   body: JSON.stringify({ id: vid, status: { privacyStatus: "private", selfDeclaredMadeForKids: false } }),
 });
 const j = await r.json();
-if (r.ok && j.status && j.status.privacyStatus === "private") {
-  console.log(`DESPUBLICADO (privado): ${vid} — ${title} (antes: ${was})`);
+const okPriv = j.status && j.status.privacyStatus === "private";
+const okUnsched = !(j.status && j.status.publishAt && Date.parse(j.status.publishAt) > Date.now());
+if (r.ok && okPriv && okUnsched) {
+  console.log(`DESPUBLICADO (privado${scheduled ? " + desprogramado, era " + schedAt : ""}): ${vid} — ${title}`);
 } else {
   console.error(`fallo (${r.status}): ${JSON.stringify(j).slice(0, 300)}`);
   process.exit(1);
