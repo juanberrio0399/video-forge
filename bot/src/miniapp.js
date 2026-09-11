@@ -108,6 +108,7 @@ export const APP_HTML = `<!doctype html>
   <div id="s-producir" class="hide"></div>
   <div id="s-agenda" class="hide"></div>
   <div id="s-analitica" class="hide"></div>
+  <div id="s-cerebro" class="hide"></div>
   <div id="s-mas" class="hide"></div>
 </div>
 <div id="toast"></div>
@@ -116,6 +117,7 @@ export const APP_HTML = `<!doctype html>
   <button id="navProducir" data-t="producir"><span class="ic">🏭</span>Producir</button>
   <button data-t="agenda"><span class="ic">📅</span>Agenda</button>
   <button data-t="analitica"><span class="ic">📈</span>Analítica</button>
+  <button data-t="cerebro"><span class="ic">🧠</span>Cerebro</button>
   <button data-t="mas"><span class="ic">⚙️</span>Más</button>
 </div>
 <script>
@@ -154,6 +156,7 @@ export const APP_HTML = `<!doctype html>
     producir:"🏭 El flujo de cada video: producir, revisar, aprobar, publicar — y qué le falta a cada uno. Aquí también los shorts.",
     agenda:"📅 Tu calendario de publicación (mejores horas EEUU) y lo programado.",
     analitica:"📈 Análisis del canal: qué tan prometedor, reclamaciones, métricas, capacidad y tus videos.",
+    cerebro:"🧠 El cerebro por dentro: cómo reparte el esfuerzo (motor de decisión) y qué tan cerca está cada canal de monetizar (War Room 60 días).",
     mas:"⚙️ Crear (foto/receta/voz), voz del canal, salud de herramientas y almacenamiento."
   };
   function setHelp(t){ var e=el("tabHelp"); if(e) e.textContent=TABHELP[t]||""; }
@@ -167,7 +170,8 @@ export const APP_HTML = `<!doctype html>
   }
   function tab(name){
     curTab=name;
-    ["inicio","producir","agenda","analitica","mas"].forEach(function(t){el("s-"+t).classList.toggle("hide",t!==name);});
+    ["inicio","producir","agenda","analitica","cerebro","mas"].forEach(function(t){el("s-"+t).classList.toggle("hide",t!==name);});
+    if(name==="cerebro") loadBrain(false);
     document.querySelectorAll(".nav button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-t")===name);});
     setHelp(name);
     var sec=el("s-"+name); if(sec){ sec.classList.remove("fadein"); void sec.offsetWidth; sec.classList.add("fadein"); }
@@ -1361,6 +1365,64 @@ export const APP_HTML = `<!doctype html>
       lastInsights='<h2>🧠 Qué replicar</h2><div class="card">'+esc(j.analysis||j.error||"sin datos").replace(/\\n/g,"<br>")+'</div>';
       var e=el("insightsOut"); if(e) e.innerHTML=lastInsights;
     }).catch(function(){var e=el("insightsOut"); if(e) e.innerHTML='<div class="card muted">No pude analizar.</div>';});
+  }
+  // ===== Cerebro (Brain OS Fases 5-6): motor de decisión + War Room de monetización =====
+  var BRAIN=null, brainLoading=false;
+  function loadBrain(force){
+    var host=el("s-cerebro"); if(!host) return;
+    if(BRAIN && !force){ host.innerHTML=brainHtml(BRAIN); return; }
+    if(brainLoading) return; brainLoading=true;
+    if(!BRAIN) host.innerHTML='<div class="card muted" style="font-size:12px">🧠 Cargando el cerebro…</div>';
+    api("/api/brain").then(function(r){return r.json();}).then(function(j){ BRAIN=j; brainLoading=false; host.innerHTML=brainHtml(j); })
+      .catch(function(){ brainLoading=false; host.innerHTML='<div class="card muted">No pude cargar el cerebro.</div>'; });
+  }
+  function bPill(txt,cvar){ return '<span style="display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.07);color:var('+cvar+')">'+esc(txt)+'</span>'; }
+  function bRisk(r){ return r==="alto"?"--rd":(r==="medio"?"--am":"--gr"); }
+  function bNum(n){ return Number(n||0).toLocaleString("es"); }
+  function bTargetRow(r){
+    var col = r.done?"--gr":(r.on_track===false?"--rd":(r.on_track?"--gr":"--am"));
+    var proj = r.proj_date?'<span class="muted" style="font-size:10px"> · proy '+esc(r.proj_date)+'</span>':'';
+    return '<div style="margin:6px 0">'
+      +'<div style="display:flex;justify-content:space-between;font-size:12px;gap:8px"><span><span style="color:var('+col+')">●</span> '+esc(r.label)+'</span>'
+      +'<span style="text-align:right">'+bNum(r.cur)+' / '+bNum(r.target)+' ('+(r.pct||0)+'%)'+proj+'</span></div>'
+      +'<div style="height:6px;border-radius:999px;background:rgba(255,255,255,.08);margin-top:3px"><div style="height:6px;border-radius:999px;width:'+Math.max(2,Math.min(100,r.pct||0))+'%;background:var('+col+')"></div></div></div>';
+  }
+  function bMonetCard(name, ch){
+    if(!ch||!ch.readiness) return '<div class="card muted" style="font-size:12px">'+esc(name)+': sin datos aún.</div>';
+    var rd=ch.readiness, wr=ch.war_room||{};
+    var sc = rd.status==="behind"?"--rd":(rd.status==="measuring"?"--am":"--gr");
+    var rows = (rd.reqs||[]).map(bTargetRow).join("");
+    var focus = (wr.active&&wr.focus_label)?'<div class="card" style="background:var(--bg);padding:8px;margin-top:8px;font-size:12px"><b>🎯 Foco:</b> '+esc(wr.focus_label)+' — '+esc(wr.next_action||"")+'</div>':"";
+    return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><b>'+esc(name)+'</b>'
+      +'<span>'+bPill(String(rd.status).toUpperCase(),sc)+' '+bPill(rd.days_left+"d",(rd.days_left<=30?"--rd":"--am"))+' '+bPill("riesgo "+(wr.risk||"?"),bRisk(wr.risk))+'</span></div>'
+      +rows+focus+'</div>';
+  }
+  function bDecisionCard(d){
+    if(!d||!d.candidates||!d.candidates.length) return '<div class="card muted" style="font-size:12px">🎛️ Motor de decisión: aún sin registro (se genera los lunes con el rebalance de Oddly).</div>';
+    var rows=d.candidates.map(function(c){
+      var slots=(d.recommended_allocation&&d.recommended_allocation[c.key])||0;
+      return '<tr><td style="text-align:left">'+esc(c.label||c.key)+'</td>'
+        +'<td style="text-align:right">'+(c.expected_value!=null?c.expected_value:"—")+'</td>'
+        +'<td style="text-align:right">'+(c.confidence!=null?Math.round(c.confidence*100)+"%":"—")+'</td>'
+        +'<td style="text-align:right">'+(c.score!=null?c.score:"—")+'</td>'
+        +'<td style="text-align:right"><b>'+slots+'</b></td></tr>';
+    }).join("");
+    return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b>🎛️ Motor de decisión — Oddly</b><span class="muted" style="font-size:11px">'+esc(d.week||"")+'</span></div>'
+      +'<div class="muted" style="font-size:11px;margin:2px 0 8px">Reparto por confianza (score = valor × certeza), no proporcional-ciego.</div>'
+      +'<table style="font-size:12px;width:100%"><tr><th style="text-align:left">Nicho</th><th style="text-align:right">Valor</th><th style="text-align:right">Certeza</th><th style="text-align:right">Score</th><th style="text-align:right">Slots</th></tr>'+rows+'</table></div>';
+  }
+  function brainHtml(j){
+    j=j||{};
+    var mon=j.monetization||{}; var chs=mon.channels||{};
+    var when = mon.at?'<div class="muted" style="font-size:11px;margin:-2px 2px 8px">Actualizado '+esc(String(mon.at).slice(5,16).replace("T"," "))+'</div>':"";
+    var empty = (!mon.channels && !j.decision);
+    return '<h2>🧠 Cerebro <span class="live"></span></h2>'+when
+      +(empty?'<div class="card muted" style="font-size:12px">El cerebro aún no ha dejado registros en R2. Se generan a diario (dashboard) y los lunes (motor de decisión).</div>':"")
+      +'<div class="muted" style="font-size:12px;margin:0 2px 8px">📊 War Room 60 días — ¿cuánto falta para monetizar?</div>'
+      +bMonetCard("The Data Lens", chs["data-lens"])
+      +bMonetCard("Oddly Loop", chs["auto2"])
+      +bDecisionCard(j.decision)
+      +'<button class="btn" style="margin-top:6px" onclick="loadBrain(true)">↻ Actualizar</button>';
   }
   function regenSeo(){
     var notes=(el("seoNotes")&&el("seoNotes").value)||"";

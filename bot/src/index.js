@@ -742,6 +742,16 @@ async function handleApi(request, env, url) {
     return json(await geminiInsights(env));
   }
 
+  if (url.pathname === "/api/brain") {
+    // Brain OS Fases 5-6: registros que YA calcula el cerebro (motor de decisión + dashboard de
+    // monetización). Lazy: la Mini App solo lo pide al abrir la pestaña Cerebro (no toca /api/state).
+    const [decision, monetization] = await Promise.all([
+      r2json(env, "channel/brain/decision.json"),
+      r2json(env, "channel/brain/monetization_report.json"),
+    ]);
+    return json({ decision: decision || null, monetization: monetization || null });
+  }
+
   if (url.pathname === "/api/error-detail") {
     // Trae el ERROR EXACTO (últimas líneas del log del paso fallido) para verlo en la app.
     const runId = url.searchParams.get("run") || "";
