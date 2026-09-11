@@ -45,6 +45,14 @@ jobs:
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/cadence.json" --file=cadence.new.json --content-type application/json --remote
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/experiments_niche.json" --file=exp.new.json --content-type application/json --remote
 
+      - name: Registro de decisión (DecisionNeuron -> R2)
+        # Brain OS Fase 5: escribe el POR QUÉ del reparto (candidatos + expected_value/confidence/
+        # score) para la Mini App y el dashboard. El reparto ya lo consumió el rebalance.
+        run: |
+          TOTAL=$(node -e "const c=require('./cadence.new.json');console.log(Object.values(c.shorts_per_category||{}).reduce((a,b)=>a+(+b||0),0)||8)")
+          node pipeline/decide.mjs state.json decision.json "$TOTAL"
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/brain/decision.json" --file=decision.json --content-type application/json --remote
+
       - name: Avisar por Telegram
         run: |
           bash pipeline/notify_telegram.sh "$(printf '🤖 Oddly Loop — auto-optimizacion semanal:\n\n%s' "$(cat summary.txt)")"

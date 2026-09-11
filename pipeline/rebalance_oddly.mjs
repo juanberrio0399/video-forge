@@ -9,6 +9,7 @@
 //   Entradas (las baja el workflow): state.json (auto2), cadence.json, exp.json
 //   Salidas: cadence.new.json, exp.new.json, summary.txt
 import fs from "node:fs";
+import { richReward, proportionalByScore } from "./lib/decision.mjs";
 
 const rj = (p, d) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return d; } };
 
@@ -87,12 +88,32 @@ const established = [...new Set([...BASE, ...promoted])].filter((k) => !active |
 const top = Math.max(1, ...established.map(vpdOf));
 let survivors = established.filter((k) => vpdOf(k) >= CUT * top);
 if (!survivors.length) survivors = established.slice(0, 1);
-const sumV = survivors.reduce((a, k) => a + Math.max(0.01, vpdOf(k)), 0);
-const alloc = {};
-survivors.forEach((k) => { alloc[k] = Math.max(1, Math.round(content * Math.max(0.01, vpdOf(k)) / sumV)); });
+
+// Reparto por CONFIANZA (Brain OS Fase 5): cuota proporcional a score = vistas/dia * confianza,
+// descontando la incertidumbre de los nichos con pocos videos (antes: proporcional-ciego, un
+// nicho con 1 video con suerte pesaba igual que uno con 20) SIN colapsar al #1 (mantiene la
+// cartera de nichos probados). Fallback al proporcional-crudo si algo falla.
+let alloc = {};
+let engine = "score(confianza)";
+try {
+  const cand = survivors.map((k) => ({
+    key: k,
+    reward: richReward({ vpd: vpdOf(k) }, { vpd: top }),
+    samples: (rank[k] && rank[k].videos) || 0,
+  }));
+  const minPer = content >= survivors.length ? 1 : 0; // >=1 por survivor si el presupuesto alcanza
+  alloc = proportionalByScore(cand, content, { minPerArm: minPer }).alloc;
+  if (Object.values(alloc).reduce((a, b) => a + b, 0) !== content) throw new Error("suma != content");
+} catch (e) {
+  engine = "proporcional(fallback)";
+  const sumV = survivors.reduce((a, k) => a + Math.max(0.01, vpdOf(k)), 0);
+  alloc = {};
+  survivors.forEach((k) => { alloc[k] = Math.max(1, Math.round(content * Math.max(0.01, vpdOf(k)) / sumV)); });
+  const w0 = survivors.slice().sort((a, b) => vpdOf(b) - vpdOf(a))[0];
+  alloc[w0] += content - Object.values(alloc).reduce((a, b) => a + b, 0);
+  if (alloc[w0] < 1) alloc[w0] = 1;
+}
 const winner = survivors.slice().sort((a, b) => vpdOf(b) - vpdOf(a))[0];
-alloc[winner] += content - Object.values(alloc).reduce((a, b) => a + b, 0); // el ganador absorbe el redondeo
-if (alloc[winner] < 1) alloc[winner] = 1;
 established.forEach((k) => { if (!(k in alloc)) alloc[k] = 0; }); // los cortados quedan en 0 (explicito)
 
 const newSpc = { ...alloc };
@@ -102,7 +123,7 @@ const variant = { ...(cad.variant || {}) };
 if (active && active.variant) variant[active.key] = active.variant;
 
 const newCad = {
-  _nota: `AUTO-OPTIMIZADA por datos (${String(state.at || state.updated_at || "").slice(0, 10)}). Cadencia proporcional a vistas/dia; corta nichos < ${CUT * 100}% del ganador; 1 slot de experimento cuando hay uno activo. La ajusta rebalance_oddly.mjs cada semana. NO toca lo publicado ni programado.`,
+  _nota: `AUTO-OPTIMIZADA por datos (${String(state.at || state.updated_at || "").slice(0, 10)}). Reparto por CONFIANZA (bandit ${engine}): pondera vistas/dia descontando la incertidumbre de nichos con pocos videos; corta nichos < ${CUT * 100}% del ganador; 1 slot de experimento cuando hay uno activo. La ajusta rebalance_oddly.mjs cada semana. NO toca lo publicado ni programado.`,
   shorts_per_category: newSpc,
   long_per_day: cad.long_per_day || 0,
   long_rotation: [...new Set([winner, ...survivors, ...(active ? [active.key] : [])])],
@@ -112,7 +133,7 @@ const newCad = {
 const rankLine = Object.entries(rank).sort((a, b) => b[1].vpd - a[1].vpd)
   .map(([k, d]) => `${k} ${d.vpd}/d`).join(" · ") || "(sin datos aun)";
 const cadLine = Object.entries(newSpc).map(([k, v]) => `${k}=${v}`).join(" · ");
-const summary = [`📊 Vistas/dia por nicho: ${rankLine}`, ...notes, `🎛️ Nueva cadencia (8/dia): ${cadLine}`].join("\n");
+const summary = [`📊 Vistas/dia por nicho: ${rankLine}`, ...notes, `🎛️ Nueva cadencia (bandit ${engine}): ${cadLine}`].join("\n");
 
 fs.writeFileSync("cadence.new.json", JSON.stringify(newCad, null, 2));
 fs.writeFileSync("exp.new.json", JSON.stringify({ active, queue: exp.queue || [], done, promoted: [...promoted] }, null, 2));
