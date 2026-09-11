@@ -1,0 +1,54 @@
+name: Despublicar un video (-> privado)
+
+# Pone un video en PRIVADO en YouTube (despublica / desprograma). Reversible: no borra nada.
+# Para "despublicar duds" a mano (modo MONITOR: el cerebro publica, Juan quita lo que no le gusta).
+# Elige el canal para usar las credenciales correctas (data-lens=YT_, oddly=YT2_).
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: "ID del video de YouTube a despublicar"
+        required: true
+      channel:
+        description: "Canal del video"
+        required: true
+        default: "data-lens"
+        type: choice
+        options: ["data-lens", "oddly"]
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  unpublish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      # data-lens = YT_ ; oddly = YT2_ (se resuelve abajo segun el input)
+      YT_CLIENT_ID: ${{ github.event.inputs.channel == 'oddly' && secrets.YT2_CLIENT_ID || secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ github.event.inputs.channel == 'oddly' && secrets.YT2_CLIENT_SECRET || secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ github.event.inputs.channel == 'oddly' && secrets.YT2_REFRESH_TOKEN || secrets.YT_REFRESH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Poner el video en privado
+        run: |
+          node pipeline/set_private.mjs "${{ github.event.inputs.video_id }}" | tee out.txt
+          # Rompe el cache para que la app refresque enseguida (Oddly refresca via report_auto2).
+          if [ "${{ github.event.inputs.channel }}" = "oddly" ]; then
+            gh workflow run report_auto2.yml -R "$GITHUB_REPOSITORY" 2>/dev/null || true
+          else
+            npx --yes wrangler@4 r2 object delete "$BUCKET/channel/inventory_cache.json" --remote 2>/dev/null || true
+          fi
+          bash pipeline/notify_telegram.sh "🚫 $(cat out.txt | tail -1)" || true
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
