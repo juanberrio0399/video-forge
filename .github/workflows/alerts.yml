@@ -1,0 +1,49 @@
+name: Alertas de crecimiento -> R2 + Telegram
+
+# Growth Roadmap Fase 4: vigila la memoria de cada canal (crecimiento, saturación de formato,
+# dependencia de un nicho, pipeline parado, meta atrasada) y AVISA por Telegram solo cuando hay
+# algo accionable (warn/critical). Sube alerts.json a R2. Solo lectura de datos.
+on:
+  schedule:
+    - cron: "30 16 * * *"   # diario 16:30 UTC: tras episodios (14:00), monetización (15:30) y hooks (16:00)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Compartido (monetización + decisión)
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/monetization_report.json" --file=monet.json --remote 2>/dev/null || echo '{}' > monet.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/decision.json" --file=decision.json --remote 2>/dev/null || echo '{}' > decision.json
+      - name: Alertas — The Data Lens
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/monetization_history.json" --file=hist.json --remote 2>/dev/null || echo '[]' > hist.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/episodes.json" --file=ep.json --remote 2>/dev/null || echo '{}' > ep.json
+          node pipeline/alerts.mjs data-lens hist.json ep.json monet.json decision.json alerts.json
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/alerts.json" --file=alerts.json --remote --content-type application/json || true
+          [ -s alerts_text.txt ] && bash pipeline/notify_telegram.sh "$(cat alerts_text.txt)" || echo "Data Lens: sin alertas accionables"
+      - name: Alertas — Oddly Loop
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/monetization_history.json" --file=hist2.json --remote 2>/dev/null || echo '[]' > hist2.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/episodes.json" --file=ep2.json --remote 2>/dev/null || echo '{}' > ep2.json
+          rm -f alerts_text.txt
+          node pipeline/alerts.mjs auto2 hist2.json ep2.json monet.json decision.json alerts2.json
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/alerts.json" --file=alerts2.json --remote --content-type application/json || true
+          [ -s alerts_text.txt ] && bash pipeline/notify_telegram.sh "$(cat alerts_text.txt)" || echo "Oddly: sin alertas accionables"
