@@ -17,14 +17,14 @@ Todo en la nube (GitHub Actions + R2 + Telegram), sin PC, sin rutinas en la nube
 Investigación semanal (GitHub Actions + Gemini con búsqueda): tendencias, competencia, **OUTLIERS**, algoritmo/políticas, IA/contenido reutilizado, **verificar requisitos YPP actuales**. Clasifica por evidencia (OFICIAL/FUERTE/EXPERIMENTAL/HIPÓTESIS/RUMOR) y propone **experimentos** (hipótesis · variable · métrica · criterio de éxito). → Telegram + R2 + alimenta al Cerebro.
 - Archivos: `pipeline/growth_radar.mjs`, `.github/workflows/growth_radar.yml`, `channel/growth_radar.json` (R2).
 
-## Fase 2 — Score universal + Matriz de outliers
-- Score por video (virality / retención / CTR / conversión / rewatch / riesgo / coste / monetización) → recomendación **SCALE / ITERATE / TEST AGAIN / STOP**.
-- Detectar **outliers propios** (videos que superan la media del canal) → extraer patrón → experimento.
+## ✅ Fase 2 — Score universal + Matriz de outliers (HECHO)
+- `lib/video_score.mjs` + `video_scores.mjs` (en `episodes.yml`): score 0-100 por video (rendimiento vs baseline + retención/hook + engagement, ponderado por confianza) → veredicto **SCALE / ITERATE / TEST_AGAIN / STOP**.
+- **Outliers propios** (`findOutliers`): maduros con vistas suficientes que superan la mediana → extrae patrón (hook/formato) → sugiere experimento. R2: `channel/scores.json` + `channel/auto2/scores.json`.
 
-## Fase 3 — A/B systematic + banco de creativos
-- Probar variantes de **hook / título / thumbnail / duración / primer frame / CTA** (una variable a la vez).
-- Banco permanente de ideas/hooks/títulos con estado (BACKLOG→…→WINNER/KILLED) y priorización `IMPACTO × PROBABILIDAD × VELOCIDAD ÷ COSTE` (P0/P1/P2/P3/KILL).
-- **Reporte semanal de experimentos** (15 secciones: ganadores/perdedores/outliers/tendencias/competencia/hooks/títulos/thumbnails/retención/subs/monetización/decisiones/plan).
+## 🔭 Fase 3 — A/B systematic + banco de creativos (EN CONSTRUCCIÓN)
+- **Banco de creativos** (`lib/creative_bank.mjs`): ideas/hooks/títulos con estado (BACKLOG→TESTING→WINNER/KILLED) y prioridad `IMPACTO × PROBABILIDAD × VELOCIDAD ÷ COSTE` → P0/P1/P2/P3/KILL. Se auto-siembra desde los outliers de Fase 2. R2: `channel/brain/creative_bank.json`.
+- **Reporte semanal de experimentos** (`lib/experiment_report.mjs` + `experiment_report.yml`, domingos): ensambla monetización/veredictos/ganadores/outliers/hipótesis/próximo-a-probar/plan desde los registros ya calculados → Telegram + `channel/*/experiment_report.json`.
+- Pendiente de Fase 3: A/B de una variable a la vez (hook/título/thumbnail/duración/CTA) atado a un video real.
 
 ## Fase 4 — Alertas
 Caída de retención/CTR/subs, saturación de formato, cambio de tendencia, competidor acelerando, riesgo de políticas/copyright, contenido posiblemente "reutilizado", dependencia de una sola fuente de tráfico.
