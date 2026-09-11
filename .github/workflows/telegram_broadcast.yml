@@ -1,0 +1,42 @@
+name: Broadcast a canal de Telegram (Shorts públicos)
+
+# Publica en un CANAL PÚBLICO de Telegram cada Short público nuevo de ambos canales (tráfico gratis:
+# la gente reenvía/comparte). 100% gratis (reusa el bot). Anti-duplicado por ledger.
+# Requiere el secret DISTRIB_CHANNEL_ID (id o @usuario de un canal donde el bot es admin). Si falta, no hace nada.
+on:
+  schedule:
+    - cron: "20 */6 * * *"   # cada 6h (cadencia natural, sin ráfaga)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  broadcast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      DISTRIB_CHANNEL_ID: ${{ secrets.DISTRIB_CHANNEL_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Broadcast — Oddly Loop
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/state.json" --file=st2.json --remote 2>/dev/null || echo '{}' > st2.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/tg_broadcast.json" --file=led2.json --remote 2>/dev/null || echo '[]' > led2.json
+          node pipeline/telegram_broadcast.mjs st2.json led2.json led2_new.json auto2
+          [ -s led2_new.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/tg_broadcast.json" --file=led2_new.json --remote --content-type application/json || true
+      - name: Broadcast — The Data Lens
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/inventory_cache.json" --file=st1.json --remote 2>/dev/null || echo '{}' > st1.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/tg_broadcast.json" --file=led1.json --remote 2>/dev/null || echo '[]' > led1.json
+          node pipeline/telegram_broadcast.mjs st1.json led1.json led1_new.json data-lens
+          [ -s led1_new.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/tg_broadcast.json" --file=led1_new.json --remote --content-type application/json || true
