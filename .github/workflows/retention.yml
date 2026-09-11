@@ -1,0 +1,43 @@
+name: Curvas de retención -> R2
+
+# Brain OS Fase 4: RetentionNeuron. Baja audienceRetention de los videos recientes de ambos
+# canales, analiza la curva (caída inicial, punto más débil, hook) y sube a R2. Base para que
+# el cerebro entienda POR QUÉ abandonan. Nada de producción lo consume aún.
+
+on:
+  schedule:
+    - cron: "0 15 * * *"   # diario 15:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  retention:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      YT2_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+      YT2_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+      YT2_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Analizar retención de ambos canales
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/inventory_cache.json" --file=inv_dl.json --remote 2>/dev/null || echo '{}' > inv_dl.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/state.json" --file=inv_od.json --remote 2>/dev/null || echo '{}' > inv_od.json
+          node pipeline/retention.mjs yt1 inv_dl.json retention.json
+          node pipeline/retention.mjs yt2 inv_od.json retention_auto2.json
+          [ -s retention.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/retention.json" --file=retention.json --remote --content-type application/json || true
+          [ -s retention_auto2.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/retention.json" --file=retention_auto2.json --remote --content-type application/json || true
