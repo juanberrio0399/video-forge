@@ -1411,13 +1411,23 @@ export const APP_HTML = `<!doctype html>
       +'<div class="muted" style="font-size:11px;margin:2px 0 8px">Reparto por confianza (score = valor × certeza), no proporcional-ciego.</div>'
       +'<table style="font-size:12px;width:100%"><tr><th style="text-align:left">Nicho</th><th style="text-align:right">Valor</th><th style="text-align:right">Certeza</th><th style="text-align:right">Score</th><th style="text-align:right">Slots</th></tr>'+rows+'</table></div>';
   }
+  function bQueueCard(q){
+    if(!q) return "";
+    var last = q.last_publish_at?esc(String(q.last_publish_at).slice(0,16).replace("T"," ")):"—";
+    var drenando = (q.produced_today===0 && q.scheduled_ahead>0);
+    return '<div class="card" style="font-size:12px"><div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><b>🗓️ Cola de publicación (Oddly)</b>'
+      +bPill(drenando?"drenando":"al día", drenando?"--am":"--gr")+'</div>'
+      +'<div class="muted" style="margin-top:4px"><b>'+(q.scheduled_ahead||0)+'</b> programados · publican hasta <b>'+last+'</b> · buffer ~'+(q.buffer_hours||30)+'h</div>'
+      +'<div class="muted" style="margin-top:2px">Hoy: produje '+(q.produced_today!=null?q.produced_today:"—")+(q.skipped_today?(" · frené "+q.skipped_today+" (cola llena)"):"")+'. El cerebro ve resultados a ~1 día, no a ~1 semana.</div></div>';
+  }
   function brainHtml(j){
     j=j||{};
     var mon=j.monetization||{}; var chs=mon.channels||{};
     var when = mon.at?'<div class="muted" style="font-size:11px;margin:-2px 2px 8px">Actualizado '+esc(String(mon.at).slice(5,16).replace("T"," "))+'</div>':"";
-    var empty = (!mon.channels && !j.decision);
+    var empty = (!mon.channels && !j.decision && !j.queue);
     return '<h2>🧠 Cerebro <span class="live"></span></h2>'+when
       +(empty?'<div class="card muted" style="font-size:12px">El cerebro aún no ha dejado registros en R2. Se generan a diario (dashboard) y los lunes (motor de decisión).</div>':"")
+      +bQueueCard(j.queue)
       +'<div class="muted" style="font-size:12px;margin:0 2px 8px">📊 War Room 60 días — ¿cuánto falta para monetizar?</div>'
       +bMonetCard("The Data Lens", chs["data-lens"])
       +bMonetCard("Oddly Loop", chs["auto2"])

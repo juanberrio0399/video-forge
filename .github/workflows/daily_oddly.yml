@@ -26,6 +26,11 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      # YT2 -> YT: para leer los publishAt YA agendados (scheduled_times) y topar la cola.
+      YT_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+      BUFFER_HOURS: "30"   # buffer de publicación ~1 día: si la cola pasa esto, hoy no se produce (drena)
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -54,6 +59,20 @@ jobs:
             require("fs").writeFileSync("plan.txt", out.join("\n")+"\n");
             console.log("Plan de hoy ("+out.length+" piezas):\n"+out.map(l=>"  - "+l).join("\n"));
           '
+          # --- Topar la cola (Brain OS): recorta el plan a lo que cabe en el buffer ~24-30h. Si la
+          # cola ya lo cubre, hoy NO se produce y drena -> el cerebro ve resultados a ~1 dia, no ~1 semana.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/best_hours.json" --file=best_hours.json --remote 2>/dev/null || true
+          OCC=$(node pipeline/scheduled_times.mjs || true)
+          FREE=$(node pipeline/plan_capacity.mjs plan.txt "$OCC" "$BUFFER_HOURS" queue.json)
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/queue.json" --file=queue.json --content-type application/json --remote || true
+          KEEP=$(grep -c . plan.txt || true); KEEP=${KEEP:-0}
+          CLIPBUDGET=$(( FREE - KEEP )); [ "$CLIPBUDGET" -lt 0 ] && CLIPBUDGET=0; [ "$CLIPBUDGET" -gt 3 ] && CLIPBUDGET=3
+          echo "CLIPBUDGET=$CLIPBUDGET" >> "$GITHUB_ENV"
+          echo "Cupos libres en buffer=$FREE · narrados a producir=$KEEP · clips presupuestados=$CLIPBUDGET"
+          if [ ! -s plan.txt ] && [ "$CLIPBUDGET" -eq 0 ]; then
+            AHEAD=$(node -e 'try{const q=require("./queue.json");process.stdout.write(q.scheduled_ahead+" agendados hasta "+String(q.last_publish_at||"").slice(0,16))}catch(e){process.stdout.write("llena")}')
+            bash pipeline/notify_telegram.sh "🧠 Oddly Loop — la cola ya cubre ~${BUFFER_HOURS}h (${AHEAD}). Hoy NO produzco: dejo que drene para ver resultados y aprender a ~1 dia." || true
+          fi
           LABEL() { case "$1" in satisfying) echo "Satisfying/ASMR";; narrativas) echo "Narrativas";; ciencia_humor) echo "Ciencia+humor";; naturaleza_relax) echo "Naturaleza";; *) echo "$1";; esac; }
           FIRST=1
           while read -r NICHE VARIANT KIND; do
@@ -67,7 +86,9 @@ jobs:
           # `grep -c` sale con código 1 cuando cuenta 0 (p.ej. Oddly es solo-Shorts -> 0 largos); con set -e
           # eso tumbaría el step DESPUÉS de haber disparado todo. `|| true` conserva el "0" sin fallar.
           N=$(grep -c . plan.txt || true); SH=$(grep -c " short$" plan.txt || true); LO=$(grep -c " video$" plan.txt || true)
-          bash pipeline/notify_telegram.sh "🚀 Oddly Loop — blitz del día: lancé ${N} piezas (${SH} Shorts + ${LO} largo), en las 4 categorías. Cada una se programa a su mejor hora libre (tope 2/hora)." || true
+          if [ "${N:-0}" -gt 0 ]; then
+            bash pipeline/notify_telegram.sh "🚀 Oddly Loop — blitz del día: lancé ${N} piezas (${SH} Shorts + ${LO} largo), topado a la capacidad del buffer (~${BUFFER_HOURS}h). Cada una a su mejor hora libre (tope 2/hora)." || true
+          fi
       - name: Clips graciosos del día (Archive.org CC, rotación de fails) → AUTO-PROGRAMADOS
         if: always()   # independiente del blitz de arriba: no lo saltes si aquel tropieza
         run: |
@@ -78,9 +99,15 @@ jobs:
           T1="${TOPICS[$((10#$DOY % NT))]}"
           T2="${TOPICS[$(((10#$DOY + 4) % NT))]}"
           T3="${TOPICS[$(((10#$DOY + 8) % NT))]}"
-          for T in "$T1" "$T2" "$T3"; do
-            echo "▶ Clip gracioso (Archive CC): $T"
-            gh workflow run clip_archive_cc.yml -f topic="$T" -f niche="graciosos" -f publish=yes -R "$GITHUB_REPOSITORY" || echo "no pude disparar $T"
-            sleep 60
-          done
-          bash pipeline/notify_telegram.sh "😹 Oddly Loop — 3 clips graciosos del día (Archive CC): «$T1», «$T2» y «$T3» → AUTO-PROGRAMADOS (se publican solos; despublica los que no te gusten)." || true
+          # Presupuestados al cupo del buffer (CLIPBUDGET lo fijó el paso anterior; si no existe, 3).
+          SEL=("$T1" "$T2" "$T3"); SEL=("${SEL[@]:0:${CLIPBUDGET:-3}}")
+          if [ "${#SEL[@]}" -eq 0 ]; then
+            echo "Sin cupo de buffer para clips hoy — la cola drena."
+          else
+            for T in "${SEL[@]}"; do
+              echo "▶ Clip gracioso (Archive CC): $T"
+              gh workflow run clip_archive_cc.yml -f topic="$T" -f niche="graciosos" -f publish=yes -R "$GITHUB_REPOSITORY" || echo "no pude disparar $T"
+              sleep 60
+            done
+            bash pipeline/notify_telegram.sh "😹 Oddly Loop — ${#SEL[@]} clip(s) gracioso(s) del día (Archive CC) → AUTO-PROGRAMADOS (se publican solos; despublica los que no te gusten)." || true
+          fi

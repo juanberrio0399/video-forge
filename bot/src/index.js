@@ -745,11 +745,12 @@ async function handleApi(request, env, url) {
   if (url.pathname === "/api/brain") {
     // Brain OS Fases 5-6: registros que YA calcula el cerebro (motor de decisión + dashboard de
     // monetización). Lazy: la Mini App solo lo pide al abrir la pestaña Cerebro (no toca /api/state).
-    const [decision, monetization] = await Promise.all([
+    const [decision, monetization, queue] = await Promise.all([
       r2json(env, "channel/brain/decision.json"),
       r2json(env, "channel/brain/monetization_report.json"),
+      r2json(env, "channel/auto2/queue.json"),
     ]);
-    return json({ decision: decision || null, monetization: monetization || null });
+    return json({ decision: decision || null, monetization: monetization || null, queue: queue || null });
   }
 
   if (url.pathname === "/api/error-detail") {
