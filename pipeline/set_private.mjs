@@ -21,10 +21,10 @@ const scheduled = schedAt && Date.parse(schedAt) > Date.now();
 // Solo saltar si ya está privado Y sin programación futura (nada que despublicar/desprogramar).
 if (was === "private" && !scheduled) { console.log(`ya estaba PRIVADO (sin programar): ${vid} — ${title}`); process.exit(0); }
 
-// PUT sin publishAt -> pone privado Y borra la programación futura.
+// publishAt: null EXPLÍCITO -> cancela la programación (omitirlo NO la borra: YouTube la conserva).
 const r = await tf("https://www.googleapis.com/youtube/v3/videos?part=status", {
   method: "PUT", headers: { ...H, "content-type": "application/json" },
-  body: JSON.stringify({ id: vid, status: { privacyStatus: "private", selfDeclaredMadeForKids: false } }),
+  body: JSON.stringify({ id: vid, status: { privacyStatus: "private", publishAt: null, selfDeclaredMadeForKids: false } }),
 });
 const j = await r.json();
 const okPriv = j.status && j.status.privacyStatus === "private";
