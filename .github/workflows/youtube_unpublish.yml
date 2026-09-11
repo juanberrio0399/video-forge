@@ -40,15 +40,26 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
-      - name: Poner el video en privado
+      - name: Poner el video en privado + OCULTAR (durable)
         run: |
-          node pipeline/set_private.mjs "${{ github.event.inputs.video_id }}" | tee out.txt
+          VID="${{ github.event.inputs.video_id }}"
+          node pipeline/set_private.mjs "$VID" | tee out.txt
+          # OCULTAR: sin esto el sanador (cada 6h) re-agendaria el privado-sin-programar y volveria a
+          # publicarse, y ademas saldria "por aprobar". El hidden hace que el sanador Y la app lo ignoren.
+          if [ "${{ github.event.inputs.channel }}" = "oddly" ]; then
+            HKEY="channel/auto2/hidden_videos.json"
+          else
+            HKEY="channel/hidden_videos.json"
+          fi
+          npx --yes wrangler@4 r2 object get "$BUCKET/$HKEY" --file=hidden.json --remote 2>/dev/null || echo '[]' > hidden.json
+          VID="$VID" node -e 'const fs=require("fs");let a=[];try{a=JSON.parse(fs.readFileSync("hidden.json","utf8"))}catch(e){};if(!Array.isArray(a))a=[];const v=process.env.VID;if(!a.includes(v))a.push(v);fs.writeFileSync("hidden.json",JSON.stringify(a));console.log("ocultos ahora:",a.length)'
+          npx --yes wrangler@4 r2 object put "$BUCKET/$HKEY" --file=hidden.json --content-type application/json --remote || true
           # Rompe el cache para que la app refresque enseguida (Oddly refresca via report_auto2).
           if [ "${{ github.event.inputs.channel }}" = "oddly" ]; then
             gh workflow run report_auto2.yml -R "$GITHUB_REPOSITORY" 2>/dev/null || true
           else
             npx --yes wrangler@4 r2 object delete "$BUCKET/channel/inventory_cache.json" --remote 2>/dev/null || true
           fi
-          bash pipeline/notify_telegram.sh "🚫 $(cat out.txt | tail -1)" || true
+          bash pipeline/notify_telegram.sh "🚫 $(cat out.txt | tail -1) (oculto para que no vuelva)" || true
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
