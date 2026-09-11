@@ -34,6 +34,12 @@ describe("freeSlotsInWindow", () => {
     const b = freeSlotsInWindow("", { nowMs: NOW, bufferHours: 48 }).free;
     expect(b).toBeGreaterThanOrEqual(a);
   });
+  it("perSlot=2 (AGRESIVO) duplica los cupos vs perSlot=1", () => {
+    const a = freeSlotsInWindow("", { nowMs: NOW, bufferHours: 30, perSlot: 1 });
+    const b = freeSlotsInWindow("", { nowMs: NOW, bufferHours: 30, perSlot: 2 });
+    expect(b.free).toBe(a.free * 2);
+    expect(b.per_slot).toBe(2);
+  });
   it("ocupar franjas reduce los cupos libres", () => {
     const slots = generateSlots(NOW, 3).filter((s) => s >= NOW + 2 * 3600000 && s <= NOW + 30 * 3600000);
     const occCsv = slots.map((s) => new Date(s).toISOString()).join(",");

@@ -47,6 +47,9 @@ export function freeSlotsInWindow(occupiedCsv, opts = {}) {
   const bufferH = opts.bufferHours != null ? +opts.bufferHours : 30;
   const minAheadH = opts.minAheadHours != null ? +opts.minAheadHours : 2;
   const dataHours = opts.dataHours || null;
+  // perSlot = cupos por franja: 1 = ritmo cómodo; 2 = AGRESIVO (usa el tope real 2/hora de best_slot).
+  // Cuando el canal va atrás de la meta, se sube a 2 para no frenar el volumen agresivo (12/día).
+  const perSlot = Math.max(1, Math.min(2, Math.floor(+opts.perSlot || 1)));
   const occ = Array.isArray(occupiedCsv) ? occupiedCsv.slice().sort((a, b) => a - b) : parseOccupied(occupiedCsv, nowMs);
   const minMs = nowMs + minAheadH * 3600000;
   const maxMs = nowMs + bufferH * 3600000;
@@ -56,10 +59,10 @@ export function freeSlotsInWindow(occupiedCsv, opts = {}) {
   let free = 0;
   for (const s of slots) {
     if (s < minMs || s > maxMs) continue;
-    if (nearCount(s) === 0) free++; // 1 por franja (no amontona 2/hora de entrada)
+    free += Math.max(0, perSlot - nearCount(s)); // cupos libres en la franja (hasta perSlot)
   }
   const scheduledAhead = occ.length;
   const lastPublishAt = occ.length ? new Date(occ[occ.length - 1]).toISOString() : null;
   const firstPublishAt = occ.length ? new Date(occ[0]).toISOString() : null;
-  return { free, buffer_hours: bufferH, scheduled_ahead: scheduledAhead, first_publish_at: firstPublishAt, last_publish_at: lastPublishAt };
+  return { free, buffer_hours: bufferH, per_slot: perSlot, scheduled_ahead: scheduledAhead, first_publish_at: firstPublishAt, last_publish_at: lastPublishAt };
 }

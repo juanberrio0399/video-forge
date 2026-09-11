@@ -61,9 +61,14 @@ jobs:
           '
           # --- Topar la cola (Brain OS): recorta el plan a lo que cabe en el buffer ~24-30h. Si la
           # cola ya lo cubre, hoy NO se produce y drena -> el cerebro ve resultados a ~1 dia, no ~1 semana.
+          # AGRESIVIDAD: si el Cerebro dice que Oddly va atras de la meta, usa el tope real 2/hora (12/dia)
+          # para NO frenar el volumen agresivo; si va elegible, 1/hora (ritmo comodo).
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/best_hours.json" --file=best_hours.json --remote 2>/dev/null || true
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/aggressiveness.json" --file=aggr.json --remote 2>/dev/null || echo '{}' > aggr.json
+          PERSLOT=$(node -e 'try{const a=require("./aggr.json");process.stdout.write(a.oddly&&a.oddly.behind?"2":"1")}catch(e){process.stdout.write("1")}')
+          echo "Agresividad: perSlot=$PERSLOT (2 = va atras, empuja 12/dia)"
           OCC=$(node pipeline/scheduled_times.mjs || true)
-          FREE=$(node pipeline/plan_capacity.mjs plan.txt "$OCC" "$BUFFER_HOURS" queue.json)
+          FREE=$(node pipeline/plan_capacity.mjs plan.txt "$OCC" "$BUFFER_HOURS" queue.json "$PERSLOT")
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/queue.json" --file=queue.json --content-type application/json --remote || true
           KEEP=$(grep -c . plan.txt || true); KEEP=${KEEP:-0}
           CLIPBUDGET=$(( FREE - KEEP )); [ "$CLIPBUDGET" -lt 0 ] && CLIPBUDGET=0; [ "$CLIPBUDGET" -gt 3 ] && CLIPBUDGET=3
