@@ -118,6 +118,9 @@ if (!pkg.hashtags || !pkg.hashtags.length) pkg.hashtags = ["#data", "#money", "#
 const links = [
   `▶️ Subscribe for more: ${SUB_URL}`,
   `📺 More videos: ${CHANNEL_URL}/videos`,
+  // Playlist de la serie -> auto-reproduce el siguiente = más watch-time de sesión (señal que YouTube premia).
+  // Si el productor pasó la playlist exacta del nicho (PLAYLIST_URL), se linkea esa; si no, la página de playlists.
+  process.env.PLAYLIST_URL ? `📚 Full playlist: ${process.env.PLAYLIST_URL}` : `📚 Playlists (binge the series): ${CHANNEL_URL}/playlists`,
 ];
 // "WATCH NEXT" encadenado: la IA eligio el video anterior mas relacionado; si no, el mas reciente.
 const wn = pkg.watch_next || {};

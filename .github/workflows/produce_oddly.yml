@@ -122,8 +122,13 @@ jobs:
       - name: SEO (titulo/descripcion/tags) para Oddly Loop
         if: ${{ env.SKIP != '1' }}
         run: |
+          # Playlist EXACTA del nicho -> la descripcion linkea la serie (auto-reproduce el siguiente = mas
+          # watch-time de sesion). Si aun no existe la playlist, publish_package cae al link generico.
+          npx --yes wrangler@4 r2 object get "video-forge/channel/auto2/playlists.json" --file=pl.json --remote 2>/dev/null || echo '{}' > pl.json
+          export PLAYLIST_URL=$(node -e 'try{const p=require("./pl.json");const id=(p.map||{})[process.env.NICHE];process.stdout.write(id?("https://www.youtube.com/playlist?list="+id):"")}catch(e){process.stdout.write("")}')
+          echo "PLAYLIST_URL=$PLAYLIST_URL"
           TITLE=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync("voicemap.json","utf8")).title||"Oddly Satisfying")}catch(e){process.stdout.write("Oddly Satisfying")}')
-          GROWTH_TONE=suave node pipeline/publish_package.mjs voicemap.json voice.wav.timing.json "$TITLE" publish
+          GROWTH_TONE=suave PLAYLIST_URL="$PLAYLIST_URL" node pipeline/publish_package.mjs voicemap.json voice.wav.timing.json "$TITLE" publish
 
       - name: Marcar como Short (#Shorts)
         if: ${{ env.SKIP != '1' && env.KIND == 'short' }}
