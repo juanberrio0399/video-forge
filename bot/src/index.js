@@ -19,7 +19,8 @@ export default {
     // Mini App (interfaz "tipo app pro" dentro de Telegram).
     if (url.pathname === "/app2") {
       // Mini App v2 (monitor del cerebro), en paralelo a /app hasta el cut-over.
-      return new Response(APP2_HTML, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
+      // Build por deploy (APP_BUILD): la app lo compara con /api/state y se recarga sola si quedó vieja en el webview.
+      return new Response(APP2_HTML.replace("__BUILD__", String(env.APP_BUILD || "dev")), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
     }
     if (url.pathname === "/app") {
       // no-store: Telegram Mini App cachea el WebView; sin esto sigue sirviendo una version vieja.
@@ -643,6 +644,7 @@ async function handleApi(request, env, url) {
       state.monetization.subs = inv.subs;
     }
     state.inventory_at = inv.at;
+    state.build = String(env.APP_BUILD || "dev");
     state.learnings = learn ? { brief: learn.brief || "", source: learn.source || "", top: (learn.top || []).slice(0, 5), at: learn.generated_at || null } : null;
     state.error_learnings = elog ? { incidents: (elog.incidents || []).slice(-6).reverse(), patterns: elog.patterns || [], at: elog.updated_at || null } : null;
     state.tools_health = toolsHealthR;
@@ -1521,7 +1523,7 @@ async function sendMenu(env, chatId) {
   // Boton de menu de Telegram que abre la Mini App (interfaz tipo app).
   await tg(env, "setChatMenuButton", {
     chat_id: chatId,
-    menu_button: { type: "web_app", text: "📊 App", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app2" } },
+    menu_button: { type: "web_app", text: "📊 App", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app2?v=" + encodeURIComponent(String(env.APP_BUILD || "dev")) } },
   });
   await tg(env, "setMyCommands", {
     commands: [
