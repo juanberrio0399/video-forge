@@ -30,7 +30,7 @@ jobs:
       - name: Desplegar Worker
         run: |
           for i in 1 2 3; do
-            npx --yes wrangler@4 deploy | tee deploy.log && break
+            npx --yes wrangler@4 deploy --var APP_BUILD:"${GITHUB_SHA::7}" | tee deploy.log && break
             echo "deploy reintento $i (hipo de Cloudflare)"; sleep 12
           done
           grep -qE 'https://[a-zA-Z0-9._-]+\.workers\.dev' deploy.log
@@ -60,7 +60,7 @@ jobs:
           echo "$RESP" | grep -q '"ok":true' || { echo "setWebhook falló"; exit 1; }
           # Botón de menú del bot -> abre la Mini App (forma confiable de adjuntarla).
           MB=$(curl -s "https://api.telegram.org/bot${{ secrets.RADAR_BOT_TOKEN }}/setChatMenuButton" \
-            --data-urlencode 'menu_button={"type":"web_app","text":"📡 Radar","web_app":{"url":"'"$URL"'/app"}}')
+            --data-urlencode 'menu_button={"type":"web_app","text":"📡 Radar","web_app":{"url":"'"$URL"'/app?v='"${GITHUB_SHA::7}"'"}}')
           echo "MenuButton: $MB"
           # Identidad del bot: descripción (chat vacío), "about" (perfil) y comandos.
           TB="https://api.telegram.org/bot${{ secrets.RADAR_BOT_TOKEN }}"
