@@ -103,6 +103,14 @@ export const APP_HTML = `<!doctype html>
   .bento .kpi .l{margin-top:4px;letter-spacing:.4px}
   .card.hero{background:linear-gradient(150deg,var(--glow),transparent 62%),var(--card);border-color:var(--line)}
   .hero-h{font-weight:850;font-size:18px;letter-spacing:-.2px}
+  /* Card de video (Producir/Revisar): miniatura + meta + estado */
+  .vcard{display:flex;gap:11px;padding:10px;align-items:flex-start}
+  .vthumb{width:108px;flex-shrink:0;border-radius:11px;overflow:hidden;background:var(--soft);aspect-ratio:16/9;position:relative}
+  .vthumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .vmeta{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+  .vtitle{font-weight:700;font-size:13px;line-height:1.28;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .vsub{font-size:12px}
+  .vstatus{font-size:12px;color:var(--hint);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   @media (prefers-reduced-motion: reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 </style></head>
 <body>
@@ -776,9 +784,16 @@ export const APP_HTML = `<!doctype html>
       else { estado='<span class="tag priv">🔎 en revisión</span>';
         if(withActions&&v.video_id) act='<div style="margin-top:8px"><button class="btn mini" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'schedule\\')">📅 Programar (mejor hora)</button> <button class="btn mini ghost" onclick="oddlyPublish(\\''+v.video_id+'\\',\\'public\\')">🌍 Publicar ahora</button></div>';
       }
-      return '<div class="card"><div style="font-weight:700;font-size:13px">'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,42))+'</a>':esc(v.title||""))+'</div>'
-        +(v.manual?'<div style="font-size:12px;margin-top:3px">✋ <b>Subido a mano</b>'+(/#short/i.test(v.title||'')?' · 📱 Short':'')+'</div>':((v.niche_label||/#short/i.test(v.title||''))?'<div style="font-size:12px;margin-top:3px">'+(/#short/i.test(v.title||'')?'📱 <b>Short</b>':'🎬 <b>'+esc(v.niche_label)+'</b>')+'</div>':''))
-        +'<div class="muted" style="font-size:12px;margin-top:3px">'+estado+' · '+num(v.views||0)+' vistas</div>'+act+'</div>';
+      var tline=(v.manual?'✋ <b>Subido a mano</b>'+(/#short/i.test(v.title||'')?' · 📱 Short':''):((v.niche_label||/#short/i.test(v.title||''))?(/#short/i.test(v.title||'')?'📱 <b>Short</b>':'🎬 <b>'+esc(v.niche_label)+'</b>'):''));
+      var titleTxt=(v.title||"").slice(0,60);
+      return '<div class="card vcard">'
+        +'<div class="vthumb">'+(v.video_id?'<img loading="lazy" src="https://i.ytimg.com/vi/'+v.video_id+'/mqdefault.jpg" alt="">':'')+'</div>'
+        +'<div class="vmeta">'
+        +'<div class="vtitle">'+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc(titleTxt)+'</a>':esc(titleTxt))+'</div>'
+        +(tline?'<div class="vsub">'+tline+'</div>':'')
+        +'<div class="vstatus">'+estado+' <span class="muted num">· '+num(v.views||0)+' vistas</span></div>'
+        +act
+        +'</div></div>';
     }).join("");
   }
   function auto2ProduceCard(){
