@@ -36,7 +36,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}   # token de Actions (actions:read) para vigilar los crons
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Vigilar R2 + YouTube (2 canales)

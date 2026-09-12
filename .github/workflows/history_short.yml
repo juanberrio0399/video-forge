@@ -55,7 +55,7 @@ jobs:
       VOICE: ${{ github.event.inputs.voice || 'Fenrir' }}
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - uses: actions/setup-python@v5
