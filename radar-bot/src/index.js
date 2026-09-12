@@ -12,6 +12,7 @@ const REPOS = [
   "juanberrio0399/serverless-rag-assistant",
   "juanberrio0399/Hearthwood",
   "juanberrio0399/claude-config",
+  "juanberrio0399/panel-marketing-cloud",
 ];
 
 const gh = (env, path, opts = {}) =>

@@ -123,7 +123,6 @@ export const APP2_HTML = `<!doctype html>
 <div class="wrap">
   <div id="s-hoy"></div>
   <div id="s-videos" class="hide"></div>
-  <div id="s-agenda" class="hide"></div>
   <div id="s-cerebro" class="hide"></div>
   <div id="s-mas" class="hide"></div>
 </div>
@@ -132,7 +131,6 @@ export const APP2_HTML = `<!doctype html>
 <div class="nav">
   <button data-t="hoy" class="on"><span class="ic">☀️</span>Hoy</button>
   <button data-t="videos"><span class="ic">🎬</span>Videos</button>
-  <button data-t="agenda"><span class="ic">📅</span>Agenda</button>
   <button data-t="cerebro"><span class="ic">🧠</span>Cerebro</button>
   <button data-t="mas"><span class="ic">⚙️</span>Más</button>
 </div>
@@ -267,7 +265,7 @@ export const APP2_HTML = `<!doctype html>
   }
   function hoyHtml(){
     if(curCh==="resumen"){
-      return ["auto2","data-lens"].map(function(ch){ return '<h2><span class="live"></span>'+esc(CH[ch].name)+'</h2>'+goalHero(ch)+kpiBento(ch)+alertsHtml(ch); }).join("");
+      return ["auto2","data-lens"].map(function(ch){ return '<h2><span class="live"></span>'+esc(CH[ch].name)+'</h2>'+goalHero(ch)+kpiBento(ch)+alertsHtml(ch)+todayChangesHtml(ch); }).join("");
     }
     return goalHero(curCh)+kpiBento(curCh)+alertsHtml(curCh)+todayChangesHtml(curCh)+weeklyChartHtml(curCh);
   }
@@ -284,7 +282,9 @@ export const APP2_HTML = `<!doctype html>
     var chs=curCh==="resumen"?["auto2","data-lens"]:[curCh]; var out="";
     chs.forEach(function(ch){
       var d=chData(ch); var fl=d.list.filter(inFlight); var pub=d.list.filter(isPublic).sort(function(a,b){return Date.parse(pubDate(b)||0)-Date.parse(pubDate(a)||0);}).slice(0,12);
-      if(chs.length>1) out+='<h2>'+esc(CH[ch].name)+'</h2>';
+      var sched=scheduledOf(ch);
+      if(chs.length>1) out+='<h2><span class="live"></span>'+esc(CH[ch].name)+'</h2>';
+      out+='<h2>📅 Programados <span class="cnt">'+sched.length+'</span></h2>'+horizonCard(ch)+calendarHtml(ch);
       if(fl.length) out+='<h2>⏳ En marcha <span class="cnt">'+fl.length+'</span></h2><div class="muted" style="margin:-4px 4px 6px">Se programan solos a su mejor hora.</div>'+fl.slice(0,8).map(function(v){return vcard(ch,v,'<span class="pill am">programándose</span>');}).join("");
       out+='<h2>📤 Últimos publicados <span class="cnt">'+pub.length+'</span></h2>'+(pub.length?pub.map(function(v){return vcard(ch,v,'<span class="pill gr">público</span>');}).join(""):'<div class="card muted">Aún no hay publicados.</div>');
     });
@@ -320,10 +320,6 @@ export const APP2_HTML = `<!doctype html>
       return '<div class="card" style="padding:10px 12px"><div class="row" style="font-weight:700;font-size:13px"><span>'+lab+fmtD(k+"T12:00:00")+'</span><span style="color:var(--acc)" class="num">'+items.length+'</span></div>'
         +items.map(function(v){ return '<div class="row" style="padding:6px 0;border-top:1px solid var(--line);gap:8px"><span style="font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(v.manual?"🟣":"🎬")+' '+esc(v.title||"")+'</span><span class="num" style="font-size:11px;color:var(--acc);white-space:nowrap">🕒 '+new Date(v.publish_at).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})+'</span></div>'; }).join("")+'</div>';
     }).join("");
-  }
-  function agendaHtml(){
-    var chs=curCh==="resumen"?["auto2","data-lens"]:[curCh];
-    return chs.map(function(ch){ return (chs.length>1?'<h2>'+esc(CH[ch].name)+'</h2>':"")+horizonCard(ch)+'<h2>📅 Calendario</h2>'+calendarHtml(ch); }).join("");
   }
 
   // ===== CEREBRO =====
@@ -362,11 +358,20 @@ export const APP2_HTML = `<!doctype html>
     var s=c.summary; var ic={CONFIRMADA:"✅",PROBABLE:"🟢",CONTRADICTORIA:"⛔",REQUIERE_EXPERIMENTO:"🧪",INCIERTA:"❔"};
     return '<h2>🔬 Validación cruzada</h2><div class="card"><div class="muted" style="margin-bottom:6px">Investigación externa vs nuestra data.</div>'+Object.keys(s).map(function(k){return '<span class="pill" style="margin:2px 4px 2px 0">'+(ic[k]||"")+' '+esc(k)+' '+s[k]+'</span>';}).join("")+'</div>';
   }
+  function pendingHtml(ch){
+    var b=brCh(ch), miss=[];
+    if(!(b.report&&(b.report.plan||[]).length)) miss.push("📋 plan semanal");
+    if(!(b.cross&&b.cross.summary)) miss.push("🔬 validación cruzada");
+    if(!(b.ab&&(b.ab.experiments||[]).length)) miss.push("⚗️ A/B por cohortes");
+    if(!miss.length) return "";
+    return '<div class="muted" style="margin:2px 4px 8px;font-size:12px">⏳ Aún sin datos: '+miss.join(" · ")+' (se generan solos; lo semanal llega el domingo).</div>';
+  }
   function cerebroHtml(){
     if(!BR) return '<div class="card"><div class="sk-l" style="width:60%"></div><div class="sk-l s"></div></div><div class="card"><div class="sk-l" style="width:80%"></div><div class="sk-l s"></div></div>';
     var chs=curCh==="resumen"?["auto2","data-lens"]:[curCh];
     var when=BR.monetization&&BR.monetization.at?'<div class="muted" style="margin:-4px 2px 6px">Actualizado '+esc(String(BR.monetization.at).slice(5,16).replace("T"," "))+'</div>':"";
-    return when+chs.map(function(ch){ return (chs.length>1?'<h2><span class="live"></span>'+esc(CH[ch].name)+'</h2>':"")+outliersHtml(ch)+abHtml(ch)+bankHtml(ch)+planHtml(ch)+crossHtml(ch)+weeklyChartHtml(ch); }).join("")+decisionHtml()+hypsHtml();
+    var dec=(chs.indexOf("auto2")>=0)?decisionHtml():"";
+    return when+dec+chs.map(function(ch){ return (chs.length>1?'<h2><span class="live"></span>'+esc(CH[ch].name)+'</h2>':"")+outliersHtml(ch)+abHtml(ch)+bankHtml(ch)+planHtml(ch)+crossHtml(ch)+pendingHtml(ch); }).join("")+hypsHtml();
   }
 
   // ===== MÁS =====
@@ -383,14 +388,14 @@ export const APP2_HTML = `<!doctype html>
   // ===== Render / navegación =====
   function render(){
     var hd=el("hd"); if(hd) hd.innerHTML=(ST.error?esc(ST.error):'<span class="live"></span>Monitor del cerebro · todo automático');
-    var map={hoy:hoyHtml,videos:videosHtml,agenda:agendaHtml,cerebro:cerebroHtml,mas:masHtml};
+    var map={hoy:hoyHtml,videos:videosHtml,cerebro:cerebroHtml,mas:masHtml};
     var sec=el("s-"+curTab); if(!sec) return;
     try{ sec.innerHTML=map[curTab](); }catch(e){ sec.innerHTML='<div class="card muted">No pude pintar esta vista.</div>'; }
     sec.classList.remove("fadein"); void sec.offsetWidth; sec.classList.add("fadein");
     mainButton();
   }
   function tab(name){
-    curTab=name; ["hoy","videos","agenda","cerebro","mas"].forEach(function(t){ el("s-"+t).classList.toggle("hide",t!==name); });
+    curTab=name; ["hoy","videos","cerebro","mas"].forEach(function(t){ el("s-"+t).classList.toggle("hide",t!==name); });
     document.querySelectorAll(".nav button").forEach(function(b){ b.classList.toggle("on",b.getAttribute("data-t")===name); });
     if(name==="cerebro"||name==="hoy"||name==="videos") loadBrain(false);
     h("sel"); render(); backSync();
