@@ -25,7 +25,7 @@ jobs:
       DISTRIB_CHANNEL_ID: ${{ secrets.DISTRIB_CHANNEL_ID }}
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Broadcast — Oddly Loop
