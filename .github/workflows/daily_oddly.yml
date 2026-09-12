@@ -32,7 +32,7 @@ jobs:
       YT_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
       BUFFER_HOURS: "30"   # buffer de publicación ~1 día: si la cola pasa esto, hoy no se produce (drena)
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
