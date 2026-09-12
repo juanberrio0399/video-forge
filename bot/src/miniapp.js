@@ -145,7 +145,7 @@ export const APP_HTML = `<!doctype html>
 <div id="toast"></div>
 <div class="nav">
   <button data-t="inicio" class="on"><span class="ic">🏠</span>Inicio</button>
-  <button id="navProducir" data-t="producir"><span class="ic">🏭</span>Producir</button>
+  <button id="navProducir" data-t="producir"><span class="ic">🎬</span>Videos</button>
   <button data-t="agenda"><span class="ic">📅</span>Agenda</button>
   <button data-t="analitica"><span class="ic">📈</span>Analítica</button>
   <button data-t="cerebro"><span class="ic">🧠</span>Cerebro</button>
@@ -196,7 +196,7 @@ export const APP_HTML = `<!doctype html>
   var WATCH={}; // wf(.yml) -> vigilancia de un proceso largo lanzado desde la app (G-V1). Ver startWatch().
   var TABHELP={
     inicio:"🏠 Lo que necesita tu atención ahora + el pulso del canal.",
-    producir:"🏭 El flujo de cada video: producir, revisar, aprobar, publicar — y qué le falta a cada uno. Aquí también los shorts.",
+    producir:"🎬 Los videos en marcha: qué está produciendo y programando el cerebro, y su estado. Todo automático.",
     agenda:"📅 Tu calendario de publicación (mejores horas EEUU) y lo programado.",
     analitica:"📈 Análisis del canal: qué tan prometedor, reclamaciones, métricas, capacidad y tus videos.",
     cerebro:"🧠 El cerebro por dentro: cómo reparte el esfuerzo (motor de decisión) y qué tan cerca está cada canal de monetizar (War Room 60 días).",
@@ -670,7 +670,7 @@ export const APP_HTML = `<!doctype html>
     // CALENDARIO día a día: cada día con sus 2 franjas (mejores horas EEUU), lleno o libre. Meta 2/día.
     var cal=ST.calendar||[];
     var h='<h2>📅 Calendario de publicación</h2>'
-      +'<div class="card muted" style="font-size:12px">Cada día tiene 2 franjas en las mejores horas (EEUU). Cuando <b>apruebas</b> un video o short, se agenda solo en la próxima franja libre. <b>Meta: 2/día.</b></div>';
+      +'<div class="card muted" style="font-size:12px">Cada día tiene 2 franjas en las mejores horas (EEUU). Cuando el cerebro <b>produce</b> un video, se agenda solo en la próxima franja libre. <b>Meta: 2/día.</b></div>';
     if(!cal.length) return h+'<div class="card muted">Nada programado aún. Aprueba un video (Control) o un short (Shorts) y aparece aquí.</div>';
     cal.forEach(function(d){
       var filled=d.slots.filter(function(s){return s.filled;}).length;
@@ -782,8 +782,8 @@ export const APP_HTML = `<!doctype html>
     // Lo YA HECHO (público o programado) queda OCULTO; solo mostramos lo que falta REVISAR.
     // "programado" = tiene publish_at (pasado o futuro): ya se agendó, no está por revisar aunque su hora ya pasó.
     list=list.filter(function(v){ var pv=v.privacy==="public"; var loc=localSched[v.video_id]; return !pv && !v.publish_at && loc!=="schedule" && loc!=="public" && !v.pending_sched; });
-    if(!list.length) return '<h2>Videos de Oddly Loop</h2><div class="card muted" style="font-size:12px">✅ Todo al día. Lo público y lo programado está hecho (lo ves en 📅 Agenda). Cuando produzcas uno nuevo, aparece aquí para revisar.</div>';
-    return '<h2>Por revisar ('+list.length+')</h2>'+list.map(function(v){
+    if(!list.length) return '<h2>Videos de Oddly Loop</h2><div class="card muted" style="font-size:12px">✅ Todo al día. Lo público y lo programado está hecho (lo ves en 📅 Agenda). Lo que el cerebro produce aparece aquí mientras se programa solo.</div>';
+    return '<h2>⏳ En marcha ('+list.length+')</h2>'+list.map(function(v){
       var pv=v.privacy==="public";
       var loc=localSched[v.video_id]||""; // marca optimista de esta sesión
       var schedAt=v.publish_at||""; var future=schedAt&&(new Date(schedAt)>new Date());
@@ -891,11 +891,11 @@ export const APP_HTML = `<!doctype html>
         return '<div class="card" style="padding:10px 12px"><div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;text-transform:capitalize"><span>'+esc(dayLabel(k))+'</span><span style="color:var(--cy)">'+items.length+'</span></div>'+rows+'</div>';
       }).join('');
     } else {
-      h+='<div class="card muted" style="font-size:12px">Nada programado aún. En <b>Producir</b>, a un video privado dale <b>📅 Programar</b> y aparece aquí en su día.</div>';
+      h+='<div class="card muted" style="font-size:12px">Nada programado aún. El cerebro produce y programa solo; cada video aparece aquí en su día.</div>';
     }
     // En revisión (por programar)
     if(enRev.length){
-      h+='<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:14px;margin-bottom:4px">👀 En revisión — por programar ('+enRev.length+')</div>'
+      h+='<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:14px;margin-bottom:4px">⏳ En marcha — programándose ('+enRev.length+')</div>'
         +'<div class="muted" style="font-size:12px;margin-bottom:8px">Privados, esperando que los revises y les pongas hora.</div>'
         +enRev.slice(0,6).map(function(v){ return '<div style="font-size:12px;border-top:1px solid rgba(255,255,255,.06);padding:5px 0">• '+esc((v.title||"").slice(0,40))+(v.niche_label?' <span class="muted">('+esc(v.niche_label)+')</span>':'')+'</div>'; }).join("")
         +'<button class="btn" style="margin-top:8px" onclick="tab(\\'producir\\')">Ir a programar</button></div>';
@@ -1036,8 +1036,8 @@ export const APP_HTML = `<!doctype html>
     function kpi(n,l){return '<div class="kpi"><div class="n">'+num(n||0)+'</div><div class="l">'+l+'</div></div>';}
     function chCard(title,handle,verdict,msg,kpis,goCh,pend){
       var pl = pend>0
-        ? '<div class="card" style="background:rgba(34,211,238,.14);border:1px solid var(--cy);padding:8px;margin:2px 0 8px"><b style="color:var(--cy)">👀 '+pend+' video(s) por aprobar</b></div>'
-        : '<div class="muted" style="font-size:11px;margin:2px 0 8px">✓ nada por aprobar</div>';
+        ? '<div class="card" style="background:rgba(34,211,238,.14);border:1px solid var(--cy);padding:8px;margin:2px 0 8px"><b style="color:var(--cy)">⏳ '+pend+' video(s) en marcha</b></div>'
+        : '<div class="muted" style="font-size:11px;margin:2px 0 8px">✓ todo automático</div>';
       return '<div class="card"'+(pend>0?' style="border:1px solid var(--cy)"':'')+'>'
         +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
         +'<div><div style="font-weight:800;font-size:15px">'+title+'</div><div class="muted" style="font-size:11px">'+handle+'</div></div>'
@@ -1045,7 +1045,7 @@ export const APP_HTML = `<!doctype html>
         +'<div class="row" style="margin:8px 0">'+kpis+'</div>'
         +pl
         +(msg?'<div class="muted" style="font-size:12px;margin-bottom:8px">'+esc(msg)+'</div>':'')
-        +'<button class="btn'+(pend>0?'':' ghost')+'" onclick="setChannel(\\''+goCh+'\\')">'+(pend>0?'👀 Aprobar en '+title+' →':'Entrar a '+title+' →')+'</button></div>';
+        +'<button class="btn'+(pend>0?'':' ghost')+'" onclick="setChannel(\\''+goCh+'\\')">'+'Entrar a '+title+' →'+'</button></div>';
     }
     var kO=kpi(a2.subs||od.subs,"Subs")+kpi(a2.total_views||od.views,"Vistas")+kpi(a2.videos||od.videos,"Videos");
     var dlSubs=(ST.channel_stats&&ST.channel_stats.subs)||dl.subs||0;
@@ -1053,7 +1053,7 @@ export const APP_HTML = `<!doctype html>
     var dlVids=dl.videos||(ST.totals&&ST.totals.videos)||0;
     var kD=kpi(dlSubs,"Subs")+kpi(dlViews,"Vistas")+kpi(dlVids,"Videos");
     var totPend=(pa.total!=null?pa.total:((pa.oddly||0)+(pa.data_lens||0)));
-    var topBanner=totPend>0?'<div class="card" style="background:rgba(34,211,238,.14);border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px;color:var(--cy)">👀 Tienes '+totPend+' video(s) por aprobar</div><div class="muted" style="font-size:12px">Entra al canal marcado con 👀 y apruébalos para que se publiquen.</div></div>':'';
+    var topBanner=totPend>0?'<div class="card" style="background:rgba(34,211,238,.14);border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px;color:var(--cy)">⏳ '+totPend+' video(s) en marcha</div><div class="muted" style="font-size:12px">Se programan y publican solos; no tienes que hacer nada.</div></div>':'';
     var when=b.at?'<div class="muted" style="font-size:11px;margin:-2px 2px 8px">🧠 Diagnóstico del cerebro: '+esc(String(b.at).slice(5,16).replace("T"," "))+'</div>':'<div class="muted" style="font-size:11px;margin:-2px 2px 8px">🧠 El cerebro corre cada día 8am y te avisa por chat.</div>';
     var alert=dl.restructure?'<div class="card" style="border:1px solid var(--am)"><div style="font-weight:800;color:var(--am)">⚠️ The Data Lens: reestructurar</div><div class="muted" style="font-size:12px;margin-top:2px">Se probaron las direcciones y ninguna despegó. Dile a Claude: «reestructura Data Lens».</div></div>':'';
     return '<h2>🧠 Resumen — los dos canales</h2>'+when+topBanner+alert
@@ -1129,7 +1129,7 @@ export const APP_HTML = `<!doctype html>
     var liveTag = (activeFor(curChannel).length) ? " · 🟢 en vivo" : "";
     el("chTitle").textContent = curChannel==="auto2" ? "Auto #2" : "The Data Lens";
     // Data Lens es automatico: la pestaña "Producir" se llama "Revisar" (revisas/publicas lo que sale solo).
-    var _np=el("navProducir"); if(_np) _np.innerHTML = (curChannel==="auto2") ? '<span class="ic">🏭</span>Producir' : '<span class="ic">🎬</span>Revisar';
+    var _np=el("navProducir"); if(_np) _np.innerHTML = '<span class="ic">🎬</span>Videos';
     el("hd").textContent = (curChannel==="auto2"?"canal automático":"@TheDataLensHQ")+" · act. "+ (ST.updated_at? String(ST.updated_at).slice(5,16).replace("T"," "):"—") + liveTag;
     setHelp(curTab);
     // Banner de "te aviso al terminar" (G-V1): visible en TODAS las pestañas mientras haya un proceso vigilado.
@@ -1169,7 +1169,7 @@ export const APP_HTML = `<!doctype html>
       // contador coincide con la lista de Producir (antes decía 23 pero no mostraba nada).
       var nowR=new Date();
       var privA=((ST.auto2&&ST.auto2.list)||[]).filter(function(v){ var future=v.publish_at&&(new Date(v.publish_at)>nowR); var loc=localSched[v.video_id]; return v.privacy!=="public" && !future && loc!=="schedule" && loc!=="public" && !v.pending_sched; }).length;
-      var pendA=privA?('<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px">👀 '+privA+' video(s) por revisar</div><div class="muted" style="font-size:13px;margin:4px 0 8px">De Oddly Loop, privados. Revísalos y publica/programa en Producir.</div><button class="btn" onclick="tab(\\'producir\\')">Ir a revisar</button></div>'):'';
+      var pendA=privA?('<div class="card" style="border:1px solid var(--cy)"><div style="font-weight:800;font-size:15px">⏳ '+privA+' video(s) en marcha</div><div class="muted" style="font-size:13px;margin:4px 0 8px">De Oddly Loop, privados. Revísalos y publica/programa en Producir.</div><button class="btn" onclick="tab(\\'producir\\')">Ir a revisar</button></div>'):'';
       // INICIO: pulso (KPIs + estado + pendientes + producir + radar)
       el("s-inicio").innerHTML = auto2KpisHtml() + goalHtml(ST.auto2 && ST.auto2.monet_goal) + statusA + pendA + auto2TopHtml() + (MONITOR?'':auto2ProduceCard()) + nicheRadarHtml();
       // PRODUCIR: sus videos CON acciones (publicar/programar) + producir + nota
