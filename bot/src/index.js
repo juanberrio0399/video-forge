@@ -11,11 +11,16 @@
  */
 
 import { APP_HTML } from "./miniapp.js";
+import { APP2_HTML } from "./miniapp_v2.js";
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     // Mini App (interfaz "tipo app pro" dentro de Telegram).
+    if (url.pathname === "/app2") {
+      // Mini App v2 (monitor del cerebro), en paralelo a /app hasta el cut-over.
+      return new Response(APP2_HTML, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
+    }
     if (url.pathname === "/app") {
       // no-store: Telegram Mini App cachea el WebView; sin esto sigue sirviendo una version vieja.
       return new Response(APP_HTML, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
@@ -745,12 +750,23 @@ async function handleApi(request, env, url) {
   if (url.pathname === "/api/brain") {
     // Brain OS Fases 5-6: registros que YA calcula el cerebro (motor de decisión + dashboard de
     // monetización). Lazy: la Mini App solo lo pide al abrir la pestaña Cerebro (no toca /api/state).
-    const [decision, monetization, queue] = await Promise.all([
-      r2json(env, "channel/brain/decision.json"),
-      r2json(env, "channel/brain/monetization_report.json"),
-      r2json(env, "channel/auto2/queue.json"),
-    ]);
-    return json({ decision: decision || null, monetization: monetization || null, queue: queue || null });
+    // v2: además, TODOS los registros del Brain OS por canal (scores/A-B/alertas/banco/reporte/cruce)
+    // + hipótesis y hooks globales. Todo en paralelo; cada archivo es opcional (null si no existe).
+    const dl = (f) => `channel/${f}`, od = (f) => `channel/auto2/${f}`, br = (f) => `channel/brain/${f}`;
+    const keys = [
+      br("decision.json"), br("monetization_report.json"), od("queue.json"), br("hypotheses.json"), br("hooks.json"),
+      dl("scores.json"), dl("ab_tests.json"), dl("alerts.json"), br("creative_bank.json"), br("experiment_report.json"), dl("cross_validation.json"),
+      od("scores.json"), od("ab_tests.json"), od("alerts.json"), od("creative_bank.json"), od("experiment_report.json"), od("cross_validation.json"),
+    ];
+    const v = await Promise.all(keys.map((k) => r2json(env, k)));
+    const N = (x) => x || null;
+    return json({
+      decision: N(v[0]), monetization: N(v[1]), queue: N(v[2]), hypotheses: v[3] || [], hooks: N(v[4]),
+      ch: {
+        "data-lens": { scores: N(v[5]), ab: N(v[6]), alerts: N(v[7]), bank: N(v[8]), report: N(v[9]), cross: N(v[10]) },
+        "auto2": { scores: N(v[11]), ab: N(v[12]), alerts: N(v[13]), bank: N(v[14]), report: N(v[15]), cross: N(v[16]) },
+      },
+    });
   }
 
   if (url.pathname === "/api/error-detail") {
