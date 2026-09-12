@@ -69,6 +69,8 @@ export const APP2_HTML = `<!doctype html>
   .btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--line);box-shadow:none}
   .btn.mini{display:inline-block;width:auto;padding:7px 13px;font-size:12px;margin:0;border-radius:11px;box-shadow:none}
   input[type=text]{width:100%;background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:11px;padding:11px;font-size:15px;font-family:inherit}
+  .file{display:flex;align-items:center;gap:10px;background:var(--bg);border:1px dashed var(--line);border-radius:12px;padding:14px;justify-content:center;color:var(--hint);cursor:pointer;margin:8px 0;font-weight:600;transition:transform .1s}
+  .file:active{transform:scale(.98)}
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   th{color:var(--hint);text-align:left;font-weight:700;padding:6px 6px;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px}
   td{padding:8px 6px;border-top:1px solid var(--line);vertical-align:top}
@@ -373,7 +375,8 @@ export const APP2_HTML = `<!doctype html>
     var gb=r2.bytes?(r2.bytes/1073741824).toFixed(2):null;
     return '<h2>🩺 Salud</h2><div class="card"><div class="row"><span>🧰 Herramientas</span><span class="pill '+(t.down>0?"am":"gr")+'">'+(t.tools&&t.tools.length?(t.ok+"/"+t.total+" OK"):"OK")+'</span></div><div class="row" style="margin-top:8px"><span>⚠️ Problemas</span><span class="pill '+(prob?"rd":"gr")+'">'+prob+'</span></div>'+(gb?'<div class="row" style="margin-top:8px"><span>💾 R2</span><span class="muted num">'+gb+' GB / 10</span></div>':"")+'</div>'
       +'<h2>🛠️ Herramientas</h2><div class="card"><div class="muted" style="margin-bottom:8px">Despublicar un dud (privado + oculto, reversible).</div><input type="text" id="unpubId" placeholder="ID del video de YouTube"><div class="row" style="margin-top:8px;gap:8px"><button class="btn mini ghost" data-unpub="data-lens">Data Lens</button><button class="btn mini ghost" data-unpub="auto2">Oddly</button></div></div>'
-      +'<div class="card"><b>✋ Mis Clips</b><div class="muted" style="margin-top:3px">Subir un clip a mano sigue en la app clásica por ahora.</div><a class="btn ghost" href="/app" style="text-align:center;text-decoration:none">Abrir Mis Clips ↗</a></div>'
+      +'<div class="card"><b>✋ Mis Clips</b><div class="muted" style="margin:3px 0 8px">Sube un clip tuyo (máx ~100MB): la IA le arma el SEO, lo programa a su mejor hora en Oddly y te avisa al chat. Lo único manual de la app.</div>'
+      +'<input type="text" id="clipCap" placeholder="Pista opcional para el título/descripción (máx 300)"><label class="file" for="fClip">🎬 Elegir video</label><input id="fClip" type="file" accept="video/*" class="hide"></div>'
       +'<div class="muted" style="text-align:center;margin-top:10px">Video Forge v2 · monitor · '+(ST.inventory_at?'inventario '+esc(String(ST.inventory_at).slice(5,16).replace("T"," ")):"")+'</div>';
   }
 
@@ -411,6 +414,16 @@ export const APP2_HTML = `<!doctype html>
     var u=ev.target.closest("[data-unpub]"); if(u){ unpublish(u.getAttribute("data-unpub")); return; }
     if(ev.target.closest("#btnRefresh")){ h("light"); load(true); }
   });
+  // Mis Clips: subida cruda del video (mismo contrato que la v1: /api/upload-clip?caption=, tope ~100MB).
+  function uploadClip(f){ if(!f) return;
+    if(f.size>100*1024*1024){ h("err"); toast("Ese clip pesa "+Math.round(f.size/1048576)+"MB. Máximo ~100MB."); return; }
+    var cap=encodeURIComponent(((el("clipCap")&&el("clipCap").value)||"").slice(0,300));
+    h("medium"); toast("Subiendo clip… ("+Math.round(f.size/1048576)+"MB)");
+    api("/api/upload-clip?caption="+cap,{method:"POST",headers:{"content-type":f.type||"video/mp4"},body:f})
+      .then(function(r){return r.json();}).then(function(j){ if(j.ok){ h("ok"); toast("✅ Clip recibido. La IA arma el SEO, lo programa y te avisa al chat."); if(el("clipCap")) el("clipCap").value=""; } else { h("err"); toast("❌ "+(j.error||"falló")); } })
+      .catch(function(){ h("err"); toast("❌ Error de red"); });
+  }
+  document.addEventListener("change",function(ev){ var t=ev.target; if(t&&t.id==="fClip"){ uploadClip(t.files&&t.files[0]); t.value=""; } });
   function unpublish(ch){
     var id=(el("unpubId")&&el("unpubId").value||"").trim(); if(!/^[\\w-]{6,}$/.test(id)){ toast("Pega un ID de video válido"); return; }
     if(tg&&tg.showConfirm){ tg.showConfirm("¿Despublicar "+id+" en "+(CH[ch]||{}).name+"? Queda privado y oculto (reversible).",function(ok){ if(ok) doUnpub(ch,id); }); } else if(confirm("¿Despublicar "+id+"?")) doUnpub(ch,id);
@@ -429,7 +442,10 @@ export const APP2_HTML = `<!doctype html>
   function load(withBrain){
     api("/api/state").then(function(r){return r.json();}).then(function(j){
       if(j.error){ ST.error=(j.error==="no autorizado"?"No autorizado":"⚠️ "+(j.detail||j.error)); render(); scheduleRefresh(); return; }
-      ST=j; render(); scheduleRefresh(); if(withBrain) loadBrain(true);
+      ST=j;
+      // No repintar "Más" mientras escribes (el refresco borraría la pista del clip o el ID a despublicar).
+      var typing=curTab==="mas"&&((el("clipCap")&&el("clipCap").value)||(el("unpubId")&&el("unpubId").value));
+      if(!typing) render(); scheduleRefresh(); if(withBrain) loadBrain(true);
     }).catch(function(){ ST.error="Sin conexión — reintentando…"; render(); scheduleRefresh(); });
   }
   // Skeleton al abrir (percepción de velocidad) + tema inicial
