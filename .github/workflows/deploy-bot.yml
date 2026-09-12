@@ -69,7 +69,7 @@ jobs:
           echo "$RESP" | grep -q '"ok":true' || { echo "setWebhook fallo"; exit 1; }
           # Boton de menu del bot -> abre la Mini App (interfaz tipo app).
           MB=$(curl -s "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/setChatMenuButton" \
-            --data-urlencode 'menu_button={"type":"web_app","text":"📊 App","web_app":{"url":"'"$URL"'/app"}}')
+            --data-urlencode 'menu_button={"type":"web_app","text":"📊 App","web_app":{"url":"'"$URL"'/app2"}}')
           echo "MenuButton: $MB"
           # Identidad del bot "Video Forge": descripcion corta (perfil), descripcion (chat vacio) y comandos.
           TB="https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}"

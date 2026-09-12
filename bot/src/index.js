@@ -1468,8 +1468,8 @@ async function handleCallback(cb, env) {
 const KB = {
   home: {
     inline_keyboard: [
-      [{ text: "🚀 Abrir la app (panel pro)", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app" } }],
-      [{ text: "🧪 Probar la app v2 (beta)", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app2" } }],
+      [{ text: "🚀 Abrir la app", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app2" } }],
+      [{ text: "🕰️ App clásica (v1)", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app" } }],
       [{ text: "🎬 Video", callback_data: "menu:video" }, { text: "📊 Canal", callback_data: "menu:canal" }],
       [{ text: "🖼️ Foto", callback_data: "menu:foto" }, { text: "🎤 Voces", callback_data: "menu:voces" }],
       [{ text: "🍳 Recetas", callback_data: "menu:recetas" }, { text: "❓ Ayuda", callback_data: "menu:ayuda" }],
@@ -1521,7 +1521,7 @@ async function sendMenu(env, chatId) {
   // Boton de menu de Telegram que abre la Mini App (interfaz tipo app).
   await tg(env, "setChatMenuButton", {
     chat_id: chatId,
-    menu_button: { type: "web_app", text: "📊 App", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app" } },
+    menu_button: { type: "web_app", text: "📊 App", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app2" } },
   });
   await tg(env, "setMyCommands", {
     commands: [
