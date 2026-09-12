@@ -615,6 +615,21 @@ export const APP_HTML = `<!doctype html>
       return et+" ET · tu "+lo;
     }catch(e){return iso;}
   }
+  // Horizonte de la cola: cuántos días por delante estamos programados. El cerebro programa el DÍA
+  // ANTES (buffer ~1 día) para aprender rápido; si hay varios días, es backlog viejo drenando.
+  function queueHorizonHtml(arr){
+    var now=Date.now();
+    var times=(arr||[]).map(function(v){return Date.parse(v.publish_at);}).filter(function(n){return !isNaN(n)&&n>now;});
+    if(!times.length) return "";
+    var last=Math.max.apply(null,times);
+    var days=Math.round((last-now)/864e5*10)/10;
+    var ok=days<=2; // ~1-2 días = sano (el cerebro actúa a tiempo)
+    var fecha=new Date(last).toLocaleDateString([],{weekday:'short',day:'numeric',month:'short'});
+    return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'
+      +'<div><b>🗓️ '+times.length+' programados</b><div class="muted num" style="font-size:11px;margin-top:2px">publican hasta '+esc(fecha)+' · ~'+days+' días</div></div>'
+      +'<span class="tag '+(ok?'pub':'priv')+'">'+(ok?'al día ~1 día':'drenando')+'</span></div>'
+      +'<div class="muted" style="font-size:11px;margin-top:8px">🧠 El cerebro programa el <b>día antes</b> (buffer ~1 día) para aprender rápido. Si ves varios días, es el backlog viejo drenando — con el tope de cola no vuelve a estirarse.</div></div>';
+  }
   function scheduledHtml(){
     // Videos PROGRAMADOS (con hora futura). Al publicarse, YouTube los pasa a público y desaparecen.
     var s=ST.scheduled||[]; if(!s.length) return "";
@@ -663,7 +678,7 @@ export const APP_HTML = `<!doctype html>
         if(s.filled){
           return '<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid rgba(255,255,255,.06)">'
             +'<div style="font-size:12px">'+(s.type==="short"?"🎬":"📹")+' '+esc((s.title||"Video").slice(0,32))+(s.off_slot?' <span class="muted" style="font-size:10px">(hora manual)</span>':'')+'</div>'
-            +'<div style="font-size:11px;color:var(--cy);white-space:nowrap">'+esc(s.time)+'</div></div>';
+            +'<div style="font-size:11px;color:var(--acc);white-space:nowrap">'+esc(s.time)+'</div></div>';
         }
         return '<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px dashed rgba(255,255,255,.10)">'
           +'<div style="font-size:12px;color:var(--hint)">— Libre —</div>'
@@ -736,7 +751,7 @@ export const APP_HTML = `<!doctype html>
     }
     if(top.length){
       h+='<div class="card"><div class="muted" style="font-size:12px;margin-bottom:6px">🏆 Top 3 (vistas/día):</div>'
-        +top.slice(0,3).map(function(v,i){return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid rgba(255,255,255,.06);padding:5px 0"><div style="font-size:12px">'+["🥇","🥈","🥉"][i]+' '+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,26))+'</a>':esc(v.title||""))+(v.niche_label?' <span class="muted">('+esc(v.niche_label)+')</span>':'')+'</div><div style="font-size:11px;color:var(--cy);white-space:nowrap">'+num(v.views)+' · '+(v.vpd||0)+'/día</div></div>';}).join("")+'</div>';
+        +top.slice(0,3).map(function(v,i){return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid rgba(255,255,255,.06);padding:5px 0"><div style="font-size:12px">'+["🥇","🥈","🥉"][i]+' '+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,26))+'</a>':esc(v.title||""))+(v.niche_label?' <span class="muted">('+esc(v.niche_label)+')</span>':'')+'</div><div style="font-size:11px;color:var(--acc);white-space:nowrap">'+num(v.views)+' · '+(v.vpd||0)+'/día</div></div>';}).join("")+'</div>';
     }
     var zero=((a.list)||[]).filter(function(v){return v.privacy==="public"&&(v.views||0)===0;}).length;
     var pubN=((a.list)||[]).filter(function(v){return v.privacy==="public";}).length;
@@ -751,7 +766,7 @@ export const APP_HTML = `<!doctype html>
     var top=ST.top||[]; var bh=ST.best_hours; var h='';
     if(top.length){
       h+='<h2>🔥 Lo que más rinde (para replicar)</h2><div class="card"><div class="muted" style="font-size:12px;margin-bottom:6px">🏆 Top 3 (vistas/día):</div>'
-        +top.slice(0,3).map(function(v,i){return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid rgba(255,255,255,.06);padding:5px 0"><div style="font-size:12px">'+["🥇","🥈","🥉"][i]+' '+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,28))+'</a>':esc(v.title||""))+'</div><div style="font-size:11px;color:var(--cy);white-space:nowrap">'+num(v.views)+' · '+(v.vpd||0)+'/día</div></div>';}).join("")+'</div>';
+        +top.slice(0,3).map(function(v,i){return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid rgba(255,255,255,.06);padding:5px 0"><div style="font-size:12px">'+["🥇","🥈","🥉"][i]+' '+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||"").slice(0,28))+'</a>':esc(v.title||""))+'</div><div style="font-size:11px;color:var(--acc);white-space:nowrap">'+num(v.views)+' · '+(v.vpd||0)+'/día</div></div>';}).join("")+'</div>';
     }
     // Videos públicos sin ni una vista (de todo el árbol: largos + shorts).
     var all=[]; (ST.video_tree||[]).forEach(function(l){ all.push(l); (l.shorts||[]).forEach(function(s){all.push(s);}); }); (ST.video_tree_ungrouped||[]).forEach(function(s){all.push(s);});
@@ -854,7 +869,8 @@ export const APP_HTML = `<!doctype html>
     var byDay={};
     prog.forEach(function(v){ var k=v.publish_at?dayKey(v.publish_at):'—'; (byDay[k]=byDay[k]||[]).push(v); });
     var days=Object.keys(byDay).sort();
-    var h='<h2>📅 Calendario de Oddly Loop</h2>'
+    var h=queueHorizonHtml(prog)
+      +'<h2>📅 Calendario de Oddly Loop</h2>'
       +'<div class="card muted" style="font-size:12px">Lo que hay <b>programado cada día</b> (tu hora). Los privados por revisar salen más abajo.<br><span style="color:#c084fc;font-weight:700">🟣 morado = tus clips manuales</span> · azul = automáticos.</div>';
     if(days.length){
       h+=days.map(function(k){
@@ -863,7 +879,7 @@ export const APP_HTML = `<!doctype html>
           var isShort=/#short/i.test(v.title||'');
           var isProg=!v.publish_at&&(v.pending_sched||localSched[v.video_id]==="schedule"); // en marcha, aún sin hora confirmada
           var t=v.publish_at?fmtTime(v.publish_at):(isProg?'Programando…':'mejor hora');
-          var man=v.manual; var col=man?'#c084fc':'var(--cy)';
+          var man=v.manual; var col=man?'#c084fc':'var(--acc)';
           return '<div style="padding:6px 0;border-top:1px solid rgba(255,255,255,.06)'+(man?';border-left:3px solid #c084fc;padding-left:6px':'')+'">'
             +'<div style="display:flex;justify-content:space-between;gap:8px">'
               +'<div style="font-size:12px">'+(man?'🟣':(isShort?'📱':'🎬'))+' '+(v.video_id?'<a href="https://youtu.be/'+v.video_id+'" target="_blank">'+esc((v.title||'').slice(0,30))+'</a>':esc((v.title||'').slice(0,30)))+(man?' <span style="color:#c084fc;font-size:10px;font-weight:700">tuyo</span>':'')+(v.niche_label?' <span class="muted" style="font-size:10px">('+esc(v.niche_label)+')</span>':'')+'</div>'
@@ -1264,7 +1280,7 @@ export const APP_HTML = `<!doctype html>
       +'<div class="muted" style="font-size:12px">El Cerebro produce, programa y publica los Shorts solo (formato DATA SHOCK, 3/día). No tienes que aprobar ni programar nada — solo despublica en YouTube si algo no te gusta.</div></div>';
 
     // ===== AGENDA =====
-    el("s-agenda").innerHTML = calendarHtml()+scheduledHtml()+bestTimesHtml();
+    el("s-agenda").innerHTML = queueHorizonHtml(ST.scheduled)+calendarHtml()+scheduledHtml()+bestTimesHtml();
 
     // ===== ANALITICA ===== canal completo + analisis + fabrica + tus videos.
     var tree=ST.video_tree||[], ung=ST.video_tree_ungrouped||[];
