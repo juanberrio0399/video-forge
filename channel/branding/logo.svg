@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
+  <defs>
+    <radialGradient id="bg" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0" stop-color="#101a33"/>
+      <stop offset="1" stop-color="#05070f"/>
+    </radialGradient>
+    <linearGradient id="firma" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eaf1ff"/>
+      <stop offset="0.6" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#34d399"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="0.22" cy="0.2" r="0.5">
+      <stop offset="0" stop-color="#1b8fb0" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#1b8fb0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="0.8" cy="0.85" r="0.5">
+      <stop offset="0" stop-color="#0e7a53" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#0e7a53" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="800" fill="url(#bg)"/>
+  <rect width="800" height="800" fill="url(#glow1)"/>
+  <rect width="800" height="800" fill="url(#glow2)"/>
+  <!-- rejilla sutil -->
+  <g stroke="#ffffff" stroke-opacity="0.04" stroke-width="2">
+    <path d="M0 200H800M0 400H800M0 600H800M200 0V800M400 0V800M600 0V800"/>
+  </g>
+  <!-- lente -->
+  <circle cx="370" cy="370" r="200" fill="none" stroke="url(#firma)" stroke-width="34"/>
+  <path d="M520 520 L640 640" stroke="url(#firma)" stroke-width="46" stroke-linecap="round"/>
+  <!-- barras dentro de la lente (datos) -->
+  <g fill="#eaf1ff">
+    <rect x="286" y="400" width="40" height="80" rx="8"/>
+    <rect x="350" y="340" width="40" height="140" rx="8"/>
+    <rect x="414" y="280" width="40" height="200" rx="8"/>
+  </g>
+  <circle cx="434" cy="250" r="16" fill="#34d399"/>
+</svg>
