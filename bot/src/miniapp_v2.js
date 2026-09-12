@@ -138,7 +138,7 @@ export const APP2_HTML = `<!doctype html>
   var tg=window.Telegram&&window.Telegram.WebApp;
   if(tg){ tg.ready(); tg.expand(); try{ tg.disableVerticalSwipes&&tg.disableVerticalSwipes(); }catch(e){} try{ tg.setHeaderColor&&tg.setHeaderColor("bg_color"); }catch(e){} }
   var INIT=tg?tg.initData:"";
-  var ST={}, BR=null, brLoading=false, curTab="hoy", curCh="resumen", refT=null, DAY=864e5;
+  var ST={}, BR=null, brLoading=false, curTab="hoy", curCh="resumen", refT=null, DAY=864e5, BUILD="__BUILD__";
   function el(id){return document.getElementById(id);}
   function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
   function num(n){n=+n||0;if(n>=1e6)return (n/1e6).toFixed(n>=1e7?0:1)+"M";if(n>=1e3)return (n/1e3).toFixed(n>=1e5?0:1)+"k";return String(Math.round(n));}
@@ -382,7 +382,7 @@ export const APP2_HTML = `<!doctype html>
       +'<h2>🛠️ Herramientas</h2><div class="card"><div class="muted" style="margin-bottom:8px">Despublicar un dud (privado + oculto, reversible).</div><input type="text" id="unpubId" placeholder="ID del video de YouTube"><div class="row" style="margin-top:8px;gap:8px"><button class="btn mini ghost" data-unpub="data-lens">Data Lens</button><button class="btn mini ghost" data-unpub="auto2">Oddly</button></div></div>'
       +'<div class="card"><b>✋ Mis Clips</b><div class="muted" style="margin:3px 0 8px">Sube un clip tuyo (máx ~100MB): la IA le arma el SEO, lo programa a su mejor hora en Oddly y te avisa al chat. Lo único manual de la app.</div>'
       +'<input type="text" id="clipCap" placeholder="Pista opcional para el título/descripción (máx 300)"><label class="file" for="fClip">🎬 Elegir video</label><input id="fClip" type="file" accept="video/*" class="hide"></div>'
-      +'<div class="muted" style="text-align:center;margin-top:10px">Video Forge v2 · monitor · '+(ST.inventory_at?'inventario '+esc(String(ST.inventory_at).slice(5,16).replace("T"," ")):"")+'</div>';
+      +'<div class="muted" style="text-align:center;margin-top:10px">Video Forge v2 · build '+esc(BUILD)+' · '+(ST.inventory_at?'inventario '+esc(String(ST.inventory_at).slice(5,16).replace("T"," ")):"")+'</div>';
   }
 
   // ===== Render / navegación =====
@@ -447,6 +447,7 @@ export const APP2_HTML = `<!doctype html>
   function load(withBrain){
     api("/api/state").then(function(r){return r.json();}).then(function(j){
       if(j.error){ ST.error=(j.error==="no autorizado"?"No autorizado":"⚠️ "+(j.detail||j.error)); render(); scheduleRefresh(); return; }
+      if(j.build&&BUILD!=="__BUILD__"&&BUILD!=="dev"&&j.build!==BUILD){ try{ location.replace(location.pathname+"?v="+encodeURIComponent(j.build)); }catch(e){} return; }
       ST=j;
       // No repintar "Más" mientras escribes (el refresco borraría la pista del clip o el ID a despublicar).
       var typing=curTab==="mas"&&((el("clipCap")&&el("clipCap").value)||(el("unpubId")&&el("unpubId").value));
