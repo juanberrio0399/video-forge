@@ -11,82 +11,97 @@ export const APP_HTML = `<!doctype html>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   :root{
-    --bg:var(--tg-theme-bg-color,#0f1420); --card:var(--tg-theme-secondary-bg-color,#1a2130);
+    /* Base sincronizada con el TEMA de Telegram (nativo: se adapta a claro/oscuro del usuario). */
+    --bg:var(--tg-theme-bg-color,#0b0f17); --card:var(--tg-theme-secondary-bg-color,#141b26);
     --txt:var(--tg-theme-text-color,#eaf1ff); --hint:var(--tg-theme-hint-color,#8aa0c0);
     --btn:var(--tg-theme-button-color,#22a0e0); --btntx:var(--tg-theme-button-text-color,#fff);
     --link:var(--tg-theme-link-color,#4fc3f7);
-    --acc:var(--tg-theme-button-color,#22a0e0); --accfg:var(--tg-theme-button-text-color,#fff);
-    /* Bordes/tracks en gris neutro con alfa: se ven bien en tema CLARO y OSCURO (no dependen de blanco). */
-    --line:rgba(130,140,158,.24); --soft:rgba(130,140,158,.11);
+    --line:rgba(130,140,158,.20); --soft:rgba(130,140,158,.10);
     --cy:#22d3ee; --gr:#34d399; --am:#f59e0b; --rd:#f87171;
+    /* ACENTO DE MARCA (por canal; se define en body[data-ch]). Neutro por defecto. */
+    --acc:#22d3ee; --acc2:#38bdf8; --glow:rgba(34,211,238,.16); --accfg:#04121a;
+    --r:17px; --shadow:0 12px 30px rgba(0,0,0,.30);
   }
+  body[data-ch="auto2"]{--acc:#10b981;--acc2:#2dd4bf;--glow:rgba(16,185,129,.20);--accfg:#04140d}
+  body[data-ch="data-lens"]{--acc:#f5b23c;--acc2:#ff8a3d;--glow:rgba(245,178,60,.18);--accfg:#1c1200}
+  body[data-ch="bilibili"]{--acc:#22a0e0;--acc2:#38bdf8;--glow:rgba(34,160,224,.18);--accfg:#04121a}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;font-size:15px;line-height:1.45;padding-bottom:calc(84px + env(safe-area-inset-bottom))}
-  header{padding:12px 14px 10px;position:sticky;top:0;background:var(--bg);z-index:6}
-  .hdrow{display:flex;align-items:center;justify-content:space-between;gap:10px}
-  .hd-l{display:flex;align-items:center;gap:10px;min-width:0}
-  .logo{font-size:24px;line-height:1;flex-shrink:0}
-  header h1{font-size:18px;margin:0;font-weight:800;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  header .sub{color:var(--hint);font-size:12px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .icon{background:var(--card);border:1px solid var(--line);color:var(--txt);min-width:38px;height:38px;border-radius:11px;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:transform .12s}
+  body{margin:0;background:
+      radial-gradient(120% 42% at 50% -60px, var(--glow), transparent 62%),
+      var(--bg);
+    color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;font-size:15px;line-height:1.45;padding-bottom:calc(88px + env(safe-area-inset-bottom));transition:background .3s}
+  header{padding:14px 14px 10px;position:sticky;top:0;background:var(--bg);z-index:6;border-bottom:1px solid var(--line)}
+  .hdrow{display:flex;align-items:center;justify-content:space-between;gap:11px}
+  .hd-l{display:flex;align-items:center;gap:11px;min-width:0}
+  .logo{width:44px;height:44px;border-radius:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(140deg,var(--acc),var(--acc2));box-shadow:0 8px 20px var(--glow);transition:background .3s,box-shadow .3s}
+  .logo svg{width:27px;height:27px;display:block}
+  header h1{font-size:17px;margin:0;font-weight:800;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header .sub{color:var(--hint);font-size:12px;margin-top:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .icon{background:var(--card);border:1px solid var(--line);color:var(--txt);min-width:38px;height:38px;border-radius:12px;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:transform .12s}
   .icon:active{transform:scale(.9) rotate(-35deg)}
   .wrap{padding:0 14px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin:10px 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin:11px 0;box-shadow:var(--shadow)}
   .row{display:flex;gap:10px}
   .kpi{flex:1;text-align:center}
-  .kpi .n{font-size:26px;font-weight:900;line-height:1}
-  .kpi .l{font-size:11px;color:var(--hint);margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
-  h2{font-size:12px;color:var(--hint);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin:18px 4px 8px}
-  .bar{height:9px;background:var(--soft);border-radius:6px;overflow:hidden;margin-top:6px}
-  .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--cy),var(--gr));border-radius:6px}
+  .kpi .n{font-size:27px;font-weight:850;line-height:1;letter-spacing:-.5px;font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+  .kpi .l{font-size:10.5px;color:var(--hint);margin-top:5px;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+  h2{font-size:11px;color:var(--hint);text-transform:uppercase;letter-spacing:.7px;font-weight:800;margin:18px 4px 8px}
+  .bar{height:9px;background:var(--soft);border-radius:999px;overflow:hidden;margin-top:7px}
+  .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));border-radius:999px;box-shadow:0 0 14px var(--glow)}
   table{width:100%;border-collapse:collapse;font-size:13px}
   th{color:var(--hint);text-align:left;font-weight:600;padding:6px 6px;font-size:11px;text-transform:uppercase}
   td{padding:8px 6px;border-top:1px solid var(--line);vertical-align:top}
+  .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
   .tag{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700}
   .tag.pub{background:rgba(52,211,153,.18);color:var(--gr)} .tag.priv{background:rgba(245,158,11,.18);color:var(--am)}
   a{color:var(--link);text-decoration:none}
-  .btn{display:block;width:100%;background:var(--btn);color:var(--btntx);border:0;border-radius:13px;padding:13px;font-size:15px;font-weight:700;margin:8px 0;cursor:pointer;transition:transform .09s}
+  .btn{display:block;width:100%;background:linear-gradient(135deg,var(--acc),var(--acc2));color:var(--accfg);border:0;border-radius:14px;padding:13px;font-size:15px;font-weight:800;margin:8px 0;cursor:pointer;transition:transform .09s;box-shadow:0 8px 20px var(--glow)}
   .btn:active{transform:scale(.98)}
-  .btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--line)}
-  .btn.mini{display:inline-block;width:auto;padding:7px 13px;font-size:12px;margin:0;border-radius:11px}
+  .btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--line);box-shadow:none}
+  .btn.mini{display:inline-block;width:auto;padding:7px 13px;font-size:12px;margin:0;border-radius:11px;box-shadow:none}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   input[type=text],textarea{width:100%;background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:11px;padding:11px;font-size:15px;font-family:inherit}
   textarea{min-height:80px;resize:vertical}
   .file{display:flex;align-items:center;gap:10px;background:var(--bg);border:1px dashed var(--line);border-radius:12px;padding:14px;justify-content:center;color:var(--hint);cursor:pointer;margin:8px 0}
-  .nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding:6px 6px calc(10px + env(safe-area-inset-bottom));z-index:7}
-  .nav button{flex:1;background:none;border:0;color:var(--hint);font-size:11px;font-weight:600;padding:6px 2px;cursor:pointer;border-radius:12px;margin:0 2px;transition:background .15s,color .15s}
+  .nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding:7px 8px calc(11px + env(safe-area-inset-bottom));z-index:7;box-shadow:0 -8px 24px rgba(0,0,0,.22)}
+  .nav button{flex:1;background:none;border:0;color:var(--hint);font-size:10.5px;font-weight:700;padding:6px 2px;cursor:pointer;border-radius:13px;margin:0 2px;transition:transform .1s,color .15s}
+  .nav button:active{transform:scale(.9)}
   .nav button .ic{font-size:20px;display:block;margin-bottom:2px}
-  .nav button.on{color:var(--cy);background:rgba(34,211,238,.14)}
-  .chsel{display:flex;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px;margin-top:10px}
-  .chsel button{flex:1;background:none;border:0;color:var(--hint);font-size:12px;font-weight:700;padding:8px 10px;border-radius:9px;cursor:pointer;white-space:nowrap;transition:transform .08s}
+  .nav button.on{color:var(--accfg);background:linear-gradient(135deg,var(--acc),var(--acc2));box-shadow:0 6px 16px var(--glow)}
+  .chsel{display:flex;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;gap:3px;margin-top:11px;overflow-x:auto;scrollbar-width:none}
+  .chsel::-webkit-scrollbar{display:none}
+  .chsel button{flex:1;background:none;border:0;color:var(--hint);font-size:12px;font-weight:700;padding:8px 12px;border-radius:10px;cursor:pointer;white-space:nowrap;transition:transform .08s}
   .chsel button:active{transform:scale(.97)}
-  .chsel button.on{background:var(--cy);color:#04121a}
-  .gauge{font-size:34px;font-weight:900;line-height:1}
+  .chsel button.on{background:linear-gradient(135deg,var(--acc),var(--acc2));color:var(--accfg);box-shadow:0 4px 12px var(--glow)}
+  .gauge{font-size:34px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
   .hide{display:none}
   .muted{color:var(--hint);font-size:13px}
-  #toast{position:fixed;bottom:calc(84px + env(safe-area-inset-bottom));left:14px;right:14px;background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:13px;padding:13px 16px;text-align:center;font-weight:600;transform:translateY(160%);opacity:0;transition:transform .3s cubic-bezier(.2,.9,.3,1),opacity .3s;z-index:20;box-shadow:0 10px 30px rgba(0,0,0,.32)}
+  #toast{position:fixed;bottom:calc(88px + env(safe-area-inset-bottom));left:14px;right:14px;background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:14px;padding:13px 16px;text-align:center;font-weight:600;transform:translateY(160%);opacity:0;transition:transform .3s cubic-bezier(.2,.9,.3,1),opacity .3s;z-index:20;box-shadow:0 14px 34px rgba(0,0,0,.4)}
   #toast.show{transform:none;opacity:1}
   .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
   .chip{font-size:12px;padding:6px 11px;border-radius:20px;border:1px solid var(--line);cursor:pointer}
-  .chip.on{background:var(--cy);color:#04121a;border-color:var(--cy);font-weight:700}
-  .live{display:inline-block;width:9px;height:9px;border-radius:50%;background:#34d399;margin-right:2px;animation:pulse 1.4s infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.55)}70%{box-shadow:0 0 0 8px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
-  .ytcard{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card);margin:6px 0 10px}
+  .chip.on{background:var(--acc);color:var(--accfg);border-color:var(--acc);font-weight:700}
+  .live{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--acc);margin-right:2px;animation:pulse 1.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 var(--glow)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
+  .ytcard{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card);margin:6px 0 10px;box-shadow:var(--shadow)}
   .ytthumb{aspect-ratio:16/9;background:linear-gradient(135deg,#0e7490,#1e293b);display:flex;align-items:center;justify-content:center}
   .ytbig{font-weight:900;font-size:26px;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.6);text-align:center;padding:0 14px;letter-spacing:.5px;line-height:1.1}
   .yttitle{font-weight:700;font-size:14px;line-height:1.3;margin-bottom:2px}
-  .score{font-size:30px;font-weight:800;line-height:1}
+  .score{font-size:30px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
   .fadein{animation:fadein .26s ease}
-  @keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-  .sk-l{height:13px;border-radius:7px;background:var(--soft);margin:7px 0;animation:skp 1.15s ease-in-out infinite}
+  @keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .sk-l{height:13px;border-radius:8px;background:var(--soft);margin:7px 0;position:relative;overflow:hidden}
+  .sk-l::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,var(--soft),transparent);animation:shimmer 1.3s infinite}
   .sk-l.s{height:11px;width:55%}
-  @keyframes skp{0%,100%{opacity:.45}50%{opacity:.95}}
+  @keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+  @media (prefers-reduced-motion: reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 </style></head>
 <body>
 <header>
   <div class="hdrow">
     <div class="hd-l">
-      <span class="logo">🎬</span>
+      <span class="logo" id="logoBox"></span>
       <div style="min-width:0">
         <h1 id="chTitle">The Data Lens</h1>
         <div class="sub" id="hd">Centro de control</div>
@@ -122,7 +137,19 @@ export const APP_HTML = `<!doctype html>
 </div>
 <script>
   var tg = window.Telegram && window.Telegram.WebApp;
-  if (tg) { tg.ready(); tg.expand(); }
+  if (tg) { tg.ready(); tg.expand(); try{ tg.disableVerticalSwipes && tg.disableVerticalSwipes(); }catch(e){} }
+  // Logos de marca por canal (SVG, no emoji). Se aplican en applyChannelTheme().
+  var LOGOS = {
+    "auto2":'<svg viewBox="0 0 44 44" fill="none"><path d="M22 22 C22 11 10 11 10 22 C10 33 22 33 22 22 C22 11 34 11 34 22 C34 33 22 33 22 22Z" stroke="#04140d" stroke-width="4.5" stroke-linecap="round"/></svg>',
+    "data-lens":'<svg viewBox="0 0 44 44" fill="none"><circle cx="22" cy="22" r="15" stroke="#1c1200" stroke-width="3.5"/><rect x="16" y="21" width="3.4" height="7" rx="1.4" fill="#1c1200"/><rect x="20.4" y="17" width="3.4" height="11" rx="1.4" fill="#1c1200"/><rect x="24.8" y="13.5" width="3.4" height="14.5" rx="1.4" fill="#1c1200"/></svg>',
+    "resumen":'<svg viewBox="0 0 44 44" fill="none"><rect x="10" y="20" width="8" height="14" rx="2" fill="#04121a"/><rect x="18" y="13" width="8" height="21" rx="2" fill="#04121a"/><rect x="26" y="16" width="8" height="18" rx="2" fill="#04121a"/></svg>',
+    "bilibili":'<svg viewBox="0 0 44 44" fill="none"><rect x="9" y="14" width="26" height="18" rx="5" stroke="#04121a" stroke-width="3"/><path d="M15 10 L19 14 M29 10 L25 14" stroke="#04121a" stroke-width="3" stroke-linecap="round"/></svg>',
+  };
+  // Aplica el ACENTO de marca del canal (color + logo). Nativo: la base sigue el tema de Telegram.
+  function applyChannelTheme(ch){
+    try{ document.body.setAttribute("data-ch", ch||"resumen"); }catch(e){}
+    var lb=document.getElementById("logoBox"); if(lb) lb.innerHTML = LOGOS[ch] || LOGOS.resumen;
+  }
   var INIT = tg ? tg.initData : "";
   var ST = {};
   // MODO MONITOR: todo es automático (el Cerebro produce/programa/publica solo). La app NO muestra
@@ -178,7 +205,7 @@ export const APP_HTML = `<!doctype html>
     if(name==="analitica") scrollWkEnd();
     h("sel"); backBtnSync();
   }
-  function setChannel(ch){ curChannel=ch; document.querySelectorAll(".chsel button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-ch")===ch);}); h("sel"); render(); if(curTab==="analitica") scrollWkEnd(); backBtnSync(); }
+  function setChannel(ch){ curChannel=ch; applyChannelTheme(ch); document.querySelectorAll(".chsel button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-ch")===ch);}); h("sel"); render(); if(curTab==="analitica") scrollWkEnd(); backBtnSync(); }
   document.querySelectorAll(".nav button").forEach(function(b){b.onclick=function(){tab(b.getAttribute("data-t"));};});
   document.querySelectorAll(".chsel button").forEach(function(b){b.onclick=function(){setChannel(b.getAttribute("data-ch"));};});
   (function(){ var rb=el("btnRefresh"); if(rb) rb.onclick=function(){ h("light"); toast("Actualizando…"); load(); }; })();
@@ -1612,6 +1639,7 @@ export const APP_HTML = `<!doctype html>
   function load(){ api("/api/state").then(function(r){return r.json();}).then(function(j){ if(j.error){ el("hd").textContent = j.error==="no autorizado" ? "No autorizado" : ("⚠️ "+(j.detail||j.error)+" — reintentando…"); scheduleRefresh(); return; } ST=j; render(); scheduleRefresh(); }).catch(function(){el("hd").textContent="Sin conexión — reintentando…";scheduleRefresh();}); }
   // Skeleton mientras llega el primer /api/state (evita pantalla vacia al abrir).
   (function skeletonBoot(){ var s=""; for(var i=0;i<4;i++){ s+='<div class="card"><div class="sk-l" style="width:'+(46+i*10)+'%"></div><div class="sk-l s"></div></div>'; } var e=el("s-inicio"); if(e&&!e.innerHTML) e.innerHTML=s; })();
+  applyChannelTheme(curChannel);   // acento de marca + logo del canal inicial
   load();
 </script>
 </body></html>`;
