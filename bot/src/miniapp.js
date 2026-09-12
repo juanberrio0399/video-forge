@@ -19,12 +19,12 @@ export const APP_HTML = `<!doctype html>
     --line:rgba(130,140,158,.20); --soft:rgba(130,140,158,.10);
     --cy:#22d3ee; --gr:#34d399; --am:#f59e0b; --rd:#f87171;
     /* ACENTO DE MARCA (por canal; se define en body[data-ch]). Neutro por defecto. */
-    --acc:#22d3ee; --acc2:#38bdf8; --glow:rgba(34,211,238,.16); --accfg:#04121a;
+    --acc:#34d399; --acc2:#6ee7b7; --glow:rgba(52,211,153,.16); --accfg:#04140d;
     --r:17px; --shadow:0 12px 30px rgba(0,0,0,.30);
   }
   body[data-ch="auto2"]{--acc:#10b981;--acc2:#2dd4bf;--glow:rgba(16,185,129,.20);--accfg:#04140d}
-  body[data-ch="data-lens"]{--acc:#f5b23c;--acc2:#ff8a3d;--glow:rgba(245,178,60,.18);--accfg:#1c1200}
-  body[data-ch="bilibili"]{--acc:#22a0e0;--acc2:#38bdf8;--glow:rgba(34,160,224,.18);--accfg:#04121a}
+  body[data-ch="data-lens"]{--acc:#a3e635;--acc2:#4ade80;--glow:rgba(163,230,53,.18);--accfg:#0f1a00}
+  body[data-ch="bilibili"]{--acc:#22a0e0;--acc2:#38bdf8;--glow:rgba(34,160,224,.18);--accfg:#04140d}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   body{margin:0;background:
       radial-gradient(120% 42% at 50% -60px, var(--glow), transparent 62%),
@@ -157,9 +157,9 @@ export const APP_HTML = `<!doctype html>
   // Logos de marca por canal (SVG, no emoji). Se aplican en applyChannelTheme().
   var LOGOS = {
     "auto2":'<svg viewBox="0 0 44 44" fill="none"><path d="M22 22 C22 11 10 11 10 22 C10 33 22 33 22 22 C22 11 34 11 34 22 C34 33 22 33 22 22Z" stroke="#04140d" stroke-width="4.5" stroke-linecap="round"/></svg>',
-    "data-lens":'<svg viewBox="0 0 44 44" fill="none"><circle cx="22" cy="22" r="15" stroke="#1c1200" stroke-width="3.5"/><rect x="16" y="21" width="3.4" height="7" rx="1.4" fill="#1c1200"/><rect x="20.4" y="17" width="3.4" height="11" rx="1.4" fill="#1c1200"/><rect x="24.8" y="13.5" width="3.4" height="14.5" rx="1.4" fill="#1c1200"/></svg>',
-    "resumen":'<svg viewBox="0 0 44 44" fill="none"><rect x="10" y="20" width="8" height="14" rx="2" fill="#04121a"/><rect x="18" y="13" width="8" height="21" rx="2" fill="#04121a"/><rect x="26" y="16" width="8" height="18" rx="2" fill="#04121a"/></svg>',
-    "bilibili":'<svg viewBox="0 0 44 44" fill="none"><rect x="9" y="14" width="26" height="18" rx="5" stroke="#04121a" stroke-width="3"/><path d="M15 10 L19 14 M29 10 L25 14" stroke="#04121a" stroke-width="3" stroke-linecap="round"/></svg>',
+    "data-lens":'<svg viewBox="0 0 44 44" fill="none"><circle cx="22" cy="22" r="15" stroke="#0f1a00" stroke-width="3.5"/><rect x="16" y="21" width="3.4" height="7" rx="1.4" fill="#0f1a00"/><rect x="20.4" y="17" width="3.4" height="11" rx="1.4" fill="#0f1a00"/><rect x="24.8" y="13.5" width="3.4" height="14.5" rx="1.4" fill="#0f1a00"/></svg>',
+    "resumen":'<svg viewBox="0 0 44 44" fill="none"><rect x="10" y="20" width="8" height="14" rx="2" fill="#04140d"/><rect x="18" y="13" width="8" height="21" rx="2" fill="#04140d"/><rect x="26" y="16" width="8" height="18" rx="2" fill="#04140d"/></svg>',
+    "bilibili":'<svg viewBox="0 0 44 44" fill="none"><rect x="9" y="14" width="26" height="18" rx="5" stroke="#04140d" stroke-width="3"/><path d="M15 10 L19 14 M29 10 L25 14" stroke="#04140d" stroke-width="3" stroke-linecap="round"/></svg>',
   };
   // Aplica el ACENTO de marca del canal (color + logo). Nativo: la base sigue el tema de Telegram.
   function applyChannelTheme(ch){
