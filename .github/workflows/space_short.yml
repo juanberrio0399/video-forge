@@ -94,7 +94,7 @@ jobs:
           ls -la frames || true
       - name: Subir frames como artefacto
         if: ${{ hashFiles('frames/*.jpg') != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frames
           path: frames/
@@ -137,7 +137,7 @@ jobs:
           node pipeline/set_thumbnail.mjs "$(cat publish/video_id.txt)" thumbnail.jpg || echo "miniatura: no seteada"
       - name: Subir miniatura como artefacto (para revisar)
         if: ${{ hashFiles('thumbnail.jpg') != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: thumbnail
           path: thumbnail.jpg
