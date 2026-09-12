@@ -1452,11 +1452,11 @@ export const APP_HTML = `<!doctype html>
     var host=el("s-cerebro"); if(!host) return;
     if(BRAIN && !force){ host.innerHTML=brainHtml(BRAIN); return; }
     if(brainLoading) return; brainLoading=true;
-    if(!BRAIN) host.innerHTML='<div class="card muted" style="font-size:12px">🧠 Cargando el cerebro…</div>';
+    if(!BRAIN){ var sk=''; for(var i=0;i<3;i++){ sk+='<div class="card"><div class="sk-l" style="width:'+(52+i*14)+'%"></div><div class="sk-l s"></div></div>'; } host.innerHTML=sk; }
     api("/api/brain").then(function(r){return r.json();}).then(function(j){ BRAIN=j; brainLoading=false; host.innerHTML=brainHtml(j); })
       .catch(function(){ brainLoading=false; host.innerHTML='<div class="card muted">No pude cargar el cerebro.</div>'; });
   }
-  function bPill(txt,cvar){ return '<span style="display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.07);color:var('+cvar+')">'+esc(txt)+'</span>'; }
+  function bPill(txt,cvar){ return '<span style="display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--soft);color:var('+cvar+')">'+esc(txt)+'</span>'; }
   function bRisk(r){ return r==="alto"?"--rd":(r==="medio"?"--am":"--gr"); }
   function bNum(n){ return Number(n||0).toLocaleString("es"); }
   function bTargetRow(r){
@@ -1464,8 +1464,8 @@ export const APP_HTML = `<!doctype html>
     var proj = r.proj_date?'<span class="muted" style="font-size:10px"> · proy '+esc(r.proj_date)+'</span>':'';
     return '<div style="margin:6px 0">'
       +'<div style="display:flex;justify-content:space-between;font-size:12px;gap:8px"><span><span style="color:var('+col+')">●</span> '+esc(r.label)+'</span>'
-      +'<span style="text-align:right">'+bNum(r.cur)+' / '+bNum(r.target)+' ('+(r.pct||0)+'%)'+proj+'</span></div>'
-      +'<div style="height:6px;border-radius:999px;background:rgba(255,255,255,.08);margin-top:3px"><div style="height:6px;border-radius:999px;width:'+Math.max(2,Math.min(100,r.pct||0))+'%;background:var('+col+')"></div></div></div>';
+      +'<span class="num" style="text-align:right">'+bNum(r.cur)+' / '+bNum(r.target)+' ('+(r.pct||0)+'%)'+proj+'</span></div>'
+      +'<div style="height:7px;border-radius:999px;background:var(--soft);margin-top:4px;overflow:hidden"><div style="height:7px;border-radius:999px;width:'+Math.max(2,Math.min(100,r.pct||0))+'%;background:var('+col+')"></div></div></div>';
   }
   function bMonetCard(name, ch){
     if(!ch||!ch.readiness) return '<div class="card muted" style="font-size:12px">'+esc(name)+': sin datos aún.</div>';
@@ -1482,10 +1482,10 @@ export const APP_HTML = `<!doctype html>
     var rows=d.candidates.map(function(c){
       var slots=(d.recommended_allocation&&d.recommended_allocation[c.key])||0;
       return '<tr><td style="text-align:left">'+esc(c.label||c.key)+'</td>'
-        +'<td style="text-align:right">'+(c.expected_value!=null?c.expected_value:"—")+'</td>'
-        +'<td style="text-align:right">'+(c.confidence!=null?Math.round(c.confidence*100)+"%":"—")+'</td>'
-        +'<td style="text-align:right">'+(c.score!=null?c.score:"—")+'</td>'
-        +'<td style="text-align:right"><b>'+slots+'</b></td></tr>';
+        +'<td class="num" style="text-align:right">'+(c.expected_value!=null?c.expected_value:"—")+'</td>'
+        +'<td class="num" style="text-align:right">'+(c.confidence!=null?Math.round(c.confidence*100)+"%":"—")+'</td>'
+        +'<td class="num" style="text-align:right">'+(c.score!=null?c.score:"—")+'</td>'
+        +'<td class="num" style="text-align:right"><b>'+slots+'</b></td></tr>';
     }).join("");
     return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b>🎛️ Motor de decisión — Oddly</b><span class="muted" style="font-size:11px">'+esc(d.week||"")+'</span></div>'
       +'<div class="muted" style="font-size:11px;margin:2px 0 8px">Reparto por confianza (score = valor × certeza), no proporcional-ciego.</div>'
