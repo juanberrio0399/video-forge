@@ -1469,6 +1469,7 @@ const KB = {
   home: {
     inline_keyboard: [
       [{ text: "🚀 Abrir la app (panel pro)", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app" } }],
+      [{ text: "🧪 Probar la app v2 (beta)", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app2" } }],
       [{ text: "🎬 Video", callback_data: "menu:video" }, { text: "📊 Canal", callback_data: "menu:canal" }],
       [{ text: "🖼️ Foto", callback_data: "menu:foto" }, { text: "🎤 Voces", callback_data: "menu:voces" }],
       [{ text: "🍳 Recetas", callback_data: "menu:recetas" }, { text: "❓ Ayuda", callback_data: "menu:ayuda" }],
