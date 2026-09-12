@@ -44,7 +44,7 @@ export const APP_HTML = `<!doctype html>
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin:11px 0;box-shadow:var(--shadow)}
   .row{display:flex;gap:10px}
   .kpi{flex:1;text-align:center}
-  .kpi .n{font-size:27px;font-weight:850;line-height:1;letter-spacing:-.5px;font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+  .kpi .n{font-size:27px;font-weight:850;line-height:1;letter-spacing:-.5px}
   .kpi .l{font-size:10.5px;color:var(--hint);margin-top:5px;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
   h2{font-size:11px;color:var(--hint);text-transform:uppercase;letter-spacing:.7px;font-weight:800;margin:18px 4px 8px}
   .bar{height:9px;background:var(--soft);border-radius:999px;overflow:hidden;margin-top:7px}
@@ -74,7 +74,7 @@ export const APP_HTML = `<!doctype html>
   .chsel button{flex:1;background:none;border:0;color:var(--hint);font-size:12px;font-weight:700;padding:8px 12px;border-radius:10px;cursor:pointer;white-space:nowrap;transition:transform .08s}
   .chsel button:active{transform:scale(.97)}
   .chsel button.on{background:linear-gradient(135deg,var(--acc),var(--acc2));color:var(--accfg);box-shadow:0 4px 12px var(--glow)}
-  .gauge{font-size:34px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+  .gauge{font-size:34px;font-weight:900;line-height:1}
   .hide{display:none}
   .muted{color:var(--hint);font-size:13px}
   #toast{position:fixed;bottom:calc(88px + env(safe-area-inset-bottom));left:14px;right:14px;background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:14px;padding:13px 16px;text-align:center;font-weight:600;transform:translateY(160%);opacity:0;transition:transform .3s cubic-bezier(.2,.9,.3,1),opacity .3s;z-index:20;box-shadow:0 14px 34px rgba(0,0,0,.4)}
@@ -88,7 +88,7 @@ export const APP_HTML = `<!doctype html>
   .ytthumb{aspect-ratio:16/9;background:linear-gradient(135deg,#0e7490,#1e293b);display:flex;align-items:center;justify-content:center}
   .ytbig{font-weight:900;font-size:26px;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.6);text-align:center;padding:0 14px;letter-spacing:.5px;line-height:1.1}
   .yttitle{font-weight:700;font-size:14px;line-height:1.3;margin-bottom:2px}
-  .score{font-size:30px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+  .score{font-size:30px;font-weight:800;line-height:1}
   .fadein{animation:fadein .26s ease}
   @keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   .sk-l{height:13px;border-radius:8px;background:var(--soft);margin:7px 0;position:relative;overflow:hidden}
@@ -734,10 +734,10 @@ export const APP_HTML = `<!doctype html>
       +'<div class="muted" style="font-size:13px;margin-top:6px">Compilaciones ASMR/satisfying legales, automáticas. En cuanto haya un video, verás sus vistas y minutos.</div></div>';
     return '<div class="muted" style="font-size:11px;margin:6px 4px 0">'+esc(a.name||"Oddly Loop")+' · '+esc(a.handle||"@oddlyloophq")+'</div>'
       +'<div class="bento">'
-      +'<div class="kpi"><div class="n num">'+num(a.subs||0)+'</div><div class="l">Subs</div></div>'
-      +'<div class="kpi"><div class="n num">'+num(a.total_views||0)+'</div><div class="l">Vistas</div></div>'
-      +'<div class="kpi"><div class="n num">'+(a.videos||0)+'</div><div class="l">Videos</div></div>'
-      +'<div class="kpi"><div class="n num">'+num(a.watch_min||0)+'</div><div class="l">Min vistos</div></div>'
+      +'<div class="kpi"><div class="n">'+num(a.subs||0)+'</div><div class="l">Subs</div></div>'
+      +'<div class="kpi"><div class="n">'+num(a.total_views||0)+'</div><div class="l">Vistas</div></div>'
+      +'<div class="kpi"><div class="n">'+(a.videos||0)+'</div><div class="l">Videos</div></div>'
+      +'<div class="kpi"><div class="n">'+num(a.watch_min||0)+'</div><div class="l">Min vistos</div></div>'
       +'</div>';
   }
   // Lo que MÁS RINDE (por vistas/día) para replicar ese tipo de contenido + categoría ganadora.
@@ -913,10 +913,10 @@ export const APP_HTML = `<!doctype html>
     h+='<div class="card"><div style="font-size:13px;font-weight:600;margin-bottom:6px">'+esc(nr.recommendation||"")+'</div>';
     var rk=nr.ranking||[];
     if(rk.length){
-      h+=rk.map(function(r){return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid rgba(255,255,255,.06);padding:5px 0"><div style="font-size:12px"><b>#'+r.rank+'</b> '+esc(r.label)+'</div><div class="muted" style="font-size:11px;white-space:nowrap">'+num(r.avg_views)+'/video · '+r.videos+' vid</div></div>';}).join("");
+      h+=rk.map(function(r){return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--line);padding:5px 0"><div style="font-size:12px"><b>#'+r.rank+'</b> '+esc(r.label)+'</div><div class="muted" style="font-size:11px;white-space:nowrap">'+num(r.avg_views)+'/video · '+r.videos+' vid</div></div>';}).join("");
     } else {
       h+='<div class="muted" style="font-size:11px;margin-bottom:2px">Portafolio en prueba (candidatos):</div>';
-      h+=(nr.portfolio||[]).map(function(p){return '<div style="border-top:1px solid rgba(255,255,255,.06);padding:5px 0"><div style="font-size:12px">🎯 '+esc(p.label)+'</div>'+(p.note?'<div class="muted" style="font-size:11px">'+esc(p.note)+'</div>':'')+'</div>';}).join("");
+      h+=(nr.portfolio||[]).map(function(p){return '<div style="border-top:1px solid var(--line);padding:5px 0"><div style="font-size:12px">🎯 '+esc(p.label)+'</div>'+(p.note?'<div class="muted" style="font-size:11px">'+esc(p.note)+'</div>':'')+'</div>';}).join("");
     }
     h+=(nr.updated_at?'<div class="muted" style="font-size:10px;margin-top:6px">Actualizado: '+esc(String(nr.updated_at).slice(0,16).replace("T"," "))+'</div>':'')
       +'<button class="btn ghost" style="margin-top:8px" onclick="dispatch(\\'niche_radar.yml\\',\\'Radar de nichos\\')">🔄 Actualizar radar</button></div>';
@@ -1068,23 +1068,36 @@ export const APP_HTML = `<!doctype html>
   // Mini gráfica de barras SVG. rows=[{label,value,partial}]. Cada barra lleva su VALOR arriba
   // y su FECHA abajo, en tamaño legible; si no caben, el contenedor hace scroll horizontal.
   function svgBars(rows, color){
+    // Barras PRO (método dataviz): <=24px, redondeo solo arriba/base cuadrada, rejilla hairline con
+    // ticks limpios, etiquetas SELECTIVAS (máximo + actual; el resto via tooltip), énfasis en la
+    // última semana completa (acento pleno) y anteriores atenuadas. Texto en tokens, nunca del color de la serie.
     var n=rows.length; if(!n) return "";
-    var slot=44, W=Math.max(300, n*slot), H=152, padB=24, padT=22, padL=4, padR=4;
+    var slot=44, W=Math.max(300, n*slot), H=164, padB=24, padT=18, padL=36, padR=6;
     var max=Math.max.apply(null, rows.map(function(r){return r.value||0;}).concat([1]));
-    var bw=(W-padL-padR)/n;
+    var bw=(W-padL-padR)/n, barW=Math.min(24, Math.max(2, bw*0.62)), plotH=H-padT-padB;
+    function nice(v){ var p=Math.pow(10,Math.floor(Math.log(v||1)/Math.LN10)); var m=v/p; var r=m<=1?1:m<=2?2:m<=2.5?2.5:m<=5?5:10; return r*p; }
+    var top=nice(max); if(top<max) top=max;
+    var yOf=function(v){ return H-padB-Math.round((v/top)*plotH); };
+    var grid=[top/2, top].map(function(t){ var yy=yOf(t);
+      return '<line x1="'+padL+'" y1="'+yy+'" x2="'+(W-padR)+'" y2="'+yy+'" stroke="var(--line,rgba(130,140,158,.2))" stroke-width="1"/>'
+        +'<text x="'+(padL-6)+'" y="'+(yy+4)+'" font-size="10" fill="var(--hint,#8a8a8a)" text-anchor="end">'+num(t)+'</text>'; }).join("");
+    var base='<line x1="'+padL+'" y1="'+(H-padB)+'" x2="'+(W-padR)+'" y2="'+(H-padB)+'" stroke="var(--line,rgba(130,140,158,.2))" stroke-width="1"/>';
+    var maxIdx=0; rows.forEach(function(r,i){ if((r.value||0)>(rows[maxIdx].value||0)) maxIdx=i; });
+    var lastIdx=n-1, emphIdx=-1; for(var k=n-1;k>=0;k--){ if(!rows[k].partial){ emphIdx=k; break; } }
     var bars=rows.map(function(r,i){
-      var val=r.value||0;
-      var h=Math.max(2, Math.round((val/max)*(H-padT-padB)));
-      var x=padL+i*bw+bw*0.18, w=Math.max(2,bw*0.64), y=H-padB-h, cx=x+w/2;
-      var vlbl=val>0?'<text x="'+cx.toFixed(1)+'" y="'+(y-5).toFixed(1)+'" font-size="12" fill="var(--fg,#e6e8ee)" text-anchor="middle" font-weight="700">'+num(val)+'</text>':"";
-      var dlbl='<text x="'+cx.toFixed(1)+'" y="'+(H-8)+'" font-size="11" fill="var(--hint,#8a8a8a)" text-anchor="middle">'+esc(r.label)+'</text>'
-             +(r.partial?'<text x="'+cx.toFixed(1)+'" y="'+(H-1)+'" font-size="7" fill="var(--am,#f59e0b)" text-anchor="middle">parcial</text>':"");
-      return '<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="'+h+'" rx="2" fill="'+(r.partial?"url(#hb)":color)+'" opacity="'+(r.partial?"0.55":"1")+'"><title>'+esc(r.label)+': '+num(val)+(r.partial?" (parcial)":"")+'</title></rect>'+vlbl+dlbl;
+      var val=r.value||0, yy=yOf(val), h=Math.max(2,(H-padB)-yy); yy=(H-padB)-h;
+      var x=padL+i*bw+(bw-barW)/2, cx=x+barW/2, rr=Math.min(4, barW/2);
+      var d='M'+x.toFixed(1)+' '+(H-padB)+' V'+(yy+rr).toFixed(1)+' Q'+x.toFixed(1)+' '+yy.toFixed(1)+' '+(x+rr).toFixed(1)+' '+yy.toFixed(1)+' H'+(x+barW-rr).toFixed(1)+' Q'+(x+barW).toFixed(1)+' '+yy.toFixed(1)+' '+(x+barW).toFixed(1)+' '+(yy+rr).toFixed(1)+' V'+(H-padB)+' Z';
+      var op=r.partial?0.55:(i===emphIdx?1:0.5);
+      var lbl=(val>0&&(i===lastIdx||i===maxIdx||i===emphIdx))?'<text x="'+cx.toFixed(1)+'" y="'+(yy-5).toFixed(1)+'" font-size="11" fill="var(--fg,#e6e8ee)" text-anchor="middle" font-weight="700">'+num(val)+'</text>':"";
+      var dl='<text x="'+cx.toFixed(1)+'" y="'+(H-8)+'" font-size="10" fill="var(--hint,#8a8a8a)" text-anchor="middle">'+esc(r.label)+'</text>'
+        +(r.partial?'<text x="'+cx.toFixed(1)+'" y="'+(H-1)+'" font-size="7" fill="var(--am,#f59e0b)" text-anchor="middle">parcial</text>':"");
+      return '<path d="'+d+'" fill="'+(r.partial?"url(#hb)":color)+'" opacity="'+op+'"><title>'+esc(r.label)+': '+num(val)+(r.partial?" (parcial)":"")+'</title></path>'+lbl+dl;
     }).join("");
     return '<div class="wksc" style="overflow-x:auto;-webkit-overflow-scrolling:touch">'
       +'<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" style="display:block;max-width:none">'
       +'<defs><pattern id="hb" width="4" height="4" patternTransform="rotate(45)" patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="4" stroke="'+color+'" stroke-width="2"/></pattern></defs>'
-      +bars+'</svg></div>';
+      +grid+base+bars+'</svg></div>';
   }
   function weeklyHtml(chKey){
     var W=ST.weekly&&ST.weekly.channels&&ST.weekly.channels[chKey];
@@ -1105,7 +1118,7 @@ export const APP_HTML = `<!doctype html>
     }
     return '<h2>📈 Resumen semanal (desde el día 1)</h2>'
       +'<div class="muted" style="font-size:12px;margin:0 2px 8px">'+esc(W.name||chKey)+' · lunes a domingo · '+weeks.length+' semanas (vistas por semana, no acumulado)</div>'
-      +chart("👁 Vistas por semana", viewRows, "var(--cy)")
+      +chart("👁 Vistas por semana", viewRows, "var(--acc)")
       +(W.has_engagement?chart("❤ Likes por semana", likeRows, "#f43f5e"):"")
       +chart("👥 Seguidores (total)", subRows, "#22c55e")
       +'<div class="muted" style="font-size:10px;margin:2px 2px 10px">⏳ La última barra (rayada) va parcial: YouTube Analytics tarda 2-3 días. Semanas ISO (lunes a domingo). Toca una barra para ver el valor.</div>';
