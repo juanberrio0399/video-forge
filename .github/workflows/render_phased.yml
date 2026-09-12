@@ -145,7 +145,7 @@ jobs:
           npx --yes hyperframes@${HF_VERSION} doctor --json 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log("doctor ok:",j.ok);(j.checks||[]).filter(c=>c.status!=="ok").forEach(c=>console.log("  ⚠️",c.name,c.status,(c.message||"").slice(0,80)))}catch(e){}})' || true
 
       - name: Bajar insumos de las fases
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: phases-in
           path: phases
@@ -290,14 +290,14 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Bajar las fases re-renderizadas (este run)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: phase-out-*
           path: outs
 
       - name: Bajar las fases NO re-renderizadas (run base, para unir)
         if: ${{ github.event.inputs.base_run_id != '' }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: phase-out-*
           path: outsbase
