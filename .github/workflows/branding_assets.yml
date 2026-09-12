@@ -1,0 +1,69 @@
+name: Branding - rasterizar assets y enviarlos
+
+# Rasteriza los SVG de marca del repo (avatares de bots y del canal The Data Lens, banner) a PNG y te
+# los manda por Telegram listos para subir a mano (BotFather /setuserpic, YouTube Studio → foto de
+# perfil). Opcionalmente aplica el banner + descripcion de The Data Lens por API (YT1).
+# Fuente de verdad del branding: docs/BRANDING.md. Correr a mano.
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply_datalens_banner:
+        description: "Aplicar banner de The Data Lens por API (channelBanners.insert)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  brand:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Rasterizar SVG -> PNG
+        run: |
+          sudo apt-get update && sudo apt-get install -y librsvg2-bin fonts-liberation
+          mkdir -p out
+          rsvg-convert -w 512 -h 512 bot/branding/avatar.svg -o out/bot_video_forge.png
+          rsvg-convert -w 512 -h 512 radar-bot/branding/avatar.svg -o out/bot_radar.png
+          rsvg-convert -w 800 -h 800 channel/branding/logo.svg -o out/datalens_avatar.png
+          rsvg-convert -w 2048 -h 1152 channel/branding/banner.svg -o out/datalens_banner.png
+          rsvg-convert -w 800 -h 800 channel/auto2/branding/logo.svg -o out/oddly_avatar.png
+          ls -la out
+      - name: Guardar en R2
+        run: |
+          for f in out/*.png; do
+            npx --yes wrangler@4 r2 object put "$BUCKET/branding/$(basename "$f")" --file="$f" --remote --content-type image/png || true
+          done
+      - name: Aplicar banner de The Data Lens por API
+        if: ${{ inputs.apply_datalens_banner }}
+        run: |
+          cat > dl_channel.json <<'EOF'
+          {}
+          EOF
+          node pipeline/set_channel_branding.mjs dl_channel.json out/datalens_banner.png
+      - name: Mandarte los PNG por Telegram
+        if: always()
+        run: |
+          send() { curl -s -F chat_id="$TELEGRAM_CHAT_ID" -F photo=@"$1" -F caption="$2" "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto" >/dev/null || true; }
+          send out/bot_video_forge.png "🤖 Avatar del bot Video Forge (512×512). Súbelo en @BotFather → /setuserpic."
+          send out/bot_radar.png "📡 Avatar del bot Radar (512×512). @BotFather → /setuserpic."
+          send out/datalens_avatar.png "🔎 Avatar de The Data Lens (800×800). YouTube Studio → Personalización → Imagen → Foto de perfil."
+          send out/datalens_banner.png "🖼 Banner de The Data Lens (2048×1152). Si no lo aplicaste por API, súbelo en Studio → Imagen de banner."
+          send out/oddly_avatar.png "🔁 Avatar de Oddly Loop (800×800), por si hay que resubirlo."

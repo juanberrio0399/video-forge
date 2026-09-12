@@ -94,6 +94,7 @@ Licencia: Apache-2.0 — © 2025 Juan Berrio. Ver LICENSE y NOTICE.
 
 | Doc | Qué contiene |
 |---|---|
+| [docs/BRANDING.md](docs/BRANDING.md) | **Brand book**: tipografía, paletas e identidad de cada canal, bot y Mini App; look de videos y miniaturas; voz de comentarios; logos/avatares/banners y cómo se suben. |
 | [docs/FLUJOS.md](docs/FLUJOS.md) | **Todos los flujos con diagramas** (producción de cada canal, agendado, estado/app, sonido, auto-recuperación). |
 | [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md) | Componentes, flujo end-to-end, estado en R2, crons, auto-recuperación. |
 | [docs/CANAL_AUTOMATICO.md](docs/CANAL_AUTOMATICO.md) | Blueprint de Oddly Loop (compilaciones legales), nichos, sonido, fases. |
