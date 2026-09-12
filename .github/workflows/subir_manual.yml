@@ -38,7 +38,7 @@ jobs:
       R2_KEY: ${{ github.event.inputs.r2_key }}
       CAPTION: ${{ github.event.inputs.caption }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
