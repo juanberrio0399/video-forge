@@ -95,6 +95,14 @@ export const APP_HTML = `<!doctype html>
   .sk-l::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,var(--soft),transparent);animation:shimmer 1.3s infinite}
   .sk-l.s{height:11px;width:55%}
   @keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+  /* Bento de KPIs (mosaico) + hero de meta */
+  .bento{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:11px 0}
+  .bento .kpi{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:12px 13px;text-align:left;box-shadow:var(--shadow);transition:transform .12s cubic-bezier(.2,.9,.3,1)}
+  .bento .kpi:active{transform:scale(.97)}
+  .bento .kpi .n{font-size:23px}
+  .bento .kpi .l{margin-top:4px;letter-spacing:.4px}
+  .card.hero{background:linear-gradient(150deg,var(--glow),transparent 62%),var(--card);border-color:var(--line)}
+  .hero-h{font-weight:850;font-size:18px;letter-spacing:-.2px}
   @media (prefers-reduced-motion: reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 </style></head>
 <body>
@@ -701,12 +709,13 @@ export const APP_HTML = `<!doctype html>
     if(!a) return '<div class="card" style="text-align:center;padding:22px"><div style="font-size:34px">🏭</div>'
       +'<div style="font-weight:800;font-size:17px;margin-top:6px">Oddly Loop — sin datos aún</div>'
       +'<div class="muted" style="font-size:13px;margin-top:6px">Compilaciones ASMR/satisfying legales, automáticas. En cuanto haya un video, verás sus vistas y minutos.</div></div>';
-    return '<div class="card"><div class="muted" style="font-size:11px;margin-bottom:6px">'+esc(a.name||"Oddly Loop")+' · '+esc(a.handle||"@oddlyloophq")+'</div><div class="row">'
-      +'<div class="kpi"><div class="n">'+num(a.subs||0)+'</div><div class="l">Subs</div></div>'
-      +'<div class="kpi"><div class="n">'+num(a.total_views||0)+'</div><div class="l">Vistas</div></div>'
-      +'<div class="kpi"><div class="n">'+(a.videos||0)+'</div><div class="l">Videos</div></div>'
-      +'<div class="kpi"><div class="n">'+num(a.watch_min||0)+'</div><div class="l">Min vistos</div></div>'
-      +'</div></div>';
+    return '<div class="muted" style="font-size:11px;margin:6px 4px 0">'+esc(a.name||"Oddly Loop")+' · '+esc(a.handle||"@oddlyloophq")+'</div>'
+      +'<div class="bento">'
+      +'<div class="kpi"><div class="n num">'+num(a.subs||0)+'</div><div class="l">Subs</div></div>'
+      +'<div class="kpi"><div class="n num">'+num(a.total_views||0)+'</div><div class="l">Vistas</div></div>'
+      +'<div class="kpi"><div class="n num">'+(a.videos||0)+'</div><div class="l">Videos</div></div>'
+      +'<div class="kpi"><div class="n num">'+num(a.watch_min||0)+'</div><div class="l">Min vistos</div></div>'
+      +'</div>';
   }
   // Lo que MÁS RINDE (por vistas/día) para replicar ese tipo de contenido + categoría ganadora.
   function auto2TopHtml(){
@@ -910,8 +919,8 @@ export const APP_HTML = `<!doctype html>
         +'<div class="bar"><i style="width:'+r.pct+'%;background:'+bc+'"></i></div>'
         +'<div class="muted" style="font-size:11px;margin-top:2px">'+pace+'</div></div>';
     }).join("");
-    return '<h2>🎯 Meta de monetización</h2><div class="card">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px"><div style="font-weight:800;color:'+S[0]+'">'+S[1]+'</div><div class="muted" style="font-size:12px">quedan <b>'+g.days_left+'</b> días · '+esc(g.deadline)+'</div></div>'
+    return '<h2>🎯 Meta de monetización</h2><div class="card hero">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px"><div class="hero-h" style="color:'+S[0]+'">'+S[1]+'</div><div class="muted" style="font-size:12px">quedan <b>'+g.days_left+'</b> días · '+esc(g.deadline)+'</div></div>'
       +rows
       +'<div class="muted" style="font-size:10px;margin-top:8px">'+(g.path==="shorts"?"Ruta Shorts: 1.000 subs + 10M vistas (90 días).":"Ruta estándar: 1.000 subs + 4.000 horas (12 meses).")+' El ritmo se mide con los últimos 7 días.</div></div>';
   }
