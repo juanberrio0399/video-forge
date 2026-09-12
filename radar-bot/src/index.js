@@ -225,7 +225,7 @@ body{margin:0;background:radial-gradient(120% 42% at 50% -60px,var(--glow),trans
 var TG=window.Telegram.WebApp;TG.ready();TG.expand();
 try{TG.setHeaderColor&&TG.setHeaderColor("bg_color");}catch(e){}
 var INIT=TG.initData||"";
-var ST={repos:[]},CUR=-1,FILTER=null,REVIEWED={},WATCH={};
+var ST={repos:[]},CUR=-1,FILTER=null,REVIEWED={},WATCH={},BUILD="__BUILD__";
 try{REVIEWED=JSON.parse(localStorage.getItem("radar_reviewed")||"{}");}catch(e){}
 function saveRev(){try{localStorage.setItem("radar_reviewed",JSON.stringify(REVIEWED));}catch(e){}}
 function h(t){try{var H=TG.HapticFeedback;if(!H)return;if(t==="sel")H.selectionChanged();else if(t==="ok")H.notificationOccurred("success");else if(t==="err")H.notificationOccurred("error");else H.impactOccurred(t||"light");}catch(e){}}
@@ -318,6 +318,7 @@ function load(first){
   if(first)skeleton();
   api("/api/state").then(function(s){
     if(s.error){document.getElementById("view").innerHTML=empty("🔒",s.error,"Abre la app desde el botón del bot.");return;}
+    if(s.build&&BUILD!=="__BUILD__"&&BUILD!=="dev"&&s.build!==BUILD){ try{ location.replace(location.pathname+"?v="+encodeURIComponent(s.build)); }catch(e){} return; }
     ST=s;render();
   }).catch(function(){document.getElementById("view").innerHTML=empty("⚠️","No pude cargar","Revisa la conexión y toca ⟳ para reintentar.");});
 }
@@ -374,13 +375,13 @@ export default {
 
     // Mini App
     if (url.pathname === "/app" || url.pathname === "/") {
-      return new Response(APP_HTML, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
+      return new Response(APP_HTML.replace("__BUILD__", String(env.APP_BUILD || "dev")), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
     }
     // API de la Mini App (auth por initData)
     if (url.pathname.startsWith("/api/") && request.method === "POST") {
       const user = await ownerFromReq(request, env);
       if (!user) return json({ error: "No autorizado (abre desde el bot)." }, 401);
-      if (url.pathname === "/api/state") return json(await buildState(env));
+      if (url.pathname === "/api/state") return json(Object.assign(await buildState(env), { build: String(env.APP_BUILD || "dev") }));
       if (url.pathname === "/api/action") {
         const b = await request.json().catch(() => ({}));
         if (!REPOS.includes(b.repo) || !/^\d+$/.test(String(b.number)) || !["run", "merge", "close"].includes(b.action)) return json({ msg: "Petición inválida" }, 400);
