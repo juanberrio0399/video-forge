@@ -85,7 +85,14 @@ if (imgPaths.length) {
   const per = total / imgPaths.length;
   const segs = imgPaths.map((p, i) => kbDim(p, per, i));
   fs.writeFileSync(`${work}/bglist.txt`, segs.map((s) => `file '${s.split("/").pop()}'`).join("\n"));
-  execSync(`ffmpeg -y -f concat -safe 0 -i ${work}/bglist.txt -c copy "${bg}"`, { stdio: "ignore" });
+  // Unir sin recodificar es lo rápido; si un segmento quedó con parámetros distintos (p.ej. una imagen
+  // rara de Wikimedia), -c copy falla y tumbaba el Short entero. Fallback: recodificar la unión.
+  try {
+    execSync(`ffmpeg -y -f concat -safe 0 -i ${work}/bglist.txt -c copy "${bg}"`, { stdio: "ignore" });
+  } catch {
+    console.log("  concat -c copy falló; recodifico la unión de fondos");
+    execSync(`ffmpeg -y -f concat -safe 0 -i ${work}/bglist.txt -vf "scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1" -an -r ${FPS} -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p "${bg}"`, { stdio: "ignore" });
+  }
 } else {
   execSync(`ffmpeg -y -f lavfi -i color=c=0x0d1b2a:s=${W}x${H}:d=${total}:r=${FPS} -vf "vignette=a=PI/6" -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p "${bg}"`, { stdio: "ignore" });
 }
