@@ -1,0 +1,75 @@
+name: Ocultar TODO lo programado (vaciar la cola)
+
+# Pasa cada video PROGRAMADO (publishAt futuro) a PRIVADO sin programar y lo añade a hidden_videos.json,
+# para vaciar la cola y que el cerebro publique desde cero con lo que produzca a partir de ahora.
+# Reversible (no borra nada: hide_video.yml action=show + sanador los vuelve a agendar).
+# Corre primero con dry_run=true para ver la lista; luego con dry_run=false.
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Canal"
+        required: true
+        default: "both"
+        type: choice
+        options: ["both", "data-lens", "oddly"]
+      dry_run:
+        description: "Simulación (solo lista, no toca nada)"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  hide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        ch: ["data-lens", "oddly"]
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      # data-lens = YT_ ; oddly = YT2_
+      YT_CLIENT_ID: ${{ matrix.ch == 'oddly' && secrets.YT2_CLIENT_ID || secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ matrix.ch == 'oddly' && secrets.YT2_CLIENT_SECRET || secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ matrix.ch == 'oddly' && secrets.YT2_REFRESH_TOKEN || secrets.YT_REFRESH_TOKEN }}
+      CHANNEL_LABEL: ${{ matrix.ch == 'oddly' && 'Oddly Loop' || 'The Data Lens' }}
+      HKEY: ${{ matrix.ch == 'oddly' && 'channel/auto2/hidden_videos.json' || 'channel/hidden_videos.json' }}
+    steps:
+      - uses: actions/checkout@v5
+        if: inputs.channel == 'both' || inputs.channel == matrix.ch
+      - uses: actions/setup-node@v5
+        if: inputs.channel == 'both' || inputs.channel == matrix.ch
+        with:
+          node-version: "22"
+      - name: Ocultar programados
+        if: inputs.channel == 'both' || inputs.channel == matrix.ch
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            node pipeline/hide_scheduled.mjs "$HKEY" --dry-run
+          else
+            node pipeline/hide_scheduled.mjs "$HKEY"
+          fi
+      - name: Refrescar la app (romper caché del inventario)
+        if: (inputs.channel == 'both' || inputs.channel == matrix.ch) && inputs.dry_run == false
+        run: |
+          if [ "${{ matrix.ch }}" = "oddly" ]; then
+            gh workflow run report_auto2.yml -R "$GITHUB_REPOSITORY" 2>/dev/null || true
+          else
+            npx --yes wrangler@4 r2 object delete "$BUCKET/channel/inventory_cache.json" --remote 2>/dev/null || true
+          fi
+      - name: Avisar
+        if: always() && (inputs.channel == 'both' || inputs.channel == matrix.ch)
+        run: |
+          [ -s hide_text.txt ] && bash pipeline/notify_telegram.sh "$(cat hide_text.txt)" || true
