@@ -18,6 +18,10 @@ on:
         required: true
         default: true
         type: boolean
+      video_ids:
+        description: "Opcional: IDs extra a ocultar (coma). Se aplican solo en el canal elegido."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -55,11 +59,13 @@ jobs:
           node-version: "22"
       - name: Ocultar programados
         if: inputs.channel == 'both' || inputs.channel == matrix.ch
+        env:
+          IDS: ${{ inputs.video_ids }}
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            node pipeline/hide_scheduled.mjs "$HKEY" --dry-run
+            node pipeline/hide_scheduled.mjs "$HKEY" --dry-run "--ids=$IDS"
           else
-            node pipeline/hide_scheduled.mjs "$HKEY"
+            node pipeline/hide_scheduled.mjs "$HKEY" "--ids=$IDS"
           fi
       - name: Refrescar la app (romper caché del inventario)
         if: (inputs.channel == 'both' || inputs.channel == matrix.ch) && inputs.dry_run == false
