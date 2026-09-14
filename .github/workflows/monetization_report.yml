@@ -1,8 +1,9 @@
 name: Monetization Dashboard + Brain Report -> R2
 
-# Brain OS Fase 6: lee el historial diario de ambos canales, calcula readiness + War Room 60 días
-# (foco/riesgo/proxima-accion) y sube el registro del dashboard a R2 (lo lee la Mini App). El Brain
-# Report va por Telegram los lunes (pulso semanal, sin spam). Todo en la nube, sin PC, gratis.
+# Mide los requisitos REALES del YouTube Partner Program por ventana (vistas de Shorts 90 días, horas sin
+# Shorts 365 días, subidas 90 días, suscriptores) con ypp_metrics.mjs, guarda el historial diario, y calcula
+# readiness + niveles del programa + viabilidad (lib/ypp.mjs). Sube el dashboard a R2 (lo lee la Mini App).
+# Brain Report por Telegram los lunes. Lo que la API no entrega queda "sin dato" (auditoría BR-01/BR-10).
 on:
   schedule:
     - cron: "30 15 * * *"   # diario 15:30 UTC (tras retencion 15:00; antes de hooks 16:00)
@@ -17,7 +18,7 @@ env:
 jobs:
   report:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -29,13 +30,36 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Bajar historial de monetización (ambos canales)
+      - name: Bajar historial YPP (ambos canales)
         run: |
-          npx --yes wrangler@4 r2 object get "$BUCKET/channel/monetization_history.json" --file=dl.json --remote 2>/dev/null || echo '[]' > dl.json
-          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/monetization_history.json" --file=od.json --remote 2>/dev/null || echo '[]' > od.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/ypp_history.json" --file=ypp_hist_dl.json --remote 2>/dev/null || echo '[]' > ypp_hist_dl.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/ypp_history.json" --file=ypp_hist_od.json --remote 2>/dev/null || echo '[]' > ypp_hist_od.json
+
+      - name: Medir requisitos YPP — The Data Lens
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: |
+          node pipeline/ypp_metrics.mjs data-lens ypp_dl.json ypp_hist_dl.json || echo "Data Lens - medición YPP falló, queda sin dato"
+
+      - name: Medir requisitos YPP — Oddly Loop
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+        run: |
+          node pipeline/ypp_metrics.mjs oddly ypp_od.json ypp_hist_od.json || echo "Oddly - medición YPP falló, queda sin dato"
+
+      - name: Guardar métricas YPP en R2
+        run: |
+          [ -s ypp_dl.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/ypp.json" --file=ypp_dl.json --remote --content-type application/json || true
+          [ -s ypp_od.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/ypp.json" --file=ypp_od.json --remote --content-type application/json || true
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/ypp_history.json" --file=ypp_hist_dl.json --remote --content-type application/json || true
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/ypp_history.json" --file=ypp_hist_od.json --remote --content-type application/json || true
 
       - name: Calcular dashboard + Brain Report
-        run: node pipeline/monetization_report.mjs dl.json od.json monetization_report.json
+        run: node pipeline/monetization_report.mjs ypp_hist_dl.json ypp_hist_od.json monetization_report.json ypp_dl.json ypp_od.json
 
       - name: Subir dashboard a R2
         run: npx --yes wrangler@4 r2 object put "$BUCKET/channel/brain/monetization_report.json" --file=monetization_report.json --content-type application/json --remote

@@ -34,14 +34,14 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/decision.json" --file=decision.json --remote 2>/dev/null || echo '{}' > decision.json
       - name: Alertas — The Data Lens
         run: |
-          npx --yes wrangler@4 r2 object get "$BUCKET/channel/monetization_history.json" --file=hist.json --remote 2>/dev/null || echo '[]' > hist.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/ypp_history.json" --file=hist.json --remote 2>/dev/null || echo '[]' > hist.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/episodes.json" --file=ep.json --remote 2>/dev/null || echo '{}' > ep.json
           node pipeline/alerts.mjs data-lens hist.json ep.json monet.json decision.json alerts.json
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/alerts.json" --file=alerts.json --remote --content-type application/json || true
           [ -s alerts_text.txt ] && bash pipeline/notify_telegram.sh "$(cat alerts_text.txt)" || echo "Data Lens: sin alertas accionables"
       - name: Alertas — Oddly Loop
         run: |
-          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/monetization_history.json" --file=hist2.json --remote 2>/dev/null || echo '[]' > hist2.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/ypp_history.json" --file=hist2.json --remote 2>/dev/null || echo '[]' > hist2.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/episodes.json" --file=ep2.json --remote 2>/dev/null || echo '{}' > ep2.json
           rm -f alerts_text.txt
           node pipeline/alerts.mjs auto2 hist2.json ep2.json monet.json decision.json alerts2.json

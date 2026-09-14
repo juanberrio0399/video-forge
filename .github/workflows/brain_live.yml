@@ -1,0 +1,83 @@
+name: Cerebro en vivo (plan de mañana + producción continua)
+
+# Cada 2 horas, 24/7: revisa decisiones vencidas contra su criterio, rehace el plan de hoy y de mañana con lo
+# último que sabe, y produce con HORAS de anticipación (máx. 3 piezas por ciclo, nunca a última hora) cada
+# una programada en su franja del plan. Deja plan, bitácora y ledger en R2 para la Mini App.
+on:
+  schedule:
+    - cron: "15 */2 * * *"   # 15 min después del reporte de Oddly (que corre cada 2h en punto)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brain-live
+  cancel-in-progress: false
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Bajar lo que sabe el cerebro
+        run: |
+          get() { npx --yes wrangler@4 r2 object get "$BUCKET/$1" --file="$2" --remote 2>/dev/null || echo "$3" > "$2"; }
+          get channel/brain/decision.json decision.json '{}'
+          get channel/auto2/cadence.json cadence.json '{}'
+          get channel/auto2/best_hours.json best_hours.json '{}'
+          get channel/auto2/creative_bank.json bank.json '[]'
+          get channel/auto2/state.json state.json '{}'
+          get channel/brain/aggressiveness.json aggr.json '{}'
+          get channel/auto2/views_at_age.json views_at_age.json '{}'
+          get channel/brain/monetization_report.json monet.json '{}'
+          get channel/brain/hypotheses.json hyps.json '[]'
+          get channel/auto2/production_claims.json claims.json '[]'
+          get channel/auto2/lineup.json lineup_prev.json 'null'
+          get channel/brain/journal.json journal.json '[]'
+          get channel/brain/ledger.json ledger.json '[]'
+          get channel/auto2/ypp.json ypp_od.json '{}'
+          get channel/ypp.json ypp_dl.json '{}'
+      - name: Pensar (autocrítica + plan + qué producir)
+        run: node pipeline/brain_live.mjs
+      - name: Copia de lo que decidió (para auditar la app con datos reales)
+        uses: actions/upload-artifact@v4
+        with:
+          name: brain-live-snapshot
+          retention-days: 3
+          path: |
+            lineup.json
+            journal.json
+            ledger.json
+            decision.json
+            monet.json
+            ypp_od.json
+            ypp_dl.json
+      - name: Guardar plan, bitácora y ledger
+        run: |
+          put() { npx --yes wrangler@4 r2 object put "$BUCKET/$1" --file="$2" --remote --content-type application/json; }
+          put channel/auto2/lineup.json lineup.json
+          put channel/brain/journal.json journal.json
+          put channel/brain/ledger.json ledger.json
+          put channel/auto2/production_claims.json claims.json
+      - name: Producir con anticipación (cada pieza a su franja del plan)
+        run: |
+          FIRST=1
+          while IFS='|' read -r NICHE VARIANT SLOT IDEA; do
+            [ -z "$NICHE" ] && continue
+            [ "$FIRST" = "0" ] && sleep 90
+            FIRST=0
+            echo "▶ $NICHE ($VARIANT) -> $SLOT · $IDEA"
+            gh workflow run produce_oddly.yml -R "$GITHUB_REPOSITORY" -f niche="$NICHE" -f variant="$VARIANT" -f kind=short -f publish=yes -f slot="$SLOT" -f idea="$IDEA" || echo "no pude disparar $NICHE"
+          done < produce_now.txt

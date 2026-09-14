@@ -23,6 +23,12 @@ on:
       publish:
         description: "no = privado para revisar · yes = programa a la mejor hora"
         default: "no"
+      slot:
+        description: "Franja del plan del cerebro (ISO UTC). Vacío = mejor hora libre"
+        default: ""
+      idea:
+        description: "Idea/ángulo que el cerebro quiere probar en esta pieza (opcional)"
+        default: ""
 
 permissions:
   contents: read
@@ -55,6 +61,8 @@ jobs:
       KIND: ${{ github.event.inputs.kind || 'video' }}
       FORMAT: ${{ github.event.inputs.format || '16:9' }}
       PUBLISH: ${{ github.event.inputs.publish || 'no' }}
+      SLOT_TARGET: ${{ github.event.inputs.slot || '' }}
+      ODDLY_IDEA: ${{ github.event.inputs.idea || '' }}
       KVOICE: af_heart
     steps:
       - uses: actions/checkout@v5
@@ -157,6 +165,11 @@ jobs:
             npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/best_hours.json" --file=best_hours.json --remote 2>/dev/null || true
             OCC=$(node pipeline/scheduled_times.mjs)
             SLOT=$(node pipeline/best_slot.mjs "$OCC")
+            # Franja del PLAN del cerebro: se respeta si sigue a futuro (>=30 min) y no pasa el tope de 2 por hora.
+            if [ -n "$SLOT_TARGET" ]; then
+              OKPLAN=$(SLOT_TARGET="$SLOT_TARGET" OCC="$OCC" node -e 'const t=Date.parse(process.env.SLOT_TARGET);const occ=(process.env.OCC||"").split(",").map(Date.parse).filter(Number.isFinite);const near=occ.filter(o=>Math.abs(o-t)<1800000).length;process.stdout.write(Number.isFinite(t)&&t-Date.now()>=1800000&&near<2?"1":"0")')
+              if [ "$OKPLAN" = "1" ]; then SLOT="$SLOT_TARGET"; echo "Franja del plan: $SLOT"; else echo "Franja del plan no disponible ($SLOT_TARGET) -> mejor hora libre $SLOT"; fi
+            fi
             node pipeline/youtube_schedule.mjs "$VID" "$SLOT" || true
             bash pipeline/notify_telegram.sh "🎬 Oddly Loop: ${PIEZA} (${NICHE}/${VARIANT}) subida y PROGRAMADA para la mejor hora ($SLOT). $(cat publish/youtube_result.txt 2>/dev/null | head -2)"
           else

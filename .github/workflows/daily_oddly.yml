@@ -31,6 +31,8 @@ jobs:
       YT_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
       YT_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
       BUFFER_HOURS: "30"   # buffer de publicación ~1 día: si la cola pasa esto, hoy no se produce (drena)
+      ARCHIVE_CLIPS: "off" # clips de Internet Archive apagados (auditoría BR-17: riesgo de derechos)
+      LINEUP_MODE: "on"    # la producción narrada la hace el Cerebro en vivo (brain_live.yml) con anticipación
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -59,6 +61,9 @@ jobs:
             require("fs").writeFileSync("plan.txt", out.join("\n")+"\n");
             console.log("Plan de hoy ("+out.length+" piezas):\n"+out.map(l=>"  - "+l).join("\n"));
           '
+          # Modo plan: el Cerebro en vivo produce cada 2h con anticipación siguiendo el plan de mañana.
+          # Esta tanda de las 12:30 ya no fabrica narrados (evita producción doble y de última hora).
+          if [ "${LINEUP_MODE:-off}" = "on" ]; then : > plan.txt; echo "LINEUP_MODE=on: producción narrada delegada a brain_live.yml"; fi
           # --- Topar la cola (Brain OS): recorta el plan a lo que cabe en el buffer ~24-30h. Si la
           # cola ya lo cubre, hoy NO se produce y drena -> el cerebro ve resultados a ~1 dia, no ~1 semana.
           # AGRESIVIDAD: si el Cerebro dice que Oddly va atras de la meta, usa el tope real 2/hora (12/dia)
@@ -97,6 +102,10 @@ jobs:
       - name: Clips graciosos del día (Archive.org CC, rotación de fails) → AUTO-PROGRAMADOS
         if: always()   # independiente del blitz de arriba: no lo saltes si aquel tropieza
         run: |
+          # FRENO LEGAL (auditoría BR-17): la licencia que declara Internet Archive no prueba derechos; se
+          # colaron títulos de creadores de terceros. Apagado hasta tener lista de colecciones confiables.
+          # Reactivar: ARCHIVE_CLIPS=on en el env del job.
+          if [ "${ARCHIVE_CLIPS:-off}" != "on" ]; then echo "Clips de Archive CC APAGADOS (riesgo de derechos)."; exit 0; fi
           # Rotación de temas de fails/graciosos por día del año. Auto-programados (publish=yes): pasan la
           # PUERTA de compliance y se agendan solos a la mejor hora. Juan despublica cualquiera que no le guste.
           TOPICS=("funny fails" "epic fail" "funny animals" "bloopers" "skate fails" "funny cats" "funny dogs" "gaming fails" "sports fails" "funny moments" "animal fails" "fail compilation")

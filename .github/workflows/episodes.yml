@@ -33,8 +33,17 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/state.json" --file=inv_od.json --remote 2>/dev/null || echo '{}' > inv_od.json
           node pipeline/episodes.mjs inv_dl.json episodes.json
           node pipeline/episodes.mjs inv_od.json episodes_auto2.json
-          [ -s episodes.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/episodes.json" --file=episodes.json --remote --content-type application/json || true
-          [ -s episodes_auto2.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/episodes.json" --file=episodes_auto2.json --remote --content-type application/json || true
+          # GUARDA (auditoría BR-11): fuente vacía NO sobrescribe la memoria buena; se sigue con la anterior.
+          if node pipeline/nonempty.mjs episodes.json episodes; then
+            npx --yes wrangler@4 r2 object put "$BUCKET/channel/episodes.json" --file=episodes.json --remote --content-type application/json || true
+          else
+            npx --yes wrangler@4 r2 object get "$BUCKET/channel/episodes.json" --file=episodes.json --remote 2>/dev/null || true
+          fi
+          if node pipeline/nonempty.mjs episodes_auto2.json episodes; then
+            npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/episodes.json" --file=episodes_auto2.json --remote --content-type application/json || true
+          else
+            npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/episodes.json" --file=episodes_auto2.json --remote 2>/dev/null || true
+          fi
       - name: Score por video + outliers (Growth Fase 2)
         run: |
           # Retención (si existe) para enriquecer el score; si falta, el score usa solo rendimiento+engagement.
@@ -42,8 +51,8 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/retention.json" --file=ret_od.json --remote 2>/dev/null || echo '{}' > ret_od.json
           node pipeline/video_scores.mjs episodes.json ret_dl.json scores.json || true
           node pipeline/video_scores.mjs episodes_auto2.json ret_od.json scores_auto2.json || true
-          [ -s scores.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/scores.json" --file=scores.json --remote --content-type application/json || true
-          [ -s scores_auto2.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/scores.json" --file=scores_auto2.json --remote --content-type application/json || true
+          node pipeline/nonempty.mjs scores.json scores && npx --yes wrangler@4 r2 object put "$BUCKET/channel/scores.json" --file=scores.json --remote --content-type application/json || true
+          node pipeline/nonempty.mjs scores_auto2.json scores && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/scores.json" --file=scores_auto2.json --remote --content-type application/json || true
       - name: A/B por cohortes (hook) — Growth Fase 3
         run: |
           # A/B de UNA variable (hook) por cohortes sobre los videos ya scoreados. Solo medición.

@@ -59,12 +59,16 @@ async function gemini(prompt) {
   return null;
 }
 
+// IDEA del plan del cerebro (brain_live): ángulo o brazo de experimento que esta pieza debe respetar.
+const IDEA = (process.env.ODDLY_IDEA || "").trim().slice(0, 300);
+const ideaBlock = IDEA ? `ÁNGULO QUE EL CEREBRO QUIERE PROBAR EN ESTA PIEZA (respétalo; no inventes datos falsos): ${IDEA}\n` : "";
+
 // VARIANTE "puro" (ASMR sin voz): NO hay narración. Solo curamos clips (queries) + título.
 // Es lo más fiel al ASMR real: mandan el SONIDO y el VISUAL. Robusto: si Gemini no está,
 // armamos la lista con el pool del nicho -> la producción NO depende de la IA.
 if (variant === "puro") {
   const scr = await gemini(
-    `Eres curador de un canal ASMR / "oddly satisfying" en YouTube (audiencia EEUU). ` +
+    `Eres curador de un canal ASMR / "oddly satisfying" en YouTube (audiencia EEUU). ${ideaBlock}` +
     `Elige 14 clips de stock MUY satisfying/ASMR (cortes limpios, agua, slime, arena cinética, prensa hidráulica, pintura, resina, etc.). ` +
     `Inspírate en o elige de: ${pool}. Cada "query" = término de búsqueda de stock en INGLES. ` +
     `Para cumplir con políticas de transformación (YPP inauthentic content), incluye para cada beat un breve texto o dato en pantalla relevante ("insight") que aporte valor único. ` +
@@ -89,7 +93,7 @@ const learnBlock = LEARN ? `LO QUE MAS RINDE EN ESTE CANAL (estudia el ESTILO de
 
 const prompt =
   `Eres guionista EXPERTO de un canal faceless de YouTube en INGLES (audiencia EEUU) tipo "${label}". ` +
-  `Estilo: ${NICHE_STYLE}\n${EXPERT_RULES}\n${learnBlock}` +
+  `Estilo: ${NICHE_STYLE}\n${EXPERT_RULES}\n${learnBlock}${ideaBlock}` +
   `Escribe el guion de UNA compilación con ALTA RETENCION. Cada "beat" = un clip de stock con su narración corta. ` +
   `La narración da valor ORIGINAL (dato/curiosidad/comentario), no describe lo obvio. Tono acorde al nicho. ` +
   `El "query" de cada beat es un termino de busqueda de STOCK en ingles (elige de o inspirate en: ${pool}). ` +

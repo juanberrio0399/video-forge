@@ -1,9 +1,9 @@
 name: Auto-optimizar Oddly (cadencia por datos)
 
-# Cada lunes: lee las vistas/dia por nicho, RECALCULA la cadencia (sube el ganador, corta el
-# flojo), maneja el slot de experimento (promueve/descarta segun rinda), lo APLICA en R2 y te
-# avisa por Telegram que movio y por que. Antes solo recordaba; ahora lo hace AUTOMATICO.
-# Todo en la nube (GitHub + R2 + Telegram), sin PC. NO toca lo publicado ni programado.
+# Cada lunes: MOTOR ÚNICO de reparto (auditoría BR-04). Ranking por mediana de la cohorte de 5-30 días,
+# escalado de volumen solo si la cohorte reciente no se diluye, experimento de nicho con muestra real.
+# Escribe la cadencia QUE SE EJECUTA y decision.json con exactamente ese reparto, y registra la decisión
+# en el ledger con predicción y fecha de revisión. Avisa por Telegram qué movió y por qué.
 on:
   schedule:
     - cron: "0 14 * * 1"   # lunes 14:00 UTC = 9:00 a.m. Bogota
@@ -30,29 +30,25 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Bajar datos + cadencia + experimentos
+      - name: Bajar datos, cadencia, experimentos, ledger
         run: |
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/state.json" --file=state.json --remote 2>/dev/null || echo '{}' > state.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/cadence.json" --file=cadence.json --remote 2>/dev/null || cp channel/auto2/cadence.seed.json cadence.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/experiments_niche.json" --file=exp.json --remote 2>/dev/null || cp channel/auto2/experiments_niche.json exp.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/aggressiveness.json" --file=aggressiveness.json --remote 2>/dev/null || echo '{}' > aggressiveness.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/views_at_age.json" --file=views_at_age.json --remote 2>/dev/null || echo '{}' > views_at_age.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/ledger.json" --file=ledger.json --remote 2>/dev/null || echo '[]' > ledger.json
 
-      - name: Recalcular la cadencia (auto-optimizador)
+      - name: Motor único de reparto
         run: node pipeline/rebalance_oddly.mjs
 
-      - name: Aplicar a R2 (cadencia + experimentos)
+      - name: Aplicar a R2 (cadencia + experimentos + decisión ejecutada + ledger)
         run: |
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/cadence.json" --file=cadence.new.json --content-type application/json --remote
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/experiments_niche.json" --file=exp.new.json --content-type application/json --remote
-
-      - name: Registro de decisión (DecisionNeuron -> R2)
-        # Brain OS Fase 5: escribe el POR QUÉ del reparto (candidatos + expected_value/confidence/
-        # score) para la Mini App y el dashboard. El reparto ya lo consumió el rebalance.
-        run: |
-          TOTAL=$(node -e "const c=require('./cadence.new.json');console.log(Object.values(c.shorts_per_category||{}).reduce((a,b)=>a+(+b||0),0)||8)")
-          node pipeline/decide.mjs state.json decision.json "$TOTAL"
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/brain/decision.json" --file=decision.json --content-type application/json --remote
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/brain/ledger.json" --file=ledger.new.json --content-type application/json --remote
 
       - name: Avisar por Telegram
         run: |
-          bash pipeline/notify_telegram.sh "$(printf '🤖 Oddly Loop — auto-optimizacion semanal:\n\n%s' "$(cat summary.txt)")"
+          bash pipeline/notify_telegram.sh "$(printf '🤖 Oddly Loop — reparto semanal (motor único):\n\n%s' "$(cat summary.txt)")"
