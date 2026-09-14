@@ -435,18 +435,25 @@ async function handleApi(request, env, url) {
       };
     }
     // PERF: estas 5 lecturas son independientes -> en PARALELO (antes una tras otra).
-    const [nicheRadar, brainJson, strategyJson, weeklyJson, auto2Json] = await Promise.all([
+    const [nicheRadar, brainJson, strategyJson, weeklyJson, auto2Json, auto2HiddenRaw] = await Promise.all([
       r2json(env, "channel/niche_radar.json"),    // radar de nichos (Oddly)
       r2json(env, "channel/brain.json"),           // el Cerebro (salud diaria de los 2 canales)
       r2json(env, "channel/brain/strategy.json"),  // estrategia aprendida (Cerebro 2.0)
       r2json(env, "channel/weekly_stats.json"),    // análisis semana a semana (Analytics ISO)
       r2json(env, "channel/auto2/state.json"),     // estado real de Oddly Loop
+      r2json(env, "channel/auto2/hidden_videos.json"), // ocultos de Oddly: no existen para la app
     ]);
     state.niche_radar = nicheRadar || null;
     state.brain = brainJson || null;
     state.strategy = strategyJson || null;
     state.weekly = weeklyJson || null;
     state.auto2 = auto2Json || null;
+    // OCULTOS de Oddly (despublicados o sacados de la cola): fuera de TODA la app, igual que en Data Lens.
+    if (state.auto2 && Array.isArray(state.auto2.list) && Array.isArray(auto2HiddenRaw) && auto2HiddenRaw.length) {
+      const oh = new Set(auto2HiddenRaw);
+      state.auto2.list = state.auto2.list.filter((v) => !oh.has(v.video_id));
+      state.auto2.videos = state.auto2.list.length;
+    }
     _T("radar-block");
     // "manual" en Oddly = SOLO lo que Juan marca (channel/auto2/manual_videos.json). Por defecto del Bot.
     if (state.auto2 && Array.isArray(state.auto2.list)) {
@@ -493,14 +500,9 @@ async function handleApi(request, env, url) {
     // PENDIENTES POR APROBAR (para la ventana Resumen): privados sin programar de cada canal.
     // Data Lens usa su inventario (hidden ya filtrado); Oddly usa su list. Los "🕒 Programando…"
     // (pending_sched) NO cuentan como por-revisar: ya están en marcha.
-    {
-      // "por aprobar" = privado y SIN publish_at (no programado). Si tiene publish_at (pasado o futuro)
-      // ya fue programado -> no cuenta (aunque su hora ya pasó y el reporte esté un poco viejo).
-      const dlPend = invAll.filter((v) => v.privacy !== "public" && !v.publish_at).length;
-      const odPend = (state.auto2 && Array.isArray(state.auto2.list))
-        ? state.auto2.list.filter((v) => v.privacy !== "public" && !v.publish_at && !v.pending_sched).length : 0;
-      state.pending_approve = { data_lens: dlPend, oddly: odPend, total: dlPend + odPend };
-    }
+    // Video Forge es 100% automático (decisión de Juan): NADA se aprueba ni se programa a mano. Lo privado
+    // sin fecha es lo que el cerebro ocultó o lo que está en producción; nunca es "por aprobar".
+    state.pending_approve = { data_lens: 0, oddly: 0, total: 0, note: "todo automático" };
     // META DE MONETIZACION (YPP) con medicion diaria del ritmo — cada canal su meta.
     const dlLikes = invAll.reduce((s, v) => s + (v.likes || 0), 0);
     // PERF: las 2 metas de monetizacion en PARALELO (cada una lee+escribe R2).

@@ -179,7 +179,7 @@ export const APP2_HTML = `<!doctype html>
   function applyChannelTheme(ch){ document.body.setAttribute("data-ch",ch); el("logoBox").innerHTML=LOGOS[ch]; el("chTitle").textContent=CH[ch].name; }
 
   var STATUS={
-    planeado:["p-plan","Planeado"], produciendo:["p-prod","Produciendo"], programado:["p-prog","Listo · programado"],
+    planeado:["p-plan","Planeado"], produciendo:["p-prod","Produciendo"], programado:["p-prog","Listo · sale solo"],
     publicado:["p-pub","Publicado"], sin_tiempo:["p-late","Sin margen"], vencido:["p-miss","Vencido"]
   };
   function stPill(s){ var x=STATUS[s]||["p-none",s]; return '<span class="pill '+x[0]+'">'+(s==="produciendo"?'<span class="dot live" style="width:6px;height:6px;background:var(--am)"></span>':'')+x[1]+'</span>'; }
@@ -351,7 +351,7 @@ export const APP2_HTML = `<!doctype html>
     return videosCard()+
       '<h2>Salud</h2><div class="card"><div class="row"><span>Herramientas</span><span class="pill '+(t.down>0?"p-warn":"p-ok")+'">'+(t.tools&&t.tools.length?(t.ok+"/"+t.total+" OK"):"OK")+'</span></div><div class="row" style="margin-top:8px"><span>Problemas</span><span class="pill '+(prob?"p-bad":"p-ok")+'">'+prob+'</span></div></div>'+
       '<h2>Herramientas</h2><div class="card"><div class="muted" style="margin-bottom:8px">Despublicar un video (queda privado y oculto, reversible).</div><input type="text" id="unpubId" placeholder="ID del video de YouTube"><div class="row" style="margin-top:8px;gap:8px;justify-content:flex-start"><button class="btn mini ghost" data-unpub="data-lens">Data Lens</button><button class="btn mini ghost" data-unpub="auto2">Oddly</button></div></div>'+
-      '<div class="card"><b>Mis Clips</b><div class="muted" style="margin:3px 0 8px">Sube un clip tuyo (máx. ~100 MB). La IA arma el SEO, lo programa en Oddly y te avisa al chat.</div><input type="text" id="clipCap" placeholder="Pista opcional para el título (máx. 300)"><label class="file" for="fClip">🎬 Elegir video</label><input id="fClip" type="file" accept="video/*" class="hide"></div>'+
+      '<div class="card"><b>Mis Clips</b><div class="muted" style="margin:3px 0 8px">Sube un clip tuyo (máx. ~100 MB). La IA arma el SEO y sale solo en Oddly a su mejor hora.</div><input type="text" id="clipCap" placeholder="Pista opcional para el título (máx. 300)"><label class="file" for="fClip">🎬 Elegir video</label><input id="fClip" type="file" accept="video/*" class="hide"></div>'+
       '<div class="muted" style="text-align:center;margin:12px 0">Video Forge · build '+esc(BUILD)+'</div>';
   }
 
@@ -396,7 +396,7 @@ export const APP2_HTML = `<!doctype html>
     var cap=encodeURIComponent(((el("clipCap")&&el("clipCap").value)||"").slice(0,300));
     h("medium"); toast("Subiendo clip ("+Math.round(f.size/1048576)+" MB)…");
     api("/api/upload-clip?caption="+cap,{method:"POST",headers:{"content-type":f.type||"video/mp4"},body:f})
-      .then(function(r){return r.json();}).then(function(j){ if(j.ok){ h("ok"); toast("Clip recibido. Te aviso al chat cuando quede programado."); if(el("clipCap")) el("clipCap").value=""; } else { h("err"); toast(j.error||"No se pudo subir"); } })
+      .then(function(r){return r.json();}).then(function(j){ if(j.ok){ h("ok"); toast("Clip recibido. Sale solo a su mejor hora."); if(el("clipCap")) el("clipCap").value=""; } else { h("err"); toast(j.error||"No se pudo subir"); } })
       .catch(function(){ h("err"); toast("Sin conexión: el clip no se subió"); });
   }
   document.addEventListener("change",function(ev){ var t=ev.target; if(t&&t.id==="fClip"){ uploadClip(t.files&&t.files[0]); t.value=""; } });

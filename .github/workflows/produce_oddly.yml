@@ -171,7 +171,13 @@ jobs:
               if [ "$OKPLAN" = "1" ]; then SLOT="$SLOT_TARGET"; echo "Franja del plan: $SLOT"; else echo "Franja del plan no disponible ($SLOT_TARGET) -> mejor hora libre $SLOT"; fi
             fi
             node pipeline/youtube_schedule.mjs "$VID" "$SLOT" || true
-            bash pipeline/notify_telegram.sh "🎬 Oddly Loop: ${PIEZA} (${NICHE}/${VARIANT}) subida y PROGRAMADA para la mejor hora ($SLOT). $(cat publish/youtube_result.txt 2>/dev/null | head -2)"
+            # Todo es automático: las piezas del PLAN del cerebro no avisan al chat (se ven en la app). Solo avisan
+            # las lanzadas a mano, y sin hablar de "programar".
+            if [ -z "$SLOT_TARGET" ]; then
+              bash pipeline/notify_telegram.sh "🎬 Oddly Loop: ${PIEZA} (${NICHE}) lista. Sale sola a su mejor hora. $(cat publish/youtube_result.txt 2>/dev/null | head -1)" || true
+            else
+              echo "Pieza del plan del cerebro lista para $SLOT (sin aviso al chat)"
+            fi
           else
             bash pipeline/notify_telegram.sh "🎬 Oddly Loop: ${PIEZA} (${NICHE}/${VARIANT}) subida como PRIVADO para que la revises 👀:"$'\n'"$(cat publish/youtube_result.txt 2>/dev/null | head -2)"$'\n\n'"Si te gusta, la siguiente corrida con publish=yes ya la programa sola."
           fi

@@ -33,6 +33,7 @@ jobs:
         run: |
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/niche_map.json" --file=niche_map.json --remote 2>/dev/null || echo '{}' > niche_map.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/views_at_age.json" --file=views_at_age.json --remote 2>/dev/null || echo '{}' > views_at_age.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/hidden_videos.json" --file=hidden_videos.json --remote 2>/dev/null || echo '[]' > hidden_videos.json
           node pipeline/report_auto2.mjs
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/state.json" --file=auto2_state.json --remote --content-type application/json
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/views_at_age.json" --file=views_at_age.json --remote --content-type application/json || true

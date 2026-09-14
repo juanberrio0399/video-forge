@@ -128,7 +128,7 @@ for (const it of pick) {
   thoughts.push({ kind: "produccion", text: `Empiezo a producir ${it.niche_label} para las ${it.slot_et} ET del ${etDate(Date.parse(it.slot_utc), 0)}${it.experiment ? ` (brazo "${it.experiment.arm}" del experimento de gancho)` : ""}${it.idea ? `: ${it.idea.text}` : ""}.` });
 }
 // Se reflejan los reclamos nuevos en los planes que se publican.
-const mark = (l) => { l.items.forEach((i) => { if (i.status === "planeado" && pick.some((p) => p.slot_utc === i.slot_utc && p.niche === i.niche)) { i.status = "produciendo"; i.record.action = "En producción ahora; se programa en esta franja al terminar"; } }); const c = (s) => l.items.filter((x) => x.status === s).length; l.summary = { planeado: c("planeado"), produciendo: c("produciendo"), programado: c("programado"), publicado: c("publicado"), sin_tiempo: c("sin_tiempo"), vencido: c("vencido") }; };
+const mark = (l) => { l.items.forEach((i) => { if (i.status === "planeado" && pick.some((p) => p.slot_utc === i.slot_utc && p.niche === i.niche)) { i.status = "produciendo"; i.record.action = "En producción ahora; sale solo en esta franja"; } }); const c = (s) => l.items.filter((x) => x.status === s).length; l.summary = { planeado: c("planeado"), produciendo: c("produciendo"), programado: c("programado"), publicado: c("publicado"), sin_tiempo: c("sin_tiempo"), vencido: c("vencido") }; };
 mark(today); mark(tomorrow);
 
 if (!thoughts.length) thoughts.push({ kind: "ciclo", text: `Ciclo sin cambios: plan del ${tomorrow.date} estable (${tomorrow.summary.programado} programadas, ${tomorrow.summary.planeado} por producir).` });

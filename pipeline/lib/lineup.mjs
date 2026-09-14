@@ -111,9 +111,9 @@ export function buildLineup(input = {}) {
       ? `≥ ${Math.round(input.d7Median)} vistas al día 7 (mediana del canal)`
       : "≥ mediana del canal al día 7 (se fija cuando haya 5 videos medidos a esa edad)";
     const actionByStatus = {
-      planeado: "Producir con horas de anticipación y programar en esta franja",
-      produciendo: "En producción ahora; se programa en esta franja al terminar",
-      programado: "Listo y programado; se publica solo",
+      planeado: "Producir con horas de anticipación; sale solo en esta franja",
+      produciendo: "En producción ahora; sale solo en esta franja",
+      programado: "Listo; sale solo a su hora",
       publicado: "Publicado; medir al día 3 y al día 7",
       sin_tiempo: "Sin margen para producir con calidad: se omite (no se fabrica a última hora)",
       vencido: "La franja pasó sin video: no se recupera, cuenta como hueco del plan",
