@@ -4,6 +4,7 @@
 // Autenticación segura vía Telegram initData (HMAC con el token del bot); solo el dueño.
 
 import { osStateFrom } from "../../pipeline/lib/os_contract.mjs";
+import { osShellHtml } from "../../shared/os-shell.mjs";
 
 const GH = "https://api.github.com";
 // El motor CENTRAL vive en video-forge e implementa en cualquier repo objetivo (usa el PAT).
@@ -247,7 +248,8 @@ function empty(ic,t,s){return '<div class="empty"><div class="ei">'+ic+'</div><d
 function sec(t,n){return '<div class="sec">'+t+' <span class="cnt">'+n+"</span></div>";}
 
 function skeleton(){var s="";for(var i=0;i<4;i++)s+='<div class="card sk"><div class="sk-l" style="width:'+(42+i*11)+'%"></div><div class="sk-l s"></div></div>';document.getElementById("view").innerHTML=s;}
-function backBtn(){try{if(CUR<0)TG.BackButton.hide();else TG.BackButton.show();}catch(e){}}
+var FROM_OS=/[?&]from=os/.test(location.search);
+function backBtn(){try{if(CUR<0&&!FROM_OS)TG.BackButton.hide();else TG.BackButton.show();}catch(e){}}
 
 function tabsHtml(){
   var t='<button class="tab '+(CUR<0?"on":"")+'" data-act="home">🏠</button>';
@@ -359,7 +361,7 @@ function runAct(repo,n){
     watchRun(repo,n);
   }).catch(function(){h("err");notify("No pude lanzar el motor. Revisa la conexión y reintenta.");});
 }
-try{TG.BackButton.onClick(function(){CUR=-1;FILTER=null;h("light");render();});}catch(e){}
+try{TG.BackButton.onClick(function(){if(CUR<0&&FROM_OS){location.href="/os";return;}CUR=-1;FILTER=null;h("light");render();});}catch(e){}
 document.addEventListener("click",function(ev){
   var el=ev.target.closest("[data-act]");if(!el)return;var a=el.getAttribute("data-act");
   if(a==="home"){CUR=-1;FILTER=null;h("sel");render();return;}
@@ -388,6 +390,10 @@ export default {
     const url = new URL(request.url);
 
     // Mini App
+    if (url.pathname === "/os") {
+      // AI OS: app común de Radar. El panel de repos sigue en /app.
+      return new Response(osShellHtml("radar", { build: env.APP_BUILD }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
+    }
     if (url.pathname === "/app" || url.pathname === "/") {
       return new Response(APP_HTML.replace("__BUILD__", String(env.APP_BUILD || "dev")), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
     }
