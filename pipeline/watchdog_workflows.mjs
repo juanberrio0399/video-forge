@@ -16,7 +16,6 @@ const CRIT = [
   { f: "channel_report.yml", label: "Reporte Data Lens", maxAgeH: 16 },              // cada 6h
   { f: "space_short.yml", label: "Short de Espacio (Oddly)", maxAgeH: 30 },          // diario
   { f: "daily_oddly.yml", label: "Producción Oddly (cadencia)", maxAgeH: 30 },       // diario
-  { f: "history_short.yml", label: "Short de Historia (Data Lens)", maxAgeH: 30 },   // diario
   { f: "channel_brain.yml", label: "El Cerebro (salud)", maxAgeH: 30 },              // diario
   { f: "sync_playlists.yml", label: "Sync playlists", maxAgeH: 30 },                 // diario
   { f: "brain_optimize.yml", label: "El Cerebro (aprendizaje)", maxAgeH: 120 },      // lun+jue

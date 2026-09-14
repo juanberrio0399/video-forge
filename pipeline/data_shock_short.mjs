@@ -53,6 +53,7 @@ function kbDim(imgPath, dur, idx) {
   return s;
 }
 
+if (!facts.length) { console.error("El guion no trajo datos (facts vacío): no hay nada que ensamblar. Revisa el paso del guion."); process.exit(1); }
 const PER = 5.0;
 const total = +(facts.length * PER).toFixed(2);
 

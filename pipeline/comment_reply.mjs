@@ -23,7 +23,7 @@ async function r2put(arr) {
 
 async function ytToken() {
   const r = await tf("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: YT_CLIENT_ID, client_secret: YT_CLIENT_SECRET, refresh_token: YT_REFRESH_TOKEN, grant_type: "refresh_token" }) });
-  const j = await r.json(); if (!j.access_token) { console.error("token:", JSON.stringify(j).slice(0, 200)); process.exit(0); } return j.access_token;
+  const j = await r.json(); if (!j.access_token) { console.error("token:", JSON.stringify(j).slice(0, 200)); process.exit(1); } return j.access_token;
 }
 
 const token = await ytToken();
@@ -31,12 +31,12 @@ const H = { Authorization: `Bearer ${token}` };
 // Canal propio (para saber cuál reply es nuestro).
 const ch = await (await tf("https://www.googleapis.com/youtube/v3/channels?part=id&mine=true", { headers: H })).json();
 const myId = ch?.items?.[0]?.id;
-if (!myId) { console.error("no pude leer el canal"); process.exit(0); }
+if (!myId) { console.error("no pude leer el canal"); process.exit(1); }
 
 // Comentarios recientes de TODO el canal.
 const api = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet,replies&allThreadsRelatedToChannelId=${myId}&order=time&maxResults=60&textFormat=plainText`;
 const res = await tf(api, { headers: H });
-if (!res.ok) { console.error("commentThreads:", res.status, (await res.text()).slice(0, 200)); process.exit(0); }
+if (!res.ok) { console.error("commentThreads:", res.status, (await res.text()).slice(0, 200)); process.exit(1); }
 const threads = (await res.json()).items || [];
 
 const replied = new Set(await r2get());

@@ -146,7 +146,7 @@ async function ask() {
         if (Array.isArray(arr) && arr.length) { console.log(`  hallazgos con ${m}${withTool ? " (grounded)" : ""}: ${arr.length}`); return arr; }
       } catch (e) { console.error(`  ${m}: ${e.message}`); }
     }
-    if (r < 3) { console.error(`  (ronda ${r + 1} sin resultado; espero y reintento)`); await wait(8000); }
+    if (r < 3) { const ms = 30000 * (r + 1); console.error(`  (ronda ${r + 1} sin resultado; espero ${ms / 1000}s por la cuota y reintento)`); await wait(ms); }
   }
   return null;
 }
