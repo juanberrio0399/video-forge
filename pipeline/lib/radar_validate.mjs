@@ -45,24 +45,26 @@ export function missingJsDeps(files, pkg, aliases = []) {
 }
 
 // ---------- Python ----------
-const PY_DIST = { yaml: "pyyaml", sklearn: "scikit-learn", PIL: "pillow", cv2: "opencv-python", bs4: "beautifulsoup4", dotenv: "python-dotenv", dateutil: "python-dateutil", jwt: "pyjwt", google: "google" };
+// Módulo importado -> paquete publicado cuando no se deducen solos (el resto se empata normalizando, ver missingPyDeps).
+const PY_DIST = { yaml: "pyyaml", sklearn: "scikit-learn", skimage: "scikit-image", PIL: "pillow", cv2: "opencv-python", bs4: "beautifulsoup4", jwt: "pyjwt", attr: "attrs", Crypto: "pycryptodome", OpenSSL: "pyopenssl", fitz: "pymupdf", docx: "python-docx", pptx: "python-pptx", magic: "python-magic", serial: "pyserial", MySQLdb: "mysqlclient", telegram: "python-telegram-bot", win32api: "pywin32", google: "google" };
 export function pyImports(src) {
   const out = new Set();
   for (const m of String(src || "").matchAll(/^[ \t]*(?:from[ \t]+([A-Za-z_]\w*)|import[ \t]+([A-Za-z_]\w*))/gm)) out.add(m[1] || m[2]);
   return [...out];
 }
-const norm = (s) => String(s).toLowerCase().replace(/[-_.]+/g, "-");
+// Compara sin separadores: "python-json-logger" y el import "pythonjsonlogger" son el mismo paquete.
+const collapse = (s) => String(s).toLowerCase().replace(/[-_.]+/g, "");
 // reqText: requirements.txt + dependencias de pyproject en texto; stdlib: Set de módulos estándar; localModules: Set de módulos del repo.
 export function missingPyDeps(files, reqText, stdlib, localModules) {
-  const req = norm(reqText || "");
+  const declared = new Set((String(reqText || "").match(/[A-Za-z0-9][A-Za-z0-9._-]*/g) || []).map(collapse));
   const missing = [];
   for (const f of files || []) {
     if (!/\.py$/i.test(f.path)) continue;
     for (const mod of pyImports(f.content)) {
       if ((stdlib && stdlib.has(mod)) || (localModules && localModules.has(mod)) || mod === "__future__") continue;
-      const dist = norm(PY_DIST[mod] || mod);
-      const re = new RegExp(`(^|[^a-z0-9-])${dist.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^a-z0-9-])`, "m");
-      if (!re.test(req)) missing.push({ file: f.path, pkg: PY_DIST[mod] || mod });
+      const c = collapse(mod);
+      const ok = [PY_DIST[mod], mod, `python${c}`, `py${c}`].filter(Boolean).some((n) => declared.has(collapse(n)));
+      if (!ok) missing.push({ file: f.path, pkg: PY_DIST[mod] || mod });
     }
   }
   return dedupe(missing, (m) => `${m.file}|${m.pkg}`);

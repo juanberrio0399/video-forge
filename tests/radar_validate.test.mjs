@@ -25,6 +25,15 @@ describe("Python", () => {
     expect(missingPyDeps(files, "presidio-analyzer\npyyaml", std, new Set())).toEqual([]);
     expect(pyImports("from pandas import DataFrame\n  import polars as pl")).toEqual(["pandas", "polars"]);
   });
+  it("empata import y paquete con otro nombre (caso dockerized #13: pythonjsonlogger)", () => {
+    const files = [{ path: "app.py", content: "from pythonjsonlogger import jsonlogger\nimport dateutil\nimport sklearn" }];
+    expect(missingPyDeps(files, "python-json-logger==2.0.7\npython_dateutil>=2\nscikit-learn", new Set(), new Set())).toEqual([]);
+    expect(missingPyDeps(files, "pandas", new Set(), new Set()).map((m) => m.pkg)).toEqual(["pythonjsonlogger", "dateutil", "scikit-learn"]);
+  });
+  it("no confunde un paquete con otro que lo contiene (duckdb vs duckdb-engine)", () => {
+    const files = [{ path: "a.py", content: "import duckdb" }];
+    expect(missingPyDeps(files, "duckdb-engine==0.9", new Set(), new Set()).map((m) => m.pkg)).toEqual(["duckdb"]);
+  });
 });
 
 describe("código muerto (caso ugpp #57/#58: módulos que nadie importa)", () => {
