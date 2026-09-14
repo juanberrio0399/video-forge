@@ -67,9 +67,12 @@ jobs:
         working-directory: target
         run: |
           RADAR_REPO="$TARGET" node "$GITHUB_WORKSPACE/motor/pipeline/radar_plan.mjs" "$ISSUE"
+          # Cada etiqueta se crea antes de usarla: --add-label falla en silencio si no existe en ese repo.
           gh label create radar-plan -R "$TARGET" --color 1D76DB --description "Radar dejó un plan de implementación" 2>/dev/null || true
+          gh label create manual -R "$TARGET" --color F2B234 --description "Requiere config manual del dueño (no se resuelve con PR)" 2>/dev/null || true
+          gh label create radar-descartado -R "$TARGET" --color 6E7781 --description "Revisión: sin impacto suficiente o no verificable" 2>/dev/null || true
           while IFS= read -r L; do
-            [ -n "$L" ] && gh issue edit "$ISSUE" -R "$TARGET" --add-label "$L" 2>/dev/null || true
+            [ -n "$L" ] && gh issue edit "$ISSUE" -R "$TARGET" --add-label "$L"
           done < radar_plan_labels.txt
           gh issue comment "$ISSUE" -R "$TARGET" --body-file radar_plan.md
       - name: Implementar y validar el issue
