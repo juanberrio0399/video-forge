@@ -34,7 +34,8 @@ for (const repo of REPOS) {
     const prio = ((body.match(/Prioridad:\**\s*(Alta|Media|Baja)/i) || [])[1] || "").toLowerCase();
     const eff = ((body.match(/Esfuerzo:\**\s*([SML])\b/i) || [])[1] || "").toUpperCase();
     const labels = (is.labels || []).map((l) => l.name);
-    if (labels.includes("motor-fallo")) failures.push({ repo, number: is.number, title: is.title, url: is.html_url, at: is.updated_at });
+    if (labels.includes("radar-descartado")) continue;   // descartado en revisión: ya no es oportunidad
+    if (labels.includes("motor-fallo") || labels.includes("radar-no-valida")) failures.push({ repo, number: is.number, title: is.title, url: is.html_url, at: is.updated_at });
     const score = prio && eff ? Math.round(((PRIO[prio] / 3) * 0.65 + (EFF[eff] / 3) * 0.35) * 100) : null;
     opportunities.push({ repo, number: is.number, title: is.title, url: is.html_url, prio, eff, manual: labels.includes("manual"), score, created: is.created_at });
   }
@@ -45,7 +46,8 @@ for (const repo of REPOS) {
     const failed = runs.filter((c) => c.status === "completed" && !["success", "neutral", "skipped"].includes(c.conclusion)).length;
     const pending = runs.filter((c) => c.status !== "completed").length;
     const ci = checks == null ? "unknown" : failed ? "failed" : pending ? "pending" : runs.length ? "passed" : "none";
-    prs.push({ repo, number: pr.number, title: pr.title, url: pr.html_url, incomplete: /\[INCOMPLETO\]/i.test(pr.title || ""), ci, created: pr.created_at });
+    const blocked = !!pr.draft || (pr.labels || []).some((l) => l.name === "radar-ci-rojo");
+    prs.push({ repo, number: pr.number, title: pr.title, url: pr.html_url, incomplete: /\[INCOMPLETO\]/i.test(pr.title || ""), blocked, ci, created: pr.created_at });
   }
 }
 
@@ -68,9 +70,9 @@ const tasks = impl.slice(0, 5).map((r) => ({ id: String(r.id), name: r.display_t
 
 const needs = [];
 const CI_TXT = { passed: "CI en verde", none: "El repo no tiene CI: revisa el diff antes de mergear", pending: "CI todavía corriendo", failed: "El CI falla", unknown: "No se pudo leer el CI" };
-const mergeable = (x) => !x.incomplete && (x.ci === "passed" || x.ci === "none");
+const mergeable = (x) => !x.incomplete && !x.blocked && (x.ci === "passed" || x.ci === "none");
 for (const p of prs.filter(mergeable).slice(0, 6)) needs.push({ id: `radar-merge-${short(p.repo)}-${p.number}`, title: `Merge PR #${p.number} · ${short(p.repo)}`, why: p.title, evidence: `${CI_TXT[p.ci]} · preparado por el motor`, severity: "info", autonomy: "APPROVAL", risk: p.ci === "passed" ? "low" : "medium", actions: [{ id: "review", label: "Revisar", kind: "open" }], url: p.url, created_at: p.created });
-for (const p of prs.filter((x) => x.incomplete || x.ci === "failed").slice(0, 4)) needs.push({ id: `radar-fix-${short(p.repo)}-${p.number}`, title: `PR #${p.number} necesita arreglo · ${short(p.repo)}`, why: p.title, evidence: p.incomplete ? "El motor lo marcó [INCOMPLETO]" : CI_TXT.failed, severity: "warn", autonomy: "REVIEW", actions: [{ id: "open", label: "Ver PR", kind: "open" }], url: p.url, created_at: p.created });
+for (const p of prs.filter((x) => x.incomplete || x.blocked || x.ci === "failed").slice(0, 4)) needs.push({ id: `radar-fix-${short(p.repo)}-${p.number}`, title: `PR #${p.number} necesita arreglo · ${short(p.repo)}`, why: p.title, evidence: p.incomplete ? "El motor lo marcó [INCOMPLETO]" : p.blocked ? "Borrador: no pasó toda la validación" : CI_TXT.failed, severity: "warn", autonomy: "REVIEW", actions: [{ id: "open", label: "Ver PR", kind: "open" }], url: p.url, created_at: p.created });
 for (const f of failures.slice(0, 4)) needs.push({ id: `radar-fail-${short(f.repo)}-${f.number}`, title: `El motor falló en #${f.number} · ${short(f.repo)}`, why: f.title, evidence: "Etiqueta motor-fallo", severity: "warn", autonomy: "REVIEW", actions: [{ id: "open", label: "Ver", kind: "open" }], url: f.url, created_at: f.at });
 
 const top = opportunities.filter((o) => o.score != null && !o.manual).sort((a, b) => b.score - a.score).slice(0, 3);
