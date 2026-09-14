@@ -4,6 +4,7 @@
 // Uso: node pipeline/data_shock_short.mjs [script.json] [out.mp4]   (music.mp3 opcional en cwd)
 import fs from "node:fs";
 import { execSync } from "node:child_process";
+import { generateKineticAss } from "./ass_subtitles.mjs";
 
 const [scriptPath = "script.json", outPath = "short.mp4"] = process.argv.slice(2);
 const W = 1080, H = 1920, FPS = 30;
@@ -118,10 +119,17 @@ facts.forEach((f, i) => {
 
 // 4) Música (o silencio) + render final.
 const hasMusic = fs.existsSync("music.mp3");
+// Generar subtítulos si existe whisper_words.json
+if (fs.existsSync("whisper_words.json")) {
+  const words = JSON.parse(fs.readFileSync("whisper_words.json", "utf8"));
+  generateKineticAss(words, `${work}/captions.ass`);
+}
+const subFilter = fs.existsSync(`${work}/captions.ass`) ? `,subtitles='${work}/captions.ass'` : "";
+
 if (hasMusic) {
-  execSync(`ffmpeg -y -i "${bg}" -stream_loop -1 -i music.mp3 -filter_complex "[0:v]format=yuv420p${ov}[v];[1:a]volume=0.5,afade=t=in:st=0:d=0.6,afade=t=out:st=${(total - 0.8)}:d=0.8[a]" -map "[v]" -map "[a]" -t ${total} -r ${FPS} -c:v libx264 -preset medium -crf 19 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest -movflags +faststart "${outPath}"`, { stdio: "inherit" });
+  execSync(`ffmpeg -y -i "${bg}" -stream_loop -1 -i music.mp3 -filter_complex "[0:v]format=yuv420p${ov}${subFilter}[v];[1:a]volume=0.5,afade=t=in:st=0:d=0.6,afade=t=out:st=${(total - 0.8)}:d=0.8[a]" -map "[v]" -map "[a]" -t ${total} -r ${FPS} -c:v libx264 -preset medium -crf 19 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest -movflags +faststart "${outPath}"`, { stdio: "inherit" });
 } else {
-  execSync(`ffmpeg -y -i "${bg}" -f lavfi -i anullsrc=r=44100:cl=stereo -filter_complex "[0:v]format=yuv420p${ov}[v]" -map "[v]" -map 1:a -t ${total} -r ${FPS} -c:v libx264 -preset medium -crf 19 -pix_fmt yuv420p -c:a aac -b:a 128k -shortest -movflags +faststart "${outPath}"`, { stdio: "inherit" });
+  execSync(`ffmpeg -y -i "${bg}" -f lavfi -i anullsrc=r=44100:cl=stereo -filter_complex "[0:v]format=yuv420p${ov}${subFilter}[v]" -map "[v]" -map 1:a -t ${total} -r ${FPS} -c:v libx264 -preset medium -crf 19 -pix_fmt yuv420p -c:a aac -b:a 128k -shortest -movflags +faststart "${outPath}"`, { stdio: "inherit" });
 }
 
 // Paquete SEO + manifiesto
