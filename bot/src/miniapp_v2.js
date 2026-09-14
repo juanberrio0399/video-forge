@@ -393,6 +393,7 @@ export const APP2_HTML = `<!doctype html>
   var FROM_OS=/[?&]from=os/.test(location.search);
   function backSync(){ try{ if(!tg||!tg.BackButton) return; if(sheetOpen||curTab!=="vivo"||FROM_OS) tg.BackButton.show(); else tg.BackButton.hide(); }catch(e){} }
   try{ tg&&tg.BackButton&&tg.BackButton.onClick(function(){ if(sheetOpen){ closeSheet(); return; } if(curTab!=="vivo"){ tab("vivo"); return; } if(FROM_OS) location.href="/os"; }); }catch(e){}
+  backSync();
   function openSheet(html){ el("sheetBody").innerHTML=html; el("shade").classList.add("on"); el("sheet").classList.add("on"); sheetOpen=true; h("light"); backSync(); }
   function closeSheet(){ el("shade").classList.remove("on"); el("sheet").classList.remove("on"); sheetOpen=false; backSync(); }
   document.addEventListener("click",function(ev){

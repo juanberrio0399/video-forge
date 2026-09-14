@@ -34,18 +34,21 @@ async function hmac(keyBytes, msg) {
   return new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(msg)));
 }
 const toHex = (buf) => [...buf].map((b) => b.toString(16).padStart(2, "0")).join("");
+// Comparación en tiempo constante (no revela cuántos caracteres del hash coinciden).
+function safeEq(a, b) { a = String(a || ""); b = String(b || ""); if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; }
 async function validInit(initData, token) {
   try {
-    if (!initData) return null;
+    // Sin token del bot no hay forma de validar: se rechaza (antes la clave quedaba vacía y era falsificable).
+    if (!initData || !token) return null;
     const p = new URLSearchParams(initData);
     const hash = p.get("hash"); if (!hash) return null;
     p.delete("hash");
     const dcs = [...p.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([k, v]) => `${k}=${v}`).join("\n");
     const secret = await hmac(new TextEncoder().encode("WebAppData"), token);
     const computed = toHex(await hmac(secret, dcs));
-    if (computed !== hash) return null;
+    if (!safeEq(computed, hash)) return null;
     const authDate = +(p.get("auth_date") || 0);
-    if (authDate && (Date.now() / 1000 - authDate) > 86400) return null; // 24h
+    if (!authDate || (Date.now() / 1000 - authDate) > 86400) return null; // obligatorio y máximo 24 h
     return JSON.parse(p.get("user") || "{}");
   } catch { return null; }
 }
@@ -362,6 +365,7 @@ function runAct(repo,n){
   }).catch(function(){h("err");notify("No pude lanzar el motor. Revisa la conexión y reintenta.");});
 }
 try{TG.BackButton.onClick(function(){if(CUR<0&&FROM_OS){location.href="/os";return;}CUR=-1;FILTER=null;h("light");render();});}catch(e){}
+backBtn();
 document.addEventListener("click",function(ev){
   var el=ev.target.closest("[data-act]");if(!el)return;var a=el.getAttribute("data-act");
   if(a==="home"){CUR=-1;FILTER=null;h("sel");render();return;}
@@ -430,6 +434,6 @@ export default {
       }
       return new Response("ok");
     }
-    return new Response("radar-bot up", { status: 200 });
+    return new Response("no encontrado", { status: 404 });
   },
 };
