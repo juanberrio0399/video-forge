@@ -34,7 +34,7 @@ describe("caption", () => {
   it("arma título + url + hashtags", () => {
     const c = caption({ video_id: "z", title: "Wow #shorts", format: "short", niche_label: "satisfying" }, "auto2");
     expect(c).toMatch(/Wow/);
-    expect(c).toMatch(/youtube.com\/shorts\/z/);
+    expect(c).toContain("youtube.com/shorts/z");
     expect(c).toMatch(/#satisfying/);
   });
 });

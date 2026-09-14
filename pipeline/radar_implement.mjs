@@ -183,8 +183,9 @@ function applyEdits(edits) {
         fs.mkdirSync(path.dirname(p), { recursive: true });
         fs.writeFileSync(p, e.content); changed.add(p); console.log(`  escrito: ${p}`); applied = true; continue;
       }
-      if (e.find != null && fs.existsSync(p)) {
-        const before = fs.readFileSync(p, "utf8");
+      if (e.find != null) {
+        let before;
+        try { before = fs.readFileSync(p, "utf8"); } catch { continue; } // leer directo: sin carrera entre comprobar y leer
         if (before.includes(e.find)) { fs.writeFileSync(p, before.split(e.find).join(e.replace ?? "")); changed.add(p); console.log(`  editado: ${p} (${e.find.slice(0, 40)}…)`); applied = true; }
       }
     }

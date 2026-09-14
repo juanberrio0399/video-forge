@@ -56,8 +56,9 @@ const status = {
 };
 
 // 3) Subida "resumable" — con REINTENTOS ante 429/5xx/corte (antes fallaba a la primera).
-const size = fs.statSync(videoPath).size;
+// Una sola lectura: tamaño y contenido siempre coinciden (sin carrera entre stat y read).
 const body = fs.readFileSync(videoPath);
+const size = body.length;
 
 async function uploadOnce() {
   const init = await fetch(
