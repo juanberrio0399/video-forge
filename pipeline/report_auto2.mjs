@@ -35,6 +35,10 @@ try {
   if (up) { do { const j = await (await tf(`https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId=${up}&pageToken=${page}`, { headers: H })).json(); ids.push(...(j.items || []).map((i) => i.contentDetails.videoId)); page = j.nextPageToken || ""; } while (page && ids.length < 200); }
   let nicheMap = {};
   try { nicheMap = JSON.parse(fs.readFileSync("niche_map.json", "utf8")); } catch {}
+  // Videos OCULTOS (despublicados o sacados de la cola): no existen para la app ni para el cerebro.
+  let hidden = new Set();
+  try { const h = JSON.parse(fs.readFileSync("hidden_videos.json", "utf8")); if (Array.isArray(h)) hidden = new Set(h); } catch {}
+  let hiddenSkipped = 0;
   const NICHE_LABEL = { satisfying: "Satisfying / ASMR", narrativas: "Narrativas", ciencia_humor: "Ciencia + humor", naturaleza_relax: "Naturaleza / relax", animales_tiernos: "Animales tiernos / ASMR", remix: "Remix", graciosos: "Graciosos", space: "Espacio" };
   // Si un video no está en el niche_map se INFIERE por el título para mostrarlo, pero queda marcado
   // niche_inferred y NO cuenta para decidir el reparto.
@@ -51,6 +55,7 @@ try {
   for (let i = 0; i < ids.length; i += 50) {
     const j = await (await tf(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status,statistics,contentDetails&id=${ids.slice(i, i + 50).join(",")}`, { headers: H })).json();
     for (const v of j.items || []) {
+      if (hidden.has(v.id)) { hiddenSkipped++; continue; }
       const mapped = nicheMap[v.id];
       const nk = mapped || inferNiche(v.snippet.title);
       list.push({
@@ -102,7 +107,7 @@ try {
   const state = { name: (item.snippet || {}).title || "Oddly Loop", handle: "@oddlyloophq", subs, total_views, videos: list.length, shorts, watch_min, top, niche_ranking, niche_rank, best_hours, list: list.sort((a, b) => (a.published_at < b.published_at ? 1 : -1)), at: new Date().toISOString() };
   fs.writeFileSync("auto2_state.json", JSON.stringify(state, null, 2));
   fs.writeFileSync("best_hours.json", JSON.stringify(best_hours || {}, null, 2));
-  console.log(`Auto2 (${state.name}): ${state.videos} videos (${shorts} Shorts) · ${subs} subs · ${total_views} vistas totales · ${watch_min} min.`);
+  console.log(`Auto2 (${state.name}): ${state.videos} videos (${shorts} Shorts) · ${subs} subs · ${total_views} vistas totales · ${watch_min} min · ocultos excluidos: ${hiddenSkipped}.`);
   if (niche_rank.rows.length) console.log(`  🏆 Nichos (mediana vistas/día, cohorte 5-30d, sin inferidos): ${niche_rank.rows.map((r) => `${r.label}=${r.median_vpd} (n${r.n}${r.sufficient ? "" : ", poca muestra"})`).join(" · ")} · inferidos excluidos: ${niche_rank.excluded_inferred}`);
   if (best_hours) console.log(`  🕐 Mejores horas (mediana, n≥3): ${best_hours.hours.join("h, ")}h ET`); else console.log("  🕐 Mejores horas: sin muestra suficiente -> research por defecto");
   console.log(`  📏 Vistas a la misma edad registradas: ${Object.values(atAge).filter((r) => r.d7 != null).length} con día 7 · ${Object.values(atAge).filter((r) => r.d3 != null).length} con día 3`);
