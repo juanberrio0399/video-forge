@@ -42,7 +42,7 @@ jobs:
       MINUTES: ${{ github.event.inputs.minutes || '10' }}
       VOICE: ${{ github.event.inputs.voice || 'Charon' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: "22"

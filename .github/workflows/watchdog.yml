@@ -35,7 +35,7 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
       GH_TOKEN: ${{ github.token }}   # token de Actions (actions:read) para vigilar los crons
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: "22"

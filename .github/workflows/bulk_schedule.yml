@@ -29,7 +29,7 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
       IDS: ${{ github.event.inputs.ids }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
