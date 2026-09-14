@@ -157,11 +157,26 @@ function expandGlob(p) {
   try { return fs.readdirSync(dir).filter((f) => re.test(f)).map((f) => path.join(dir, f).replace(/\\/g, "/")); } catch { return []; }
 }
 const changed = new Set();
+// GUARDA DE RUTAS (seguridad): el plan lo escribe un LLM a partir del texto de un issue, así que no se
+// confía en sus rutas. Solo se escribe DENTRO del repo clonado y nunca en CI, git, secretos ni binarios
+// de despliegue. Una ruta rechazada cuenta como edición fallida (el PR queda [INCOMPLETO]).
+const REPO_ROOT = path.resolve(".");
+const DENY = [/^\.github(\/|$)/i, /^\.git(\/|$)/i, /(^|\/)\.env(\.|$)/i, /(^|\/)\.npmrc$/i, /(^|\/)wrangler\.toml$/i, /(^|\/)\.dev\.vars$/i, /\.(pem|key|p12|pfx)$/i, /(^|\/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$/i];
+function safePath(p) {
+  const raw = String(p || "").replace(/\\/g, "/").trim();
+  if (!raw || raw.startsWith("/") || /^[a-zA-Z]:/.test(raw) || raw.split("/").includes("..")) return null;
+  const abs = path.resolve(REPO_ROOT, raw);
+  if (abs !== REPO_ROOT && !abs.startsWith(REPO_ROOT + path.sep)) return null;
+  const rel = path.relative(REPO_ROOT, abs).replace(/\\/g, "/");
+  if (DENY.some((re) => re.test(rel))) return null;
+  return rel;
+}
 function applyEdits(edits) {
   const failed = [];
   for (const e of edits) {
     if (!e || !e.path) continue;
-    const targets = expandGlob(e.path);
+    if (!safePath(e.path)) { console.error(`  🚫 Ruta no permitida (fuera del repo o protegida): ${e.path}`); failed.push(e); continue; }
+    const targets = expandGlob(safePath(e.path)).filter((t) => safePath(t));
     let applied = false;
     for (const p of targets) {
       if (typeof e.content === "string" && (e.find == null || e.find === "")) {

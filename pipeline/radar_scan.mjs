@@ -5,7 +5,7 @@
 // Uso: node pipeline/radar_scan.mjs            (usa RADAR_REPO del entorno)
 // Env: GEMINI_API_KEY(,2), GH_TOKEN (para `gh`), RADAR_REPO=owner/repo (repo objetivo, ya clonado en cwd).
 import fs from "node:fs";
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 
 const REPO = (process.env.RADAR_REPO || process.env.GITHUB_REPOSITORY || "").trim();
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
@@ -200,7 +200,9 @@ ${(f.implement_prompt || "").toString().trim()}
   const tmp = `radar_body_${created}.md`;
   fs.writeFileSync(tmp, body);
   try {
-    const out = sh(`gh issue create -R ${REPO} --label radar --title ${JSON.stringify(title)} --body-file ${tmp}`);
+    // Seguridad: el título lo escribe un LLM. Se pasa como ARGUMENTO (sin shell), así "$(...)" o backticks
+    // no pueden ejecutarse. Antes iba interpolado en un comando de shell.
+    const out = execFileSync("gh", ["issue", "create", "-R", REPO, "--label", "radar", "--title", String(title).slice(0, 240), "--body-file", tmp], { stdio: ["ignore", "pipe", "pipe"], maxBuffer: 16 * 1024 * 1024 }).toString();
     const url = (out.match(/https?:\/\/\S+/) || [""])[0];
     console.log(`  + creado: ${title} ${url}`);
     existingTitles.push(title);                                // evita duplicar dentro de la misma corrida

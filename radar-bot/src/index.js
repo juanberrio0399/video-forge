@@ -50,7 +50,8 @@ async function ownerFromReq(request, env) {
   const initData = request.headers.get("x-init-data") || "";
   const user = await validInit(initData, env.TELEGRAM_BOT_TOKEN);
   if (!user || !user.id) return null;
-  if (env.OWNER_CHAT_ID && String(user.id) !== String(env.OWNER_CHAT_ID)) return null;
+  // Seguridad: sin OWNER_CHAT_ID configurado NADIE entra (antes, sin la variable, entraba cualquier usuario).
+  if (!env.OWNER_CHAT_ID || String(user.id) !== String(env.OWNER_CHAT_ID)) return null;
   return user;
 }
 
@@ -109,6 +110,8 @@ async function doAction(env, action, repo, number) {
   if (action === "merge") {
     const pr = (await prMap(env, repo))[String(number)];
     if (!pr) return `🔎 No hay PR abierto para el #${number}.`;
+    // Un PR incompleto no cierra el issue: mergearlo deja trabajo a medias en main.
+    if (pr.incomplete) return `🚫 No mergeo el PR #${pr.number}: está marcado [INCOMPLETO]. Revísalo o reintenta el motor.`;
     // CANDADO DE BUILD: no mergear si el CI del PR no está en verde (evita mergear builds rotos).
     try {
       const full = await (await gh(env, `/repos/${repo}/pulls/${pr.number}`)).json();
@@ -121,7 +124,10 @@ async function doAction(env, action, repo, number) {
         if (failed.length) return `🚫 No mergeo el PR #${pr.number}: el CI/build FALLA (${failed.map((r) => r.name).join(", ")}). Arréglalo antes de mergear.`;
         if (pending.length) return `⏳ El CI del PR #${pr.number} aún corre (${pending.map((r) => r.name).join(", ")}). Espera a que quede ✅ verde y reintenta el merge.`;
       }
-    } catch { /* si no puedo leer el estado, no bloqueo (mejor dejar mergear que trancar por un error de lectura) */ }
+    } catch {
+      // Seguridad: si no se puede verificar el CI, NO se mergea (antes dejaba pasar ante un error de lectura).
+      return `⚠️ No pude verificar el CI del PR #${pr.number} ahora. No mergeo sin verificar; reintenta en un momento.`;
+    }
     const m = await gh(env, `/repos/${repo}/pulls/${pr.number}/merge`, { method: "PUT", body: JSON.stringify({ merge_method: "squash" }) });
     if (m.ok) return `✅ PR #${pr.number} mergeado. El issue #${number} se cierra solo.`;
     const e = await m.json().catch(() => ({}));
@@ -392,7 +398,8 @@ export default {
 
     // Webhook de Telegram -> /radar abre la Mini App
     if (url.pathname === "/webhook" && request.method === "POST") {
-      if (env.TELEGRAM_WEBHOOK_SECRET && request.headers.get("x-telegram-bot-api-secret-token") !== env.TELEGRAM_WEBHOOK_SECRET) return new Response("unauthorized", { status: 401 });
+      // Seguridad: el secreto del webhook es obligatorio (el deploy siempre lo configura).
+      if (!env.TELEGRAM_WEBHOOK_SECRET || request.headers.get("x-telegram-bot-api-secret-token") !== env.TELEGRAM_WEBHOOK_SECRET) return new Response("unauthorized", { status: 401 });
       const upd = await request.json().catch(() => ({}));
       const owner = env.OWNER_CHAT_ID ? String(env.OWNER_CHAT_ID) : null;
       if (upd.message) {
