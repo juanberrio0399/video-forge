@@ -16,6 +16,17 @@ GH_REPO = "juanberrio0399/video-forge"
 [triggers]
 crons = ["*/30 * * * *"]
 
+# AI OS en un solo bot: canal interno hacia los paneles de Radar y Viento (misma cuenta; sin URL pública).
+[[services]]
+binding = "RADAR"
+service = "radar-bot"
+entrypoint = "OSGateway"
+
+[[services]]
+binding = "VIENTO"
+service = "tienda"
+entrypoint = "OSGateway"
+
 [[r2_buckets]]
 binding = "R2"
 bucket_name = "video-forge"

@@ -3,6 +3,7 @@
 // (⚙️ Ejecutar → 👀 Revisar → 🔀 Merge). El Merge solo aparece tras Revisar (no mergear sin ver).
 // Autenticación segura vía Telegram initData (HMAC con el token del bot); solo el dueño.
 
+import { WorkerEntrypoint } from "cloudflare:workers";
 import { osStateFrom } from "../../pipeline/lib/os_contract.mjs";
 import { osShellHtml } from "../../shared/os-shell.mjs";
 
@@ -53,6 +54,8 @@ async function validInit(initData, token) {
   } catch { return null; }
 }
 async function ownerFromReq(request, env) {
+  // Puerta interna del AI OS: el bot único ya validó a Juan con su propia sesión de Telegram.
+  if (env && env.__trustedOwner === true) return { id: env.OWNER_CHAT_ID, trusted: true };
   const initData = request.headers.get("x-init-data") || "";
   const user = await validInit(initData, env.TELEGRAM_BOT_TOKEN);
   if (!user || !user.id) return null;
@@ -236,12 +239,12 @@ body{margin:0;background:radial-gradient(120% 42% at 50% -60px,var(--glow),trans
 <script>
 var TG=window.Telegram.WebApp;TG.ready();TG.expand();
 try{TG.setHeaderColor&&TG.setHeaderColor("bg_color");}catch(e){}
-var INIT=TG.initData||"";
+var INIT=TG.initData||"";var API_BASE="__API_BASE__";
 var ST={repos:[]},CUR=-1,FILTER=null,REVIEWED={},WATCH={},BUILD="__BUILD__";
 try{REVIEWED=JSON.parse(localStorage.getItem("radar_reviewed")||"{}");}catch(e){}
 function saveRev(){try{localStorage.setItem("radar_reviewed",JSON.stringify(REVIEWED));}catch(e){}}
 function h(t){try{var H=TG.HapticFeedback;if(!H)return;if(t==="sel")H.selectionChanged();else if(t==="ok")H.notificationOccurred("success");else if(t==="err")H.notificationOccurred("error");else H.impactOccurred(t||"light");}catch(e){}}
-function api(p,b){return fetch(p,{method:"POST",headers:{"content-type":"application/json","x-init-data":INIT},body:JSON.stringify(b||{})}).then(function(r){return r.json();});}
+function api(p,b){return fetch(API_BASE+p,{method:"POST",headers:{"content-type":"application/json","x-init-data":INIT},body:JSON.stringify(b||{})}).then(function(r){return r.json();});}
 function esc(s){return (s||"").replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
 function toast(t){var e=document.getElementById("toast");e.textContent=t;e.className="show";clearTimeout(window._t);window._t=setTimeout(function(){e.className="";},3400);}
 var PR={alta:{e:"🔴",l:"Alta",c:"var(--r)"},media:{e:"🟡",l:"Media",c:"var(--y)"},baja:{e:"🟢",l:"Baja",c:"var(--g)"},none:{e:"⚪",l:"Sin prioridad",c:"var(--hint)"}};
@@ -389,7 +392,7 @@ async function osState(env) {
   return osStateFrom(get, "radar");
 }
 
-export default {
+const radarHandler = {
   async fetch(request, env) {
     const url = new URL(request.url);
 
@@ -403,7 +406,7 @@ export default {
       return new Response(osShellHtml("radar", { build: env.APP_BUILD }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
     }
     if (url.pathname === "/app" || url.pathname === "/") {
-      return new Response(APP_HTML.replace("__BUILD__", String(env.APP_BUILD || "dev")), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
+      return new Response(APP_HTML.replace("__BUILD__", String(env.APP_BUILD || "dev")).replace("__API_BASE__", env.__osBase === "/v/radar" ? "/v/radar" : ""), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
     }
     // API de la Mini App (auth por initData)
     if (url.pathname.startsWith("/api/") && request.method === "POST") {
@@ -437,3 +440,11 @@ export default {
     return new Response("no encontrado", { status: 404 });
   },
 };
+export default radarHandler;
+
+// Puerta INTERNA del AI OS (solo alcanzable por Service Binding desde el bot único; no tiene URL pública).
+export class OSGateway extends WorkerEntrypoint {
+  async fetch(request) {
+    return radarHandler.fetch(request, { ...this.env, __trustedOwner: true, __osBase: "/v/radar" });
+  }
+}
