@@ -84,8 +84,8 @@ for (const c of CHANNELS) {
   if (!r.ok) fails++;
 }
 
-// Bots de Telegram (Video Forge + Radar): que su webhook esté vivo.
-for (const [tok, label] of [[process.env.TELEGRAM_BOT_TOKEN, "Video Forge"], [process.env.RADAR_BOT_TOKEN, "Radar"]]) {
+// Bot de Telegram único del AI OS (Video Forge): que su webhook esté vivo. Radar y Tienvo ya no tienen bot propio.
+for (const [tok, label] of [[process.env.TELEGRAM_BOT_TOKEN, "Video Forge (bot único)"]]) {
   const r = await checkBot(tok);
   if (r) { lines.push(`${r.ok ? "✅" : "❌"} Bot Telegram ${label}: ${r.msg}`); if (!r.ok) fails++; }
 }
