@@ -12,11 +12,11 @@ const num = (x) => (x === null || x === undefined || !Number.isFinite(Number(x))
 export const MONET_GOALS = {
   "data-lens": { path: "longform", deadline: "2026-12-31", targets: [
     { key: "subs", label: "Suscriptores", target: 1000, kind: "stock" },
-    { key: "watch_hours_365d", label: "Horas vistas sin Shorts (365 días)", target: 4000, kind: "rolling", window: 365 },
+    { key: "watch_hours_365d", label: "Horas vistas sin Shorts (365 días)", target: 4000, kind: "rolling", window: 365, pace_key: "watch_hours_per_day_28d" },
   ] },
   "auto2": { path: "shorts", deadline: "2026-12-31", targets: [
     { key: "subs", label: "Suscriptores", target: 1000, kind: "stock" },
-    { key: "shorts_views_90d", label: "Vistas de Shorts (90 días)", target: 10000000, kind: "rolling", window: 90 },
+    { key: "shorts_views_90d", label: "Vistas de Shorts (90 días)", target: 10000000, kind: "rolling", window: 90, pace_key: "shorts_views_per_day_28d" },
   ] },
 };
 
@@ -38,7 +38,8 @@ export function readiness(history, goal, nowMs = Date.now()) {
     let perDayNeeded, perDayActual = null, projDate = null;
     if (t.kind === "rolling") {
       perDayNeeded = t.target / t.window;
-      perDayActual = cur / t.window;
+      const recent = t.pace_key ? num(last[t.pace_key]) : null;   // ritmo actual (28 días) si existe
+      perDayActual = recent !== null ? recent : cur / t.window;
     } else {
       perDayNeeded = daysLeft > 0 ? need / daysLeft : need;
       const win = hist.filter((h) => (Date.parse(today) - Date.parse(h.date)) / DAY <= 7 && num(h[t.key]) !== null);

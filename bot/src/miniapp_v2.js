@@ -262,7 +262,8 @@ export const APP2_HTML = `<!doctype html>
         (i.idea?'<div class="muted" style="margin-top:3px">💡 '+esc(i.idea.text)+'</div>':'')+
         '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'+(i.experiment?'<span class="pill p-plan">Experimento · '+esc(i.experiment.arm==="question"?"pregunta":"afirmación")+'</span>':'')+'<span class="pill">Confianza '+esc(i.confidence)+'</span></div></div></div></div>';
     }).join("");
-    var exp=P.experiment?'<h2>Experimento del día</h2><div class="card"><b>Gancho: pregunta vs afirmación</b><div class="muted" style="margin-top:4px">'+esc(P.experiment.hypothesis||"")+'</div><div class="muted" style="margin-top:6px">Solo cambia el gancho, y solo en '+esc(P.experiment.niche)+'. Todo lo demás queda igual para poder atribuir el resultado.</div></div>':'';
+    var expLabel=""; if(P.experiment){ (P.items||[]).forEach(function(i){ if(!expLabel&&i.niche===P.experiment.niche) expLabel=i.niche_label; }); }
+    var exp=P.experiment?'<h2>Experimento del día</h2><div class="card"><b>Gancho: pregunta vs afirmación</b><div class="muted" style="margin-top:4px">'+esc(P.experiment.hypothesis||"")+'</div><div class="muted" style="margin-top:6px">Solo cambia el gancho, y solo en '+esc(expLabel||P.experiment.niche)+'. Todo lo demás queda igual para poder atribuir el resultado.</div></div>':'';
     return sw+head+exp+'<h2>Piezas</h2>'+list;
   }
   function itemSheet(idx){
@@ -278,11 +279,11 @@ export const APP2_HTML = `<!doctype html>
 
   // ============ META ============
   function reqRow(r){
-    var hasPace=r.per_day_actual!=null&&r.per_day_needed!=null;
+    var hasPace=r.status!=="cumplido"&&r.per_day_actual!=null&&r.per_day_needed!=null;
     return '<div class="req"><div class="row"><span style="font-size:13.5px;font-weight:700">'+esc(r.label)+'</span>'+feasPill(r.status)+'</div>'+
       (r.cur==null?'<div class="muted" style="margin-top:4px">La API de YouTube no entregó este dato. No se sustituye por totales.</div>':
       '<div class="row" style="margin-top:4px"><span class="num" style="font-weight:800">'+num(r.cur)+' <span class="muted">/ '+num(r.target)+'</span></span><span class="muted num">'+(r.pct!=null?r.pct+" %":"")+'</span></div><div class="bar"><i style="width:'+Math.max(1,Math.min(100,r.pct||0))+'%"></i></div>'+
-      (hasPace?'<div class="pace"><div><div class="k">Ritmo real</div><div class="v num">'+num(r.per_day_actual)+'/día</div></div><div><div class="k">Necesario</div><div class="v num">'+num(r.per_day_needed)+'/día</div></div></div>':''))+
+      (hasPace?'<div class="pace"><div><div class="k">Ritmo real'+(r.pace_source==="28d"?' (28 días)':'')+'</div><div class="v num">'+num(r.per_day_actual)+'/día</div></div><div><div class="k">Necesario</div><div class="v num">'+num(r.per_day_needed)+'/día</div></div></div>':''))+
       (r.window?'<div class="muted" style="margin-top:5px">Ventana móvil de '+r.window+' días</div>':'')+'</div>';
   }
   function tierCard(t,title){

@@ -47,6 +47,14 @@ let watch_hours_365d = null;
 const rw = await analytics(`startDate=${start365}&endDate=${end}&dimensions=creatorContentType&metrics=estimatedMinutesWatched`, "watch_hours_365d");
 if (rw) watch_hours_365d = Math.round(rw.filter((r) => !isShort(r[0])).reduce((a, r) => a + (+r[1] || 0), 0) / 60);
 
+// 2b) Ritmo ACTUAL: últimos 28 días por tipo de contenido (en canal joven el promedio de la ventana lo subestima).
+let shorts_views_per_day_28d = null, watch_hours_per_day_28d = null;
+const r28 = await analytics(`startDate=${start28}&endDate=${end}&dimensions=creatorContentType&metrics=views,estimatedMinutesWatched`, "pace_28d");
+if (r28) {
+  shorts_views_per_day_28d = Math.round(r28.filter((r) => isShort(r[0])).reduce((a, r) => a + (+r[1] || 0), 0) / 28);
+  watch_hours_per_day_28d = Math.round((r28.filter((r) => !isShort(r[0])).reduce((a, r) => a + (+r[2] || 0), 0) / 60 / 28) * 100) / 100;
+}
+
 // 3) Suscriptores + subidas públicas de 90 días (Data API).
 let subs = null, uploads_90d = null;
 try {
@@ -91,6 +99,7 @@ const out = {
   windows: { shorts_views: [start90, end], watch_hours: [start365, end], diagnostics: [start28, end] },
   analytics_lag_days: 3,
   subs, shorts_views_90d, watch_hours_365d, uploads_90d,
+  shorts_views_per_day_28d, watch_hours_per_day_28d,
   traffic_28d, impressions_28d, ctr_28d,
   availability, errors,
   note: "Métricas por ventana del YouTube Partner Program. null = la API no lo entregó (no se sustituye por totales históricos).",
@@ -101,10 +110,10 @@ fs.writeFileSync(outFile, JSON.stringify(out, null, 2));
 let hist = [];
 try { hist = JSON.parse(fs.readFileSync(histFile, "utf8")); } catch {}
 if (!Array.isArray(hist)) hist = [];
-const snap = { date: end, subs, shorts_views_90d, watch_hours_365d, uploads_90d };
+const snap = { date: end, subs, shorts_views_90d, watch_hours_365d, uploads_90d, shorts_views_per_day_28d, watch_hours_per_day_28d };
 if (hist.length && hist[hist.length - 1].date === end) hist[hist.length - 1] = snap; else hist.push(snap);
 fs.writeFileSync(histFile, JSON.stringify(hist.slice(-400)));
 
 const fmt = (x) => (x === null ? "sin dato" : Number(x).toLocaleString("es"));
-console.log(`${label}: subs ${fmt(subs)} · Shorts 90d ${fmt(shorts_views_90d)} · horas 365d ${fmt(watch_hours_365d)} · subidas 90d ${fmt(uploads_90d)} · impresiones 28d ${fmt(impressions_28d)}`);
+console.log(`${label}: subs ${fmt(subs)} · Shorts 90d ${fmt(shorts_views_90d)} (ritmo 28d ${fmt(shorts_views_per_day_28d)}/día) · horas 365d ${fmt(watch_hours_365d)} (ritmo 28d ${fmt(watch_hours_per_day_28d)}/día) · subidas 90d ${fmt(uploads_90d)} · impresiones 28d ${fmt(impressions_28d)}`);
 if (errors.length) console.log(`${label}: sin dato en -> ${errors.map((e) => e.split(":")[0]).join(", ")}`);
