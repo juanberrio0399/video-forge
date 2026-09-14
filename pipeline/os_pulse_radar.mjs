@@ -76,7 +76,7 @@ for (const p of prs.filter((x) => x.incomplete || x.blocked || x.ci === "failed"
 for (const f of failures.slice(0, 4)) needs.push({ id: `radar-fail-${short(f.repo)}-${f.number}`, title: `El motor falló en #${f.number} · ${short(f.repo)}`, why: f.title, evidence: "Etiqueta motor-fallo", severity: "warn", autonomy: "REVIEW", actions: [{ id: "open", label: "Ver", kind: "open" }], url: f.url, created_at: f.at });
 
 const top = opportunities.filter((o) => o.score != null && !o.manual).sort((a, b) => b.score - a.score).slice(0, 3);
-const insights = top.map((o) => ({ what: `${o.title}`, why: `${short(o.repo)} · prioridad ${o.prio}, esfuerzo ${o.eff}`, impact: `Score estimado ${o.score}/100 (prioridad × esfuerzo)`, action: "Ejecutar el motor desde Radar", confidence: null }));
+const insights = top.map((o) => ({ what: `${o.title}`, why: `${short(o.repo)} · prioridad ${o.prio}, esfuerzo ${o.eff}`, impact: `Score estimado ${o.score}/100 (prioridad × esfuerzo)`, action: "Preparar el plan desde Radar", confidence: null }));
 
 const metrics = [
   { key: "opportunities", label: "Oportunidades", value: opportunities.length, timeframe: "abiertas", context: `${REPOS.length} repos` },
