@@ -113,7 +113,7 @@ jobs:
             node pipeline/tts_gemini_directed.mjs voicemap_active.json "out/part_${{ matrix.chunk }}.wav" ${{ matrix.chunk }} ${NUM_CHUNKS}
           fi
       - name: Subir pedazo (audio + tiempos)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: part-${{ matrix.chunk }}
           path: out/part_${{ matrix.chunk }}.wav*
@@ -191,7 +191,7 @@ jobs:
           '
           cat renders/timing.json | head -20
       - name: Subir narracion + tiempos (artifact)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: voiceover-directed
           path: |

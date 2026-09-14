@@ -52,7 +52,7 @@ jobs:
       - name: Pensar (autocrítica + plan + qué producir)
         run: node pipeline/brain_live.mjs
       - name: Copia de lo que decidió (para auditar la app con datos reales)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: brain-live-snapshot
           retention-days: 3

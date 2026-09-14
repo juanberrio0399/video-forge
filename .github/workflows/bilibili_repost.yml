@@ -50,7 +50,7 @@ jobs:
           if [ -f bilibili_log_new.json ]; then npx --yes wrangler@4 r2 object put "$BUCKET/channel/oddly/bilibili_log.json" --file=bilibili_log_new.json --content-type application/json --remote; fi
       - name: Guardar evidencia (capturas) del último intento
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bilibili-repost-evidence
           path: |

@@ -102,7 +102,7 @@ jobs:
           ls -1 frames || true
       - name: Subir frames (artefacto)
         if: ${{ hashFiles('frames/*.jpg') != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: history-frames-${{ strategy.job-index }}
           path: frames/

@@ -30,7 +30,7 @@ jobs:
           if [ -f inventory_msg.txt ]; then
             bash pipeline/notify_telegram.sh "$(cat inventory_msg.txt)"
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: inventory
