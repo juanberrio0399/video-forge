@@ -53,9 +53,10 @@ const prompt = `Eres un implementador de cambios de código, cuidadoso y mínimo
 
 ⚙️ NADA QUE REQUIERA CONFIGURACIÓN MANUAL EXTERNA: si implementar el issue exige un paso MANUAL fuera del código —conectar un servidor MCP, obtener y pegar una API key/token/secret, crear/configurar una cuenta o servicio externo, autorizar OAuth, aceptar una licencia de un modelo, o cambiar workflows de CI (.github/) o archivos de despliegue (wrangler.toml)— NO lo implementes. Devuelve EXACTAMENTE:
 { "skip": true, "skip_reason": "manual" | "paid", "skip_note": "<1 frase: qué config manual/pago hace falta>", "steps": ["<paso 1 accionable que el DUEÑO del repo debe hacer a mano>", "<paso 2>", "..."] }
+NO es manual (hazlo tú con ediciones): agregar o actualizar dependencias en package.json/requirements.txt/pyproject.toml, editar o crear código, tests, documentación o configuración dentro del repo (salvo .github/ y wrangler.toml). Si todos tus pasos serían editar archivos del repo, NO uses skip: implementa.
 Cuando skip_reason es "manual", "steps" es OBLIGATORIO: el paso a paso EXACTO en español, imperativo y claro; NUNCA menciones IA/motor/Gemini/automático.
 
-🎯 NIVEL PROFESIONAL: implementa como un ingeniero senior que entrega una mejora que el usuario NOTA. Completa de punta a punta: lógica + integración con la UI o el flujo real + manejo de errores y estados vacíos + tests si el repo tiene tests. Nada de versiones a medias, demos ni "base para después". Si el issue solo permite un cambio cosmético o trivial, devuelve "skip" con skip_reason "manual" y en "steps" propone cómo convertirlo en una mejora con impacto real.
+🎯 NIVEL PROFESIONAL: implementa como un ingeniero senior que entrega una mejora que el usuario NOTA. Completa de punta a punta: lógica + integración con la UI o el flujo real + manejo de errores y estados vacíos + tests si el repo tiene tests. Nada de versiones a medias, demos ni "base para después". Cambios pequeños: edita solo lo necesario con find/replace; no reescribas archivos existentes completos.
 
 ✅ CALIDAD OBLIGATORIA (se valida antes de abrir el PR; si falla, el cambio se descarta):
 - Todo paquete que importes DEBE quedar declarado en el manifiesto (package.json, requirements.txt o pyproject.toml) con una versión que EXISTA. Si el repo usa package-lock.json igual edita package.json: el lockfile se regenera solo.
