@@ -4,8 +4,7 @@ name: Pinterest auto-pin (Oddly Shorts públicos)
 # Requiere secrets PINTEREST_ACCESS_TOKEN + PINTEREST_BOARD_ID (si faltan, no hace nada).
 
 on:
-  schedule:
-    - cron: "0 18 * * *"   # 1/día
+  # Sin cron (QA 2026-09-14): faltan PINTEREST_ACCESS_TOKEN y PINTEREST_BOARD_ID y corría "en verde" sin hacer nada.
   workflow_dispatch: {}
 
 permissions:

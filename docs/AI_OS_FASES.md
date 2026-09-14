@@ -20,7 +20,7 @@ Blueprint visual: artefacto "Juan AI OS". Actualizado: 2026-09-14.
 | # | Pendiente | Sistema | Quién | Estado |
 |---|---|---|---|---|
 | 1 | Estrategia de Oddly Loop: la meta completa iba ≈61× lejos | Video Forge | Juan decidió | Cerrado: opción A (hito intermedio, líder con mayoría de cupos, ganchos semanales, revisión a 28 días) |
-| 2 | El barrido de Radar del 2026-09-07 falló: todos los modelos de Gemini dieron 429. Falta respaldo con otra IA gratis | Radar | IA | Abierto |
+| 2 | El barrido de Radar del 2026-09-07 falló: todos los modelos de Gemini dieron 429 | Radar | IA | Mitigado: un repo a la vez y espera creciente; falta respaldo con otra IA gratis |
 | 3 | PR #34 de ugpp-shield-pro con build-test fallando | Radar | IA / Juan | Abierto |
 | 4 | Dependabot en video-forge: vitest crítico y moderado | GitHub | IA | PR #106 en curso |
 | 5 | Code scanning alto: 4 carreras de archivos y 1 regex sin ancla | GitHub | IA | Cerrado: #108, 0 alertas altas abiertas |
@@ -34,6 +34,15 @@ Blueprint visual: artefacto "Juan AI OS". Actualizado: 2026-09-14.
 | 13 | Registro de auditoría (quién sugirió, preparó, ejecutó o aprobó) | OS | IA | Abierto |
 | 14 | Texto viejo "Botón 'Panel'" en el workflow Activar Telegram de Viento | Viento | IA | Menor |
 | 15 | Los sanadores del backlog trataban una lista de ocultos ilegible como vacía y podían programar videos ocultos | Video Forge | IA | Corregido: falla cerrado |
+| 19 | Las Mini Apps abrían los paneles viejos (menú del bot, botones de inicio y /radar) | Los tres | IA | Cerrado: #112 y #43 |
+| 20 | QA de interfaz: desborde con textos largos, cortes sin puntos suspensivos, sin botón Cerrar, atrás ausente en paneles | OS | IA | Cerrado: #113, 131/131 pruebas E2E |
+| 21 | Seguridad: video descargable sin firma, sesión de Radar débil, body roto silenciaba alertas de la tienda, 404 y firmas | Los tres | IA | Cerrado: #113 y #44, 81 pruebas en producción |
+| 22 | GitHub se salta crons frecuentes (Orchestrator 2 de ~26, cerebro 2 de 8) y atrasa todos 2–5 h | OS | IA | Corregido: reloj en el Worker de Video Forge cada 30 min |
+| 23 | Data Shock falló con 0 datos del guion (ffmpeg sin nada que unir) | Video Forge | IA | Corregido: falla claro antes de ensamblar; revisar el guion si se repite |
+| 24 | Falsos verdes: Pinterest sin secrets y respuesta a comentarios salía bien ante errores; watchdog alertaba por un workflow apagado a propósito | Video Forge | IA | Corregido |
+| 25 | bilibili_upload.yml roto desde el 26/08 (cambió la interfaz) y thumbnail_only.yml sin paquete en R2 | Video Forge | Juan decide si se retiran | Abierto |
+| 26 | Aviso de Node 20 obsoleto en acciones @v4 (12 workflows de la tienda, 11 de video-forge) | GitHub | IA | Abierto |
+| 27 | Webhook de Mercado Pago sin verificación de firma x-signature (requiere el secreto de webhook de MP) | Viento | Juan agrega el secreto | Abierto |
 | 16 | hide_video.yml y reset_data_lens.yml arrancan de una lista vacía si no pueden leer la de ocultos | Video Forge | IA | Abierto |
 | 18 | El pulse contaba fallos de tests en ramas de PR como fallos de producción y dejaba a Video Forge en atención | Video Forge | IA | Corregido: solo cuenta main |
 | 17 | Los crons de GitHub llegan con horas de atraso o se saltan: el sanador de las 18:41 corrió a las 21:07 | Video Forge | IA | Vigilar |

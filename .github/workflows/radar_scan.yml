@@ -41,7 +41,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       fail-fast: false
-      max-parallel: 3   # 3 repos a la vez: cubre TODOS sin saturar Gemini ni los runners
+      max-parallel: 1   # un repo a la vez: con 3 en paralelo la cuota gratis de Gemini se agotaba (429, 2026-09-07)
       matrix:
         repo: ${{ fromJSON(needs.prepare.outputs.repos) }}
     env:

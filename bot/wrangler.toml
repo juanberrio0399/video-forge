@@ -12,6 +12,10 @@ GH_REPO = "juanberrio0399/video-forge"
 # Fase 7: editor de fotos. El Worker guarda el ORIGEN en R2 y dispara photo_edit.yml
 # (el retoque real corre en Actions con GFPGAN/Real-ESRGAN para preservar la identidad).
 # R2 guarda el origen SOLO mientras se itera (se borra al Guardar) + el estado de sesion.
+# Reloj del AI OS: cada 30 min dispara el Orchestrator y, en horas pares, el cerebro en vivo (GitHub se salta crons).
+[triggers]
+crons = ["*/30 * * * *"]
+
 [[r2_buckets]]
 binding = "R2"
 bucket_name = "video-forge"

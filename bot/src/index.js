@@ -87,6 +87,20 @@ export default {
     // Siempre 200 para que Telegram no reintente.
     return new Response("ok");
   },
+  // Reloj confiable del AI OS (Cron Trigger de Cloudflare cada 30 min). GitHub Actions retrasa y descarta los
+  // crons frecuentes; aquí se disparan por workflow_dispatch. Los crons de GitHub quedan como respaldo: el
+  // Orchestrator cancela corridas solapadas y el cerebro no duplica producción gracias a sus reclamos.
+  async scheduled(event, env, ctx) {
+    const t = new Date(event.scheduledTime || Date.now());
+    const jobs = ["os_orchestrator.yml"];
+    if (t.getUTCHours() % 2 === 0 && t.getUTCMinutes() < 30) jobs.push("brain_live.yml");
+    ctx.waitUntil(Promise.all(jobs.map(async (wf) => {
+      try {
+        const r = await ghDispatch(env, wf, {});
+        if (!r.ok && r.status !== 204) console.error("[reloj] no pude disparar", wf, r.status);
+      } catch (e) { console.error("[reloj]", wf, e && e.message); }
+    })));
+  },
 };
 
 // Sirve un video desde R2 por HTTP con soporte de Range (streaming + seek en el
