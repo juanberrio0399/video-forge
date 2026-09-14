@@ -40,10 +40,17 @@ describe("código muerto (caso ugpp #57/#58: módulos que nadie importa)", () =>
 
 describe("sintaxis y comandos del proyecto", () => {
   it("elige el validador por tipo de archivo", () => {
-    expect(syntaxCheckCommand("pyproject.toml")).toMatch(/tomllib/);
-    expect(syntaxCheckCommand("a/b.json")).toMatch(/JSON\.parse/);
-    expect(syntaxCheckCommand("x.mjs")).toMatch(/node --check/);
+    expect(syntaxCheckCommand("pyproject.toml")[1].join(" ")).toMatch(/tomllib/);
+    expect(syntaxCheckCommand("a/b.json")[1].join(" ")).toMatch(/JSON\.parse/);
+    expect(syntaxCheckCommand("x.mjs")).toEqual(["node", ["--check", "x.mjs"]]);
     expect(syntaxCheckCommand("README.md")).toBe(null);
+  });
+  it("la ruta va como argumento, nunca dentro del comando (sin inyección)", () => {
+    const evil = 'a$(touch pwned)".json';
+    const [bin, args] = syntaxCheckCommand(evil);
+    expect(bin).toBe("node");
+    expect(args[args.length - 1]).toBe(evil);
+    expect(args[1]).not.toContain("pwned");
   });
   it("corre install, build y test, nunca modos watch", () => {
     const c = projectCommands([{ dir: "app", pkg: { scripts: { build: "vite build", dev: "vite", test: "vitest --watch" } }, hasLock: true }], null);

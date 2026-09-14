@@ -83,14 +83,14 @@ export function unreferencedNewFiles(newFiles, corpus, entryHints = "") {
   return out;
 }
 
-// ---------- Sintaxis por tipo de archivo (comando a correr en el runner) ----------
+// ---------- Sintaxis por tipo de archivo: [ejecutable, argumentos] SIN shell ----------
+// La ruta viene del modelo: nunca se interpola en un comando de shell (evita inyección con $(...) o ;).
 export function syntaxCheckCommand(p) {
-  const q = JSON.stringify(p);
-  if (/\.json$/i.test(p) && !/tsconfig|jsconfig/i.test(p)) return `node -e "JSON.parse(require('fs').readFileSync(${q},'utf8'))"`;
-  if (/\.(mjs|cjs|js)$/i.test(p)) return `node --check ${q}`;
-  if (/\.py$/i.test(p)) return `python3 -m py_compile ${q}`;
-  if (/\.toml$/i.test(p)) return `python3 -c "import tomllib,sys;tomllib.load(open(sys.argv[1],'rb'))" ${q}`;
-  if (/\.ya?ml$/i.test(p)) return `python3 -c "import yaml,sys;yaml.safe_load(open(sys.argv[1]))" ${q}`;
+  if (/\.json$/i.test(p) && !/tsconfig|jsconfig/i.test(p)) return ["node", ["-e", "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))", p]];
+  if (/\.(mjs|cjs|js)$/i.test(p)) return ["node", ["--check", p]];
+  if (/\.py$/i.test(p)) return ["python3", ["-m", "py_compile", p]];
+  if (/\.toml$/i.test(p)) return ["python3", ["-c", "import tomllib,sys;tomllib.load(open(sys.argv[1],'rb'))", p]];
+  if (/\.ya?ml$/i.test(p)) return ["python3", ["-c", "import yaml,sys;yaml.safe_load(open(sys.argv[1]))", p]];
   return null;
 }
 

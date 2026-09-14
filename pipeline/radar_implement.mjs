@@ -15,7 +15,7 @@
 // Env: GEMINI_API_KEY(,2), GH_TOKEN (para `gh`), RADAR_REPO (owner/repo), CLOUDFLARE_* (respaldo gratis).
 import fs from "node:fs";
 import path from "node:path";
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import { missingJsDeps, missingPyDeps, unreferencedNewFiles, syntaxCheckCommand, projectCommands, sizeProblem } from "./lib/radar_validate.mjs";
 
 const issueNo = (process.argv[2] || "").trim();
@@ -24,15 +24,16 @@ const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Bo
 if (!/^\d+$/.test(issueNo)) { console.error("Falta el número de issue."); process.exit(2); }
 if (!KEYS.length) { console.error("Falta GEMINI_API_KEY."); process.exit(2); }
 const tf = (u, o = {}, ms = 120000) => fetch(u, { ...o, signal: AbortSignal.timeout(ms) });
-const sh = (c) => execSync(c, { stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 }).toString();
+// Todo lo que lleva rutas o datos va SIN shell (argumentos separados): las rutas las propone el modelo.
+const run = (bin, args) => execFileSync(bin, args, { stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 }).toString();
 const readSafe = (p) => { try { return fs.readFileSync(p, "utf8"); } catch { return ""; } };
 
 // 1) Leer el issue (título + cuerpo).
-const issue = JSON.parse(sh(`gh issue view ${issueNo} -R ${REPO} --json title,body`));
+const issue = JSON.parse(run("gh", ["issue", "view", issueNo, "-R", REPO, "--json", "title,body"]));
 console.log(`Issue #${issueNo}: ${issue.title}`);
 
 // 2) Contexto para Gemini.
-const tracked = sh(`git ls-files`).split("\n").filter(Boolean);
+const tracked = run("git", ["ls-files"]).split("\n").filter(Boolean);
 const mentioned = [...new Set((issue.body.match(/`([^`]+?\.[A-Za-z0-9]+)(?::\d+)?`/g) || [])
   .map((s) => s.replace(/`/g, "").replace(/:\d+$/, "")))]
   .filter((p) => tracked.includes(p));
@@ -183,11 +184,18 @@ const DENY = [/^\.github(\/|$)/i, /^\.git(\/|$)/i, /(^|\/)\.env(\.|$)/i, /(^|\/)
 function safePath(p) {
   const raw = String(p || "").replace(/\\/g, "/").trim();
   if (!raw || raw.startsWith("/") || /^[a-zA-Z]:/.test(raw) || raw.split("/").includes("..")) return null;
+  if (!/^[\w@.\/+*\- ]+$/.test(raw)) return null;   // solo caracteres normales de ruta (sin $ ` ; | " etc.)
   const abs = path.resolve(REPO_ROOT, raw);
   if (abs !== REPO_ROOT && !abs.startsWith(REPO_ROOT + path.sep)) return null;
   const rel = path.relative(REPO_ROOT, abs).replace(/\\/g, "/");
   if (DENY.some((re) => re.test(rel))) return null;
   return rel;
+}
+// ÚNICO punto donde el contenido propuesto por el modelo llega a disco (ruta ya pasada por safePath).
+function writeModelFile(p, content) {
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, content);
+  changed.add(p);
 }
 function applyEdits(edits) {
   const failed = [];
@@ -198,15 +206,14 @@ function applyEdits(edits) {
     let applied = false;
     for (const p of targets) {
       if (typeof e.content === "string" && (e.find == null || e.find === "")) {
-        const existed = fs.existsSync(p);
-        fs.mkdirSync(path.dirname(p), { recursive: true });
-        fs.writeFileSync(p, e.content); changed.add(p); if (!existed && !tracked.includes(p)) created.add(p);
+        if (!tracked.includes(p) && !changed.has(p)) created.add(p);
+        writeModelFile(p, e.content);
         console.log(`  escrito: ${p}`); applied = true; continue;
       }
       if (e.find != null) {
         let before;
         try { before = fs.readFileSync(p, "utf8"); } catch { continue; }
-        if (before.includes(e.find)) { fs.writeFileSync(p, before.split(e.find).join(e.replace ?? "")); changed.add(p); console.log(`  editado: ${p}`); applied = true; }
+        if (before.includes(e.find)) { writeModelFile(p, before.split(e.find).join(e.replace ?? "")); console.log(`  editado: ${p}`); applied = true; }
       }
     }
     if (!applied && !blocked.includes(e)) { console.error(`  ❌ No aplicado: ${e.path} | find: ${e.find?.slice(0, 60) || "N/A"}`); failed.push(e); }
@@ -248,7 +255,12 @@ ${contentsOf(fails.map((m) => m.path)) || "(sin contenido)"}
 if (!changed.size) { console.error("No quedó ningún cambio aplicado."); process.exit(3); }
 
 // ---------- 4) Validación ----------
-const STDLIB = (() => { try { return new Set(JSON.parse(sh(`python3 -c "import sys,json;print(json.dumps(sorted(sys.stdlib_module_names)))"`))); } catch { return new Set(); } })();
+const STDLIB = (() => { try { return new Set(JSON.parse(run("python3", ["-c", "import sys,json;print(json.dumps(sorted(sys.stdlib_module_names)))"]))); } catch { return new Set(); } })();
+function runFile(bin, args, cwd, timeoutMs) {
+  try { execFileSync(bin, args, { cwd, stdio: ["ignore", "pipe", "pipe"], timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 }); return { ok: true, out: "" }; }
+  catch (e) { return { ok: false, out: `${e.stdout || ""}\n${e.stderr || ""}`.toString().split("\n").filter(Boolean).slice(-20).join("\n") || String(e.message) }; }
+}
+const gitAddIntent = () => { if (created.size) { try { run("git", ["add", "-N", "--", ...created]); } catch {} } };
 function runCmd(cmd, cwd, timeoutMs) {
   try { const out = execSync(cmd, { cwd, stdio: ["ignore", "pipe", "pipe"], timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024, env: { ...process.env, CI: "true", HUSKY: "0" } }).toString(); return { ok: true, out }; }
   catch (e) { const out = `${e.stdout || ""}\n${e.stderr || ""}`.toString(); return { ok: false, out: out.split("\n").filter(Boolean).slice(-40).join("\n") || String(e.message) }; }
@@ -275,15 +287,15 @@ function syncLockfiles() {
 function staticProblems() {
   const problems = [];
   const files = [...changed].map((p) => ({ path: p, content: readSafe(p) }));
-  try { if (created.size) sh(`git add -N -- ${[...created].map((q) => JSON.stringify(q)).join(" ")}`); } catch {}
+  gitAddIntent();
   let numstat = "";
-  try { numstat = sh(`git diff --numstat -- ${[...changed].map((q) => JSON.stringify(q)).join(" ")}`); } catch {}
+  try { numstat = run("git", ["diff", "--numstat", "--", ...changed]); } catch {}
   const size = sizeProblem(numstat);
   if (size) problems.push({ kind: "tamaño", detail: `el cambio ${size}` });
   for (const f of files) {
     const c = syntaxCheckCommand(f.path);
     if (!c) continue;
-    const r = runCmd(c, ".", 60000);
+    const r = runFile(c[0], c[1], ".", 60000);
     if (!r.ok) problems.push({ kind: "sintaxis", file: f.path, detail: r.out.slice(-800) });
   }
   const byPkg = {};
@@ -326,7 +338,7 @@ function projectProblems(cmds) {
     baseline = new Set();
     const baseDir = path.resolve(REPO_ROOT, "..", "radar_base");
     try {
-      if (!fs.existsSync(baseDir)) sh(`git worktree add --detach ${JSON.stringify(baseDir)} HEAD`);
+      if (!fs.existsSync(baseDir)) run("git", ["worktree", "add", "--detach", baseDir, "HEAD"]);
       baseline = new Set(runProject(cmds.map((c) => ({ ...c, cwd: path.join(baseDir, c.cwd) }))).map((f) => `${path.relative(baseDir, f.cwd).replace(/\\/g, "/") || "."}|${f.label}`));
     } catch (e) { console.error("  no pude medir main:", String(e.message).slice(0, 120)); }
     if (baseline.size) console.log(`  en main ya fallaban: ${[...baseline].join(", ")}`);
@@ -337,7 +349,8 @@ function projectProblems(cmds) {
 }
 async function reviewGate() {
   let diff = "";
-  try { if (created.size) sh(`git add -N -- ${[...created].map((q) => JSON.stringify(q)).join(" ")}`); diff = sh(`git diff -- ${[...changed].map((q) => JSON.stringify(q)).join(" ")}`).slice(0, 60000); } catch {}
+  gitAddIntent();
+  try { diff = run("git", ["diff", "--", ...changed]).slice(0, 60000); } catch {}
   return callLLM(`Eres un tech lead senior, MUY estricto, que solo acepta cambios profesionales con impacto real para el producto. Revisa este cambio que pretende resolver el issue. Responde SOLO JSON:
 {"verdict":"APROBAR"|"ARREGLAR"|"RECHAZAR","impact":"alto"|"medio"|"bajo","problems":["<problema concreto con archivo y qué corregir>"],"summary":"<1 línea: qué mejora para el usuario o el negocio>"}
 RECHAZAR si: usa APIs, paquetes, modelos, datasets, endpoints o funciones que no existen o no puedes confirmar; afirma algo que el código no hace (auditorías, firmas, seguridad simulada); cambia valores legales o numéricos sin fuente verificable; contradice al repo; o su impacto es BAJO (cosmético, solo texto o README, micro-ajuste de estilo, try/catch aislado, refactor sin beneficio medible).
