@@ -1,3 +1,8 @@
 name = "radar-bot"
 main = "src/index.js"
 compatibility_date = "2024-11-01"
+
+# AI OS: R2 compartido con Video Forge y Viento (pulses del Orchestrator en os/). Solo lectura desde este Worker.
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "video-forge"

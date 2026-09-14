@@ -1,0 +1,46 @@
+name: AI OS — Orchestrator (estado global de Video Forge, Viento y Radar)
+
+# Cada 30 minutos: genera el pulse de Radar desde GitHub, baja los pulses de Video Forge (lo publica el cerebro en
+# vivo) y de Viento (lo publica su Worker), los normaliza con el contrato del OS y arma os/global.json en R2,
+# que es lo que leen las tres Mini Apps. Un pulse viejo aparece como "sin señal", nunca como sano.
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: os-orchestrator
+  cancel-in-progress: true
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  orchestrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Pulse de Radar (GitHub)
+        run: node pipeline/os_pulse_radar.mjs os_pulse_radar.json || echo "Radar - pulse no generado"
+      - name: Bajar pulses de Video Forge y Viento
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/os/pulse/video-forge.json" --file=os_pulse_vf.json --remote 2>/dev/null || echo "sin pulse de Video Forge"
+          npx --yes wrangler@4 r2 object get "$BUCKET/os/pulse/viento.json" --file=os_pulse_viento.json --remote 2>/dev/null || echo "sin pulse de Viento"
+      - name: Orquestar
+        run: node pipeline/os_orchestrator.mjs os_global.json os_pulse_vf.json os_pulse_viento.json os_pulse_radar.json
+      - name: Publicar estado del OS
+        run: |
+          put() { npx --yes wrangler@4 r2 object put "$BUCKET/$1" --file="$2" --remote --content-type application/json; }
+          [ -s os_pulse_radar.norm.json ] && put os/pulse/radar.json os_pulse_radar.norm.json || true
+          put os/global.json os_global.json
