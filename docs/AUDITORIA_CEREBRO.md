@@ -46,8 +46,9 @@ La tanda de las 12:30 UTC (`daily_oddly.yml`) ya no fabrica narrados (`LINEUP_MO
 
 ## Pendiente, fuera de estas correcciones
 
-- **Data Lens:** recomendación con evidencia de pausar la producción diaria y dejar 1 experimento semanal
-  con criterio de 21 días. Decide Juan.
+- **Data Lens: PAUSADO el 2026-09-14 por decisión de Juan.** Apagados `daily_video.yml` y `history_short.yml`;
+  `data_shock.yml` pasa a 1 por semana (lunes 15:00 UTC). Registrado en el ledger (`channel_pause`): se revisa a los
+  21 días; si un experimento supera 500 vistas a los 7 días se reanuda ese formato, si no se evalúa cerrar el canal.
 - **Métricas que la API puede no dar:** impresiones y CTR de Shorts se prueban en cada medición y quedan
   marcadas como no disponibles si fallan. Espectadores recurrentes no se exponen por API.
 - **Umbrales del programa:** confirmar en YouTube Studio para el país del canal.

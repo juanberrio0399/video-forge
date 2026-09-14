@@ -5,7 +5,9 @@ name: Short DATA SHOCK (visual, The Data Lens) — experimento paralelo
 # Registra categoría "data_shock" en el mapa -> El Cerebro compara este formato vs el narrado.
 on:
   schedule:
-    - cron: "0 15 * * *"   # ~10am Bogotá (aparte del narrado de las 12 UTC)
+    # Data Lens en PAUSA desde 2026-09-14: este es el ÚNICO experimento semanal (lunes 15:00 UTC).
+    # Criterio (ledger del cerebro): si uno supera 500 vistas a los 7 días, se reanuda ese formato.
+    - cron: "0 15 * * 1"
   workflow_dispatch:
     inputs:
       topic:
