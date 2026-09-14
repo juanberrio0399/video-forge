@@ -10,13 +10,14 @@ const num = (x) => (x === null || x === undefined || !Number.isFinite(Number(x))
 
 // Metas YPP por canal. kind: stock (se acumula) | rolling (ventana móvil de `window` días).
 export const MONET_GOALS = {
-  "data-lens": { path: "longform", deadline: "2026-12-31", targets: [
+  "data-lens": { path: "longform", deadline: "2026-12-31", goal_tier: "full", targets: [
     { key: "subs", label: "Suscriptores", target: 1000, kind: "stock" },
     { key: "watch_hours_365d", label: "Horas vistas sin Shorts (365 días)", target: 4000, kind: "rolling", window: 365, pace_key: "watch_hours_per_day_28d" },
   ] },
-  "auto2": { path: "shorts", deadline: "2026-12-31", targets: [
-    { key: "subs", label: "Suscriptores", target: 1000, kind: "stock" },
-    { key: "shorts_views_90d", label: "Vistas de Shorts (90 días)", target: 10000000, kind: "rolling", window: 90, pace_key: "shorts_views_per_day_28d" },
+  // Oddly: meta del año = nivel intermedio (decisión de Juan, 2026-09-14). La completa queda como largo plazo.
+  "auto2": { path: "shorts", deadline: "2026-12-31", goal_tier: "expanded", targets: [
+    { key: "subs", label: "Suscriptores", target: 500, kind: "stock" },
+    { key: "shorts_views_90d", label: "Vistas de Shorts (90 días)", target: 3000000, kind: "rolling", window: 90, pace_key: "shorts_views_per_day_28d" },
   ] },
 };
 

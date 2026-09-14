@@ -10,6 +10,7 @@ import fs from "node:fs";
 import { buildLineup, pickToProduce, diffLineups, journalAppend, etDate } from "./lib/lineup.mjs";
 import { dueEntries, applyReview, hitRate, trim, newEntry } from "./lib/ledger.mjs";
 import { scaleGate, median } from "./lib/niche_rank.mjs";
+import { ODDLY_GOAL, weeklyHookExperiment, isoWeek, attachHookVideos, hookLift, goalEntryFields } from "./lib/oddly_goal.mjs";
 
 const rj = (p, d) => { try { const v = JSON.parse(fs.readFileSync(p, "utf8")); return v == null ? d : v; } catch { return d; } };
 const now = Date.now();
@@ -29,6 +30,7 @@ const prev = rj("lineup_prev.json", null);
 let journal = rj("journal.json", []); if (!Array.isArray(journal)) journal = [];
 let ledger = rj("ledger.json", []); if (!Array.isArray(ledger)) ledger = [];
 const dlInv = rj("dl_inv.json", {});
+const yppOd = rj("ypp_od.json", {});
 const thoughts = [];
 
 // Data Lens en PAUSA (decisión de Juan, 2026-09-14): videos publicados desde la pausa y su mejor resultado.
@@ -47,6 +49,8 @@ function observe(entry) {
   if (entry.metric === "top_niche_rel") { const r = rankRows.find((x) => x.key === entry.subject); return r && r.sufficient ? r.rel : null; }
   if (entry.metric === "d7_change_pct") return gate.status === "sin_dato" ? null : gate.change_pct;
   if (entry.metric === "dl_best_views_7d") return dlVideos.length ? dlSince(entry.at, 7).best : null;
+  if (entry.metric === "shorts_views_per_day_28d") return Number.isFinite(Number(yppOd.shorts_views_per_day_28d)) ? Number(yppOd.shorts_views_per_day_28d) : null;
+  if (entry.metric === "hook_lift_pct") { const r = hookLift(entry, viewsAtAge); return r ? r.lift_pct : null; }
   return null;
 }
 const reviewed = [];
@@ -54,6 +58,10 @@ for (const e of dueEntries(ledger, now)) {
   const obs = observe(e);
   ledger = applyReview(ledger, e.id, obs, now);
   const after = ledger.find((x) => x.id === e.id);
+  if (after.type === "hook_experiment" && after.status === "ACERTO") {
+    const r = hookLift(after, viewsAtAge);
+    if (r) ledger = ledger.map((x) => (x.id === after.id ? { ...x, winner: r.winner, verdict_note: `${x.verdict_note} · ganó "${r.winner}" (mediana al día 7: ${r.a.arm} ${r.a.median} vs ${r.b.arm} ${r.b.median})` } : x));
+  }
   reviewed.push({ id: e.id, decision: e.decision, status: after.status, note: after.verdict_note });
   const word = { ACERTO: "acerté", FALLO: "me equivoqué", INCONCLUSO: "no puedo juzgar todavía" }[after.status];
   thoughts.push({ kind: "autocritica", text: `Revisé "${e.decision}": ${word} (${after.verdict_note}).` });
@@ -70,6 +78,16 @@ if (!ledger.some((e) => e.type === "channel_pause" && e.channel === "data-lens")
     next: "si un experimento supera 500 vistas a los 7 días se reanuda ese formato; si no, se evalúa cerrar el canal",
   }, now));
   thoughts.push({ kind: "plan", text: "Pausé la producción diaria de The Data Lens por tu decisión. Queda 1 experimento por semana y lo reviso en 21 días contra 500 vistas a los 7 días." });
+}
+// Meta de Oddly (decisión de Juan, 2026-09-14): nivel intermedio, con revisión del ritmo real a 28 días.
+if (!ledger.some((e) => e.id === "goal-oddly-hito-intermedio")) {
+  const expOpt = ((((monet.channels || {}).auto2 || {}).ypp || {}).tiers || {}).expanded;
+  const needed = expOpt && Array.isArray(expOpt.options) ? ((expOpt.options.find((o) => o.key === "shorts_views_90d") || {}).per_day_needed ?? null) : null;
+  const g = goalEntryFields(yppOd, needed);
+  if (g) {
+    ledger.push(newEntry(g, now));
+    thoughts.push({ kind: "plan", text: `Cambié la meta del año de Oddly Loop al nivel intermedio por tu decisión. Doy la mayoría de cupos al nicho líder, pruebo un par de ganchos distinto cada semana y en 28 días reviso si el ritmo de ${g.baseline}/día llegó a ${g.criterion.value}/día.` });
+  }
 }
 ledger = trim(ledger);
 const dlPause = ledger.find((e) => e.type === "channel_pause" && e.channel === "data-lens") || null;
@@ -92,13 +110,30 @@ const d7Median = d7vals.length >= 5 ? median(d7vals) : null;
 
 // Experimento de UNA variable (gancho) mientras la hipótesis siga abierta; solo en el nicho líder.
 const leader = Object.entries(allocation).sort((a, b) => b[1] - a[1])[0];
-const hq = (Array.isArray(hyps) ? hyps : []).find((h) => h.id === "global-question-hook" && ["NEW", "TESTING", "WEAKENED"].includes(h.status));
-const experiment = hq && leader ? { id: "hook-question-vs-statement", variable: "hook", arms: ["question", "statement"], niche: leader[0], hypothesis: hq.statement } : null;
+// Estrategia del hito intermedio: un par de ganchos DISTINTO cada semana ISO, solo en el nicho líder. Cada video
+// queda atado a su brazo por su franja (ledger) para juzgarlo con las vistas al día 7.
+const experiment = leader ? weeklyHookExperiment(isoWeek(now), leader[0]) : null;
+if (experiment && !ledger.some((e) => e.type === "hook_experiment" && e.subject === experiment.id)) {
+  const base = newEntry({
+    id: `hookexp-${experiment.id}`, type: "hook_experiment", channel: "auto2", subject: experiment.id,
+    decision: `Probar ganchos en ${(niches[leader[0]] || {}).label || leader[0]}: ${experiment.labels[0]} contra ${experiment.labels[1]}`,
+    reason: "estrategia del hito intermedio: encontrar el gancho que más retiene en el nicho líder",
+    evidence: `semana ${experiment.week}; brazos alternados solo en las piezas del nicho líder`,
+    action: "cada pieza del nicho líder lleva uno de los dos ganchos; el resto del plan no cambia",
+    metric: "hook_lift_pct", criterion: { op: ">=", value: ODDLY_GOAL.strategy.hook_min_lift_pct }, confidence: "baja", review_after_days: 14,
+    next: `si un brazo gana por ${ODDLY_GOAL.strategy.hook_min_lift_pct}% o más con al menos ${ODDLY_GOAL.strategy.hook_min_n} videos por brazo, ese gancho queda de referencia`,
+  }, now);
+  ledger.push({ ...base, arms: experiment.arms, labels: experiment.labels, week: experiment.week, videos: { [experiment.arms[0]]: [], [experiment.arms[1]]: [] }, pending: [] });
+  thoughts.push({ kind: "plan", text: `Esta semana pruebo ganchos en ${(niches[leader[0]] || {}).label || leader[0]}: ${experiment.labels[0]} contra ${experiment.labels[1]}. Lo juzgo con las vistas al día 7.` });
+}
 
 // Programados/publicados reales (para reconciliar el plan con lo que ya existe).
 const scheduled = (state.list || [])
   .map((v) => ({ video_id: v.video_id, title: v.title, niche: v.niche, publish_at: v.publish_at || (v.privacy === "public" ? v.pub_iso : null) }))
   .filter((v) => v.publish_at);
+
+// Atar a su brazo los videos del experimento que ya quedaron programados (misma franja y nicho).
+ledger = ledger.map((e) => (e.type === "hook_experiment" && e.status === "PENDIENTE" && (e.pending || []).length ? attachHookVideos(e, scheduled, now) : e));
 
 // Reclamos de producción: vencen a las 3 horas si no apareció el video programado.
 claims = claims.filter((c) => now - Date.parse(c.claimed_at) < 3 * HOUR);
@@ -121,10 +156,11 @@ const lines = [];
 for (const it of pick) {
   const ideaParts = [];
   if (it.idea) ideaParts.push(it.idea.text);
-  if (it.experiment) ideaParts.push(it.experiment.arm === "question" ? "Gancho en forma de PREGUNTA en el primer segundo" : "Gancho en forma de AFIRMACIÓN rotunda en el primer segundo (sin pregunta)");
+  if (it.experiment && experiment && experiment.arm_text[it.experiment.arm]) ideaParts.push(experiment.arm_text[it.experiment.arm]);
   const idea = ideaParts.join(" · ").replace(/[|\n\r]/g, " ").slice(0, 280);
   lines.push([it.niche, it.variant || "narrado", it.slot_utc, idea].join("|"));
   claims.push({ slot_utc: it.slot_utc, niche: it.niche, claimed_at: new Date(now).toISOString() });
+  if (it.experiment) ledger = ledger.map((e) => (e.type === "hook_experiment" && e.subject === it.experiment.id ? { ...e, pending: [...(e.pending || []), { slot_utc: it.slot_utc, niche: it.niche, arm: it.experiment.arm }] } : e));
   thoughts.push({ kind: "produccion", text: `Empiezo a producir ${it.niche_label} para las ${it.slot_et} ET del ${etDate(Date.parse(it.slot_utc), 0)}${it.experiment ? ` (brazo "${it.experiment.arm}" del experimento de gancho)` : ""}${it.idea ? `: ${it.idea.text}` : ""}.` });
 }
 // Se reflejan los reclamos nuevos en los planes que se publican.
@@ -142,6 +178,11 @@ const out = {
   scale_gate: gate,
   ledger: { pending: ledger.filter((e) => e.status === "PENDIENTE").length, hit_rate: hitRate(ledger), reviewed_now: reviewed, recent: ledger.slice(-12).reverse() },
   goal: ch.ypp ? { feasibility: ch.ypp.feasibility, next_milestone: ch.ypp.next_milestone, tiers: ch.ypp.tiers, days_left: ch.ypp.days_left, missing } : null,
+  oddly_goal: (() => {
+    const g = ledger.find((e) => e.id === "goal-oddly-hito-intermedio");
+    const hooks = ledger.filter((e) => e.type === "hook_experiment").slice(-4).map((e) => ({ id: e.subject, week: e.week, arms: e.arms, labels: e.labels, status: e.status, winner: e.winner || null, review_at: e.review_at, videos: Object.fromEntries(Object.entries(e.videos || {}).map(([k, v]) => [k, v.length])) }));
+    return { tier: ODDLY_GOAL.tier, label: ODDLY_GOAL.label, decided_at: ODDLY_GOAL.decided_at, strategy: ODDLY_GOAL.strategy, review: g ? { status: g.status, baseline: g.baseline, target_pace: g.criterion.value, review_at: g.review_at, verdict_note: g.verdict_note } : null, hook_experiments: hooks };
+  })(),
   data_lens: dlPause ? {
     paused: true, since: dlPause.at, review_at: dlPause.review_at, status: dlPause.status, verdict_note: dlPause.verdict_note,
     experiment: "1 Short Data Shock por semana (lunes 15:00 UTC)",

@@ -19,7 +19,7 @@ Blueprint visual: artefacto "Juan AI OS". Actualizado: 2026-09-14.
 
 | # | Pendiente | Sistema | Quién | Estado |
 |---|---|---|---|---|
-| 1 | Estrategia de Oddly Loop: la meta completa va ≈61× lejos y el hito intermedio ≈18× | Video Forge | Juan decide | Abierto |
+| 1 | Estrategia de Oddly Loop: la meta completa iba ≈61× lejos | Video Forge | Juan decidió | Cerrado: opción A (hito intermedio, líder con mayoría de cupos, ganchos semanales, revisión a 28 días) |
 | 2 | El barrido de Radar del 2026-09-07 falló: todos los modelos de Gemini dieron 429. Falta respaldo con otra IA gratis | Radar | IA | Abierto |
 | 3 | PR #34 de ugpp-shield-pro con build-test fallando | Radar | IA / Juan | Abierto |
 | 4 | Dependabot en video-forge: vitest crítico y moderado | GitHub | IA | PR #106 en curso |

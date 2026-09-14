@@ -123,7 +123,11 @@ export function evaluateYpp(snap, history, opts = {}) {
     days_left: Math.max(0, Math.ceil((Date.parse(deadline) - nowMs) / DAY)),
     tiers: { expanded, full },
     next_milestone: next,
-    feasibility: full.status,
+    // Viabilidad de la META elegida (Oddly: nivel intermedio por decisión de Juan); la completa queda aparte.
+    feasibility: (opts.goalTier === "expanded" ? expanded : full).status,
+    feasibility_full: full.status,
+    goal_tier: opts.goalTier === "expanded" ? "expanded" : "full",
+    goal_label: YPP_TIERS[opts.goalTier === "expanded" ? "expanded" : "full"].label,
     missing: [...new Set([...expanded.reqs, ...expanded.options, ...full.reqs, ...full.options].filter((r) => r.status === "sin_dato").map((r) => r.key))],
   };
 }
