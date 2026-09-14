@@ -40,7 +40,7 @@ jobs:
       - uses: actions/checkout@v5        # video-forge: trae el script del motor
         with:
           path: motor
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - uses: actions/setup-python@v6    # tomllib (3.11+) para validar TOML y proyectos Python

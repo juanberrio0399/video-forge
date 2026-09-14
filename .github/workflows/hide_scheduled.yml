@@ -53,7 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         if: inputs.channel == 'both' || inputs.channel == matrix.ch
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         if: inputs.channel == 'both' || inputs.channel == matrix.ch
         with:
           node-version: "22"

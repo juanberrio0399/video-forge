@@ -35,7 +35,7 @@ jobs:
       LINEUP_MODE: "on"    # la producción narrada la hace el Cerebro en vivo (brain_live.yml) con anticipación
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Blitz de Shorts + largo del dia (nombrando la categoria)
