@@ -13,11 +13,16 @@
 import { APP_HTML } from "./miniapp.js";
 import { APP2_HTML } from "./miniapp_v2.js";
 import { osStateFrom } from "../../pipeline/lib/os_contract.mjs";
+import { osShellHtml } from "../../shared/os-shell.mjs";
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     // Mini App (interfaz "tipo app pro" dentro de Telegram).
+    if (url.pathname === "/os") {
+      // AI OS: app común (Pulse · Trabajo · Decisiones) de Video Forge. El panel detallado sigue en /app2.
+      return new Response(osShellHtml("video-forge", { build: env.APP_BUILD }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
+    }
     if (url.pathname === "/app2") {
       // Mini App v2 (monitor del cerebro), en paralelo a /app hasta el cut-over.
       // Build por deploy (APP_BUILD): la app lo compara con /api/state y se recarga sola si quedó vieja en el webview.

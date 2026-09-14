@@ -44,7 +44,10 @@ const agents = [
 
 // ---- Actividad: la bitácora del cerebro (eventos reales) + fallos de ejecución ----
 const AGENT_BY_KIND = { plan: "Content Agent", produccion: "Publishing Agent", autocritica: "Analytics Agent", ciclo: "Content Agent" };
-const activity = (Array.isArray(journal) ? journal : []).slice(-20).map((j) => ({ at: j.at, agent: AGENT_BY_KIND[j.kind] || "Content Agent", text: j.text, kind: j.kind, trust: "executed" }));
+// Sin ruido: si la bitácora repite el mismo texto, queda solo el más reciente.
+const seenText = new Set();
+const journalRecent = (Array.isArray(journal) ? journal : []).slice(-60).reverse().filter((j) => { const k = String(j.text || ""); if (seenText.has(k)) return false; seenText.add(k); return true; }).slice(0, 20).reverse();
+const activity = journalRecent.map((j) => ({ at: j.at, agent: AGENT_BY_KIND[j.kind] || "Content Agent", text: j.text, kind: j.kind, trust: "executed" }));
 for (const r of (Array.isArray(runs) ? runs : []).filter((x) => x.conclusion === "failure" && now - Date.parse(x.createdAt) < 24 * 3600e3)) {
   activity.push({ at: r.updatedAt || r.createdAt, agent: "Orchestrator", text: `Falló: ${r.workflowName}`, kind: "error", trust: "executed", result: "revisar el run" });
 }

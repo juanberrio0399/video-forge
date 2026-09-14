@@ -24,6 +24,5 @@ for (const f of pulseFiles) {
 const global = mergeGlobal(pulses, now, { maxAgeMin: 180 });
 global.orchestrator = { pulses_ok: pulses.length, problems };
 fs.writeFileSync(outF || "os_global.json", JSON.stringify(global, null, 2));
-console.log(`orchestrator: ${global.status} · "${global.headline}" · sistemas ${global.systems.map((s) => `${s.system}=${s.status}${s.stale ? "(sin señal)" : ""}`).join(" ")} · decisiones ${global.counts.needs} · activos ${global.counts.active}`);
+console.log(`orchestrator: ${global.status} · sistemas ${global.systems.map((s) => `${s.system}=${s.status}${s.stale ? "(sin señal)" : ""}`).join(" ")} · decisiones ${global.counts.needs} · activos ${global.counts.active}`);
 if (problems.length) console.log(`  problemas: ${problems.join(" | ")}`);
-if (global.priority) console.log(`  prioridad: [${global.priority.system}] ${global.priority.title}`);
