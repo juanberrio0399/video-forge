@@ -332,5 +332,11 @@ export function withOsBar(html, label) {
   const bar = '<div id="os-bar" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0A0D12;color:#E7ECF3;font:600 14px -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;border-bottom:1px solid #232C38;position:relative;z-index:9999">' +
     '<a href="/os" style="color:#A594FF;text-decoration:none;white-space:nowrap">&#8249; Cerebro</a><span style="color:#687588">/</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
     String(label).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])) + '</span></div>';
-  return String(html).replace(/<body[^>]*>/, (m) => m + bar);
+  // Sin expresiones regulares sobre HTML externo (CodeQL: evita ReDoS con muchos "<body").
+  const src = String(html);
+  const i = src.indexOf("<body");
+  if (i < 0) return bar + src;
+  const j = src.indexOf(">", i);
+  if (j < 0) return src + bar;
+  return src.slice(0, j + 1) + bar + src.slice(j + 1);
 }

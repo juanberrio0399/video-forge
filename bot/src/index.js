@@ -10,6 +10,7 @@
  *  - El GitHub token vive como secret del Worker, nunca en el codigo.
  */
 
+import { WorkerEntrypoint } from "cloudflare:workers";
 import { APP_HTML } from "./miniapp.js";
 import { APP2_HTML } from "./miniapp_v2.js";
 import { osStateFrom, applyStaleness } from "../../pipeline/lib/os_contract.mjs";
@@ -1282,6 +1283,24 @@ async function handleMessage(message, env) {
     });
   }
 
+  // AI OS en un solo bot: comandos de la tienda y accesos directos al cerebro y a Radar.
+  {
+    const c0 = text.split(/\s+/)[0].toLowerCase().replace(/@.*$/, "");
+    if (env.VIENTO && ["/pedidos", "/pautas", "/fases", "/analiza", "/creativo", "/tienda"].includes(c0)) {
+      const t2 = c0 === "/tienda" ? text.replace(/^\/tienda(@\S+)?/i, "/estado") : text;
+      await env.VIENTO.fetch(new Request("https://os.internal/api/tg", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: { ...message, text: t2 } }) }));
+      return;
+    }
+    if (c0 === "/radar" || c0 === "/cerebro" || c0 === "/os") {
+      const isRadar = c0 === "/radar";
+      return tg(env, "sendMessage", {
+        chat_id: chatId,
+        text: isRadar ? "📡 Radar: tus repos, mejoras y PRs listos para revisar." : "🧠 El cerebro: qué decidió, por qué y qué te espera.",
+        reply_markup: { inline_keyboard: [[{ text: isRadar ? "📡 Abrir Radar" : "🧠 Abrir el cerebro", web_app: { url: "https://video-forge-bot.tienvo.workers.dev" + (isRadar ? "/p/radar?from=os" : "/os") } }]] },
+      });
+    }
+  }
+
   // Fase 8 — MODO RECETA: si esta recolectando una receta, TODO (fotos/videos/texto) entra a
   // la RECETA (en orden), NO al retoque. Se sale con /listo (arma el reel) o /cancelar.
   {
@@ -1412,6 +1431,11 @@ async function handleCallback(cb, env) {
   const data = cb.data || "";
   if (!isOwner(chatId, env)) {
     return tg(env, "answerCallbackQuery", { callback_query_id: cb.id, text: "No autorizado" });
+  }
+  // Botones de la tienda (llegan con prefijo "v:"): los resuelve la tienda por el canal interno y ella responde.
+  if (data.startsWith("v:") && env.VIENTO) {
+    await env.VIENTO.fetch(new Request("https://os.internal/api/tg", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ callback_query: { ...cb, data: data.slice(2) } }) }));
+    return;
   }
   // Cierra el "relojito" del boton de inmediato.
   await tg(env, "answerCallbackQuery", { callback_query_id: cb.id });
@@ -1610,6 +1634,11 @@ async function sendMenu(env, chatId) {
   await tg(env, "setMyCommands", {
     commands: [
       { command: "start", description: "🏠 Menú" },
+      { command: "cerebro", description: "🧠 Abrir el cerebro (AI OS)" },
+      { command: "tienda", description: "🛍️ Estado de la tienda" },
+      { command: "pedidos", description: "🧾 Últimos pedidos" },
+      { command: "pautas", description: "📣 Campañas de Meta" },
+      { command: "radar", description: "📡 Repos y PRs" },
       { command: "voz", description: "🎙️ Generar la narración" },
       { command: "render", description: "🎬 Renderizar el video (por fases)" },
       { command: "receta", description: "🍳 Armar un reel de receta" },
@@ -2079,4 +2108,34 @@ async function finalizeVoice(env, chatId, name) {
     chat_id: chatId,
     text: `✅ Voz guardada como "${slug}". La usaré para narrar (ej: los reels de recetas). Manda otra voz cuando quieras.`,
   });
+}
+
+// Relé de Telegram del AI OS (SOLO por Service Binding; no tiene URL pública). La tienda manda sus avisos por
+// este bot único. Sus botones llevan el prefijo "v:" para que handleCallback se los devuelva a la tienda.
+export class OSBot extends WorkerEntrypoint {
+  async fetch(request) {
+    const env = this.env;
+    const m = new URL(request.url).pathname.match(/^\/tg\/([A-Za-z]+)$/);
+    const allowed = ["sendMessage", "sendPhoto", "sendDocument", "editMessageText", "editMessageCaption", "editMessageReplyMarkup", "answerCallbackQuery", "deleteMessage"];
+    if (!m || !allowed.includes(m[1])) return new Response(JSON.stringify({ ok: false, description: "método no permitido" }), { status: 400, headers: { "content-type": "application/json" } });
+    const prefix = (mk) => {
+      try {
+        const o = typeof mk === "string" ? JSON.parse(mk) : mk;
+        if (o && Array.isArray(o.inline_keyboard)) o.inline_keyboard.forEach((row) => (row || []).forEach((b) => { if (b && b.callback_data && !String(b.callback_data).startsWith("v:")) b.callback_data = ("v:" + b.callback_data).slice(0, 64); }));
+        return o;
+      } catch { return mk; }
+    };
+    const ct = request.headers.get("content-type") || "";
+    let init;
+    if (ct.includes("multipart/form-data")) {
+      const fd = await request.formData();
+      if (fd.has("reply_markup")) fd.set("reply_markup", JSON.stringify(prefix(fd.get("reply_markup"))));
+      init = { method: "POST", body: fd };
+    } else {
+      const body = await request.json().catch(() => ({}));
+      if (body && body.reply_markup) body.reply_markup = prefix(body.reply_markup);
+      init = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) };
+    }
+    return fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${m[1]}`, init);
+  }
 }
