@@ -25,7 +25,8 @@ const T = L.today || { items: [], summary: {} };
 const M = L.tomorrow || { items: [], summary: {} };
 const oddly = (monet.channels && monet.channels.auto2) || {};
 const ypp = oddly.ypp || null;
-const full = ypp && ypp.tiers && ypp.tiers.full;
+// Requisitos de la META elegida (Oddly: nivel intermedio desde 2026-09-14).
+const full = ypp && ypp.tiers && ypp.tiers[(ypp && ypp.goal_tier) || "full"];
 const shortsReq = full ? [...(full.reqs || []), ...(full.options || [])].find((r) => r.key === "shorts_views_90d") : null;
 const subsReq = full ? (full.reqs || []).find((r) => r.key === "subs") : null;
 
@@ -62,13 +63,13 @@ const tasks = produce.slice(0, 8).map((r) => ({
 
 // ---- Decisiones (solo estratégicas) ----
 const needs = [];
-if (ypp && ["improbable", "en_riesgo"].includes(ypp.feasibility) && shortsReq && shortsReq.per_day_actual != null) {
-  const gap = shortsReq.per_day_needed && shortsReq.per_day_actual ? Math.round(shortsReq.per_day_needed / shortsReq.per_day_actual) : null;
+// La meta ya la decidió Juan (nivel intermedio). Solo vuelve a pedir criterio si la revisión de 28 días falla.
+const goalReview = L.oddly_goal && L.oddly_goal.review;
+if (goalReview && goalReview.status === "FALLO") {
   needs.push({
-    id: "vf-strategy-oddly", title: "Estrategia de Oddly Loop", severity: ypp.feasibility === "improbable" ? "warn" : "info", autonomy: "REVIEW",
-    why: `Al ritmo actual la monetización completa no llega antes del ${ypp.deadline}. Producir más no cierra la brecha.`,
-    evidence: `Ritmo ${shortsReq.pace_source === "28d" ? "de 28 días" : "de la ventana"}: ${Math.round(shortsReq.per_day_actual).toLocaleString("es")}/día · necesario ${Math.round(shortsReq.per_day_needed).toLocaleString("es")}/día${gap ? ` (≈${gap}×)` : ""}`,
-    impact: "Define si la meta de fin de año es alcanzable", risk: "high",
+    id: "vf-goal-review", title: "El hito intermedio no duplicó el ritmo", severity: "warn", autonomy: "REVIEW",
+    why: "La estrategia de concentrar cupos en el líder y probar ganchos no alcanzó el criterio de 28 días.",
+    evidence: goalReview.verdict_note || "", impact: "Hace falta otra estrategia para la meta del año", risk: "high",
     actions: [{ id: "open-meta", label: "Ver análisis", kind: "open" }],
   });
 }
@@ -79,6 +80,15 @@ if (dl && dl.paused && dl.review_at && Date.parse(dl.review_at) - now < 3 * 8640
 
 // ---- Insights con qué/por qué/impacto/acción ----
 const insights = [];
+if (L.oddly_goal && shortsReq && shortsReq.per_day_actual != null) {
+  const rv = L.oddly_goal.review;
+  insights.push({
+    what: `Meta del año: ${L.oddly_goal.label}`,
+    why: `Ritmo de 28 días ${Math.round(shortsReq.per_day_actual).toLocaleString("es")}/día; el nivel pide ${Math.round(shortsReq.per_day_needed || 0).toLocaleString("es")}/día hasta el ${ypp.deadline}`,
+    impact: rv ? `Primer hito: ${Math.round(rv.target_pace).toLocaleString("es")}/día al ${String(rv.review_at).slice(0, 10)}` : null,
+    action: "Mayoría de cupos al nicho líder y un par de ganchos distinto cada semana",
+  });
+}
 const lead = (decision.candidates || []).filter((c) => c.sufficient).sort((a, b) => (b.rel || 0) - (a.rel || 0))[0];
 if (lead && lead.rel != null) insights.push({ what: `${lead.label} rinde ${lead.rel}× la mediana del canal`, why: `Mediana de ${lead.median_vpd} vistas/día en videos de 5 a 30 días`, impact: `Recibe ${lead.slots} de ${decision.total} cupos diarios`, action: "Mantener el reparto; se revisa en el ledger en 7 días", confidence: { value: lead.confidence, basis: `${lead.n} videos comparables` } });
 const judged = (Array.isArray(ledger) ? ledger : []).filter((e) => e.status === "ACERTO" || e.status === "FALLO");
@@ -98,7 +108,7 @@ let status = needs.length ? "attention" : "normal";
 if (failures.length >= 3) status = "critical"; else if (failures.length) status = status === "normal" ? "attention" : status;
 const headline = producing.length ? `Produciendo ${producing.length} pieza${producing.length > 1 ? "s" : ""} para mañana`
   : tomorrowReady ? `${tomorrowReady} Shorts listos para mañana` : ready ? `${ready} Shorts salen hoy solos` : "Plan en preparación";
-const sub = ypp ? (ypp.feasibility === "improbable" ? "Todo automático. La meta va lejos al ritmo actual." : "Todo automático. La meta va en camino.") : "Todo automático.";
+const sub = ypp ? `Todo automático. Meta del año: ${(ypp.goal_label || "monetización").toLowerCase()}${ypp.feasibility === "improbable" ? ", lejos al ritmo actual" : ""}.` : "Todo automático.";
 
 const pulse = makePulse({ system: "video-forge", at: new Date(now).toISOString(), status, headline, sub, agents, activity, tasks, needs, insights, metrics }, now);
 const v = validatePulse(pulse);

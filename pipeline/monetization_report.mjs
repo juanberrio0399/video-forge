@@ -17,7 +17,7 @@ function build(chKey, histFile, snapFile) {
   const rd = readiness(hist, MONET_GOALS[chKey], now);
   const wr = warRoom(rd, { windowDays: 60 });
   const last = Array.isArray(hist) && hist.length ? hist[hist.length - 1] : {};
-  const ypp = evaluateYpp(last, hist, { nowMs: now, deadline: MONET_GOALS[chKey].deadline });
+  const ypp = evaluateYpp(last, hist, { nowMs: now, deadline: MONET_GOALS[chKey].deadline, goalTier: MONET_GOALS[chKey].goal_tier });
   const quality = {
     snapshot_at: snap && snap.at || null,
     availability: snap && snap.availability || {},
@@ -41,7 +41,7 @@ const report = {
 fs.writeFileSync(outFile || "monetization_report.json", JSON.stringify(report, null, 2));
 
 const FEAS = { cumplido: "✅ cumplido", en_camino: "🟢 en camino", midiendo: "🟡 midiendo", en_riesgo: "🟠 en riesgo", improbable: "🔴 improbable al ritmo actual", sin_dato: "⚪ sin dato" };
-const tierLine = (y) => `  Nivel intermedio: ${FEAS[y.tiers.expanded.status]} · Completo: ${FEAS[y.tiers.full.status]}`;
+const tierLine = (y) => `  Meta del año (${y.goal_label}): ${FEAS[y.feasibility]}\n  Nivel intermedio: ${FEAS[y.tiers.expanded.status]} · Completo: ${FEAS[y.tiers.full.status]}`;
 const text = [
   "📊 Brain Report — Monetización (requisitos reales por ventana)",
   reportChannel("The Data Lens", dl.rd, dl.wr) + "\n" + tierLine(dl.ypp),

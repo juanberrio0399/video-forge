@@ -17,6 +17,7 @@ import fs from "node:fs";
 import { richReward, proportionalByScore, scoreCandidate } from "./lib/decision.mjs";
 import { rankNiches, scaleGate } from "./lib/niche_rank.mjs";
 import { newEntry, shouldRevert, trim } from "./lib/ledger.mjs";
+import { ODDLY_GOAL, pushLeader } from "./lib/oddly_goal.mjs";
 
 const rj = (p, d) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return d; } };
 const state = rj("state.json", {});
@@ -113,6 +114,21 @@ if (fallback) {
   const cand = survivors.map((k) => ({ key: k, reward: richReward({ vpd: med(k) }, { vpd: top }), samples: nOf(k) }));
   alloc = proportionalByScore(cand, content, { minPerArm: content >= survivors.length ? 1 : 0 }).alloc;
 }
+// Estrategia del hito intermedio (decisión de Juan, 2026-09-14): mayoría de cupos al nicho líder, solo si
+// tiene muestra, rinde claramente sobre el canal y el ledger no pidió revertir el reparto.
+let goalPush = null;
+if (!fallback) {
+  const lead = survivors.slice().sort((a, b) => med(b) - med(a))[0];
+  const revertAlloc = shouldRevert(ledger, "niche_allocation", "auto2");
+  if (lead && row[lead] && row[lead].rel != null && row[lead].rel >= ODDLY_GOAL.strategy.min_rel && !revertAlloc) {
+    const r = pushLeader(alloc, lead, ODDLY_GOAL.strategy.leader_share, 1);
+    alloc = r.alloc;
+    goalPush = { niche: lead, share: ODDLY_GOAL.strategy.leader_share, slots: alloc[lead], of: content, moved: r.moved };
+    if (r.moved) notes.push(`🎯 Hito intermedio: ${row[lead].label} pasa a ${alloc[lead]} de ${content} cupos (${row[lead].rel}x el canal).`);
+  } else if (lead && revertAlloc) {
+    notes.push("↩️ Hito intermedio: no concentro cupos en el líder porque el reparto falló 2 revisiones seguidas.");
+  }
+}
 established.forEach((k) => { if (!(k in alloc)) alloc[k] = 0; });
 const newSpc = { ...alloc };
 if (active) newSpc[active.key] = 1;
@@ -146,6 +162,7 @@ const decision = {
   channel_median_vpd: rank ? rank.channel_median_vpd : null, cohort_size: rank ? rank.cohort_size : 0,
   excluded_inferred: rank ? rank.excluded_inferred : 0,
   scale_gate: gate, scale_reverted: reverted, experiment: active,
+  goal: { tier: ODDLY_GOAL.tier, label: ODDLY_GOAL.label, decided_at: ODDLY_GOAL.decided_at, push: goalPush },
   candidates, recommended_allocation: newSpc, notes,
   note: "Motor único: este reparto es la cadencia que ejecuta la producción. HECHO: mediana y n de la cohorte. INFERENCIA: score y corte.",
 };

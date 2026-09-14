@@ -228,7 +228,7 @@ export const APP2_HTML = `<!doctype html>
   function goalStrip(ch){
     var y=ypp(ch); if(!y) return "";
     var f=FEAS[y.feasibility]||FEAS.sin_dato;
-    return '<div class="card tap" data-go="meta"><div class="row"><div><b>Meta de monetización</b><div class="muted">Próximo hito: '+(y.next_milestone==="expanded"?"nivel intermedio":"monetización completa")+' · quedan '+y.days_left+' días</div></div>'+feasPill(y.feasibility)+'</div></div>';
+    return '<div class="card tap" data-go="meta"><div class="row"><div><b>Meta del año: '+(y.goal_tier==="expanded"?"nivel intermedio":"monetización completa")+'</b><div class="muted">Quedan '+y.days_left+' días'+(y.goal_tier==="expanded"?' · el ritmo se revisa a los 28 días':'')+'</div></div>'+feasPill(y.feasibility)+'</div></div>';
   }
   function vivoDataLens(){
     var D=live()&&live().data_lens;
@@ -325,14 +325,27 @@ export const APP2_HTML = `<!doctype html>
     var rows=Object.keys(names).map(function(k){ var ok=av[k]; return '<div class="row" style="padding:5px 0"><span style="font-size:13px">'+names[k]+'</span>'+(ok===true?'<span class="pill p-ok">medido</span>':ok===false?'<span class="pill p-bad">no disponible</span>':'<span class="pill p-none">sin medir</span>')+'</div>'; }).join("");
     return '<h2>Calidad de los datos</h2><div class="card">'+rows+(q.snapshot_at?'<div class="muted" style="margin-top:6px">Medido '+ago(q.snapshot_at)+' · Analytics va unos 3 días atrás</div>':'')+'</div>';
   }
+  function goalPlanCard(){
+    var G=live()&&live().oddly_goal; if(!G) return "";
+    var rv=G.review, hx=G.hook_experiments||[];
+    var h='<div class="row"><b>Estrategia del hito</b><span class="pill p-plan">Decidida el '+esc(G.decided_at)+'</span></div>';
+    h+='<div class="muted" style="margin-top:6px">Mayoría de cupos para el nicho líder y un par de ganchos distinto cada semana, juzgado con las vistas al día 7.</div>';
+    if(rv) h+='<div class="req"><div class="row" style="align-items:flex-start"><span style="font-size:13px;font-weight:700">Duplicar el ritmo de Shorts en 28 días</span>'+verdPill(rv.status)+'</div><div class="muted num" style="margin-top:3px">De '+num(rv.baseline)+' a '+num(rv.target_pace)+' vistas al día · se revisa el '+esc(String(rv.review_at).slice(0,10))+'</div></div>';
+    hx.slice().reverse().forEach(function(x){
+      var v=x.videos||{}, arms=x.arms||[], lb=x.labels||[];
+      h+='<div class="req"><div class="row" style="align-items:flex-start"><span style="font-size:13px;font-weight:700">Ganchos '+esc(x.week||"")+'</span>'+verdPill(x.status)+'</div><div class="muted num" style="margin-top:3px">'+arms.map(function(a,i){return esc(lb[i]||a)+': '+(v[a]||0)+' videos';}).join(" · ")+(x.winner?' · ganó '+esc(lb[arms.indexOf(x.winner)]||x.winner):'')+'</div></div>';
+    });
+    return '<div class="card">'+h+'</div>';
+  }
   function metaHtml(){
     if(!BR) return skeleton()+skeleton();
     var y=ypp(curCh);
     if(!y) return '<div class="card muted" style="margin-top:14px">La medición de los requisitos por ventana corre a diario a las 15:30 UTC.</div>';
     var f=FEAS[y.feasibility]||FEAS.sin_dato;
-    var msg={improbable:"Al ritmo actual no se llega antes del "+y.deadline+". Hace falta cambiar de estrategia, no solo producir más.",en_riesgo:"Se puede llegar, pero el ritmo actual no alcanza con margen.",en_camino:"El ritmo actual alcanza antes del plazo.",cumplido:"Requisitos cumplidos: falta la revisión de YouTube.",sin_dato:"Faltan datos para juzgar la viabilidad.",midiendo:"Aún no hay suficientes días de historia para medir el ritmo."}[y.feasibility]||"";
+    var msg={improbable:"Al ritmo actual no se llega antes del "+y.deadline+". "+(y.goal_tier==="expanded"?"Estrategia en marcha: mayoría de cupos al nicho líder y un par de ganchos distinto cada semana.":"Hace falta cambiar de estrategia, no solo producir más."),en_riesgo:"Se puede llegar, pero el ritmo actual no alcanza con margen.",en_camino:"El ritmo actual alcanza antes del plazo.",cumplido:"Requisitos cumplidos: falta la revisión de YouTube.",sin_dato:"Faltan datos para juzgar la viabilidad.",midiendo:"Aún no hay suficientes días de historia para medir el ritmo."}[y.feasibility]||"";
     var out='<div class="banner '+f[0]+'"><div class="row"><div class="bt">'+f[2]+'</div><span class="muted">'+y.days_left+' días</span></div><div class="muted" style="margin-top:6px">'+esc(msg)+'</div></div>';
-    out+=tierCard(y.tiers&&y.tiers.expanded,"Nivel intermedio")+tierCard(y.tiers&&y.tiers.full,"Monetización completa");
+    if(y.goal_tier==="expanded") out+=goalPlanCard()+tierCard(y.tiers&&y.tiers.expanded,"Meta del año · Nivel intermedio")+tierCard(y.tiers&&y.tiers.full,"Largo plazo · Monetización completa");
+    else out+=tierCard(y.tiers&&y.tiers.expanded,"Nivel intermedio")+tierCard(y.tiers&&y.tiers.full,"Monetización completa");
     if(curCh==="auto2") out+=allocCard()+ledgerCard();
     out+=qualityCard(curCh);
     out+='<div class="muted" style="margin:10px 2px">Umbrales públicos del programa. Confírmalos en YouTube Studio para tu país.</div>';

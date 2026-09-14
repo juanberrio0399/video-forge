@@ -6,6 +6,7 @@
 // Uso: node pipeline/channel_brain.mjs   (lee dl_state.json, oddly_state.json, channel/direction.json)
 // Salida: brain.txt (resumen para Telegram) + brain.json (verdictos).
 import fs from "node:fs";
+import { MONET_GOALS } from "./lib/monetization.mjs";
 
 const rj = (p, d) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return d; } };
 const dl = rj("dl_state.json", {});
@@ -108,12 +109,15 @@ if (nTest < MIN_TEST) {
 // Cuánto/día hace falta de subs y vistas para cumplir YPP antes del 31-dic → qué tan fuerte empujar.
 const DEADLINE = Date.parse("2026-12-31T23:59:59Z");
 const daysLeft = Math.max(1, Math.ceil((DEADLINE - now) / 86400000));
+// Oddly empuja contra SU meta del año (nivel intermedio desde 2026-09-14), no contra la completa.
+const OD_T = Object.fromEntries(MONET_GOALS.auto2.targets.map((t) => [t.key, t.target]));
+const OD_SUBS_T = OD_T.subs || 1000, OD_VIEWS_T = OD_T.shorts_views_90d || 10000000;
 const dlViews = +((dl.channel_stats || {}).total_views ?? (dl.monetization || {}).views) || 0;
-const monetLine = (subs, views, viewsTarget) => {
-  const subPace = (Math.max(0, 1000 - subs) / daysLeft).toFixed(1);
+const monetLine = (subs, views, viewsTarget, subsTarget = 1000) => {
+  const subPace = (Math.max(0, subsTarget - subs) / daysLeft).toFixed(1);
   const vPace = Math.ceil(Math.max(0, viewsTarget - views) / daysLeft);
-  const ok = subs >= 1000 && views >= viewsTarget;
-  return `💰 meta fin-2026 (${daysLeft}d): subs ${subs}/1000 (~${subPace}/día) · vistas ${views.toLocaleString()}/${viewsTarget.toLocaleString()} (~${vPace.toLocaleString()}/día) ${ok ? "✅ elegible" : "🔴 hay que empujar"}`;
+  const ok = subs >= subsTarget && views >= viewsTarget;
+  return `💰 meta fin-2026 (${daysLeft}d): subs ${subs}/${subsTarget} (~${subPace}/día) · vistas ${views.toLocaleString()}/${viewsTarget.toLocaleString()} (~${vPace.toLocaleString()}/día) ${ok ? "✅ elegible" : "🔴 hay que empujar"}`;
 };
 
 const lines = [
@@ -122,7 +126,7 @@ const lines = [
   `📺 Oddly Loop: ${odVerdict}`,
   `   ${odMsg}`,
   `   ${trendLine(odTrend)}`,
-  `   ${monetLine(odSubs, odViews, 10000000)}`,
+  `   ${monetLine(odSubs, odViews, OD_VIEWS_T, OD_SUBS_T)}`,
   "",
   `📊 The Data Lens: ${dlVerdict}`,
   `   ${dlMsg}`,
@@ -136,9 +140,9 @@ if (restructure) lines.push("", "⚠️ ACCION: The Data Lens necesita REESTRUCT
 // El ritmo/día necesario ya sube solo cada día que pasa (need / daysLeft con deadline fijo).
 lines.push("", "🎯 Meta fin-2026 FIJA — no se alarga. Si un canal va atrás, se ESCALA (sí o sí): Oddly = más volumen del ganador; Data Lens = reestructurar el formato. El ritmo/día necesario sube solo con cada día que pasa.");
 // Señal para el optimizador: cuánta agresividad de volumen empujar en Oddly (a mayor brecha vs meta, más).
-const odSubsPerDay = +(Math.max(0, 1000 - odSubs) / daysLeft).toFixed(2);
-const odViewsPerDay = Math.ceil(Math.max(0, 10000000 - odViews) / daysLeft);
-const odGap = odSubs >= 1000 && odViews >= 10000000 ? 0 : 1;   // aún no elegible -> empujar
+const odSubsPerDay = +(Math.max(0, OD_SUBS_T - odSubs) / daysLeft).toFixed(2);
+const odViewsPerDay = Math.ceil(Math.max(0, OD_VIEWS_T - odViews) / daysLeft);
+const odGap = odSubs >= OD_SUBS_T && odViews >= OD_VIEWS_T ? 0 : 1;   // aún no elegible -> empujar
 const aggressiveness = {
   at: new Date().toISOString(), deadline: "2026-12-31", deadline_fixed: true, days_left: daysLeft,
   oddly: { behind: !!odGap, subs: odSubs, subs_per_day_needed: odSubsPerDay, views_per_day_needed: odViewsPerDay,
