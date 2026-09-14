@@ -43,7 +43,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
-      - uses: actions/setup-python@v6    # tomllib (3.11+) para validar TOML y proyectos Python
+      - uses: actions/setup-python@v7    # tomllib (3.11+) para validar TOML y proyectos Python
         with:
           python-version: "3.12"
       - name: Preparar validadores
