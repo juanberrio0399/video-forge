@@ -2,7 +2,8 @@ name: Deploy radar-bot (Cloudflare)
 
 # Despliega el Worker del RADAR-BOT (control del radar por Telegram) a Cloudflare, carga sus
 # secretos y registra el webhook. Requiere estos GitHub Secrets:
-#   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, RADAR_BOT_TOKEN (bot nuevo de BotFather),
+#   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID. El bot de Radar se borró (2026-09-14): Radar vive dentro del
+#   bot único del AI OS (Video Forge), que sirve su panel por el canal interno OSGateway.
 #   GH_TOKEN, OWNER_CHAT_ID, TELEGRAM_WEBHOOK_SECRET
 
 on:
@@ -37,35 +38,12 @@ jobs:
 
       - name: Cargar secretos del Worker
         env:
-          S_TELEGRAM_BOT_TOKEN: ${{ secrets.RADAR_BOT_TOKEN }}
           S_GH_TOKEN: ${{ secrets.GH_TOKEN }}
           S_OWNER_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
           S_TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
         run: |
           put(){ for i in 1 2 3; do printf '%s' "$2" | npx --yes wrangler@4 secret put "$1" && return 0; echo "reintento $1 ($i)"; sleep 10; done; echo "no pude poner $1"; return 1; }
-          put TELEGRAM_BOT_TOKEN "$S_TELEGRAM_BOT_TOKEN"
           put GH_TOKEN "$S_GH_TOKEN"
           put OWNER_CHAT_ID "$S_OWNER_CHAT_ID"
           put TELEGRAM_WEBHOOK_SECRET "$S_TELEGRAM_WEBHOOK_SECRET"
-
-      - name: Registrar webhook de Telegram
-        run: |
-          URL=$(grep -oE 'https://[a-zA-Z0-9._-]+\.workers\.dev' deploy.log | head -1)
-          if [ -z "$URL" ]; then echo "No pude leer la URL del Worker"; exit 1; fi
-          echo "Worker URL: $URL"
-          RESP=$(curl -s "https://api.telegram.org/bot${{ secrets.RADAR_BOT_TOKEN }}/setWebhook" \
-            --data-urlencode "url=${URL}/webhook" \
-            --data-urlencode "secret_token=${{ secrets.TELEGRAM_WEBHOOK_SECRET }}")
-          echo "Telegram: $RESP"
-          echo "$RESP" | grep -q '"ok":true' || { echo "setWebhook falló"; exit 1; }
-          # Botón de menú del bot -> abre la Mini App (forma confiable de adjuntarla).
-          MB=$(curl -s "https://api.telegram.org/bot${{ secrets.RADAR_BOT_TOKEN }}/setChatMenuButton" \
-            --data-urlencode 'menu_button={"type":"web_app","text":"Radar","web_app":{"url":"'"$URL"'/os?v='"${GITHUB_SHA::7}"'"}}')
-          echo "MenuButton: $MB"
-          # Identidad del bot: descripción (chat vacío), "about" (perfil) y comandos.
-          TB="https://api.telegram.org/bot${{ secrets.RADAR_BOT_TOKEN }}"
-          curl -s "$TB/setMyShortDescription" --data-urlencode "short_description=Vigila tus repos: novedades, mejoras y PRs listos para revisar y mergear desde el celular." >/dev/null
-          curl -s "$TB/setMyDescription" --data-urlencode "description=📡 Radar del proyecto. Cada semana barre tus repositorios y te deja las novedades, mejoras, riesgos de seguridad y oportunidades de crecimiento como tareas. Ábrelo con el botón de menú para revisar y aprobar el flujo Ejecutar → Revisar → Merge, todo desde el celular." >/dev/null
-          curl -s "$TB/setMyCommands" --data-urlencode 'commands=[{"command":"radar","description":"📡 Abrir el panel del Radar"},{"command":"start","description":"Iniciar y abrir el Radar"}]' >/dev/null
-          echo "Identidad del bot (descripción + comandos) actualizada."
-          echo "✅ radar-bot desplegado, webhook + botón de menú en $URL/app"
+      # Sin webhook ni menú: el bot de Radar ya no existe; se usa desde el bot único (/p/radar).
