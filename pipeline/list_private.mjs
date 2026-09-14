@@ -1,6 +1,7 @@
 // list_private.mjs — imprime (CSV) los video_ids PRIVADOS SIN programar del canal (backlog por publicar).
 // Excluye los que ya tienen publishAt futuro (programados) y los ocultos (channel/<hidden>.json si se pasa).
 // Uso: node pipeline/list_private.mjs [hidden_r2_key]   (usa YT_* del canal; para Oddly el workflow mapea YT2_*)
+import { readHiddenFile, parseHidden, backlogToSchedule } from "./lib/hidden.mjs";
 const { YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN } = process.env;
 const BUCKET = process.env.BUCKET || "video-forge";
 const hiddenKey = process.argv[2] || "";
@@ -12,10 +13,16 @@ async function token() {
 }
 const tok = await token(); const H = { Authorization: `Bearer ${tok}` };
 
-let hidden = new Set();
-if (hiddenKey && CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_API_TOKEN) {
-  try { const r = await tf(`https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets/${BUCKET}/objects/${encodeURIComponent(hiddenKey)}`, { headers: { Authorization: `Bearer ${CLOUDFLARE_API_TOKEN}` } }); if (r.ok) { const j = await r.json(); if (Array.isArray(j)) hidden = new Set(j); } } catch {}
+// Lista de ocultos: FALLA CERRADO. Si se pidió y no se puede leer, no se lista nada (antes contaba como vacía
+// y el sanador podía programar y publicar videos ocultos).
+let hidden = null;
+if (process.env.HIDDEN_FILE) hidden = readHiddenFile(process.env.HIDDEN_FILE);
+else if (!hiddenKey) hidden = new Set();
+else if (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_API_TOKEN) {
+  try { const r = await tf(`https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets/${BUCKET}/objects/${encodeURIComponent(hiddenKey)}`, { headers: { Authorization: `Bearer ${CLOUDFLARE_API_TOKEN}` } }); if (r.ok) hidden = parseHidden(await r.text()); } catch {}
 }
+if (!hidden) { process.stderr.write("no pude leer la lista de ocultos: no listo nada para programar (falla cerrado)\n"); process.exit(0); }
+process.stderr.write(`ocultos cargados: ${hidden.size}\n`);
 
 const ch = await (await tf("https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true", { headers: H })).json();
 const up = ch?.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
@@ -26,11 +33,7 @@ do { const j = await (await tf(`https://www.googleapis.com/youtube/v3/playlistIt
 const now = Date.now(); const out = [];
 for (let i = 0; i < ids.length; i += 50) {
   const j = await (await tf(`https://www.googleapis.com/youtube/v3/videos?part=status&id=${ids.slice(i, i + 50).join(",")}`, { headers: H })).json();
-  for (const v of j.items || []) {
-    const st = v.status || {};
-    const sched = st.publishAt && Date.parse(st.publishAt) > now;
-    if (st.privacyStatus !== "public" && !sched && !hidden.has(v.id)) out.push(v.id);
-  }
+  out.push(...backlogToSchedule(j.items || [], hidden, now));
 }
 process.stdout.write(out.join(","));
 process.stderr.write(`\nprivados sin programar: ${out.length}\n`);

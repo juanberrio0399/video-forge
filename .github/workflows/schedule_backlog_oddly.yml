@@ -33,7 +33,9 @@ jobs:
       - name: Descubrir privados + programar cada uno
         run: |
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/best_hours.json" --file=best_hours.json --remote 2>/dev/null || echo '{}' > best_hours.json
-          IDS=$(node pipeline/list_private.mjs "channel/auto2/hidden_videos.json")
+          # Ocultos primero y FALLA CERRADO: sin lista de ocultos no se programa nada.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/hidden_videos.json" --file=hidden_videos.json --remote 2>/dev/null || { echo "No pude leer la lista de ocultos: no programo nada."; exit 0; }
+          IDS=$(HIDDEN_FILE=hidden_videos.json node pipeline/list_private.mjs "channel/auto2/hidden_videos.json")
           echo "IDs: $IDS"
           OCC=$(node pipeline/scheduled_times.mjs)
           N=0
