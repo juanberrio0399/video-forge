@@ -107,7 +107,7 @@ async function buildState(env) {
         for (const is of list) {
           const has = (n) => (is.labels || []).some((l) => l.name === n);
           // invalid = el cambio no pasó la validación (sin PR); rejected = la revisión lo descartó por impacto o por no verificable.
-          issues.push({ number: is.number, title: is.title, url: is.html_url, prio: prioOf(is.body), err: has("motor-fallo"), manual: has("manual"), invalid: has("radar-no-valida"), rejected: has("radar-descartado"), pr: map[String(is.number)] || null });
+          issues.push({ number: is.number, title: is.title, url: is.html_url, prio: prioOf(is.body), err: has("motor-fallo"), manual: has("manual"), invalid: has("radar-no-valida"), rejected: has("radar-descartado"), planned: has("radar-plan"), pr: map[String(is.number)] || null });
         }
         issues.sort((a, b) => rank(a.prio) - rank(b.prio));
       } else { error = true; }
@@ -118,11 +118,11 @@ async function buildState(env) {
 }
 async function doAction(env, action, repo, number) {
   if (action === "run") {
-    // Motor CENTRAL en video-forge, implementa en el repo objetivo (repo) usando el PAT.
-    // Quita las marcas de la corrida anterior ANTES de lanzar: si no, la app ve el ❌/⛔ viejo y avisa de un fallo que no ocurrió.
-    await Promise.all(["motor-fallo", "radar-no-valida", "radar-descartado"].map((l) => gh(env, `/repos/${repo}/issues/${number}/labels/${encodeURIComponent(l)}`, { method: "DELETE" }).catch(() => null)));
-    const r = await gh(env, `/repos/${MOTOR}/actions/workflows/radar_implement.yml/dispatches`,{ method: "POST", body: JSON.stringify({ ref: "main", inputs: { issue: String(number), repo } }) });
-    return (r.ok || r.status === 204) ? "⚙️ Motor lanzado. Tarda unos minutos — te aviso cuando termine." : "❌ No pude lanzar el motor.";
+    // Motor CENTRAL en video-forge en MODO PLAN: deja un plan verificable en el issue (los PRs automáticos están pausados).
+    // Quita las marcas de la corrida anterior ANTES de lanzar: si no, la app ve el estado viejo y avisa de algo que no ocurrió.
+    await Promise.all(["motor-fallo", "radar-no-valida", "radar-descartado", "radar-plan"].map((l) => gh(env, `/repos/${repo}/issues/${number}/labels/${encodeURIComponent(l)}`, { method: "DELETE" }).catch(() => null)));
+    const r = await gh(env, `/repos/${MOTOR}/actions/workflows/radar_implement.yml/dispatches`, { method: "POST", body: JSON.stringify({ ref: "main", inputs: { issue: String(number), repo, mode: "plan" } }) });
+    return (r.ok || r.status === 204) ? "📋 Preparando el plan. Tarda 1-2 minutos — te aviso cuando termine." : "❌ No pude lanzar el motor.";
   }
   if (action === "merge") {
     const pr = (await prMap(env, repo))[String(number)];
@@ -295,7 +295,7 @@ function issueCard(r,is){
   if(summary){
     acts='<div class="waitb" style="background:transparent;color:var(--hint);border:1px dashed var(--line)">📄 Reporte del radar — no requiere acción</div>';
   }else if(running){
-    acts='<div class="waitb"><span class="dot"></span>Motor corriendo… te aviso al terminar</div>';
+    acts='<div class="waitb"><span class="dot"></span>Preparando el plan… te aviso al terminar</div>';
   }else if(is.manual&&!is.pr){
     // Requiere configuración TUYA (MCP, recursos Cloudflare, settings de GitHub, APIs experimentales…).
     // NO se implementa con un PR: no hay Ejecutar ni Merge. Solo abrir el issue con el paso a paso.
@@ -305,9 +305,14 @@ function issueCard(r,is){
     // La revisión lo descartó (bajo impacto o no verificable): leer el motivo y cerrarlo o replantearlo.
     acts='<button class="b" data-act="open" data-url="'+esc(is.url)+'">📋 Ver motivo</button>'
       +'<button class="b d" data-act="close" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">Cerrar issue</button>';
+  }else if(!is.pr&&is.planned){
+    // Plan listo en el issue: leerlo y decidir si se implementa (los PRs automáticos están pausados).
+    acts='<button class="b" data-act="open" data-url="'+esc(is.url)+'">📄 Ver plan</button>'
+      +'<button class="b g" data-act="run" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">🔁 Rehacer plan</button>'
+      +'<button class="b d" data-act="close" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">Descartar</button>';
   }else if(!is.pr){
     acts=(is.invalid?'<button class="b" data-act="open" data-url="'+esc(is.url)+'">📋 Ver errores</button>':'')
-      +'<button class="b" data-act="run" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">'+(is.err||is.invalid?"🔁 Reintentar":"⚙️ Ejecutar")+'</button>'
+      +'<button class="b" data-act="run" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">'+(is.err||is.invalid?"🔁 Reintentar":"📋 Preparar plan")+'</button>'
       +'<button class="b d" data-act="close" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">Descartar</button>';
   }else if(is.pr.draft||is.pr.ciRed){
     // PR que NO está validado del todo: sin botón de merge.
@@ -320,7 +325,7 @@ function issueCard(r,is){
     acts='<button class="b" data-act="merge" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">🔀 Merge</button>'
       +'<button class="b g" data-act="open" data-url="'+esc(is.pr.url)+'">📄 Ver PR</button>';
   }
-  var st=running?'<div class="st" style="color:var(--acc)">⏳ Puede tardar unos minutos — no cierres, te aviso cuando termine</div>':(is.pr?((is.pr.draft||is.pr.ciRed)?'<div class="st" style="color:var(--r)">⛔ PR #'+is.pr.number+' NO VALIDADO · '+(is.pr.ciRed?"su CI falla":"quedó en borrador")+'</div>':'<div class="st">🔧 PR #'+is.pr.number+(is.pr.incomplete?' ⚠️ INCOMPLETO':(is.pr.validated?' · ✅ validado':' · ⚠️ sin validar (versión anterior del motor)'))+(REVIEWED[k]?" · revisado ✓":" · revísalo antes de mergear")+'</div>'):is.rejected?'<div class="st" style="color:var(--hint)">🗑️ Descartado en revisión: poco impacto o no verificable</div>':is.invalid?'<div class="st" style="color:var(--r)">⛔ No pasó la validación — mira los errores o reintenta</div>':(is.manual?'<div class="st" style="color:var(--y)">🖐️ Necesita tu configuración — toca 📋 Ver pasos y hazlo tú</div>':(is.err?'<div class="st" style="color:var(--r)">❌ El motor falló aquí — reintenta o impleméntalo manual</div>':"")));
+  var st=running?'<div class="st" style="color:var(--acc)">⏳ Puede tardar unos minutos — no cierres, te aviso cuando termine</div>':(is.pr?((is.pr.draft||is.pr.ciRed)?'<div class="st" style="color:var(--r)">⛔ PR #'+is.pr.number+' NO VALIDADO · '+(is.pr.ciRed?"su CI falla":"quedó en borrador")+'</div>':'<div class="st">🔧 PR #'+is.pr.number+(is.pr.incomplete?' ⚠️ INCOMPLETO':(is.pr.validated?' · ✅ validado':' · ⚠️ sin validar (versión anterior del motor)'))+(REVIEWED[k]?" · revisado ✓":" · revísalo antes de mergear")+'</div>'):is.rejected?'<div class="st" style="color:var(--hint)">🗑️ Descartado en revisión: poco impacto o no verificable</div>':(is.planned&&!is.manual)?'<div class="st" style="color:var(--acc)">📋 Plan listo — ábrelo para decidir si se implementa</div>':is.invalid?'<div class="st" style="color:var(--r)">⛔ No pasó la validación — mira los errores o reintenta</div>':(is.manual?'<div class="st" style="color:var(--y)">🖐️ Necesita tu configuración — toca 📋 Ver pasos y hazlo tú</div>':(is.err?'<div class="st" style="color:var(--r)">❌ El motor falló aquí — reintenta o impleméntalo manual</div>':"")));
   return '<div class="card issue" style="--pc:'+p.c+'">'
     +'<div class="itop"><span class="ip" style="color:'+p.c+'">'+p.e+" "+p.l+'</span><span class="inum">#'+is.number+'</span></div>'
     +'<div class="ititle">'+esc(is.title)+"</div>"+st
@@ -330,12 +335,13 @@ function issueCard(r,is){
 function repoView(){
   var r=ST.repos[CUR]||{issues:[]},items=r.issues;
   if(FILTER!==null)items=items.filter(function(x){return (x.prio||"none")===FILTER;});
-  var pend=items.filter(function(x){return x.pr&&!x.pr.draft&&!x.pr.ciRed;}),blocked=items.filter(function(x){return x.pr&&(x.pr.draft||x.pr.ciRed);}),invalid=items.filter(function(x){return !x.pr&&x.invalid&&!x.manual;}),rejected=items.filter(function(x){return !x.pr&&x.rejected&&!x.invalid&&!x.manual;}),fail=items.filter(function(x){return !x.pr&&x.err&&!x.manual&&!x.invalid&&!x.rejected;}),manual=items.filter(function(x){return !x.pr&&x.manual;}),todo=items.filter(function(x){return !x.pr&&!x.err&&!x.manual&&!x.invalid&&!x.rejected;}),html="";
+  var pend=items.filter(function(x){return x.pr&&!x.pr.draft&&!x.pr.ciRed;}),blocked=items.filter(function(x){return x.pr&&(x.pr.draft||x.pr.ciRed);}),invalid=items.filter(function(x){return !x.pr&&x.invalid&&!x.manual;}),rejected=items.filter(function(x){return !x.pr&&x.rejected&&!x.invalid&&!x.manual;}),fail=items.filter(function(x){return !x.pr&&x.err&&!x.manual&&!x.invalid&&!x.rejected;}),manual=items.filter(function(x){return !x.pr&&x.manual;}),planned=items.filter(function(x){return !x.pr&&x.planned&&!x.manual&&!x.rejected&&!x.err&&!x.invalid;}),todo=items.filter(function(x){return !x.pr&&!x.err&&!x.manual&&!x.invalid&&!x.rejected&&!x.planned;}),html="";
   if(r.error)html+='<div class="fbar" style="color:var(--r)"><span>⚠️ No pude cargar este repo (GitHub no respondió)</span><button class="link" data-act="refresh">Reintentar ⟳</button></div>';
   if(FILTER!==null){var p=PR[FILTER];html+='<div class="fbar"><span>'+p.e+" "+p.l+" · "+items.length+'</span><button class="link" data-act="clear">Quitar ✕</button></div>';}
   if(fail.length)html+=sec("❌ Falló el motor",fail.length)+fail.map(function(is){return issueCard(r,is);}).join("");
   if(manual.length)html+=sec("🖐️ Requiere tu configuración",manual.length)+manual.map(function(is){return issueCard(r,is);}).join("");
-  if(pend.length)html+=sec("🔧 Validados, por merge",pend.length)+pend.map(function(is){return issueCard(r,is);}).join("");
+  if(planned.length)html+=sec("📋 Planes listos",planned.length)+planned.map(function(is){return issueCard(r,is);}).join("");
+  if(pend.length)html+=sec("🔧 PRs por merge",pend.length)+pend.map(function(is){return issueCard(r,is);}).join("");
   if(blocked.length)html+=sec("⛔ PR no validado",blocked.length)+blocked.map(function(is){return issueCard(r,is);}).join("");
   if(invalid.length)html+=sec("⛔ No pasó la validación",invalid.length)+invalid.map(function(is){return issueCard(r,is);}).join("");
   if(rejected.length)html+=sec("🗑️ Descartado en revisión",rejected.length)+rejected.map(function(is){return issueCard(r,is);}).join("");
@@ -373,21 +379,22 @@ function watchRun(repo,n){
         var rr=s.repos.filter(function(x){return x.repo===repo;})[0];
         var is=rr&&rr.issues.filter(function(x){return x.number===n;})[0];
         if(is&&!is.pr&&(is.invalid||is.rejected)){clearInterval(iv);delete WATCH[k];h("err");render();notify(is.rejected?("🗑️ #"+n+": la revisión lo descartó (poco impacto o no verificable). Toca 📋 Ver motivo."):("⛔ #"+n+": el cambio no pasó la validación, así que no abrí PR. Toca 📋 Ver errores o 🔁 Reintentar."));return;}
+        if(is&&!is.pr&&is.planned){clearInterval(iv);delete WATCH[k];h(is.manual?"err":"ok");render();notify(is.manual?("🖐️ #"+n+": el plan dice que necesita tu configuración. Toca 📋 Ver pasos."):("📋 Plan listo #"+n+". Ábrelo con 📄 Ver plan y decide si se implementa."));return;}
         if(is&&is.pr&&(is.pr.draft||is.pr.ciRed)){clearInterval(iv);delete WATCH[k];h("err");render();notify("⛔ #"+n+": el PR quedó en borrador, NO validado. No lo mergees; ábrelo con 📄 Ver PR.");return;}
         if(is&&is.pr){clearInterval(iv);delete WATCH[k];h("ok");render();notify(is.pr.incomplete?("⚠️ #"+n+": PR creado pero INCOMPLETO. Ábrelo con 👀 Revisar y complétalo antes de mergear."):("✅ Listo #"+n+": el PR quedó creado. Ábrelo con 👀 Revisar y luego 🔀 Merge."));return;}
         if(is&&is.err){clearInterval(iv);delete WATCH[k];h("err");render();notify("❌ El motor falló en #"+n+". Toca 🔁 Reintentar, o impleméntalo a mano. No te quedes esperando.");return;}
       }
-      if(tries>=90){clearInterval(iv);delete WATCH[k];render();notify("⏳ El #"+n+" lleva rato en proceso. Déjalo correr y refresca ⟳; si falla saldrá el ❌, y si queda listo, el PR para mergear.");return;}
+      if(tries>=90){clearInterval(iv);delete WATCH[k];render();notify("⏳ El #"+n+" lleva rato en proceso. Déjalo correr y refresca ⟳; si falla saldrá el ❌, y si queda listo, verás el plan.");return;}
       render();
     }).catch(function(){if(tries>=90){clearInterval(iv);delete WATCH[k];render();}});
   },10000);
 }
 function runAct(repo,n){
   var k=repo+"#"+n;if(WATCH[k])return;
-  h("medium");toast("Lanzando el motor…");
+  h("medium");toast("Preparando el plan…");
   api("/api/action",{action:"run",repo:repo,number:n}).then(function(res){
     if(res.msg&&res.msg.indexOf("❌")>=0){h("err");notify(res.msg);return;}
-    WATCH[k]=1;render();toast("⚙️ Motor corriendo… te aviso cuando termine (unos minutos). Puedes seguir usando la app.");
+    WATCH[k]=1;render();toast("📋 Preparando el plan… te aviso cuando termine (1-2 min). Puedes seguir usando la app.");
     watchRun(repo,n);
   }).catch(function(){h("err");notify("No pude lanzar el motor. Revisa la conexión y reintenta.");});
 }
