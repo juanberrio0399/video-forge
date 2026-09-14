@@ -66,7 +66,7 @@ export const OS_APP_JS = `
     if(!ST){line=ERR?"Sin conexión":"Conectando…";state="idle";}
     else if(!p){line="Sin señal de "+C.name;state="degraded";}
     else if(p.stale){line="Sin señal "+OS.ago(p.at);state="degraded";}
-    else{var act=(p.agents||[]).filter(function(a){return ACTIVE.indexOf(a.state)>=0;}).length;line=plural(act,"agente activo","agentes activos")+" · "+OS.ago(p.at);state=leadState(p);}
+    else{var act=(p.agents||[]).filter(function(a){return ACTIVE.indexOf(a.state)>=0;}).length;line=(act?plural(act,"agente trabajando","agentes trabajando"):"Agentes al día")+" · "+OS.ago(p.at);state=leadState(p);}
     return '<div class="os-id"><div class="os-mark">'+OS.icon(C.icon)+'</div><div style="min-width:0"><div class="os-name">'+E(C.name)+'</div><div class="os-ai">'+OS.dot(state)+'<span>'+E(line)+'</span></div></div></div>'
       +'<button class="os-iconbtn" data-act="refresh" aria-label="Actualizar">'+OS.icon("refresh")+'</button>';
   }
