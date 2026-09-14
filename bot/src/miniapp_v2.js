@@ -430,7 +430,7 @@ export const APP2_HTML = `<!doctype html>
     var typing=curTab==="mas"&&((el("clipCap")&&el("clipCap").value)||(el("unpubId")&&el("unpubId").value));
     var ps=api("/api/state").then(function(r){return r.json();}).then(function(j){
       if(j.error){ ST.error=(j.error==="no autorizado"?"No autorizado: abre la app desde el bot":"Error: "+(j.detail||j.error)); return; }
-      if(j.build&&BUILD!=="__BUILD__"&&BUILD!=="dev"&&j.build!==BUILD){ try{ location.replace(location.pathname+"?v="+encodeURIComponent(j.build)); }catch(e){} return; }
+      if(j.build&&BUILD!=="__BUILD__"&&BUILD!=="dev"&&j.build!==BUILD){ try{ location.replace(location.pathname+"?from=os&v="+encodeURIComponent(j.build)); }catch(e){} return; }
       ST=j;
     }).catch(function(){ ST.error="Sin conexión. Reintento en un minuto."; });
     Promise.all([ps,loadBrain()]).then(function(){ if(!typing) render(); scheduleRefresh(); });

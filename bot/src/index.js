@@ -23,6 +23,11 @@ export default {
       // AI OS: app común (Pulse · Trabajo · Decisiones) de Video Forge. El panel detallado sigue en /app2.
       return new Response(osShellHtml("video-forge", { build: env.APP_BUILD }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
     }
+    // Entradas viejas (/app2, /app) desde botones ya enviados, BotFather o un menú de chat: abren el AI OS.
+    // El panel detallado se abre desde el OS con ?from=os (y así vuelve al OS con el botón atrás).
+    if ((url.pathname === "/app2" || url.pathname === "/app") && url.searchParams.get("from") !== "os") {
+      return new Response(osShellHtml("video-forge", { build: env.APP_BUILD }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
+    }
     if (url.pathname === "/app2") {
       // Mini App v2 (monitor del cerebro), en paralelo a /app hasta el cut-over.
       // Build por deploy (APP_BUILD): la app lo compara con /api/state y se recarga sola si quedó vieja en el webview.
@@ -1487,8 +1492,8 @@ async function handleCallback(cb, env) {
 const KB = {
   home: {
     inline_keyboard: [
-      [{ text: "🚀 Abrir la app", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app2" } }],
-      [{ text: "🕰️ App clásica (v1)", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app" } }],
+      [{ text: "🚀 Abrir Video Forge", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/os" } }],
+      [{ text: "📊 Panel de canales", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app2?from=os" } }],
       [{ text: "🎬 Video", callback_data: "menu:video" }, { text: "📊 Canal", callback_data: "menu:canal" }],
       [{ text: "🖼️ Foto", callback_data: "menu:foto" }, { text: "🎤 Voces", callback_data: "menu:voces" }],
       [{ text: "🍳 Recetas", callback_data: "menu:recetas" }, { text: "❓ Ayuda", callback_data: "menu:ayuda" }],
@@ -1540,7 +1545,7 @@ async function sendMenu(env, chatId) {
   // Boton de menu de Telegram que abre la Mini App (interfaz tipo app).
   await tg(env, "setChatMenuButton", {
     chat_id: chatId,
-    menu_button: { type: "web_app", text: "📊 App", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app2?v=" + encodeURIComponent(String(env.APP_BUILD || "dev")) } },
+    menu_button: { type: "web_app", text: "Video Forge", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/os?v=" + encodeURIComponent(String(env.APP_BUILD || "dev")) } },
   });
   await tg(env, "setMyCommands", {
     commands: [

@@ -328,7 +328,7 @@ function load(first){
   if(first)skeleton();
   api("/api/state").then(function(s){
     if(s.error){document.getElementById("view").innerHTML=empty("🔒",s.error,"Abre la app desde el botón del bot.");return;}
-    if(s.build&&BUILD!=="__BUILD__"&&BUILD!=="dev"&&s.build!==BUILD){ try{ location.replace(location.pathname+"?v="+encodeURIComponent(s.build)); }catch(e){} return; }
+    if(s.build&&BUILD!=="__BUILD__"&&BUILD!=="dev"&&s.build!==BUILD){ try{ location.replace(location.pathname+"?from=os&v="+encodeURIComponent(s.build)); }catch(e){} return; }
     ST=s;render();
   }).catch(function(){document.getElementById("view").innerHTML=empty("⚠️","No pude cargar","Revisa la conexión y toca ⟳ para reintentar.");});
 }
@@ -394,6 +394,10 @@ export default {
       // AI OS: app común de Radar. El panel de repos sigue en /app.
       return new Response(osShellHtml("radar", { build: env.APP_BUILD }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
     }
+    // Entradas viejas (/app, /) desde el botón de /radar ya enviado o BotFather: abren el AI OS. Panel con ?from=os.
+    if ((url.pathname === "/app" || url.pathname === "/") && url.searchParams.get("from") !== "os") {
+      return new Response(osShellHtml("radar", { build: env.APP_BUILD }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
+    }
     if (url.pathname === "/app" || url.pathname === "/") {
       return new Response(APP_HTML.replace("__BUILD__", String(env.APP_BUILD || "dev")), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
     }
@@ -420,7 +424,7 @@ export default {
       if (upd.message) {
         const chatId = String(upd.message.chat.id);
         if (owner && chatId !== owner) return new Response("ok");
-        const appUrl = url.origin + "/app";
+        const appUrl = url.origin + "/os";
         await tg(env, "sendMessage", { chat_id: chatId, text: "📡 *Radar del proyecto*\nTus repos, en una sola vista: novedades, mejoras y PRs listos para revisar.\n\nToca abajo para abrirlo 👇", parse_mode: "Markdown", reply_markup: { inline_keyboard: [[{ text: "📡 Abrir Radar", web_app: { url: appUrl } }]] } });
         return new Response("ok");
       }
