@@ -507,7 +507,7 @@ async function handleApi(request, env, url) {
     const odLikes = state.auto2 ? (state.auto2.list || []).reduce((s, v) => s + (v.likes || 0), 0) : 0;
     const [dlMonet, odMonet] = await Promise.all([
       monetTrack(env, "data-lens", { subs: inv.subs || 0, watch_hours: ((state.totals && state.totals.watch_min) || 0) / 60, views: inv.total_views || 0, likes: dlLikes }).catch(() => null),
-      state.auto2 ? monetTrack(env, "auto2", { subs: state.auto2.subs || 0, shorts_views: state.auto2.total_views || 0, likes: odLikes }).catch(() => null) : Promise.resolve(null),
+      state.auto2 ? monetTrack(env, "auto2", { subs: state.auto2.subs || 0, total_views: state.auto2.total_views || 0 }).catch(() => null) : Promise.resolve(null),
     ]);
     if (dlMonet) state.monet_goal = dlMonet;
     if (state.auto2 && odMonet) state.auto2.monet_goal = odMonet;
@@ -759,10 +759,14 @@ async function handleApi(request, env, url) {
       br("decision.json"), br("monetization_report.json"), od("queue.json"), br("hypotheses.json"), br("hooks.json"),
       dl("scores.json"), dl("ab_tests.json"), dl("alerts.json"), br("creative_bank.json"), br("experiment_report.json"), dl("cross_validation.json"),
       od("scores.json"), od("ab_tests.json"), od("alerts.json"), od("creative_bank.json"), od("experiment_report.json"), od("cross_validation.json"),
+      // Cerebro en vivo (auditoría): plan de hoy/mañana, bitácora, ledger de decisiones y métricas YPP por ventana.
+      od("lineup.json"), br("journal.json"), br("ledger.json"), od("ypp.json"), dl("ypp.json"),
     ];
     const v = await Promise.all(keys.map((k) => r2json(env, k)));
     const N = (x) => x || null;
     return json({
+      live: N(v[17]), journal: Array.isArray(v[18]) ? v[18].slice(-60) : [], ledger: Array.isArray(v[19]) ? v[19].slice(-40) : [],
+      ypp: { "auto2": N(v[20]), "data-lens": N(v[21]) },
       decision: N(v[0]), monetization: N(v[1]), queue: N(v[2]), hypotheses: v[3] || [], hooks: N(v[4]),
       ch: {
         "data-lens": { scores: N(v[5]), ab: N(v[6]), alerts: N(v[7]), bank: N(v[8]), report: N(v[9]), cross: N(v[10]) },
@@ -1108,17 +1112,17 @@ const dlLabel = (title) => DL_LABEL[dlNiche(title)];
 // ===== METAS DE MONETIZACION (YPP) — plazo realista por canal, medido DIA A DIA =====
 // Cada canal su meta segun su enfoque. Editable aqui. El ritmo se mide con los ultimos 7 dias
 // de snapshots (channel/…/monetization_history.json) para saber si vamos en camino o atras.
+// AUDITORÍA BR-01/02: esto es solo una REFERENCIA de totales para la app clásica. Los requisitos reales del
+// YouTube Partner Program por ventana (Shorts 90 días, horas sin Shorts 365 días) los mide ypp_metrics.mjs y
+// los muestra la v2 desde monetization_report.json. Aquí ya no hay metas inventadas (likes / vistas 200k).
 const MONET_GOALS = {
   "data-lens": { path: "longform", deadline: "2026-12-31", targets: [
     { key: "subs", label: "Suscriptores", target: 1000 },
-    { key: "watch_hours", label: "Horas vistas", target: 4000 },
-    { key: "views", label: "Vistas", target: 200000 },
-    { key: "likes", label: "Likes", target: 3000 },
+    { key: "watch_hours", label: "Horas vistas totales (referencia, no es la ventana de 365 días)", target: 4000 },
   ] },
   "auto2": { path: "shorts", deadline: "2026-12-31", targets: [
     { key: "subs", label: "Suscriptores", target: 1000 },
-    { key: "shorts_views", label: "Vistas de Shorts", target: 10000000 },
-    { key: "likes", label: "Likes", target: 100000 },
+    { key: "total_views", label: "Vistas totales (referencia, no son las vistas de Shorts de 90 días)", target: 10000000 },
   ] },
 };
 async function monetTrack(env, chKey, current) {

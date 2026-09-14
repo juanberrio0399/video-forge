@@ -1,7 +1,7 @@
 name: Reporte del canal auto (Oddly Loop / YT2)
 
-# Trae el estado real de Oddly Loop (videos, subs, vistas, minutos) y lo guarda en R2
-# para que la app muestre el canal Auto #2. Cron cada 2h + disparo manual/app.
+# Trae el estado real de Oddly Loop (videos con duración, subs, vistas, minutos), el ranking robusto de
+# nichos y las vistas de cada video a la misma edad (día 3 / día 7), y lo guarda en R2. Cron cada 2h.
 
 on:
   schedule:
@@ -32,19 +32,21 @@ jobs:
       - name: Estado de Oddly Loop
         run: |
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/niche_map.json" --file=niche_map.json --remote 2>/dev/null || echo '{}' > niche_map.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/views_at_age.json" --file=views_at_age.json --remote 2>/dev/null || echo '{}' > views_at_age.json
           node pipeline/report_auto2.mjs
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/state.json" --file=auto2_state.json --remote --content-type application/json
-          # Mejores horas por datos (si el reporte las calculó) -> para el agendado.
-          [ -s best_hours.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/best_hours.json" --file=best_hours.json --remote --content-type application/json || true
-          # Snapshot diario de MONETIZACION (meta): subs + vistas de Shorts. No depende de abrir la app.
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/views_at_age.json" --file=views_at_age.json --remote --content-type application/json || true
+          # Mejores horas por datos (si hubo muestra) -> para el agendado.
+          node -e 'try{const b=require("./best_hours.json");process.exit(b&&Array.isArray(b.hours)&&b.hours.length?0:1)}catch(e){process.exit(1)}' && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/best_hours.json" --file=best_hours.json --remote --content-type application/json || true
+          # Snapshot diario de referencia (NO es requisito YPP: los requisitos por ventana los mide ypp_metrics).
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/monetization_history.json" --file=mh2.json --remote 2>/dev/null || echo '[]' > mh2.json
           node -e '
             const fs=require("fs"); let h=[]; try{h=JSON.parse(fs.readFileSync("mh2.json","utf8"))}catch(e){}; if(!Array.isArray(h))h=[];
             let st={}; try{st=JSON.parse(fs.readFileSync("auto2_state.json","utf8"))}catch(e){}
             const today=new Date().toISOString().slice(0,10);
-            const snap={date:today, subs:Math.round(st.subs||0), shorts_views:Math.round(st.total_views||0)};
-            if(h.length&&h[h.length-1].date===today) h[h.length-1]=snap; else h.push(snap);
+            const snap={date:today, subs:Math.round(st.subs||0), total_views:Math.round(st.total_views||0)};
+            if(h.length&&h[h.length-1].date===today) h[h.length-1]={...h[h.length-1],...snap}; else h.push(snap);
             fs.writeFileSync("mh2.json", JSON.stringify(h.slice(-120)));
-            console.log("Snapshot Oddly (meta):", JSON.stringify(snap));
+            console.log("Snapshot Oddly (referencia):", JSON.stringify(snap));
           '
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/monetization_history.json" --file=mh2.json --remote --content-type application/json

@@ -25,6 +25,8 @@ export function growthDrop(history, key, label, nowMs = Date.now()) {
   const d7 = snapshotNear(hist, nowMs - 7 * DAY);
   const d14 = snapshotNear(hist, nowMs - 14 * DAY);
   if (!now || !d7 || !d14) return null;
+  // Dato ausente NO es cero (auditoría BR-11): sin la clave en los 3 snapshots no hay alerta.
+  if (now[key] == null || d7[key] == null || d14[key] == null) return null;
   const recent = (Number(now[key]) || 0) - (Number(d7[key]) || 0);
   const prior = (Number(d7[key]) || 0) - (Number(d14[key]) || 0);
   if (prior <= 0) return null; // sin base positiva no hay "caída"

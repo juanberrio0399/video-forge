@@ -14,9 +14,10 @@ const monet = read(monetF, {});
 const decision = read(decF, {});
 const ch = (monet.channels && monet.channels[channel]) || {};
 
+// Historial YPP por ventana (ypp_history.json). Claves ausentes no disparan alertas (guarda en growthDrop).
 const historyKeys = channel === "auto2"
-  ? [{ key: "subs", label: "Suscriptores" }, { key: "shorts_views", label: "Vistas de Shorts" }]
-  : [{ key: "subs", label: "Suscriptores" }, { key: "views", label: "Vistas" }];
+  ? [{ key: "subs", label: "Suscriptores" }, { key: "shorts_views_90d", label: "Vistas de Shorts (90 días)" }]
+  : [{ key: "subs", label: "Suscriptores" }, { key: "watch_hours_365d", label: "Horas vistas (365 días)" }];
 
 const alerts = evaluateAlerts({
   channel,

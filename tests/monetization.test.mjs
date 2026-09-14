@@ -64,9 +64,33 @@ describe("warRoom (60 días)", () => {
   });
 });
 
-describe("MONET_GOALS", () => {
-  it("define ambos canales con deadline y targets", () => {
-    expect(MONET_GOALS["data-lens"].targets.length).toBeGreaterThan(0);
-    expect(MONET_GOALS["auto2"].targets.some((t) => t.key === "shorts_views")).toBe(true);
+describe("MONET_GOALS (solo requisitos reales, por ventana)", () => {
+  it("Oddly usa vistas de Shorts de 90 días y Data Lens horas de 365 días", () => {
+    expect(MONET_GOALS["auto2"].targets.some((t) => t.key === "shorts_views_90d" && t.kind === "rolling" && t.window === 90)).toBe(true);
+    expect(MONET_GOALS["data-lens"].targets.some((t) => t.key === "watch_hours_365d" && t.window === 365)).toBe(true);
+  });
+  it("no hay metas inventadas (likes / vistas totales)", () => {
+    const keys = [...MONET_GOALS["auto2"].targets, ...MONET_GOALS["data-lens"].targets].map((t) => t.key);
+    expect(keys).not.toContain("likes");
+    expect(keys).not.toContain("views");
+    expect(keys).not.toContain("shorts_views");
+  });
+});
+
+describe("datos ausentes", () => {
+  it("clave ausente es sin dato, no cero ni 'behind'", () => {
+    const g = { path: "t", deadline: "2026-12-31", targets: [{ key: "shorts_views_90d", label: "S", target: 10000000, kind: "rolling", window: 90 }] };
+    const rd = readiness([{ date: dstr(NOW), subs: 10 }], g, NOW);
+    expect(rd.reqs[0].missing).toBe(true);
+    expect(rd.reqs[0].cur).toBe(null);
+    expect(rd.status).toBe("sin_dato");
+    expect(warRoom(rd).next_action).toMatch(/Sin dato/);
+  });
+  it("ventana móvil compara ritmo sostenido", () => {
+    const g = { path: "t", deadline: "2026-12-31", targets: [{ key: "shorts_views_90d", label: "S", target: 9000000, kind: "rolling", window: 90 }] };
+    const rd = readiness([{ date: dstr(NOW), shorts_views_90d: 900000 }], g, NOW);
+    expect(rd.reqs[0].per_day_actual).toBe(10000);
+    expect(rd.reqs[0].per_day_needed).toBe(100000);
+    expect(rd.reqs[0].on_track).toBe(false);
   });
 });

@@ -4,12 +4,11 @@
 > servidor `bot/src/index.js` (Worker: `/app`, `handleApi`, dispatch a GitHub Actions).
 > Todo lo documentado sale del código real; se cita `archivo:función`.
 
-> **v2 (`bot/src/miniapp_v2.js`, `/app2`, app principal desde 2026-09-12).** Monitor puro, nada se aprueba.
-> Pestañas por uso real: **Hoy** (meta + KPIs + alertas + qué pasa hoy + vistas por semana) · **Videos**
-> (programados con horizonte ~1 día, en marcha, publicados) · **Cerebro** (reparto por confianza,
-> veredictos/outliers, A/B, próximo a probar, plan semanal, validación cruzada, hipótesis; lo que aún no
-> corrió se anuncia) · **Más** (salud, despublicar, Mis Clips). Agenda dejó de ser pestaña: con el buffer
-> de ~1 día quedaba vacía. Las historias de abajo describen la v1 (`/app`, "App clásica").
+> **v2 (`bot/src/miniapp_v2.js`, `/app2`, app principal).** Cerebro en vivo tras la auditoría de sep-2026
+> (`docs/AUDITORIA_CEREBRO.md`). Pestañas: **En vivo** (qué piensa y produce ahora, bitácora, sabe/cree/desconoce) ·
+> **Plan** (hoy y mañana; cada pieza con decisión, razón, evidencia, acción, métrica, plazo, criterio y siguiente) ·
+> **Meta** (requisitos reales por ventana, viabilidad, reparto ejecutado, autocrítica del ledger, calidad de datos) ·
+> **Más** (publicados, salud, despublicar, Mis Clips). Monitor puro: nada se aprueba. Las historias de abajo describen la v1.
 
 
 ## 1. Propósito y quién lo usa
