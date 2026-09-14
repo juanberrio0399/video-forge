@@ -12,7 +12,8 @@
 
 import { APP_HTML } from "./miniapp.js";
 import { APP2_HTML } from "./miniapp_v2.js";
-import { osStateFrom } from "../../pipeline/lib/os_contract.mjs";
+import { osStateFrom, applyStaleness } from "../../pipeline/lib/os_contract.mjs";
+import { osUnifiedHtml, withOsBar } from "../../shared/os-unified.mjs";
 import { osShellHtml } from "../../shared/os-shell.mjs";
 
 export default {
@@ -21,12 +22,40 @@ export default {
     // Mini App (interfaz "tipo app pro" dentro de Telegram).
     if (url.pathname === "/os") {
       // AI OS: app común (Pulse · Trabajo · Decisiones) de Video Forge. El panel detallado sigue en /app2.
-      return new Response(osShellHtml("video-forge", { build: env.APP_BUILD }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
+      return new Response(osUnifiedHtml({ build: env.APP_BUILD }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
     }
     // Entradas viejas (/app2, /app) desde botones ya enviados, BotFather o un menú de chat: abren el AI OS.
     // El panel detallado se abre desde el OS con ?from=os (y así vuelve al OS con el botón atrás).
     if ((url.pathname === "/app2" || url.pathname === "/app") && url.searchParams.get("from") !== "os") {
-      return new Response(osShellHtml("video-forge", { build: env.APP_BUILD }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
+      return new Response(osUnifiedHtml({ build: env.APP_BUILD }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
+    }
+    // AI OS en un solo bot: paneles completos de los tres sistemas, con barra "‹ Cerebro / dónde estás".
+    const panelMatch = request.method === "GET" && url.pathname.match(/^\/p\/(video-forge|radar|viento)$/);
+    if (panelMatch) {
+      const id = panelMatch[1];
+      const labels = { "video-forge": "Video Forge · Panel de canales", radar: "Radar · Panel de repos", viento: "Viento · Panel de la tienda" };
+      let html;
+      if (id === "video-forge") html = APP2_HTML.replace("__BUILD__", String(env.APP_BUILD || "dev"));
+      else {
+        const svc = id === "radar" ? env.RADAR : env.VIENTO;
+        if (!svc) return new Response("Panel no conectado", { status: 503 });
+        const r = await svc.fetch(new Request("https://os.internal/app?from=os"));
+        html = await r.text();
+      }
+      return new Response(withOsBar(html, labels[id]), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
+    }
+    // API de los paneles de Radar y Viento: el bot único valida la sesión y reenvía por el canal interno.
+    const apiMatch = url.pathname.match(/^\/v\/(radar|viento)(\/api\/[a-z0-9\/_-]+)$/);
+    if (apiMatch) {
+      const jsonH = { "content-type": "application/json", "cache-control": "no-store" };
+      const user = await validateInitData(request.headers.get("X-Init-Data") || "", env);
+      if (!user) return new Response(JSON.stringify({ error: "no autorizado" }), { status: 403, headers: jsonH });
+      const svc = apiMatch[1] === "radar" ? env.RADAR : env.VIENTO;
+      if (!svc) return new Response(JSON.stringify({ error: "panel no conectado" }), { status: 503, headers: jsonH });
+      const init = { method: request.method, headers: { "content-type": request.headers.get("content-type") || "application/json" } };
+      if (request.method !== "GET" && request.method !== "HEAD") init.body = await request.text();
+      const r = await svc.fetch(new Request("https://os.internal" + apiMatch[2] + url.search, init));
+      return new Response(r.body, { status: r.status, headers: { "content-type": r.headers.get("content-type") || "application/json", "cache-control": "no-store" } });
     }
     if (url.pathname === "/app2") {
       // Mini App v2 (monitor del cerebro), en paralelo a /app hasta el cut-over.
@@ -94,12 +123,16 @@ export default {
     const t = new Date(event.scheduledTime || Date.now());
     const jobs = ["os_orchestrator.yml"];
     if (t.getUTCHours() % 2 === 0 && t.getUTCMinutes() < 30) jobs.push("brain_live.yml");
-    ctx.waitUntil(Promise.all(jobs.map(async (wf) => {
-      try {
-        const r = await ghDispatch(env, wf, {});
-        if (!r.ok && r.status !== 204) console.error("[reloj] no pude disparar", wf, r.status);
-      } catch (e) { console.error("[reloj]", wf, e && e.message); }
-    })));
+    ctx.waitUntil((async () => {
+      const results = await Promise.all(jobs.map(async (wf) => {
+        try {
+          const r = await ghDispatch(env, wf, {});
+          if (!r.ok && r.status !== 204) console.error("[reloj] no pude disparar", wf, r.status);
+          return { wf, status: r.status };
+        } catch (e) { console.error("[reloj]", wf, e && e.message); return { wf, status: 0, error: String(e && e.message).slice(0, 120) }; }
+      }));
+      try { await env.R2.put("os/clock.json", JSON.stringify({ at: new Date().toISOString(), cron: event.cron || null, jobs: results }), { httpMetadata: { contentType: "application/json" } }); } catch (e) { console.error("[reloj] latido", e && e.message); }
+    })());
   },
 };
 
@@ -776,8 +809,22 @@ async function handleApi(request, env, url) {
   }
 
   if (url.pathname === "/api/os") {
-    // AI OS: estado global (Video Forge · Viento · Radar) + el pulse de Video Forge, unidos al leer.
-    return json(await osStateFrom((k) => r2json(env, k), "video-forge"));
+    // AI OS en un solo bot: estado global, los tres pulses completos, lo que decide el cerebro y el reloj.
+    const now = Date.now();
+    const [base, pRadar, pViento, live, ledger, journal, decision, clock] = await Promise.all([
+      osStateFrom((k) => r2json(env, k), "video-forge", now),
+      r2json(env, "os/pulse/radar.json"), r2json(env, "os/pulse/viento.json"),
+      r2json(env, "channel/auto2/lineup.json"), r2json(env, "channel/brain/ledger.json"),
+      r2json(env, "channel/brain/journal.json"), r2json(env, "channel/brain/decision.json"), r2json(env, "os/clock.json"),
+    ]);
+    const stale = (x) => (x && x.system && x.at ? applyStaleness(x, now) : null);
+    return json({
+      ...base,
+      pulses: { "video-forge": base.pulse, radar: stale(pRadar), viento: stale(pViento) },
+      brain: { live: live || null, ledger: Array.isArray(ledger) ? ledger.slice(-40) : [], journal: Array.isArray(journal) ? journal.slice(-40) : [], decision: decision || null },
+      clock: clock || null,
+      build: String(env.APP_BUILD || "dev"),
+    });
   }
 
   if (url.pathname === "/api/brain") {
@@ -1505,8 +1552,8 @@ async function handleCallback(cb, env) {
 const KB = {
   home: {
     inline_keyboard: [
-      [{ text: "🚀 Abrir Video Forge", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/os" } }],
-      [{ text: "📊 Panel de canales", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/app2?from=os" } }],
+      [{ text: "🧠 Abrir el cerebro", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/os" } }],
+      [{ text: "🎬 Canales", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/p/video-forge?from=os" } }, { text: "🛍️ Tienda", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/p/viento?from=os" } }, { text: "📡 Repos", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/p/radar?from=os" } }],
       [{ text: "🎬 Video", callback_data: "menu:video" }, { text: "📊 Canal", callback_data: "menu:canal" }],
       [{ text: "🖼️ Foto", callback_data: "menu:foto" }, { text: "🎤 Voces", callback_data: "menu:voces" }],
       [{ text: "🍳 Recetas", callback_data: "menu:recetas" }, { text: "❓ Ayuda", callback_data: "menu:ayuda" }],
@@ -1558,7 +1605,7 @@ async function sendMenu(env, chatId) {
   // Boton de menu de Telegram que abre la Mini App (interfaz tipo app).
   await tg(env, "setChatMenuButton", {
     chat_id: chatId,
-    menu_button: { type: "web_app", text: "Video Forge", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/os?v=" + encodeURIComponent(String(env.APP_BUILD || "dev")) } },
+    menu_button: { type: "web_app", text: "Cerebro", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/os?v=" + encodeURIComponent(String(env.APP_BUILD || "dev")) } },
   });
   await tg(env, "setMyCommands", {
     commands: [
