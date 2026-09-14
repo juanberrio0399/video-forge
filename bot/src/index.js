@@ -11,15 +11,41 @@
  */
 
 import { WorkerEntrypoint } from "cloudflare:workers";
+import { Hono } from "hono";
+import { logger } from "hono/logger";
 import { APP_HTML } from "./miniapp.js";
 import { APP2_HTML } from "./miniapp_v2.js";
 import { osStateFrom, applyStaleness } from "../../pipeline/lib/os_contract.mjs";
 import { osUnifiedHtml, withOsBar } from "../../shared/os-unified.mjs";
 import { osShellHtml } from "../../shared/os-shell.mjs";
 
+const app = new Hono();
+app.use('*', logger());
+
+app.get("/api/datalens/status/:channel", (c) => {
+  return c.json({ channel: c.req.param("channel"), status: "active" });
+});
+
+app.post("/api/datalens/action/:channel", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  return c.json({ channel: c.req.param("channel"), action: body.action || "none", status: "success" });
+});
+
+app.get("/api/oddly/status/:channel", (c) => {
+  return c.json({ channel: c.req.param("channel"), status: "active" });
+});
+
+app.post("/api/oddly/action/:channel", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  return c.json({ channel: c.req.param("channel"), action: body.action || "none", status: "success" });
+});
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if (url.pathname.startsWith("/api/datalens/") || url.pathname.startsWith("/api/oddly/")) {
+      return app.fetch(request, env, ctx);
+    }
     // Mini App (interfaz "tipo app pro" dentro de Telegram).
     if (url.pathname === "/os") {
       // AI OS: app común (Pulse · Trabajo · Decisiones) de Video Forge. El panel detallado sigue en /app2.

@@ -7,6 +7,9 @@
     "dev": "wrangler dev",
     "tail": "wrangler tail"
   },
+  "dependencies": {
+    "hono": "^4.6.0"
+  },
   "devDependencies": {
     "wrangler": "^4"
   }
