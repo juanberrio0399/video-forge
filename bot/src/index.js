@@ -12,6 +12,7 @@
 
 import { APP_HTML } from "./miniapp.js";
 import { APP2_HTML } from "./miniapp_v2.js";
+import { osStateFrom } from "../../pipeline/lib/os_contract.mjs";
 
 export default {
   async fetch(request, env) {
@@ -749,6 +750,11 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/insights") {
     return json(await geminiInsights(env));
+  }
+
+  if (url.pathname === "/api/os") {
+    // AI OS: estado global (Video Forge · Viento · Radar) + el pulse de Video Forge, unidos al leer.
+    return json(await osStateFrom((k) => r2json(env, k), "video-forge"));
   }
 
   if (url.pathname === "/api/brain") {

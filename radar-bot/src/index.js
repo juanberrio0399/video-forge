@@ -3,6 +3,8 @@
 // (⚙️ Ejecutar → 👀 Revisar → 🔀 Merge). El Merge solo aparece tras Revisar (no mergear sin ver).
 // Autenticación segura vía Telegram initData (HMAC con el token del bot); solo el dueño.
 
+import { osStateFrom } from "../../pipeline/lib/os_contract.mjs";
+
 const GH = "https://api.github.com";
 // El motor CENTRAL vive en video-forge e implementa en cualquier repo objetivo (usa el PAT).
 const MOTOR = "juanberrio0399/video-forge";
@@ -375,6 +377,12 @@ document.addEventListener("click",function(ev){
 load(true);
 </script></body></html>`;
 
+// AI OS: lee los pulses del R2 compartido (bucket video-forge) y arma el estado global al leer.
+async function osState(env) {
+  const get = async (k) => { try { const o = env.R2 && (await env.R2.get(k)); return o ? await o.json() : null; } catch { return null; } };
+  return osStateFrom(get, "radar");
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -387,6 +395,7 @@ export default {
     if (url.pathname.startsWith("/api/") && request.method === "POST") {
       const user = await ownerFromReq(request, env);
       if (!user) return json({ error: "No autorizado (abre desde el bot)." }, 401);
+      if (url.pathname === "/api/os") return json(await osState(env));
       if (url.pathname === "/api/state") return json(Object.assign(await buildState(env), { build: String(env.APP_BUILD || "dev") }));
       if (url.pathname === "/api/action") {
         const b = await request.json().catch(() => ({}));

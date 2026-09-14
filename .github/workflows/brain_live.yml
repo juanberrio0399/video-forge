@@ -65,6 +65,12 @@ jobs:
             monet.json
             ypp_od.json
             ypp_dl.json
+      - name: Pulse de Video Forge para el AI OS
+        run: |
+          gh run list -R "$GITHUB_REPOSITORY" -L 60 --json databaseId,workflowName,displayTitle,status,conclusion,createdAt,updatedAt,url > runs.json || echo '[]' > runs.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/ypp_history.json" --file=ypp_hist.json --remote 2>/dev/null || echo '[]' > ypp_hist.json
+          node pipeline/os_pulse_videoforge.mjs lineup.json journal.json ledger.json monet.json decision.json runs.json ypp_hist.json os_pulse_vf.json || echo "pulse de Video Forge no generado"
+          [ -s os_pulse_vf.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/os/pulse/video-forge.json" --file=os_pulse_vf.json --remote --content-type application/json || true
       - name: Guardar plan, bitácora y ledger
         run: |
           put() { npx --yes wrangler@4 r2 object put "$BUCKET/$1" --file="$2" --remote --content-type application/json; }
