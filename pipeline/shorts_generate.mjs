@@ -28,7 +28,8 @@ async function getToken() {
 }
 
 async function uploadShort(token, file, title, description) {
-  const size = fs.statSync(file).size;
+  const buf = fs.readFileSync(file); // una sola lectura (sin carrera entre stat y read)
+  const size = buf.length;
   const init = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
     method: "POST",
     headers: {
@@ -42,7 +43,7 @@ async function uploadShort(token, file, title, description) {
   });
   if (!init.ok) throw new Error("init " + init.status + " " + (await init.text()).slice(0, 200));
   const url = init.headers.get("location");
-  const up = await fetch(url, { method: "PUT", headers: { "content-type": "video/mp4", "content-length": String(size) }, body: fs.readFileSync(file) });
+  const up = await fetch(url, { method: "PUT", headers: { "content-type": "video/mp4", "content-length": String(size) }, body: buf });
   const res = await up.json();
   if (!res.id) throw new Error("upload " + JSON.stringify(res).slice(0, 200));
   return res.id;
