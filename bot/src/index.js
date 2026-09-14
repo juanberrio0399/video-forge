@@ -1285,9 +1285,12 @@ async function handleMessage(message, env) {
 
   // AI OS en un solo bot: comandos de la tienda y accesos directos al cerebro y a Radar.
   {
-    const c0 = text.split(/\s+/)[0].toLowerCase().replace(/@.*$/, "");
+    // Sin regex con retroceso (CodeQL ReDoS): primer token y sin "@bot".
+    const first = ((text.split(" ")[0] || "").split("\n")[0] || "").toLowerCase();
+    const atPos = first.indexOf("@");
+    const c0 = atPos >= 0 ? first.slice(0, atPos) : first;
     if (env.VIENTO && ["/pedidos", "/pautas", "/fases", "/analiza", "/creativo", "/tienda"].includes(c0)) {
-      const t2 = c0 === "/tienda" ? text.replace(/^\/tienda(@\S+)?/i, "/estado") : text;
+      const t2 = c0 === "/tienda" ? "/estado" + text.slice(first.length) : text;
       await env.VIENTO.fetch(new Request("https://os.internal/api/tg", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: { ...message, text: t2 } }) }));
       return;
     }
