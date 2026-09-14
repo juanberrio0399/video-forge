@@ -19,6 +19,15 @@ describe("evaluateRequirement", () => {
     expect(r.per_day_needed).toBe(100000);
     expect(r.status).toBe("improbable");
   });
+  it("ventana móvil usa el ritmo de 28 días cuando existe", () => {
+    const req = { key: "shorts_views_90d", label: "x", target: 9000000, kind: "rolling", window: 90, pace_key: "shorts_views_per_day_28d" };
+    const r = evaluateRequirement(req, { shorts_views_90d: 60000, shorts_views_per_day_28d: 2100 }, [], opts);
+    expect(r.per_day_actual).toBe(2100);
+    expect(r.pace_source).toBe("28d");
+    const r2 = evaluateRequirement(req, { shorts_views_90d: 90000 }, [], opts);
+    expect(r2.per_day_actual).toBe(1000);
+    expect(r2.pace_source).toBe("ventana");
+  });
   it("stock con ritmo suficiente queda en camino", () => {
     const hist = [{ date: d(10), subs: 100 }, { date: d(0), subs: 300 }];
     const r = evaluateRequirement({ key: "subs", label: "s", target: 1000, kind: "stock" }, { subs: 300 }, hist, opts);

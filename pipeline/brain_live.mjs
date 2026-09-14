@@ -57,7 +57,11 @@ for (const r of rankRows) if (!niches[r.key]) niches[r.key] = { label: r.label, 
 
 const perSlot = aggr && aggr.oddly && aggr.oddly.behind ? 2 : 1;
 const hoursET = Array.isArray(bestHours.hours) && bestHours.hours.length ? bestHours.hours : null;
-const bank = Array.isArray(bankRaw) ? bankRaw : (bankRaw.items || []);
+// Oddly es solo Shorts: se descartan ideas del banco que proponen formato largo (sembradas cuando el
+// inventario clasificaba todo como "long" por falta de duración; auditoría BR-12).
+const bankAll = Array.isArray(bankRaw) ? bankRaw : (bankRaw.items || []);
+const bank = bankAll.filter((b) => !/\blong\b|formato largo|video largo/i.test(String((b && b.text) || "")));
+if (bankAll.length - bank.length > 0) thoughts.push({ kind: "plan", text: `Descarté ${bankAll.length - bank.length} idea(s) del banco que proponían formato largo: este canal es solo Shorts.` });
 const d7vals = Object.values(viewsAtAge).map((r) => r && r.d7).filter((x) => Number.isFinite(Number(x)));
 const d7Median = d7vals.length >= 5 ? median(d7vals) : null;
 

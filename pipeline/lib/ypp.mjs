@@ -15,16 +15,16 @@ export const YPP_TIERS = {
       { key: "uploads_90d", label: "Subidas públicas (90 días)", target: 3, kind: "rolling", window: 90 },
     ],
     either: [
-      { key: "shorts_views_90d", label: "Vistas de Shorts (90 días)", target: 3000000, kind: "rolling", window: 90 },
-      { key: "watch_hours_365d", label: "Horas vistas sin Shorts (365 días)", target: 3000, kind: "rolling", window: 365 },
+      { key: "shorts_views_90d", label: "Vistas de Shorts (90 días)", target: 3000000, kind: "rolling", window: 90, pace_key: "shorts_views_per_day_28d" },
+      { key: "watch_hours_365d", label: "Horas vistas sin Shorts (365 días)", target: 3000, kind: "rolling", window: 365, pace_key: "watch_hours_per_day_28d" },
     ],
   },
   full: {
     label: "Monetización completa",
     reqs: [{ key: "subs", label: "Suscriptores", target: 1000, kind: "stock" }],
     either: [
-      { key: "shorts_views_90d", label: "Vistas de Shorts (90 días)", target: 10000000, kind: "rolling", window: 90 },
-      { key: "watch_hours_365d", label: "Horas vistas sin Shorts (365 días)", target: 4000, kind: "rolling", window: 365 },
+      { key: "shorts_views_90d", label: "Vistas de Shorts (90 días)", target: 10000000, kind: "rolling", window: 90, pace_key: "shorts_views_per_day_28d" },
+      { key: "watch_hours_365d", label: "Horas vistas sin Shorts (365 días)", target: 4000, kind: "rolling", window: 365, pace_key: "watch_hours_per_day_28d" },
     ],
   },
 };
@@ -65,11 +65,14 @@ export function evaluateRequirement(req, snap = {}, history = [], opts = {}) {
   if (cur === null) return { ...base, cur: null, pct: null, status: "sin_dato", ratio: null, per_day_actual: null, per_day_needed: null };
   const done = cur >= req.target;
   const pct = Math.min(100, Math.round((cur / req.target) * 1000) / 10);
-  let perDayActual = null, perDayNeeded = null, latestStart = null;
+  let perDayActual = null, perDayNeeded = null, latestStart = null, paceSource = null;
   if (req.kind === "rolling") {
-    // Ventana móvil: hay que SOSTENER target/window por día durante toda la ventana.
+    // Ventana móvil: hay que SOSTENER target/window por día durante toda la ventana. El ritmo ACTUAL se
+    // mide con los últimos 28 días si existe (en un canal joven, promediar la ventana entera lo subestima).
     perDayNeeded = req.target / req.window;
-    perDayActual = cur / req.window;
+    const recent = req.pace_key ? num(snap[req.pace_key]) : null;
+    perDayActual = recent !== null ? recent : cur / req.window;
+    paceSource = recent !== null ? "28d" : "ventana";
     if (deadlineMs) latestStart = new Date(deadlineMs - req.window * DAY).toISOString().slice(0, 10);
   } else {
     const need = Math.max(0, req.target - cur);
@@ -82,6 +85,7 @@ export function evaluateRequirement(req, snap = {}, history = [], opts = {}) {
     per_day_actual: perDayActual === null ? null : Math.round(perDayActual * 100) / 100,
     per_day_needed: perDayNeeded === null ? null : Math.round(perDayNeeded * 100) / 100,
     latest_start: latestStart,
+    pace_source: paceSource,
   };
 }
 
