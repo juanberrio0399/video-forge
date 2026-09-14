@@ -1,7 +1,9 @@
 name: Radar — implementar issue (Gemini)
 
 # MOTOR CENTRAL del radar (sin Claude): implementa un issue `radar` de CUALQUIER repo de Juan.
-# Clona el repo objetivo, Gemini hace las ediciones y abre RAMA + PR EN ESE repo. NUNCA mergea.
+# Clona el repo objetivo, Gemini hace las ediciones y el motor las VALIDA (sintaxis, dependencias, código
+# conectado, tamaño, build/tests frente a main y revisión de impacto). Solo si pasa abre RAMA + PR. NUNCA mergea.
+# Tras abrir el PR vigila el CI del repo: si queda rojo, el PR pasa a borrador con `radar-ci-rojo`.
 # Usa el PAT (GH_TOKEN, scope repo+workflow) que ya alcanza todos los repos -> sin secretos por repo.
 
 on:
@@ -25,7 +27,7 @@ permissions:
 jobs:
   implement:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 50
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
@@ -41,24 +43,33 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
+      - uses: actions/setup-python@v6    # tomllib (3.11+) para validar TOML y proyectos Python
+        with:
+          python-version: "3.12"
+      - name: Preparar validadores
+        run: python -m pip install -q pyyaml
+      - name: Limpiar el estado anterior del issue
+        run: |
+          # Un reintento empieza de cero: fuera las marcas de la corrida anterior.
+          for L in motor-fallo radar-no-valida radar-descartado; do
+            gh issue edit "$ISSUE" -R "$TARGET" --remove-label "$L" 2>/dev/null || true
+          done
       - name: Clonar el repo objetivo
         run: git clone --depth 50 "https://x-access-token:${GH_TOKEN}@github.com/${TARGET}.git" target
-      - name: Implementar el issue con Gemini
+      - name: Implementar y validar el issue
         working-directory: target
         run: RADAR_REPO="$TARGET" node "$GITHUB_WORKSPACE/motor/pipeline/radar_implement.mjs" "$ISSUE"
       - name: Crear rama + PR (sin merge)
+        id: pr
         working-directory: target
         run: |
-          # PENDIENTE por config manual (MCP/API key/cuenta externa) o de pago -> NO es un fallo: se deja
-          # el issue abierto con un aviso, sin motor-fallo (no se puede/queremos mergear sin ese paso).
+          # PENDIENTE por config manual (MCP/API key/cuenta externa/archivos protegidos) o de pago -> NO es un
+          # fallo: se deja el issue abierto con el paso a paso, sin motor-fallo.
           if [ -f radar_skip.txt ]; then
             REASON=$(cat radar_skip.txt)
             KIND=$(cat radar_skip_reason.txt 2>/dev/null || echo manual)
             echo "Pendiente (no se implementa): $REASON"
-            gh issue edit "$ISSUE" -R "$TARGET" --remove-label motor-fallo 2>/dev/null || true
             if [ "$KIND" = "manual" ]; then
-              # Config manual del dueño: marca `manual` (el bot lo muestra en "🖐️ Requiere tu configuración",
-              # SIN botón de merge) y publica el PASO A PASO como checklist para que sepa qué hacer.
               STEPS=$(node -e 'const fs=require("fs");try{const s=JSON.parse(fs.readFileSync("radar_steps.json","utf8"));if(Array.isArray(s)&&s.length)process.stdout.write(s.map(x=>"- [ ] "+x).join("\n"))}catch(e){}' 2>/dev/null)
               gh label create manual -R "$TARGET" --color F2B234 --description "Requiere config manual del dueño (no se resuelve con PR)" 2>/dev/null || true
               gh issue edit "$ISSUE" -R "$TARGET" --add-label manual 2>/dev/null || true
@@ -68,42 +79,87 @@ jobs:
             fi
             exit 0
           fi
-          [ ! -f radar_pr.json ] && { echo "El motor no produjo cambios (sin PR)."; gh issue comment "$ISSUE" -R "$TARGET" --body "⚠️ El motor no pudo generar cambios para este issue. Requiere implementación manual." || true; exit 1; }
+
+          # NO VALIDA o RECHAZADO -> sin PR. El issue explica exactamente qué falló.
+          for KIND in invalid rejected; do
+            F="radar_${KIND}.json"
+            [ -f "$F" ] || continue
+            if [ "$KIND" = "invalid" ]; then
+              LABEL=radar-no-valida; COLOR=B60205; DESC="El cambio no pasó la validación del motor"
+              HEAD="## ⛔ No abrí PR: el cambio no pasó la validación"
+              TAIL="Lo intenté reparar 2 veces. Reintenta desde Radar (🔁) o impleméntalo a mano."
+            else
+              LABEL=radar-descartado; COLOR=6E7781; DESC="Revisión: sin impacto suficiente o no verificable"
+              HEAD="## 🗑️ Descartado en revisión"
+              TAIL="Si igual lo quieres, replantea el issue con un alcance de mayor impacto y reintenta."
+            fi
+            LIST=$(node -e 'const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const l=(r.problems||[]).map(p=>"- **"+p.kind+"**"+(p.file?" `"+p.file+"`":"")+": "+String(p.detail).replace(/\n+/g," ").slice(0,500));if(r.impact)l.unshift("- **impacto**: "+r.impact);if(r.review)l.push("","> "+r.review);process.stdout.write(l.join("\n"))' "$F")
+            gh label create "$LABEL" -R "$TARGET" --color "$COLOR" --description "$DESC" 2>/dev/null || true
+            gh issue edit "$ISSUE" -R "$TARGET" --add-label "$LABEL" 2>/dev/null || true
+            gh issue comment "$ISSUE" -R "$TARGET" --body "$(printf '%s\n\n%s\n\n%s' "$HEAD" "$LIST" "$TAIL")" || true
+            echo "Sin PR ($LABEL)."
+            exit 0
+          done
+
+          [ ! -f radar_pr.json ] && { echo "El motor no produjo cambios (sin PR)."; exit 1; }
           BR=$(cat radar_branch.txt); TITLE=$(cat radar_title.txt); COMMIT=$(cat radar_commit.txt)
-          COMPLETE=$(cat radar_complete.txt 2>/dev/null || echo 1)   # 1=todas las ediciones aplicaron
+          COMPLETE=$(cat radar_complete.txt 2>/dev/null || echo 1)
+          DRAFT=$(cat radar_draft.txt 2>/dev/null || echo 0)
           BASE=$(git symbolic-ref --short HEAD)
           mv radar_body.md /tmp/radar_body.md
-          rm -f radar_pr.json radar_branch.txt radar_title.txt radar_commit.txt radar_complete.txt
-          # Solo un PR COMPLETO cierra el issue. Si quedó incompleto: `Ref` (no cierra) + aviso.
+          mv radar_changed.txt /tmp/radar_changed.txt
+          rm -f radar_*.json radar_*.txt
           if [ "$COMPLETE" = "1" ]; then CLOSE="Closes #${ISSUE}"; NOTE=""; else CLOSE="Ref #${ISSUE}"; NOTE=" (⚠️ INCOMPLETO — revisar; NO cierra el issue)"; fi
           git config user.name "Juan Berrio"
           git config user.email "juandyb99@gmail.com"
           git checkout -b "$BR"
-          git add -A
+          # Solo los archivos que el motor cambió y validó (nunca `git add -A`: arrastraba basura y diffs gigantes).
+          git reset -q
+          while IFS= read -r f; do [ -n "$f" ] && git add -- "$f"; done < /tmp/radar_changed.txt
+          git diff --cached --quiet && { echo "Nada que commitear tras validar."; exit 1; }
+          git diff --cached --stat
           git commit -m "$COMMIT" -m "$CLOSE"
           git push -u origin "$BR" --force
-          # IDEMPOTENTE: si al reintentar ya existe un PR para esta rama, el push --force ya lo actualizó;
-          # NO intentamos crear uno duplicado (eso fallaba con "already exists" y marcaba motor-fallo).
-          PRURL=$(gh pr view "$BR" -R "$TARGET" --json url -q .url 2>/dev/null || true)
+          # Solo PRs ABIERTOS de esta rama (uno cerrado antes no se reutiliza).
+          PRURL=$(gh pr list -R "$TARGET" --head "$BR" --state open --json url -q '.[0].url' 2>/dev/null || true)
           if [ -z "$PRURL" ]; then
-            gh pr create -R "$TARGET" --base "$BASE" --head "$BR" --title "$TITLE" --body-file /tmp/radar_body.md || gh pr create -R "$TARGET" --base "$BASE" --head "$BR" --title "$TITLE" --body "$CLOSE"
-            PRURL=$(gh pr view "$BR" -R "$TARGET" --json url -q .url)
-            gh issue comment "$ISSUE" -R "$TARGET" --body "Branch \`$BR\` and PR ready for review (not merged)$NOTE: $PRURL"
+            DFLAG=""; [ "$DRAFT" = "1" ] && DFLAG="--draft"
+            gh pr create -R "$TARGET" --base "$BASE" --head "$BR" --title "$TITLE" --body-file /tmp/radar_body.md $DFLAG
+            PRURL=$(gh pr list -R "$TARGET" --head "$BR" --state open --json url -q '.[0].url')
+            gh issue comment "$ISSUE" -R "$TARGET" --body "Validated change ready for review (not merged)$NOTE: $PRURL"
           else
-            # El PR ya existía (reintento): el force-push ya actualizó su código. Ademas REFRESCAMOS su
-            # titulo y cuerpo al estado ACTUAL, para que si el reintento ya quedó completo, el PR deje de
-            # decir [INCOMPLETO] y pase de `Ref` a `Closes` (y así cierre el issue al mergear) — y viceversa.
-            echo "PR ya existía; rama actualizada. Refresco titulo/cuerpo al estado actual (completo/incompleto)."
             gh pr edit "$PRURL" -R "$TARGET" --title "$TITLE" --body-file /tmp/radar_body.md 2>/dev/null || true
-            gh issue comment "$ISSUE" -R "$TARGET" --body "Branch \`$BR\` updated — PR already existed and now reflects the latest changes$NOTE: $PRURL"
+            gh pr ready "$PRURL" -R "$TARGET" 2>/dev/null || true
+            gh pr edit "$PRURL" -R "$TARGET" --remove-label radar-ci-rojo 2>/dev/null || true
+            [ "$DRAFT" = "1" ] && gh pr ready "$PRURL" -R "$TARGET" --undo 2>/dev/null || true
+            gh issue comment "$ISSUE" -R "$TARGET" --body "Branch \`$BR\` updated with a validated change$NOTE: $PRURL"
           fi
+          echo "url=$PRURL" >> "$GITHUB_OUTPUT"
           echo "PR: $PRURL"
-          gh issue edit "$ISSUE" -R "$TARGET" --remove-label motor-fallo 2>/dev/null || true   # limpia un fallo previo
+      - name: Vigilar el CI del PR
+        if: steps.pr.outputs.url != ''
+        env:
+          PRURL: ${{ steps.pr.outputs.url }}
+        run: |
+          # Da tiempo a que el repo registre sus checks. Sin CI -> no hay nada que vigilar.
+          sleep 45
+          OUT=$(gh pr checks "$PRURL" -R "$TARGET" 2>&1 || true)
+          if echo "$OUT" | grep -qi "no checks reported"; then echo "El repo no tiene CI para este PR."; exit 0; fi
+          set +e
+          timeout 1200 gh pr checks "$PRURL" -R "$TARGET" --watch --interval 30 > /tmp/checks.txt 2>&1
+          CODE=$?
+          set -e
+          cat /tmp/checks.txt | tail -20
+          if [ "$CODE" = "0" ]; then echo "CI en verde."; exit 0; fi
+          if [ "$CODE" = "124" ]; then echo "El CI sigue corriendo tras 20 min; el bot no deja mergear hasta que termine."; exit 0; fi
+          FAILED=$(gh pr checks "$PRURL" -R "$TARGET" --json name,bucket -q '[.[] | select(.bucket=="fail" or .bucket=="cancel") | .name] | join(", ")' 2>/dev/null || echo "revisar checks")
+          gh label create radar-ci-rojo -R "$TARGET" --color B60205 --description "El CI del PR falla: no mergear" 2>/dev/null || true
+          gh pr edit "$PRURL" -R "$TARGET" --add-label radar-ci-rojo 2>/dev/null || true
+          gh pr ready "$PRURL" -R "$TARGET" --undo 2>/dev/null || true
+          gh pr comment "$PRURL" -R "$TARGET" --body "⛔ CI failing (${FAILED}). Moved back to draft; do not merge until it is green." || true
       - name: Marcar fallo del motor (si algo se rompió)
         if: failure()
         run: |
-          # Cualquier paso que falle (clone, Gemini, sin ediciones, push, PR) deja rastro VISIBLE en el
-          # bot: etiqueta `motor-fallo` (el bot la muestra como ❌) + comentario en el issue.
           gh label create motor-fallo -R "$TARGET" --color D73A4A --description "El motor del radar no pudo implementar el issue" 2>/dev/null || true
           gh issue edit "$ISSUE" -R "$TARGET" --add-label motor-fallo 2>/dev/null || true
-          gh issue comment "$ISSUE" -R "$TARGET" --body "❌ El motor no pudo implementar este issue (falló el proceso). Requiere revisión/implementación manual — reintenta desde el bot (🔁) o hazlo a mano." || true
+          gh issue comment "$ISSUE" -R "$TARGET" --body "❌ El motor no pudo implementar este issue (falló el proceso). Reintenta desde Radar (🔁) o hazlo a mano." || true

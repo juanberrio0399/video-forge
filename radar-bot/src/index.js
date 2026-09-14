@@ -74,12 +74,14 @@ async function ghGraphQL(env, query, variables) {
 }
 async function prMap(env, repo) {
   const [owner, name] = repo.split("/");
-  const q = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(states:OPEN,first:100){nodes{number title url body closingIssuesReferences(first:20){nodes{number}}}}}}`;
+  const q = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(states:OPEN,first:100){nodes{number title url body isDraft labels(first:20){nodes{name}} closingIssuesReferences(first:20){nodes{number}}}}}}`;
   const map = {};
   try {
     const d = await ghGraphQL(env, q, { owner, name });
     for (const pr of (d?.repository?.pullRequests?.nodes || [])) {
-      const info = { number: pr.number, url: pr.url, title: pr.title, incomplete: /\[INCOMPLETO\]/i.test(pr.title || "") };
+      // draft = el motor no pudo completar la revisión o el CI quedó rojo: NO se mergea.
+      const ciRed = (pr.labels?.nodes || []).some((l) => l.name === "radar-ci-rojo");
+      const info = { number: pr.number, url: pr.url, title: pr.title, incomplete: /\[INCOMPLETO\]/i.test(pr.title || ""), draft: !!pr.isDraft, ciRed, validated: /^## Validation$/m.test(pr.body || "") };
       // 1) PRs que CIERRAN el issue (Closes #N) — vínculo oficial.
       for (const is of (pr.closingIssuesReferences?.nodes || [])) map[String(is.number)] = info;
       // 2) PRs que solo REFERENCIAN el issue (Ref #N = PR incompleto): `Ref` NO crea closingIssuesReference,
@@ -102,7 +104,11 @@ async function buildState(env) {
       if (r.ok) {
         // Fuera los que NO requieren acción: los issues-reporte del propio radar ("resumen de la corrida").
         const list = (await r.json()).filter((is) => !is.pull_request && !/resumen de la corrida/i.test(is.title || ""));
-        for (const is of list) issues.push({ number: is.number, title: is.title, url: is.html_url, prio: prioOf(is.body), err: (is.labels || []).some((l) => l.name === "motor-fallo"), manual: (is.labels || []).some((l) => l.name === "manual"), pr: map[String(is.number)] || null });
+        for (const is of list) {
+          const has = (n) => (is.labels || []).some((l) => l.name === n);
+          // invalid = el cambio no pasó la validación (sin PR); rejected = la revisión lo descartó por impacto o por no verificable.
+          issues.push({ number: is.number, title: is.title, url: is.html_url, prio: prioOf(is.body), err: has("motor-fallo"), manual: has("manual"), invalid: has("radar-no-valida"), rejected: has("radar-descartado"), pr: map[String(is.number)] || null });
+        }
         issues.sort((a, b) => rank(a.prio) - rank(b.prio));
       } else { error = true; }
     } catch { error = true; }
@@ -113,7 +119,9 @@ async function buildState(env) {
 async function doAction(env, action, repo, number) {
   if (action === "run") {
     // Motor CENTRAL en video-forge, implementa en el repo objetivo (repo) usando el PAT.
-    const r = await gh(env, `/repos/${MOTOR}/actions/workflows/radar_implement.yml/dispatches`, { method: "POST", body: JSON.stringify({ ref: "main", inputs: { issue: String(number), repo } }) });
+    // Quita las marcas de la corrida anterior ANTES de lanzar: si no, la app ve el ❌/⛔ viejo y avisa de un fallo que no ocurrió.
+    await Promise.all(["motor-fallo", "radar-no-valida", "radar-descartado"].map((l) => gh(env, `/repos/${repo}/issues/${number}/labels/${encodeURIComponent(l)}`, { method: "DELETE" }).catch(() => null)));
+    const r = await gh(env, `/repos/${MOTOR}/actions/workflows/radar_implement.yml/dispatches`,{ method: "POST", body: JSON.stringify({ ref: "main", inputs: { issue: String(number), repo } }) });
     return (r.ok || r.status === 204) ? "⚙️ Motor lanzado. Tarda unos minutos — te aviso cuando termine." : "❌ No pude lanzar el motor.";
   }
   if (action === "merge") {
@@ -121,6 +129,8 @@ async function doAction(env, action, repo, number) {
     if (!pr) return `🔎 No hay PR abierto para el #${number}.`;
     // Un PR incompleto no cierra el issue: mergearlo deja trabajo a medias en main.
     if (pr.incomplete) return `🚫 No mergeo el PR #${pr.number}: está marcado [INCOMPLETO]. Revísalo o reintenta el motor.`;
+    if (pr.ciRed) return `⛔ No mergeo el PR #${pr.number}: su CI quedó en rojo. Reintenta el motor para repararlo.`;
+    if (pr.draft) return `⛔ No mergeo el PR #${pr.number}: está en borrador (no pasó toda la validación). Revísalo o reintenta el motor.`;
     // CANDADO DE BUILD: no mergear si el CI del PR no está en verde (evita mergear builds rotos).
     try {
       const full = await (await gh(env, `/repos/${repo}/pulls/${pr.number}`)).json();
@@ -291,9 +301,18 @@ function issueCard(r,is){
     // NO se implementa con un PR: no hay Ejecutar ni Merge. Solo abrir el issue con el paso a paso.
     acts='<button class="b" data-act="open" data-url="'+esc(is.url)+'">📋 Ver pasos</button>'
       +'<button class="b g" data-act="close" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">✅ Ya lo configuré</button>';
+  }else if(!is.pr&&is.rejected){
+    // La revisión lo descartó (bajo impacto o no verificable): leer el motivo y cerrarlo o replantearlo.
+    acts='<button class="b" data-act="open" data-url="'+esc(is.url)+'">📋 Ver motivo</button>'
+      +'<button class="b d" data-act="close" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">Cerrar issue</button>';
   }else if(!is.pr){
-    acts='<button class="b" data-act="run" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">'+(is.err?"🔁 Reintentar":"⚙️ Ejecutar")+'</button>'
+    acts=(is.invalid?'<button class="b" data-act="open" data-url="'+esc(is.url)+'">📋 Ver errores</button>':'')
+      +'<button class="b" data-act="run" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">'+(is.err||is.invalid?"🔁 Reintentar":"⚙️ Ejecutar")+'</button>'
       +'<button class="b d" data-act="close" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">Descartar</button>';
+  }else if(is.pr.draft||is.pr.ciRed){
+    // PR que NO está validado del todo: sin botón de merge.
+    acts='<button class="b" data-act="open" data-url="'+esc(is.pr.url)+'">📄 Ver PR</button>'
+      +'<button class="b" data-act="run" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">🔁 Reintentar</button>';
   }else if(!REVIEWED[k]){
     acts='<button class="b" data-act="review" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'" data-url="'+esc(is.pr.url)+'">👀 Revisar PR #'+is.pr.number+'</button>'
       +'<button class="b d" data-act="close" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">Descartar</button>';
@@ -301,7 +320,7 @@ function issueCard(r,is){
     acts='<button class="b" data-act="merge" data-repo="'+esc(r.repo)+'" data-n="'+is.number+'">🔀 Merge</button>'
       +'<button class="b g" data-act="open" data-url="'+esc(is.pr.url)+'">📄 Ver PR</button>';
   }
-  var st=running?'<div class="st" style="color:var(--acc)">⏳ Puede tardar unos minutos — no cierres, te aviso cuando termine</div>':(is.pr?'<div class="st">🔧 PR #'+is.pr.number+(is.pr.incomplete?' ⚠️ INCOMPLETO':'')+(REVIEWED[k]?" · revisado ✓":" · revísalo antes de mergear")+'</div>':(is.manual?'<div class="st" style="color:var(--y)">🖐️ Necesita tu configuración — toca 📋 Ver pasos y hazlo tú</div>':(is.err?'<div class="st" style="color:var(--r)">❌ El motor falló aquí — reintenta o impleméntalo manual</div>':"")));
+  var st=running?'<div class="st" style="color:var(--acc)">⏳ Puede tardar unos minutos — no cierres, te aviso cuando termine</div>':(is.pr?((is.pr.draft||is.pr.ciRed)?'<div class="st" style="color:var(--r)">⛔ PR #'+is.pr.number+' NO VALIDADO · '+(is.pr.ciRed?"su CI falla":"quedó en borrador")+'</div>':'<div class="st">🔧 PR #'+is.pr.number+(is.pr.incomplete?' ⚠️ INCOMPLETO':(is.pr.validated?' · ✅ validado':' · ⚠️ sin validar (versión anterior del motor)'))+(REVIEWED[k]?" · revisado ✓":" · revísalo antes de mergear")+'</div>'):is.rejected?'<div class="st" style="color:var(--hint)">🗑️ Descartado en revisión: poco impacto o no verificable</div>':is.invalid?'<div class="st" style="color:var(--r)">⛔ No pasó la validación — mira los errores o reintenta</div>':(is.manual?'<div class="st" style="color:var(--y)">🖐️ Necesita tu configuración — toca 📋 Ver pasos y hazlo tú</div>':(is.err?'<div class="st" style="color:var(--r)">❌ El motor falló aquí — reintenta o impleméntalo manual</div>':"")));
   return '<div class="card issue" style="--pc:'+p.c+'">'
     +'<div class="itop"><span class="ip" style="color:'+p.c+'">'+p.e+" "+p.l+'</span><span class="inum">#'+is.number+'</span></div>'
     +'<div class="ititle">'+esc(is.title)+"</div>"+st
@@ -311,12 +330,15 @@ function issueCard(r,is){
 function repoView(){
   var r=ST.repos[CUR]||{issues:[]},items=r.issues;
   if(FILTER!==null)items=items.filter(function(x){return (x.prio||"none")===FILTER;});
-  var pend=items.filter(function(x){return x.pr;}),fail=items.filter(function(x){return !x.pr&&x.err&&!x.manual;}),manual=items.filter(function(x){return !x.pr&&x.manual;}),todo=items.filter(function(x){return !x.pr&&!x.err&&!x.manual;}),html="";
+  var pend=items.filter(function(x){return x.pr&&!x.pr.draft&&!x.pr.ciRed;}),blocked=items.filter(function(x){return x.pr&&(x.pr.draft||x.pr.ciRed);}),invalid=items.filter(function(x){return !x.pr&&x.invalid&&!x.manual;}),rejected=items.filter(function(x){return !x.pr&&x.rejected&&!x.invalid&&!x.manual;}),fail=items.filter(function(x){return !x.pr&&x.err&&!x.manual&&!x.invalid&&!x.rejected;}),manual=items.filter(function(x){return !x.pr&&x.manual;}),todo=items.filter(function(x){return !x.pr&&!x.err&&!x.manual&&!x.invalid&&!x.rejected;}),html="";
   if(r.error)html+='<div class="fbar" style="color:var(--r)"><span>⚠️ No pude cargar este repo (GitHub no respondió)</span><button class="link" data-act="refresh">Reintentar ⟳</button></div>';
   if(FILTER!==null){var p=PR[FILTER];html+='<div class="fbar"><span>'+p.e+" "+p.l+" · "+items.length+'</span><button class="link" data-act="clear">Quitar ✕</button></div>';}
   if(fail.length)html+=sec("❌ Falló el motor",fail.length)+fail.map(function(is){return issueCard(r,is);}).join("");
   if(manual.length)html+=sec("🖐️ Requiere tu configuración",manual.length)+manual.map(function(is){return issueCard(r,is);}).join("");
-  if(pend.length)html+=sec("🔧 Pendientes por merge",pend.length)+pend.map(function(is){return issueCard(r,is);}).join("");
+  if(pend.length)html+=sec("🔧 Validados, por merge",pend.length)+pend.map(function(is){return issueCard(r,is);}).join("");
+  if(blocked.length)html+=sec("⛔ PR no validado",blocked.length)+blocked.map(function(is){return issueCard(r,is);}).join("");
+  if(invalid.length)html+=sec("⛔ No pasó la validación",invalid.length)+invalid.map(function(is){return issueCard(r,is);}).join("");
+  if(rejected.length)html+=sec("🗑️ Descartado en revisión",rejected.length)+rejected.map(function(is){return issueCard(r,is);}).join("");
   if(todo.length)html+=sec("🆕 Por trabajar",todo.length)+todo.map(function(is){return issueCard(r,is);}).join("");
   if(!html&&!r.error)html=empty("✅","Nada por aquí"+(FILTER!==null?" con ese filtro":""),FILTER!==null?"Quita el filtro para ver todo.":"El barrido semanal irá dejando novedades.");
   document.getElementById("view").innerHTML=html;
@@ -350,6 +372,8 @@ function watchRun(repo,n){
       if(s&&s.repos){ST=s;
         var rr=s.repos.filter(function(x){return x.repo===repo;})[0];
         var is=rr&&rr.issues.filter(function(x){return x.number===n;})[0];
+        if(is&&!is.pr&&(is.invalid||is.rejected)){clearInterval(iv);delete WATCH[k];h("err");render();notify(is.rejected?("🗑️ #"+n+": la revisión lo descartó (poco impacto o no verificable). Toca 📋 Ver motivo."):("⛔ #"+n+": el cambio no pasó la validación, así que no abrí PR. Toca 📋 Ver errores o 🔁 Reintentar."));return;}
+        if(is&&is.pr&&(is.pr.draft||is.pr.ciRed)){clearInterval(iv);delete WATCH[k];h("err");render();notify("⛔ #"+n+": el PR quedó en borrador, NO validado. No lo mergees; ábrelo con 📄 Ver PR.");return;}
         if(is&&is.pr){clearInterval(iv);delete WATCH[k];h("ok");render();notify(is.pr.incomplete?("⚠️ #"+n+": PR creado pero INCOMPLETO. Ábrelo con 👀 Revisar y complétalo antes de mergear."):("✅ Listo #"+n+": el PR quedó creado. Ábrelo con 👀 Revisar y luego 🔀 Merge."));return;}
         if(is&&is.err){clearInterval(iv);delete WATCH[k];h("err");render();notify("❌ El motor falló en #"+n+". Toca 🔁 Reintentar, o impleméntalo a mano. No te quedes esperando.");return;}
       }
