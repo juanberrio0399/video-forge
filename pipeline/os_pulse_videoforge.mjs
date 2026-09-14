@@ -14,7 +14,8 @@ const journal = rj(journalF, []);
 const ledger = rj(ledgerF, []);
 const monet = rj(monetF, {});
 const decision = rj(decisionF, {});
-const runs = rj(runsF, []);
+// Solo producción: corridas de main. Un fallo en la rama de un PR no es un fallo de Video Forge.
+const runs = rj(runsF, []).filter((r) => !r || r.headBranch == null || r.headBranch === "main");
 const yppHist = rj(yppHistF, []);
 
 const runsOf = (name) => (Array.isArray(runs) ? runs : []).filter((r) => r.workflowName === name).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));

@@ -35,4 +35,5 @@ Blueprint visual: artefacto "Juan AI OS". Actualizado: 2026-09-14.
 | 14 | Texto viejo "Botón 'Panel'" en el workflow Activar Telegram de Viento | Viento | IA | Menor |
 | 15 | Los sanadores del backlog trataban una lista de ocultos ilegible como vacía y podían programar videos ocultos | Video Forge | IA | Corregido: falla cerrado |
 | 16 | hide_video.yml y reset_data_lens.yml arrancan de una lista vacía si no pueden leer la de ocultos | Video Forge | IA | Abierto |
+| 18 | El pulse contaba fallos de tests en ramas de PR como fallos de producción y dejaba a Video Forge en atención | Video Forge | IA | Corregido: solo cuenta main |
 | 17 | Los crons de GitHub llegan con horas de atraso o se saltan: el sanador de las 18:41 corrió a las 21:07 | Video Forge | IA | Vigilar |
