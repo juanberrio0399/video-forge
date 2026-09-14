@@ -28,10 +28,12 @@ describe("videos ocultos: nunca se programan", () => {
     expect([...parseHidden('["a","b"]')]).toEqual(["a", "b"]);
   });
   it("archivo ausente = null (no programar)", () => {
-    expect(readHiddenFile(path.join(os.tmpdir(), "no-existe-" + Date.now() + ".json"))).toBe(null);
-    const f = path.join(os.tmpdir(), "hidden-" + Date.now() + ".json");
-    fs.writeFileSync(f, '["x"]');
-    expect(readHiddenFile(f).has("x")).toBe(true);
-    fs.unlinkSync(f);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hidden-"));
+    try {
+      expect(readHiddenFile(path.join(dir, "no-existe.json"))).toBe(null);
+      const f = path.join(dir, "hidden.json");
+      fs.writeFileSync(f, '["x"]');
+      expect(readHiddenFile(f).has("x")).toBe(true);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 });
