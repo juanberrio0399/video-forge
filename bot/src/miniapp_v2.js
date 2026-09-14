@@ -231,6 +231,17 @@ export const APP2_HTML = `<!doctype html>
     return '<div class="card tap" data-go="meta"><div class="row"><div><b>Meta de monetización</b><div class="muted">Próximo hito: '+(y.next_milestone==="expanded"?"nivel intermedio":"monetización completa")+' · quedan '+y.days_left+' días</div></div>'+feasPill(y.feasibility)+'</div></div>';
   }
   function vivoDataLens(){
+    var D=live()&&live().data_lens;
+    if(D&&D.paused){
+      var since=String(D.since||"").slice(0,10), rev=String(D.review_at||"").slice(0,10);
+      var best=D.best_views_so_far, tgt=D.target_views_7d||500;
+      var pct=best!=null?Math.min(100,Math.round(best/tgt*100)):0;
+      var st=D.status==="PENDIENTE"?'<span class="pill p-plan">Se revisa el '+esc(rev)+'</span>':verdPill(D.status);
+      return '<div class="banner warn"><div class="row"><div class="bt">En pausa desde el '+esc(since)+'</div>'+st+'</div><div class="muted" style="margin-top:6px">Decisión tuya, registrada en el cerebro. La producción diaria está apagada; solo corre '+esc(D.experiment)+'.</div></div>'+
+        '<h2>Experimento de reactivación</h2><div class="card"><div class="row"><b>Mejor resultado desde la pausa</b><span class="muted num">'+(D.inventory_loaded?(best!=null?num(best)+" / "+num(tgt)+" vistas":"sin experimentos aún"):"inventario sin cargar")+'</span></div><div class="bar"><i style="width:'+Math.max(1,pct)+'%"></i></div>'+
+        '<div class="chain" style="margin-top:12px"><div><span class="k">Criterio</span><span>'+esc(D.criterion)+'</span></div><div><span class="k">Revisión</span><span>'+esc(rev)+'</span></div><div><span class="k">Si cumple</span><span>Se reanuda ese formato</span></div><div><span class="k">Si no</span><span>Se evalúa cerrar el canal</span></div></div>'+
+        (D.verdict_note?'<div class="muted" style="margin-top:8px">'+esc(D.verdict_note)+'</div>':'')+'</div>'+goalStrip("data-lens");
+    }
     var y=ypp("data-lens");
     return '<div class="banner warn"><div class="bt">Sin plan en vivo para este canal</div><div class="muted" style="margin-top:6px">The Data Lens no tiene tracción: 0 suscriptores y alrededor de 100 vistas por semana tras 10 semanas. El cerebro no arma plan diario aquí para no gastar producción sin señal.</div></div>'+
       '<h2>Decisión pendiente tuya</h2><div class="card"><div class="chain">'+
@@ -248,7 +259,7 @@ export const APP2_HTML = `<!doctype html>
 
   // ============ PLAN ============
   function planHtml(){
-    if(curCh==="data-lens") return '<div class="card muted" style="margin-top:14px">Data Lens no tiene plan en vivo mientras no haya señal. Mira la decisión pendiente en En vivo.</div>';
+    if(curCh==="data-lens") return '<div class="card muted" style="margin-top:14px">The Data Lens está en pausa: no hay plan diario. Solo corre 1 experimento por semana; su avance está en En vivo.</div>';
     if(!BR) return skeleton();
     var L=live(); if(!L) return '<div class="card muted" style="margin-top:14px">El primer plan aparece tras el primer ciclo del cerebro (cada 2 horas).</div>';
     var P=L[planDay]||{items:[]}, s=P.summary||{};

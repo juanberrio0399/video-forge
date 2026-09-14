@@ -7,9 +7,8 @@ name: Video diario automatico (cron)
 # Corre en la nube de GitHub -> no depende de Telegram ni de ninguna sesion abierta.
 
 on:
-  schedule:
-    - cron: "0 */6 * * *"  # cada 6h: revisa inactividad. Produce SOLO si hace +18h que no hay video
-                           #   (manual o auto) Y hay menos de 3 pendientes por aprobar -> nunca 'a lo loco'.
+  # PAUSADO 2026-09-14 por decisión de Juan (auditoría del cerebro): The Data Lens sin tracción tras 10
+  # semanas. Queda 1 experimento semanal (data_shock.yml, lunes). Reactivar: restaurar el cron "0 */6 * * *".
   workflow_dispatch: {}
 
 permissions:

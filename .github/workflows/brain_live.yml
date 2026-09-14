@@ -49,6 +49,7 @@ jobs:
           get channel/brain/ledger.json ledger.json '[]'
           get channel/auto2/ypp.json ypp_od.json '{}'
           get channel/ypp.json ypp_dl.json '{}'
+          get channel/inventory_cache.json dl_inv.json '{}'
       - name: Pensar (autocrítica + plan + qué producir)
         run: node pipeline/brain_live.mjs
       - name: Copia de lo que decidió (para auditar la app con datos reales)

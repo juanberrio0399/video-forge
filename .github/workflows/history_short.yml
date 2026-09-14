@@ -6,8 +6,8 @@ name: Short de HISTORIA (narrado + footage de archivo)
 # Sube PRIVADO a The Data Lens (YT_) para aprobar/publicar desde la app. Registra la categoria en R2.
 
 on:
-  schedule:
-    - cron: "0 12 * * *"   # 3/dia (matriz de 3 categorias, ~7am Bogota): un Short PRIVADO por categoria
+  # PAUSADO 2026-09-14 por decisión de Juan: The Data Lens sin tracción. El único experimento semanal es
+  # data_shock.yml (lunes). Reactivar: restaurar el cron "0 12 * * *".
   workflow_dispatch:
     inputs:
       topic:

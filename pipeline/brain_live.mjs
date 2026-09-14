@@ -8,7 +8,7 @@
 // Salidas: lineup.json, journal.json, ledger.json, claims.json, produce_now.txt (niche|variant|slot|idea)
 import fs from "node:fs";
 import { buildLineup, pickToProduce, diffLineups, journalAppend, etDate } from "./lib/lineup.mjs";
-import { dueEntries, applyReview, hitRate, trim } from "./lib/ledger.mjs";
+import { dueEntries, applyReview, hitRate, trim, newEntry } from "./lib/ledger.mjs";
 import { scaleGate, median } from "./lib/niche_rank.mjs";
 
 const rj = (p, d) => { try { const v = JSON.parse(fs.readFileSync(p, "utf8")); return v == null ? d : v; } catch { return d; } };
@@ -28,7 +28,17 @@ let claims = rj("claims.json", []); if (!Array.isArray(claims)) claims = [];
 const prev = rj("lineup_prev.json", null);
 let journal = rj("journal.json", []); if (!Array.isArray(journal)) journal = [];
 let ledger = rj("ledger.json", []); if (!Array.isArray(ledger)) ledger = [];
+const dlInv = rj("dl_inv.json", {});
 const thoughts = [];
+
+// Data Lens en PAUSA (decisión de Juan, 2026-09-14): videos publicados desde la pausa y su mejor resultado.
+const DAY = 86400000;
+const dlVideos = [...(dlInv.longs || []), ...(dlInv.shorts || [])].filter((v) => v && v.privacy === "public" && v.published_at);
+function dlSince(sinceIso, minAgeDays) {
+  const since = Date.parse(sinceIso);
+  const vids = dlVideos.filter((v) => Date.parse(v.published_at) >= since && (now - Date.parse(v.published_at)) / DAY >= minAgeDays);
+  return { n: vids.length, best: vids.length ? Math.max(...vids.map((v) => Number(v.views) || 0)) : null };
+}
 
 // ---------- 1) Autocrítica: revisar decisiones vencidas ----------
 const rankRows = (state.niche_rank && state.niche_rank.rows) || [];
@@ -36,6 +46,7 @@ const gate = scaleGate(viewsAtAge, { nowMs: now });
 function observe(entry) {
   if (entry.metric === "top_niche_rel") { const r = rankRows.find((x) => x.key === entry.subject); return r && r.sufficient ? r.rel : null; }
   if (entry.metric === "d7_change_pct") return gate.status === "sin_dato" ? null : gate.change_pct;
+  if (entry.metric === "dl_best_views_7d") return dlVideos.length ? dlSince(entry.at, 7).best : null;
   return null;
 }
 const reviewed = [];
@@ -47,7 +58,21 @@ for (const e of dueEntries(ledger, now)) {
   const word = { ACERTO: "acerté", FALLO: "me equivoqué", INCONCLUSO: "no puedo juzgar todavía" }[after.status];
   thoughts.push({ kind: "autocritica", text: `Revisé "${e.decision}": ${word} (${after.verdict_note}).` });
 }
+// Registro de la pausa de Data Lens (una sola vez), con criterio verificable y fecha de revisión.
+if (!ledger.some((e) => e.type === "channel_pause" && e.channel === "data-lens")) {
+  ledger.push(newEntry({
+    type: "channel_pause", channel: "data-lens", subject: "produccion_diaria",
+    decision: "Pausar la producción diaria de The Data Lens y dejar 1 experimento semanal",
+    reason: "10 semanas con 0 suscriptores y unas 100 vistas por semana; los recursos rinden más en Oddly Loop",
+    evidence: "historial semanal 2026-07-06 a 2026-09-07; medición YPP: 0 suscriptores y 1.504 vistas de Shorts en 90 días",
+    action: "apagados el video diario y los Shorts de Historia; Data Shock pasa a 1 por semana (lunes 15:00 UTC)",
+    metric: "dl_best_views_7d", criterion: { op: ">=", value: 500 }, confidence: "media", review_after_days: 21,
+    next: "si un experimento supera 500 vistas a los 7 días se reanuda ese formato; si no, se evalúa cerrar el canal",
+  }, now));
+  thoughts.push({ kind: "plan", text: "Pausé la producción diaria de The Data Lens por tu decisión. Queda 1 experimento por semana y lo reviso en 21 días contra 500 vistas a los 7 días." });
+}
 ledger = trim(ledger);
+const dlPause = ledger.find((e) => e.type === "channel_pause" && e.channel === "data-lens") || null;
 
 // ---------- 2) Plan de hoy (lo que queda) y de mañana ----------
 const allocation = decision.recommended_allocation && Object.keys(decision.recommended_allocation).length ? decision.recommended_allocation : (cadence.shorts_per_category || {});
@@ -117,6 +142,15 @@ const out = {
   scale_gate: gate,
   ledger: { pending: ledger.filter((e) => e.status === "PENDIENTE").length, hit_rate: hitRate(ledger), reviewed_now: reviewed, recent: ledger.slice(-12).reverse() },
   goal: ch.ypp ? { feasibility: ch.ypp.feasibility, next_milestone: ch.ypp.next_milestone, tiers: ch.ypp.tiers, days_left: ch.ypp.days_left, missing } : null,
+  data_lens: dlPause ? {
+    paused: true, since: dlPause.at, review_at: dlPause.review_at, status: dlPause.status, verdict_note: dlPause.verdict_note,
+    experiment: "1 Short Data Shock por semana (lunes 15:00 UTC)",
+    criterion: "Un experimento con 500 vistas o más a los 7 días",
+    target_views_7d: dlPause.criterion.value,
+    experiments_since: dlVideos.length ? dlSince(dlPause.at, 0).n : null,
+    best_views_so_far: dlVideos.length ? dlSince(dlPause.at, 0).best : null,
+    inventory_loaded: dlVideos.length > 0,
+  } : null,
 };
 fs.writeFileSync("lineup.json", JSON.stringify(out, null, 2));
 fs.writeFileSync("journal.json", JSON.stringify(journal));
