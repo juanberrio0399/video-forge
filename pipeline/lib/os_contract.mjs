@@ -21,7 +21,7 @@ export const SEVERITY = ["info", "warn", "critical"];
 
 const RANK = { critical: 0, degraded: 1, attention: 2, normal: 3 };
 const SEV_RANK = { critical: 0, warn: 1, info: 2 };
-const str = (x, max = 280) => (x == null ? "" : String(x)).replace(/\s+/g, " ").trim().slice(0, max);
+const str = (x, max = 280) => { const t = (x == null ? "" : String(x)).replace(/\s+/g, " ").trim(); return t.length > max ? t.slice(0, max - 1).trimEnd() + "…" : t; };
 const iso = (x, fallback) => { const t = Date.parse(x); return Number.isFinite(t) ? new Date(t).toISOString() : fallback; };
 const oneOf = (x, list, dflt) => (list.includes(x) ? x : dflt);
 

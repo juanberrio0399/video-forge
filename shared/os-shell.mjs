@@ -38,6 +38,11 @@ html[data-theme="light"]{--os-c-video-forge:#6E56CF;--os-c-viento:#119C74;--os-c
 .os-sheet .os-title{font-size:18px;font-weight:650;letter-spacing:-.01em;line-height:1.25;margin:0 0 14px;text-wrap:balance}
 .os-actions{display:grid;gap:8px;margin-top:18px}
 .os-note{font-size:13px;color:var(--os-t2);margin-top:14px}
+.os-act{grid-template-columns:46px minmax(0,1fr)}
+.os-chain div{grid-template-columns:96px minmax(0,1fr)}
+.os-act > div,.os-row .main,.os-need,.os-need .t,.os-need .w,.os-need .e,.os-insight,.os-metric,.os-headline,.os-sub,.os-prio,.os-chain span,.os-title,.os-empty,.os-error,.os-ai span{overflow-wrap:anywhere;min-width:0}
+.os-sheet .os-title{padding-right:48px}
+.os-sheet-close{position:absolute;top:12px;right:12px}
 `;
 
 export const OS_APP_JS = `
@@ -162,7 +167,7 @@ export const OS_APP_JS = `
     if(n.url)btn+='<button class="os-btn primary block" data-open="'+E(n.url)+'">'+E((first&&first.label)||"Abrir")+'</button>';
     if(own)btn+='<button class="os-btn block'+(n.url?"":" primary")+'" data-act="panel">'+E(n.url?"Ir a "+C.panelLabel:((first&&first.label)||"Ir a "+C.panelLabel))+'</button>';
     var note=own?"La decisión se toma en el panel de "+C.panelLabel+": el OS te muestra el contexto, no aprueba por ti.":"Esta decisión se toma en la app de "+(SYSN[n.system]||"ese sistema")+".";
-    OS.openSheet('<div class="os-title">'+E(n.title)+'</div>'+OS.chain(rows)+'<div class="os-actions">'+btn+'</div><div class="os-note">'+E(note)+'</div>');
+    OS.openSheet('<button class="os-iconbtn os-sheet-close" data-act="close" aria-label="Cerrar">'+OS.icon("x")+'</button><div class="os-title">'+E(n.title)+'</div>'+OS.chain(rows)+'<div class="os-actions">'+btn+'</div><div class="os-note">'+E(note)+'</div>');
   }
 
   function navHtml(){
@@ -203,6 +208,7 @@ export const OS_APP_JS = `
     if(!el)return;
     var tab=el.getAttribute("data-tab"),act=el.getAttribute("data-act"),need=el.getAttribute("data-need"),open=el.getAttribute("data-open");
     if(tab){if(OS.sheetOpen)OS.closeSheet();TAB=tab;ANIM=true;OS.haptic("sel");render();window.scrollTo(0,0);return;}
+    if(act==="close"){OS.closeSheet();return;}
     if(act==="refresh"){load(true);return;}
     if(act==="panel"){OS.haptic("light");location.href=C.panel+(C.panel.indexOf("?")<0?"?":"&")+"from=os";return;}
     if(act==="prio"){var pr=ST&&ST.global.priority;if(!pr)return;var hit=needs().filter(function(n){return n.system===pr.system&&n.title===pr.title;})[0];if(hit)needSheet(hit);else{TAB="needs";ANIM=true;render();}return;}

@@ -57,7 +57,8 @@ export default {
     }
     // Health check / raiz (GET): util para probar que el Worker esta vivo.
     if (request.method !== "POST") {
-      return new Response("video-forge-bot OK");
+      // Salud solo en la raíz; cualquier otra ruta desconocida es 404 (antes respondía 200).
+      return url.pathname === "/" ? new Response("video-forge-bot OK") : new Response("no encontrado", { status: 404 });
     }
 
     // 1) Verificar que el POST viene de Telegram (header secreto).
@@ -96,12 +97,10 @@ async function handleWatch(request, env, key, token) {
   if (!/^(video|recipe|voices)\/[^?]+\.(mp4|mov|webm|jpg|jpeg|png|webp|mp3|wav|m4a)$/.test(key)) {
     return new Response("no permitido", { status: 403 });
   }
-  // Contenido PERSONAL (recipe/): exige enlace firmado (HMAC). Asi no queda publico
-  // aunque alguien adivine la URL + el chat_id. Los video/ del canal (que van a YouTube) siguen abiertos.
-  if (key.startsWith("recipe/")) {
-    const good = await watchToken(env, key);
-    if (!good || !safeEqual(token, good)) return new Response("no autorizado", { status: 403 });
-  }
+  // TODO archivo exige enlace firmado (HMAC): video, voces y recetas. Antes video/ y voices/ quedaban abiertos
+  // y cualquiera con la URL podía bajar el video de producción aunque siguiera privado (hallazgo de QA).
+  const good = await watchToken(env, key);
+  if (!good || !safeEqual(token, good)) return new Response("no autorizado", { status: 403 });
   const rangeHeader = request.headers.get("Range");
   let opts = {};
   const m = rangeHeader && /bytes=(\d+)-(\d*)/.exec(rangeHeader);
@@ -669,7 +668,7 @@ async function handleApi(request, env, url) {
     state.voices = voices;
     state.voices_pick = {
       current: (vchoice && vchoice.id) || "gemini_charon",
-      options: VOICE_OPTIONS.map((v) => ({ id: v.id, label: v.label, sample_url: "/watch/" + v.sample })),
+      options: await Promise.all(VOICE_OPTIONS.map(async (v) => ({ id: v.id, label: v.label, sample_url: "/watch/" + v.sample + "?t=" + (await watchToken(env, v.sample)) }))),
     };
     _T("post-reads");
     // Corridas: activas (en proceso) + PROBLEMAS (fallidas recientes, con el paso que fallo).
@@ -730,7 +729,7 @@ async function handleApi(request, env, url) {
     ]);
     let seoVideoId = null;
     if (idoRes) { try { seoVideoId = (await idoRes.text()).trim(); } catch {} }
-    const thumbUrl = thHead ? "/watch/video/0001-youtube-money/thumbnail.jpg" : null;
+    const thumbUrl = thHead ? "/watch/video/0001-youtube-money/thumbnail.jpg?t=" + (await watchToken(env, "video/0001-youtube-money/thumbnail.jpg")) : null;
     // Aprobado solo si el titulo aprobado == el titulo actual (si regeneras el SEO, se resetea).
     const isApproved = !!(approvedFlag && approvedFlag.approved && pkg && approvedFlag.title === pkg.title);
     // El video de producción YA está publicado (público) => el paso SEO terminó, se oculta.
@@ -748,7 +747,7 @@ async function handleApi(request, env, url) {
         pinned_comment: pkg.pinned_comment || null, validation: pkg.validation || null,
       } : null,
       video_id: seoVideoId,
-      watch_url: "/watch/video/0001-youtube-money/video.mp4",
+      watch_url: "/watch/video/0001-youtube-money/video.mp4?t=" + (await watchToken(env, "video/0001-youtube-money/video.mp4")),
       thumb_url: thumbUrl,
     };
     return json(state);
@@ -1107,7 +1106,7 @@ async function channelInventory(env) {
     // Miniatura generada (para la app) — se resuelve UNA vez aqui (cacheado 10 min), NO en cada /api/state.
     // Antes esto era 1 R2.head por video en cada request -> reventaba el limite de subrequests al crecer el canal.
     for (const v of longs) {
-      try { const th = await env.R2.head(`video/0001-youtube-money/thumb_${v.video_id}.jpg`); v.thumb_url = th ? `/watch/video/0001-youtube-money/thumb_${v.video_id}.jpg` : null; } catch { v.thumb_url = null; }
+      try { const th = await env.R2.head(`video/0001-youtube-money/thumb_${v.video_id}.jpg`); v.thumb_url = th ? `/watch/video/0001-youtube-money/thumb_${v.video_id}.jpg?t=${await watchToken(env, `video/0001-youtube-money/thumb_${v.video_id}.jpg`)}` : null; } catch { v.thumb_url = null; }
     }
     const inv = { longs, shorts, subs: +(((item.statistics || {}).subscriberCount) || 0), total_views: +(((item.statistics || {}).viewCount) || 0), analytics_ok: analyticsOk, analytics, at: new Date().toISOString() };
     await env.R2.put("channel/inventory_cache.json", JSON.stringify(inv), { httpMetadata: { contentType: "application/json" } });
