@@ -9,7 +9,7 @@
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { genText } from "./llm.mjs";
-import { normalizePlan, planMarkdown, planLabels, parsePlanJson } from "./lib/radar_plan_format.mjs";
+import { normalizePlan, planMarkdown, planLabels, parsePlanJson, versionDowngrades } from "./lib/radar_plan_format.mjs";
 
 const issueNo = (process.argv[2] || "").trim();
 const REPO = process.env.RADAR_REPO || "";
@@ -85,12 +85,36 @@ ${ctx || "(sin archivos de contexto)"}
 ## Archivos del repo (muestra)
 ${tracked.slice(0, 300).join("\n")}`;
 
-let plan = null;
-for (let i = 0; i < 3 && !plan; i++) {
-  const raw = parsePlanJson(await genText(prompt, { json: true }));
-  if (raw && (raw.verdict || raw.steps)) plan = normalizePlan(raw);
+// Planificar pide razonamiento, no creatividad: Gemini Pro primero y temperatura baja; respaldo = cadena gratis de llm.mjs.
+const GKEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
+async function ask(text) {
+  for (const k of GKEYS) for (const m of ["gemini-pro-latest", "gemini-flash-latest"]) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${k}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2 } }), signal: AbortSignal.timeout(180000) });
+      if (!res.ok) { console.error(`  ${m}: HTTP ${res.status}`); continue; }
+      const j = await res.json();
+      const out = j?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+      if (out) { console.log(`  plan por ${m}`); return out; }
+    } catch (e) { console.error(`  ${m}: ${e.message}`); }
+  }
+  return genText(text, { json: true });
+}
+
+const manifestText = keyFiles.map(readSafe).join("\n");
+let plan = null, feedback = "", downsTxt = "";
+for (let i = 0; i < 3; i++) {
+  const raw = parsePlanJson(await ask(prompt + feedback));
+  if (!raw || !(raw.verdict || raw.steps)) continue;
+  plan = normalizePlan(raw);
+  // Guarda determinista SOLO sobre lo accionable (archivos, pasos, pruebas): la nota de premisa puede citar la versión vieja a propósito.
+  const downs = versionDowngrades(JSON.stringify({ files: raw.files, steps: raw.steps, tests: raw.tests }), manifestText);
+  downsTxt = downs.map((d) => `${d.pkg} ${d.from} → ${d.to}`).join(", ");
+  if (!downs.length) break;
+  console.log(`  el plan bajaba versiones (${downsTxt}); replantear`);
+  feedback = `\n\n## ERROR EN TU PLAN ANTERIOR\nBajabas versiones que el repo ya tiene más nuevas: ${downsTxt}. Está PROHIBIDO bajar versiones. Marca premise_ok=false, explica la versión real en premise_note y replantea el plan sin tocar esas versiones (o "descartar" si no queda nada útil).`;
 }
 if (!plan) { console.error("La IA no devolvió un plan usable."); process.exit(3); }
+if (downsTxt) { plan.verdict = "descartar"; plan.premise_ok = false; plan.premise_note = `El plan propuesto bajaba versiones que el repo ya tiene más nuevas (${downsTxt}); no se debe implementar así.`; }
 fs.writeFileSync("radar_plan.md", planMarkdown(plan));
 fs.writeFileSync("radar_plan_labels.txt", planLabels(plan).join("\n") + "\n");
 console.log(`Plan: ${plan.verdict} · impacto ${plan.impact} · ${plan.files.length} archivo(s) · premisa ${plan.premise_ok ? "ok" : "a revisar"}`);

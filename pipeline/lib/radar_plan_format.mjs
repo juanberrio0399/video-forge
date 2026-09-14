@@ -3,7 +3,9 @@
 const VERDICTS = ["implementar", "manual", "descartar"];
 const IMPACTS = ["alto", "medio", "bajo"];
 const clean = (s, max = 600) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, max);
-const list = (a, max = 12, len = 400) => (Array.isArray(a) ? a : []).map((x) => clean(x, len)).filter(Boolean).slice(0, max);
+// Una viñeta puede venir como texto o como objeto ({riesgo, mitigación}): se aplana a "valor — valor".
+const item = (x) => (x && typeof x === "object" ? Object.values(x).filter((v) => v != null && v !== "").map(String).join(" — ") : x);
+const list = (a, max = 12, len = 400) => (Array.isArray(a) ? a : []).map((x) => clean(item(x), len)).filter(Boolean).slice(0, max);
 
 export function normalizePlan(raw) {
   const p = raw && typeof raw === "object" ? raw : {};
@@ -49,6 +51,33 @@ export function planMarkdown(plan) {
 export function planLabels(plan) {
   const p = normalizePlan(plan);
   return ["radar-plan", ...(p.verdict === "manual" ? ["manual"] : p.verdict === "descartar" ? ["radar-descartado"] : [])];
+}
+
+// ---------- Guarda de versiones: el plan nunca puede BAJAR una dependencia que el repo ya tiene más nueva ----------
+// (caso dataforge #31: el issue pedía "actualizar a 1.1.x" con 1.5.3 en main y el modelo planeaba bajarla).
+const cmpVer = (a, b) => {
+  const pa = String(a).split(".").map((x) => parseInt(x, 10) || 0), pb = String(b).split(".").map((x) => parseInt(x, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const d = (pa[i] || 0) - (pb[i] || 0); if (d) return d; }
+  return 0;
+};
+export function versionPins(text) {
+  const t = String(text || "").slice(0, 200000);
+  const pins = [];
+  const add = (name, ver) => pins.push({ pkg: name.toLowerCase().replace(/_/g, "-"), ver });
+  for (const m of t.matchAll(/\b([A-Za-z0-9][A-Za-z0-9._-]{0,80})\s{0,3}(?:==|>=|~=)\s{0,3}(\d{1,5}(?:\.\d{1,5}){0,3})/g)) add(m[1], m[2]);
+  for (const m of t.matchAll(/"(@?[a-z0-9][\w./-]{0,80})"\s{0,3}:\s{0,3}"[\^~]?(\d{1,5}(?:\.\d{1,5}){1,3})/gi)) add(m[1], m[2]);
+  for (const m of t.matchAll(/(?:^|[\s'"`(])(@?[a-z0-9][\w./-]{0,80})@[\^~]?(\d{1,5}(?:\.\d{1,5}){1,3})/gi)) add(m[1], m[2]);
+  return pins;
+}
+export function versionDowngrades(planText, manifestText) {
+  const current = new Map();
+  for (const p of versionPins(manifestText)) if (!current.has(p.pkg) || cmpVer(p.ver, current.get(p.pkg)) > 0) current.set(p.pkg, p.ver);
+  const out = new Map();
+  for (const p of versionPins(planText)) {
+    const cur = current.get(p.pkg);
+    if (cur && cmpVer(p.ver, cur) < 0 && !out.has(p.pkg)) out.set(p.pkg, { pkg: p.pkg, from: cur, to: p.ver });
+  }
+  return [...out.values()];
 }
 
 // Extrae el objeto JSON de la respuesta del modelo (tolera texto o fences alrededor).

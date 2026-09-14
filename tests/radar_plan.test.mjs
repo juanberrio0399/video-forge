@@ -1,5 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { normalizePlan, planMarkdown, planLabels, parsePlanJson } from "../pipeline/lib/radar_plan_format.mjs";
+import { normalizePlan, planMarkdown, planLabels, parsePlanJson, versionDowngrades } from "../pipeline/lib/radar_plan_format.mjs";
+
+describe("guarda de versiones", () => {
+  it("detecta un plan que baja una dependencia (caso dataforge #31: duckdb 1.5.3 -> 1.1.3)", () => {
+    const manifests = 'dependencies = [\n  "duckdb==1.5.3",\n  "pandas>=2.2",\n]\nduckdb==1.5.3\n';
+    const plan = "Cambiar 'duckdb==1.5.3' por 'duckdb==1.1.3' en pyproject.toml y subir pandas>=2.3";
+    expect(versionDowngrades(plan, manifests)).toEqual([{ pkg: "duckdb", from: "1.5.3", to: "1.1.3" }]);
+  });
+  it("no marca subidas ni paquetes que el repo no tiene", () => {
+    expect(versionDowngrades("pdfjs-dist@4.10.38 y vite==6.0.1", '"vite": "^5.4.2"')).toEqual([]);
+  });
+  it("entiende package.json y el formato paquete@versión", () => {
+    expect(versionDowngrades("instalar @observablehq/plot@0.6.1", '"@observablehq/plot": "^0.6.16"')).toEqual([{ pkg: "@observablehq/plot", from: "0.6.16", to: "0.6.1" }]);
+  });
+});
 
 describe("plan de Radar", () => {
   it("un plan de impacto bajo nunca queda para implementar", () => {
@@ -29,6 +43,11 @@ describe("plan de Radar", () => {
     expect(planLabels({ verdict: "implementar", impact: "alto" })).toEqual(["radar-plan"]);
     expect(planLabels({ verdict: "manual", impact: "alto" })).toEqual(["radar-plan", "manual"]);
     expect(planLabels({ verdict: "implementar", impact: "bajo" })).toEqual(["radar-plan", "radar-descartado"]);
+  });
+  it("aplana viñetas que vienen como objetos (nunca [object Object])", () => {
+    const md = planMarkdown({ verdict: "implementar", impact: "alto", risks: [{ riesgo: "El hash no es verificable", mitigacion: "Hashear solo el contenido canónico" }] });
+    expect(md).toContain("- El hash no es verificable — Hashear solo el contenido canónico");
+    expect(md).not.toContain("[object Object]");
   });
   it("lee el JSON aunque venga con texto alrededor", () => {
     expect(parsePlanJson('```json\n{"verdict":"manual"}\n```')).toEqual({ verdict: "manual" });
