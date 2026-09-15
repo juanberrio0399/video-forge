@@ -18,7 +18,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Subir cadencia a R2
         run: |
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/cadence.json" --file=channel/auto2/cadence.seed.json --remote --content-type application/json

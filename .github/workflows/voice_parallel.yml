@@ -37,8 +37,8 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Decidir segun la voz elegida (o auto con respaldo Kokoro)
@@ -75,11 +75,11 @@ jobs:
     env:
       ENGINE: ${{ needs.decide.outputs.engine }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - name: Install ffmpeg
@@ -113,7 +113,7 @@ jobs:
             node pipeline/tts_gemini_directed.mjs voicemap_active.json "out/part_${{ matrix.chunk }}.wav" ${{ matrix.chunk }} ${NUM_CHUNKS}
           fi
       - name: Subir pedazo (audio + tiempos)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: part-${{ matrix.chunk }}
           path: out/part_${{ matrix.chunk }}.wav*
@@ -133,14 +133,14 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Bajar todos los pedazos
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: part-*
           path: parts
@@ -191,7 +191,7 @@ jobs:
           '
           cat renders/timing.json | head -20
       - name: Subir narracion + tiempos (artifact)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: voiceover-directed
           path: |

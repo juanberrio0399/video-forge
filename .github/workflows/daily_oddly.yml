@@ -34,8 +34,8 @@ jobs:
       ARCHIVE_CLIPS: "off" # clips de Internet Archive apagados (auditoría BR-17: riesgo de derechos)
       LINEUP_MODE: "on"    # la producción narrada la hace el Cerebro en vivo (brain_live.yml) con anticipación
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Blitz de Shorts + largo del dia (nombrando la categoria)
