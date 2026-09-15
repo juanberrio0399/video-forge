@@ -48,8 +48,8 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
       TOPIC: ${{ github.event.inputs.topic }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: FFmpeg + fuentes
@@ -67,7 +67,7 @@ jobs:
           for t in 0.8 3 8 14 20; do ffmpeg -y -ss $t -i short.mp4 -frames:v 1 -q:v 3 "frames/t${t}.jpg" 2>/dev/null || true; done
       - name: Subir frames (artefacto)
         if: ${{ hashFiles('frames/*.jpg') != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: datashock-frames-${{ matrix.slot }}
           path: frames/

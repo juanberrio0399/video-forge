@@ -51,9 +51,9 @@ jobs:
       CHANNEL_LABEL: ${{ matrix.ch == 'oddly' && 'Oddly Loop' || 'The Data Lens' }}
       HKEY: ${{ matrix.ch == 'oddly' && 'channel/auto2/hidden_videos.json' || 'channel/hidden_videos.json' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         if: inputs.channel == 'both' || inputs.channel == matrix.ch
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         if: inputs.channel == 'both' || inputs.channel == matrix.ch
         with:
           node-version: "22"
