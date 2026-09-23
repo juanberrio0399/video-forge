@@ -1,8 +1,7 @@
 # Auditoría del cerebro (Brain OS) — septiembre 2026
 
-Auditoría destructiva del sistema de decisión de Video Forge, hecha sobre el código y la corrida real del
-13-sep-2026. Informe completo con red team, ranking y puntuaciones: artefacto "Brain OS bajo red team".
-Este documento deja en el repo qué se rompía y qué se cambió.
+Auditoría del sistema de decisión de Video Forge sobre el código y la corrida real del 13-sep-2026:
+qué medía mal, qué se cambió y qué queda abierto.
 
 ## Veredicto
 

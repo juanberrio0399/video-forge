@@ -50,7 +50,7 @@ Orquestación en la nube (Actions) · Worker + R2 + Mini App Telegram · subir/p
 - **Canal automático:** stats **generales** (videos, cantidad, minutos vistos, vistas/subs) + tarjeta **"¿mejorando o no?"** (tendencia semana a semana) + el **radar de nichos**.
 - **Canal actual:** nueva pestaña **"Análisis del canal"** →
   - Salud global + **qué tan prometedor se ve** (score IA: crecimiento, retención, consistencia).
-  - **Reclamaciones/problemas:** marca videos con estado de subida anómalo. *Límite honesto:* la API de YouTube expone si un video fue **rechazado** (motivo: copyright/duplicado/legal/tos) y su estado de procesamiento; los **reclamos de Content ID completos solo están en Studio** (no hay API pública para canales normales). Traigo todo lo que la API da y lo marco claro.
+  - **Reclamaciones/problemas:** marca videos con estado de subida anómalo. *Límite honesto:* la API de YouTube expone si un video fue **rechazado** (motivo: copyright/duplicado/legal/tos) y su estado de procesamiento; los **reclamos de Content ID completos solo están en Studio** (no hay API pública para canales normales). La app muestra todo lo que la API entrega y marca el límite.
 
 ## 6. Playlists automáticas
 Cada video se agrega a una **lista por nicho/serie** (`playlists.insert` + `playlistItems.insert`). Beneficio: reproducción encadenada → más watch-time → más recomendación → más suscriptores.

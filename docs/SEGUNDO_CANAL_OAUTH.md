@@ -1,6 +1,6 @@
 # Guía: crear el 2º canal de YouTube + OAuth (canal automático)
 
-Acción **manual de Juan** (una sola vez). Reutiliza el mismo proyecto de Google Cloud y el mismo cliente OAuth del canal actual; solo se crea el canal nuevo y se saca un **refresh token nuevo** autorizando ese 2º canal. La app OAuth ya está "In production", así que el token **no caduca**.
+Procedimiento manual, una sola vez. Reutiliza el mismo proyecto de Google Cloud y el mismo cliente OAuth del canal actual; solo se crea el canal nuevo y se saca un **refresh token nuevo** autorizando ese 2º canal. La app OAuth ya está "In production", así que el token **no caduca**.
 
 Al final quedan 3 secrets nuevos en GitHub: `YT2_CLIENT_ID`, `YT2_CLIENT_SECRET`, `YT2_REFRESH_TOKEN`.
 
@@ -39,10 +39,10 @@ https://www.googleapis.com/auth/yt-analytics.readonly
    - `YT2_REFRESH_TOKEN` = el refresh token NUEVO (el del 2º canal).
 
 ## Parte E — Confirmar
-Avísame cuando estén los 3 secrets. Yo:
-- Conecto el canal automático a `YT2_*` (namespacing en R2 `channel/auto2/…`).
-- Disparo una verificación que confirme que el token lee el **2º canal correcto** (no The Data Lens).
-- Con eso arranca la Fase 2 (ingesta + compilación + publicación automática).
+Con los 3 secrets puestos:
+- El canal automático queda conectado a `YT2_*` (estado bajo `channel/auto2/…` en R2).
+- `verify_channel2.yml` confirma que el token lee el **2º canal correcto** (no The Data Lens).
+  Correrlo es el paso que valida todo: `gh workflow run verify_channel2.yml`.
 
 ---
 

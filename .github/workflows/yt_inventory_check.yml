@@ -1,5 +1,8 @@
 name: Diagnóstico inventario YouTube (playlist vs search.forMine)
 
+# Compara el inventario del canal por playlist de uploads contra search.forMine: las dos fuentes de
+# la API discrepan y eso deja videos fantasma en la app. Diagnóstico, no arregla nada. Solo manual.
+
 on:
   workflow_dispatch: {}
 
