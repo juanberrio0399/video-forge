@@ -1,1 +1,22 @@
-Video Forge. Copyright 2025-2026 Juan Berrio. This product includes software developed by Juan Berrio (https://github.com/juanberrio0399)
+video-forge
+Copyright 2025 Juan Berrio
+
+Este producto incluye software desarrollado por Juan Berrio y se distribuye bajo la
+licencia Apache 2.0 (ver LICENSE).
+
+El sistema se apoya en servicios y proyectos de terceros, cada uno bajo su propia
+licencia y sus propios términos de uso:
+
+- Kokoro TTS (Apache-2.0) — síntesis de voz.
+- HyperFrames — render de composiciones HTML a MP4.
+- ffmpeg (LGPL/GPL según build) — ensamblaje y codificación de video.
+- Whisper (MIT) — transcripción y subtítulos.
+- Google Gemini API — guion, SEO y análisis.
+- Cloudflare Workers, R2 y Workers AI — mando, almacenamiento y edición de imagen.
+- GitHub Actions — ejecución de la fábrica.
+
+El material audiovisual que produce el sistema proviene de fuentes con licencia
+explícita (Pexels, Pixabay, Freesound CC0, Wikimedia, NASA y el resto de la lista
+blanca en channel/auto2/sources.seed.json). La puerta de cumplimiento
+(pipeline/compliance_check.mjs) bloquea la publicación de cualquier pieza cuyas
+fuentes no estén en esa lista.
