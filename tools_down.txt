@@ -1,3 +1,0 @@
-🔴 Gemini (guion/SEO/IA): sin API key
-🟡 Pexels (footage real): sin API key (cae a imágenes IA)
-🔴 YouTube API: sin OAuth

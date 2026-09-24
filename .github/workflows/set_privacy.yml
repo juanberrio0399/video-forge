@@ -1,5 +1,8 @@
 name: Cambiar privacidad de un video (publicar / ocultar)
 
+# Cambia la privacidad de un video suelto (publicar, ocultar o dejarlo no listado) sin pasar por la
+# app. Es la salida de emergencia cuando algo se publicó y hay que bajarlo ya. Solo manual.
+
 on:
   workflow_dispatch:
     inputs:

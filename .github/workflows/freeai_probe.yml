@@ -1,5 +1,8 @@
 name: Free.ai sonda (descubrir contrato de la API de video)
 
+# Sonda el contrato de la API de video de Free.ai (endpoints, formatos, límites) para decidir si
+# entra como motor. No produce nada; solo reporta lo que responde. Solo manual.
+
 on:
   workflow_dispatch:
 

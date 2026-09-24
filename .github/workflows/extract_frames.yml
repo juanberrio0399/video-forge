@@ -1,5 +1,8 @@
 name: Extraer frames de un video (para inspeccionar)
 
+# Saca frames de un video guardado en R2 y los manda al chat. Es la forma de MIRAR un render
+# antes de publicarlo, en vez de confiar en que salió bien. Solo manual.
+
 on:
   workflow_dispatch:
     inputs:
