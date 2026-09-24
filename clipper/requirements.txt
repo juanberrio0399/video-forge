@@ -1,5 +1,5 @@
 # Oddly Clipper — dependencias (todas gratis / open source)
-yt-dlp>=2024.1.1
+yt-dlp>=2026.8.19
 faster-whisper>=1.2.1
 google-generativeai>=0.8.6
 requests>=2.31.0
