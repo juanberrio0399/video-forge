@@ -1,102 +1,120 @@
 # Flujos de video-forge
 
-Todos los flujos del sistema, con diagramas. Dos canales **independientes** (nunca comparten datos).
-Los diagramas se renderizan en GitHub.
+Todos los flujos del sistema, con diagramas (GitHub los renderiza). Los dos canales son
+**independientes**: nunca comparten estado, credenciales ni reportes.
 
 ---
 
 ## 1) The Data Lens — producción por INACTIVIDAD (Juan aprueba)
 
+> **Pausado desde el 2026-09-14.** El cron de `daily_video.yml` está apagado y el flujo solo arranca a
+> mano. Queda documentado porque el encadenado no cambió: al restaurar el cron vuelve a correr tal cual.
+
 ```mermaid
 flowchart TD
-  cron["daily_video.yml (cron cada 6h)"] --> idle{"idle_check.mjs:\n+18h sin video\nY <3 pendientes?"}
+  cron["daily_video.yml<br/>(disparo manual; cron pausado)"] --> idle{"idle_check.mjs:<br/>+18h sin video<br/>y menos de 3 pendientes?"}
   idle -- no --> stop["no produce (espera)"]
-  idle -- si --> pv["produce_video.yml\nguion IA (retencion + editor cine)"]
-  pv --> voice["voice_parallel.yml\nvoz Kokoro"]
-  voice --> render["render_phased.yml\nHyperFrames por fases + QA\n+ musica (ducking) + viñeta cine\n+ guarda de tamaño <300MiB"]
-  render --> priv["Video PRIVADO en R2\n(pendiente de aprobar)"]
-  priv --> app["Juan lo ve en la app\n(pestaña Producir / Control)"]
-  app -- aprueba --> pub["publish_youtube.yml\nSEO + miniatura"]
-  pub --> sched["schedule_youtube.yml\nmejor hora libre"]
-  sched --> shorts["shorts_plan -> shorts_final\nshorts de los mejores momentos"]
+  idle -- si --> pv["produce_video.yml<br/>guion IA (retencion + editor cine)"]
+  pv --> voice["voice_parallel.yml<br/>voz Kokoro"]
+  voice --> render["render_phased.yml<br/>HyperFrames por fases + QA<br/>+ musica (ducking) + viñeta cine<br/>+ guarda de tamaño menor a 300MiB"]
+  render --> priv["video PRIVADO en R2<br/>(pendiente de aprobar)"]
+  priv --> app["Juan lo ve en la app"]
+  app -- aprueba --> pub["publish_youtube.yml<br/>SEO + miniatura"]
+  pub --> sched["schedule_youtube.yml<br/>mejor hora libre"]
+  sched --> shorts["shorts_plan -> shorts_final<br/>shorts de los mejores momentos"]
 ```
 
 ---
 
-## 2) Oddly Loop — BLITZ de Shorts (full-auto)
+## 2) Oddly Loop — produccion full-auto por pieza
 
 ```mermaid
 flowchart TD
-  cron["daily_oddly.yml (12:30 UTC = 7:30am Bogota)"] --> plan["lee cadence.json\n8 Shorts + 1 largo/dia (rota nicho)"]
-  plan --> loop["por cada pieza (cada ~5 min):"]
-  loop --> prod["produce_oddly.yml"]
+  cron["daily_oddly.yml<br/>(12:30 UTC = 7:30am Bogota)"] --> plan["lee cadence.json<br/>piezas por categoria (rota nicho)"]
   subgraph prod["produce_oddly.yml (por pieza)"]
-    g["compilation_script.mjs\nguion (puro=sin voz / narrado)"] --> v["voz Kokoro (si narrado)"]
-    v --> lib["baja biblioteca ASMR curada (R2)"]
-    lib --> asm["build_compilation.mjs\nclips legales (Pexels/Pixabay)\n+ mezcla de sonido por nicho\n+ grade cine"]
-    asm --> gate{"compliance_check.mjs\nsolo fuentes con licencia"}
+    g["compilation_script.mjs<br/>guion (puro = sin voz / narrado)"] --> v["voz Kokoro (si es narrado)"]
+    v --> lib["baja la biblioteca ASMR curada (R2)"]
+    lib --> asm["build_compilation.mjs<br/>clips legales (Pexels/Pixabay)<br/>+ mezcla de sonido por nicho<br/>+ grade cine"]
+    asm --> gate{"compliance_check.mjs<br/>solo fuentes con licencia"}
     gate -- falla --> block["NO publica (avisa)"]
     gate -- ok --> up["sube a YT2 (privado)"]
     up --> sc["programa a la mejor hora libre"]
   end
-  prod --> report["report_auto2.yml (cada 6h)\nvistas + top + mejores horas -> app"]
+  plan --> g
+  sc --> report["report_auto2.yml (cada 2h)<br/>vistas + top + mejores horas -> app"]
 ```
 
 ---
 
-## 3) Agendado (por DATOS) — separado por canal
+## 3) El cerebro decide que se produce (Oddly Loop)
+
+Desde la auditoria de septiembre-2026 la tanda de las 12:30 UTC ya no fabrica narrados
+(`LINEUP_MODE=on`): quien decide es `brain_live.yml`, cada 2 horas.
 
 ```mermaid
 flowchart TD
-  subgraph datos["De donde salen las horas"]
-    rep["reportes calculan best_hours.json\n(horas ET con mas vistas/dia)"]
-  end
-  rep --> hrs{"hay datos suficientes\n(>=6 publicos)?"}
-  hrs -- si --> dh["usa TUS mejores horas"]
-  hrs -- no --> res["usa horas de research\n(pico tarde/noche EEUU)"]
-  dh --> slot
-  res --> slot["elige franja:\n1) reparte en huecos vacios\n2) tope 2 por hora\n(6 franjas/dia)"]
-  slot --> dl["The Data Lens: nextBestSlot (Worker)\nocupadas = SOLO su canal"]
-  slot --> ol["Oddly Loop: best_slot.mjs + scheduled_times.mjs\nocupadas = SOLO YT2"]
+  cron["brain_live.yml (cada 2h, 24/7)"] --> lee["baja de R2 lo que sabe:<br/>scores, ledger, cohortes, metas"]
+  lee --> juz{"hay decisiones<br/>con plazo vencido?"}
+  juz -- si --> ver["las juzga contra SU criterio:<br/>ACERTO / FALLO / INCONCLUSO<br/>(2 fallos seguidos revierten)"]
+  juz -- no --> plan
+  ver --> plan["lib/lineup.mjs arma el plan de hoy y manana<br/>(cada pieza = decision + razon + evidencia<br/>+ metrica + plazo + criterio)"]
+  plan --> prod["produce_oddly.yml<br/>max 3 piezas por ciclo, cada una<br/>a su franja y con horas de margen"]
+  plan --> bit["bitacora + ledger -> R2 -> Mini App /app2"]
 ```
 
 ---
 
-## 4) Estado y control (app <-> nube)
+## 4) Agendado (por DATOS) — separado por canal
+
+```mermaid
+flowchart TD
+  rep["los reportes calculan best_hours.json<br/>(horas ET con mas vistas/dia)"] --> hrs{"hay datos suficientes<br/>(6 o mas videos publicos)?"}
+  hrs -- si --> dh["usa las mejores horas del canal"]
+  hrs -- no --> res["usa horas de research<br/>(pico tarde/noche EEUU)"]
+  dh --> slot
+  res --> slot["elige franja:<br/>1) reparte en huecos vacios<br/>2) tope 2 por hora<br/>(6 franjas/dia)"]
+  slot --> dl["The Data Lens: nextBestSlot (Worker)<br/>ocupadas = SOLO su canal"]
+  slot --> ol["Oddly Loop: best_slot.mjs + scheduled_times.mjs<br/>ocupadas = SOLO YT2"]
+```
+
+---
+
+## 5) Estado y control (app y nube)
 
 ```mermaid
 flowchart LR
-  yt["YouTube API"] --> reps["channel_report.yml / report_auto2.yml\n(cron cada 6h)"]
-  reps --> r2["R2: channel/state.json\nchannel/auto2/state.json\nbest_hours.json"]
-  app["Telegram Mini App\n(inicio/producir/agenda/analitica/mas)"] -- "GET /api/state (auth Telegram)" --> worker["Cloudflare Worker"]
+  yt["YouTube API"] --> reps["report_auto2.yml (cada 2h)<br/>channel_report.yml (cada 6h)"]
+  reps --> r2["R2: channel/state.json<br/>channel/auto2/state.json<br/>best_hours.json"]
+  app["Telegram Mini App"] -- "GET /api/state (auth Telegram)" --> worker["Cloudflare Worker"]
   worker --> r2
-  app -- "accion (aprobar/programar/producir)" --> worker
-  worker -- "gh dispatch (GH_TOKEN)" --> wf["workflows"]
+  app -- "accion (aprobar / programar / producir)" --> worker
+  worker -- "dispatch (GH_TOKEN)" --> wf["workflows"]
   worker -- "notify" --> tg["Telegram (silencioso 11pm-5am Bogota)"]
 ```
 
 ---
 
-## 5) Biblioteca de sonido ASMR (curada, CC0)
+## 6) Biblioteca de sonido ASMR (curada, CC0)
 
 ```mermaid
 flowchart TD
-  b["build_asmr_library.yml (manual / al cambiar paletas)"] --> f["Freesound (solo CC0):\npaletas por nicho + stingers + pack de edicion"]
+  b["build_asmr_library.yml<br/>(manual, al cambiar paletas)"] --> f["Freesound (solo CC0):<br/>paletas por nicho + stingers + pack de edicion"]
   f --> r2["R2: asmr_lib.tgz + sfx_edit.tgz"]
-  r2 --> use1["produce_oddly la usa\n(mezcla ASMR profesional)"]
-  r2 --> use2["render_phased usa el pack de edicion\n(whooshes en transiciones)"]
+  r2 --> use1["produce_oddly la usa<br/>(mezcla ASMR por nicho)"]
+  r2 --> use2["render_phased usa el pack de edicion<br/>(whooshes en transiciones)"]
 ```
 
 ---
 
-## 6) Auto-recuperacion (24/7)
+## 7) Vigilancia y auto-sanado
 
 ```mermaid
 flowchart LR
-  wd["watchdog.yml (cada 15 min)"] --> chk{"algo caido / atascado?"}
-  chk -- si --> re["reanuda la fase / reintenta"]
-  chk -- no --> ok["sigue"]
-  err["errores de workflows"] --> learn["error_learn.mjs\nregistra causa + fix -> app"]
+  wd["watchdog.yml (diario 11:00 UTC)"] --> chk{"R2, tokens de YouTube<br/>y crons de produccion vivos?"}
+  chk -- no --> avisa["avisa a Telegram<br/>(solo si hay fallo)"]
+  chk -- si --> ok["silencio"]
+  bl["schedule_backlog_*.yml (cada 6h)"] --> sana["re-agenda lo que quedo sin programar"]
+  err["errores de workflows"] --> learn["error_learn.mjs<br/>registra causa y arreglo -> app"]
 ```
 
 ---
@@ -105,7 +123,7 @@ flowchart LR
 
 | Canal | Cuando | Que produce |
 |---|---|---|
-| The Data Lens | cada 6h, si +18h inactivo | 1 largo (privado, Juan aprueba); shorts del video |
-| Oddly Loop | 12:30 UTC diario | 8 Shorts + 1 largo (full-auto, se programan solos) |
-| Reportes | cada 6h | refrescan vistas/top/mejores-horas |
-| Watchdog | cada 15 min | reanuda lo caido |
+| The Data Lens | pausado; solo `data_shock.yml` los lunes 15:00 UTC | 1 experimento semanal (privado, Juan aprueba) |
+| Oddly Loop | `brain_live.yml` cada 2h + `daily_oddly.yml` 12:30 UTC | las piezas del plan del cerebro (se programan solas) |
+| Reportes | Oddly cada 2h · Data Lens cada 6h | refrescan vistas, top y mejores horas |
+| Watchdog | diario 11:00 UTC | avisa si R2, los tokens o los crons se cayeron |

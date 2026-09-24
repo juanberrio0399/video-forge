@@ -1,5 +1,8 @@
 name: Limpiar respuestas en español (one-shot)
 
+# Borra las respuestas propias que salieron en español en un canal en inglés (el auto-respondedor
+# las generó mal durante unas horas). Solo manual y acotado por horas: no se deja en cron.
+
 on:
   workflow_dispatch:
     inputs:
