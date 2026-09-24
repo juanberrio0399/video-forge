@@ -1,6 +1,16 @@
 # Arquitectura — video-forge
 
-Fábrica **100% en la nube** de videos de YouTube para el canal **The Data Lens** (`@TheDataLensHQ`): datos/dinero, faceless, en inglés, mercado EE.UU. Todo con herramientas **gratis**. Semi-automática: el sistema produce solo; Juan aprueba desde una Telegram Mini App y el sistema programa a la mejor hora.
+Cómo está armada la fábrica por dentro: componentes, el slot de producción, el estado en R2 y la
+auto-recuperación. El flujo de cada canal está en [FLUJOS.md](FLUJOS.md); el mapa general, en el README.
+
+Este documento describe la línea de **The Data Lens** (`@TheDataLensHQ`): datos/dinero, faceless, en
+inglés, mercado EE.UU. Es la línea **semi-automática** — el sistema produce y Juan aprueba desde la
+Mini App antes de publicar.
+
+> **The Data Lens está pausado desde el 2026-09-14** (ver [AUDITORIA_CEREBRO.md](AUDITORIA_CEREBRO.md)).
+> `daily_video.yml` y `history_short.yml` quedaron en disparo manual; el único cron vivo de este canal es
+> `data_shock.yml` (lunes 15:00 UTC). Todo lo demás de aquí abajo sigue siendo válido y arranca en cuanto
+> se restauren los crons.
 
 ## Componentes
 
@@ -16,7 +26,7 @@ Fábrica **100% en la nube** de videos de YouTube para el canal **The Data Lens*
 
 ```mermaid
 flowchart TD
-  cron["⏰ cron 10:00 UTC (+ rescate 15:00)"] --> daily[daily_video.yml<br/>elige el próximo tema]
+  cron["daily_video.yml (cron pausado;<br/>hoy se dispara a mano)"] --> daily[idle_check.mjs<br/>elige el próximo tema]
   daily --> prod[produce_video.yml<br/>preflight → anti-duplicados → guion → aprendizajes]
   prod --> voice[voice_parallel.yml<br/>voz Kokoro/TTS en paralelo]
   voice --> render[render_phased.yml<br/>fases → combine → QA]
@@ -25,13 +35,13 @@ flowchart TD
   pend --> app{Juan aprueba<br/>en la app}
   app --> pub[publish_youtube.yml<br/>sube privado + SEO + miniatura]
   pub --> sched[schedule_youtube.yml<br/>programa a la mejor hora EEUU]
-  sched --> live[🎬 público a su hora]
+  sched --> live[público a su hora]
   live --> sp[shorts_plan.yml → shorts_final.yml<br/>shorts del video ya público]
-  wd["⏰ watchdog cada 15 min"] -.vigila y reanuda.-> render
+  wd["watchdog.yml (diario 11:00 UTC)"] -.vigila y reanuda.-> render
   wd -.reanuda voz→render.-> voice
 ```
 
-**En una frase:** un cron elige el tema → se escribe el guion → se genera la voz → se renderiza por fases con control de calidad → queda pendiente de aprobación → Juan aprueba en la app → se sube y se programa a la mejor hora → al publicarse, se pueden hacer sus shorts. El **watchdog** vigila todo cada 15 min y reanuda lo que se caiga.
+**En una frase:** se elige el tema → se escribe el guion → se genera la voz → se renderiza por fases con control de calidad → queda pendiente de aprobación → Juan aprueba en la app → se sube y se programa a la mejor hora → al publicarse, se pueden hacer sus shorts.
 
 ## El "slot" activo
 
@@ -58,16 +68,19 @@ Hay **un único slot de producción a la vez**: `0001-youtube-money` en R2. Solo
 
 | Qué | Cuándo | Automático |
 |---|---|---|
-| `daily_video.yml` | 10:00 UTC + **15:00 UTC (rescate)** | ✅ sin intervención |
-| `watchdog.yml` | cada 15 min | ✅ vigila y reanuda |
-| Todo lo demás (publicar, programar, shorts, SEO, miniatura) | disparado por la app/Juan o encadenado por otro workflow | semi-auto |
+| `data_shock.yml` | lunes 15:00 UTC | sin intervención (único cron vivo del canal) |
+| `daily_video.yml`, `history_short.yml` | disparo manual (crons pausados el 2026-09-14) | — |
+| `watchdog.yml` | diario 11:00 UTC | vigila la infraestructura y avisa solo si algo falla |
+| `channel_report.yml` | cada 6 h | refresca vistas, top y mejores horas |
+| `schedule_backlog_datalens.yml` | cada 6 h | re-agenda los videos a los que les falló la programación |
+| Todo lo demás (publicar, programar, shorts, SEO, miniatura) | disparado por la app o encadenado por otro workflow | semi-auto |
 
-La parte **100% desatendida** llega hasta *dejar un video pendiente de aprobar*. Publicar y programar es **semi-automático**: Juan aprueba con un toque y el sistema pone la mejor hora (ver [HISTORIAS_USUARIO.md](HISTORIAS_USUARIO.md)).
+La parte **desatendida** llega hasta *dejar un video pendiente de aprobar*. Publicar y programar es **semi-automático**: Juan aprueba con un toque y el sistema pone la mejor hora (ver [miniapp-historias-video-forge.md](miniapp-historias-video-forge.md)).
 
 ## Auto-recuperación (nunca queda en limbo)
 
 - **`preflight.mjs`** — antes de producir valida que las herramientas críticas (Gemini, Kokoro, YouTube) respondan; si algo crítico está caído, **aborta** y avisa (no arranca con errores).
-- **`watchdog.mjs`** — cada 15 min: cancela corridas colgadas (>140 min) y **reanuda el render** si se detuvo (falló, se canceló o "voz lista sin render"). Ventana de rescate 6 h. Cortacircuitos: máx. 3 fallos / 5 renders en 2 h (nunca loop).
+- **`watchdog.mjs` + `watchdog_workflows.mjs`** — una vez al día revisan lo que falla en silencio: acceso a R2, tokens de YouTube de los dos canales y crons de producción muertos (GitHub apaga un cron tras 60 días de inactividad del repo o por fallos repetidos, sin avisar). Solo mandan mensaje si hay un problema.
 - **QA (`qa_check.mjs`)** — rechaza videos cortos/mudos/corruptos y regenera; la nota es *advisory* (no bloquea por un fallo de visión). Tope de intentos + cortacircuitos.
 - **Anti-limbo** — un tema que falla 3 veces se **salta** para no trancar la cola.
 - **Reintentos** — los disparos entre workflows (daily→produce, guion→voz, regen→voz) reintentan 4 veces (un blip del API de GitHub no rompe la cadena).
@@ -76,4 +89,4 @@ La parte **100% desatendida** llega hasta *dejar un video pendiente de aprobar*.
 
 **"Producido" se marca solo al PUBLICAR**, no al escribir el guion. Así, si un render se cae y nunca se publica, ese N no queda marcado como hecho → el sistema lo reintenta en vez de dejar un hueco fantasma. (Ver el mapa completo en [CONFIABILIDAD_24_7.md](CONFIABILIDAD_24_7.md).)
 
-*Documento vivo — actualizar cuando cambie el flujo.*
+*Actualizar cuando cambie el flujo.*

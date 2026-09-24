@@ -1,5 +1,8 @@
 name: Inventario del canal (desenredar duplicados)
 
+# Lista todos los uploads del canal con su privacidad y los manda al chat. Sirve para desenredar
+# duplicados cuando el inventario de la app y lo que hay en YouTube no coinciden. Solo manual.
+
 on:
   workflow_dispatch:
 
