@@ -5,6 +5,15 @@ name: Shorts FINALES (formato pro - voz karaoke logo musica) y subir
 # fondo con ducking; la IA elige el vibe por tema) y los sube a YouTube como PRIVADOS.
 
 on:
+  # Tres pasadas al dia (8am, 2pm y 8pm Bogota). Juan aprueba shorts desde el chat
+  # cuando quiere, y esto los recoge sin que tenga que disparar nada.
+  #
+  # Es seguro en cron porque solo toma los aprobados que AUN NO tienen video_id, y
+  # tras subir cada uno le escribe el video_id de vuelta al plan: un short subido
+  # no se vuelve a producir nunca. Si no hay nada aprobado, la corrida sale barata
+  # y en silencio.
+  schedule:
+    - cron: "0 13,19,1 * * *"
   workflow_dispatch:
     inputs:
       voice:
@@ -45,7 +54,11 @@ jobs:
         env:
           ONLY: ${{ github.event.inputs.only }}
         run: |
-          npx --yes wrangler@4 r2 object get "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote
+          # Sin plan todavia no hay nada que hacer: en cron eso es normal, no un fallo.
+          if ! npx --yes wrangler@4 r2 object get "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote 2>/dev/null; then
+            echo '{"shorts":[]}' > plan.json
+            echo "sin plan en R2 todavia"
+          fi
           if [ -n "$ONLY" ]; then
             APP=$(node -e 'process.stdout.write(JSON.stringify(process.env.ONLY.split(",").map(x=>parseInt(x.trim(),10)).filter(x=>!isNaN(x))))')
           else
@@ -54,7 +67,11 @@ jobs:
           fi
           echo "approved=$APP" >> "$GITHUB_OUTPUT"
           echo "aprobados: $APP"
-          bash pipeline/notify_telegram.sh "🎬 Generando los shorts FINALES aprobados ($APP) con el formato pro (voz+karaoke+logo+musica). Te mando cada uno para revisar y publicar."
+          # Solo avisa si de verdad hay algo que generar: con el cron, avisar "[]" tres
+          # veces al dia seria ruido y acabaria entrenando a Juan a ignorar el chat.
+          if [ "$APP" != "[]" ] && [ -n "$APP" ]; then
+            bash pipeline/notify_telegram.sh "🎬 Generando los shorts FINALES aprobados ($APP) con el formato pro (voz+karaoke+logo+musica). Te mando cada uno para revisar y publicar."
+          fi
 
   make:
     needs: prepare
