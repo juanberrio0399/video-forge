@@ -5,8 +5,22 @@ name: Shorts — analisis IA (sugiere cuantos y cuales)
 # No genera nada aqui: solo propone el plan (se guarda en R2).
 
 on:
+  # Diario, 30 min despues del Short de Historia (12:00 UTC), para que si ese dia
+  # se produjo algo nuevo ya este en R2 cuando esto mire.
+  #
+  # La guarda del primer paso es lo que hace seguro el cron: este workflow
+  # SOBRESCRIBE plan.json entero, asi que sin guarda borraria las aprobaciones que
+  # Juan ya hizo y los video_id de los shorts ya subidos — y esos, al quedar sin
+  # video_id, se volverian a producir y subir. Ver el paso "Guarda".
+  schedule:
+    - cron: "30 12 * * *"
   workflow_dispatch:
     inputs:
+      forzar:
+        description: "Rehacer el plan aunque la guarda diga que no hay nada nuevo (pierde las aprobaciones pendientes)"
+        required: false
+        type: boolean
+        default: false
       video_id:
         description: "ID del video del que son los shorts (para no re-sugerir)"
         required: false
@@ -40,30 +54,90 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Avisar arranque
-        run: bash pipeline/notify_telegram.sh "🎬 Analizando el video para sugerir Shorts (cuántos, de qué momentos y qué tan largos). Ya te muestro las propuestas."
-
       - name: Bajar tiempos + guion ACTIVO de R2
         run: |
           npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/timing.json" --file=timing.json --remote || echo "sin timing"
           # Guion del video REALMENTE producido (de R2); si no, el del repo.
           npx --yes wrangler@4 r2 object get "$BUCKET/audio/$PROJECT/voicemap_full.json" --file=voicemap_active.json --remote 2>/dev/null && echo "guion de R2" || cp "projects/$PROJECT/voicemap_full.json" voicemap_active.json
 
+      # ----------------------------------------------------------------------
+      # Guarda: decide si hay algo nuevo que proponer.
+      #
+      # Este workflow sobrescribe plan.json entero. Sin esto, un cron diario:
+      #   1. borraria las aprobaciones que Juan ya hizo desde el chat, y
+      #   2. dejaria sin video_id a los shorts YA SUBIDOS, con lo que
+      #      shorts_final volveria a producirlos y a subirlos duplicados.
+      #
+      # Se salta cuando pasa cualquiera de estas dos cosas:
+      #   - el guion de origen no ha cambiado desde el ultimo plan (mismo video:
+      #     proponer otra vez seria repetirle las mismas sugerencias al chat), o
+      #   - el plan actual todavia tiene trabajo sin terminar (algo aprobado que
+      #     aun no se sube, o propuestas sin decidir): ahi rehacerlo perderia
+      #     decisiones suyas.
+      # `forzar` salta la guarda a proposito, para un disparo manual.
+      # ----------------------------------------------------------------------
+      - name: Guarda (no rehacer el plan si no hay video nuevo o queda trabajo sin cerrar)
+        id: guarda
+        env:
+          FORZAR: ${{ github.event.inputs.forzar }}
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/shorts/$PROJECT/plan.json" --file=plan_actual.json --remote 2>/dev/null || echo '{}' > plan_actual.json
+          node -e '
+            const fs = require("fs"), crypto = require("crypto");
+            const huella = crypto.createHash("sha256")
+              .update(fs.readFileSync("voicemap_active.json"))
+              .digest("hex").slice(0, 16);
+            let previo = {};
+            try { previo = JSON.parse(fs.readFileSync("plan_actual.json", "utf8")); } catch {}
+            const shorts = previo.shorts || [];
+            const pendientes = shorts.filter((s) => s.approved && !s.video_id).length;
+            const sinDecidir = shorts.filter((s) => s.approved === undefined).length;
+
+            let procede = true, motivo = "hay guion nuevo y el plan anterior esta cerrado";
+            if (process.env.FORZAR === "true") {
+              motivo = "forzado a mano";
+            } else if (previo.source_hash && previo.source_hash === huella) {
+              procede = false;
+              motivo = `el guion no ha cambiado desde el ultimo plan (${huella}): mismo video`;
+            } else if (pendientes > 0) {
+              procede = false;
+              motivo = `el plan actual tiene ${pendientes} short(s) aprobados sin subir: rehacerlo los perderia`;
+            } else if (sinDecidir > 0) {
+              procede = false;
+              motivo = `el plan actual tiene ${sinDecidir} propuesta(s) sin decidir en el chat`;
+            }
+
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `procede=${procede}\n`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `huella=${huella}\n`);
+            console.log(`${procede ? "PROCEDE" : "SE SALTA"}: ${motivo}`);
+          '
+
+      - name: Avisar arranque
+        if: steps.guarda.outputs.procede == 'true'
+        run: bash pipeline/notify_telegram.sh "🎬 Analizando el video para sugerir Shorts (cuántos, de qué momentos y qué tan largos). Ya te muestro las propuestas."
+
       - name: Analizar y proponer los shorts
+        if: steps.guarda.outputs.procede == 'true'
         env:
           SHORTS_NOTES: ${{ github.event.inputs.notes }}
         run: node pipeline/shorts_plan.mjs voicemap_active.json timing.json plan.json
 
-      - name: Estampar de qué video es el plan
+      - name: Estampar de qué video es el plan y la huella del guion
+        if: steps.guarda.outputs.procede == 'true'
         env:
           FOR_VIDEO_ID: ${{ github.event.inputs.video_id }}
+          HUELLA: ${{ steps.guarda.outputs.huella }}
         run: |
-          node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("plan.json","utf8"));p.for_video_id=process.env.FOR_VIDEO_ID||"";fs.writeFileSync("plan.json",JSON.stringify(p,null,2));console.log("plan.for_video_id =",p.for_video_id||"(vacío)")'
+          # La huella es lo que permite que la proxima corrida sepa si el guion
+          # cambio: sin ella la guarda no puede distinguir un video nuevo.
+          node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("plan.json","utf8"));p.for_video_id=process.env.FOR_VIDEO_ID||"";p.source_hash=process.env.HUELLA;fs.writeFileSync("plan.json",JSON.stringify(p,null,2));console.log("plan.for_video_id =",p.for_video_id||"(vacío)","· source_hash =",p.source_hash)'
 
       - name: Guardar el plan en R2
+        if: steps.guarda.outputs.procede == 'true'
         run: npx --yes wrangler@4 r2 object put "$BUCKET/shorts/$PROJECT/plan.json" --file=plan.json --remote --content-type application/json
 
       - name: Avisar propuesta de shorts (aprobar en la app)
+        if: steps.guarda.outputs.procede == 'true'
         run: |
           REASON=$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('plan.json','utf8')).reasoning||'')")
           N=$(node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync('plan.json','utf8')).shorts.length))")
