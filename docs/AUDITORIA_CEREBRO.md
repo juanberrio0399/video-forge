@@ -45,9 +45,18 @@ La tanda de las 12:30 UTC (`daily_oddly.yml`) ya no fabrica narrados (`LINEUP_MO
 
 ## Pendiente, fuera de estas correcciones
 
-- **Data Lens: PAUSADO el 2026-09-14 por decisión de Juan.** Apagados `daily_video.yml` y `history_short.yml`;
-  `data_shock.yml` pasa a 1 por semana (lunes 15:00 UTC). Registrado en el ledger (`channel_pause`): se revisa a los
-  21 días; si un experimento supera 500 vistas a los 7 días se reanuda ese formato, si no se evalúa cerrar el canal.
+- **Data Lens: REACTIVADO el 2026-09-29 por decisión de Juan**, antes de cumplirse los 21 días de revisión.
+  Vuelven `daily_video.yml` (cada 6 h, con sus guardas) y `history_short.yml` (diario, A/B/C por categoría);
+  `data_shock.yml` sigue los lunes.
+
+  Motivo del cambio de criterio: la pausa del 2026-09-14 se justificó con "sin tracción tras 10 semanas", pero
+  esa medición corresponde al formato ANTERIOR. El pivote a Shorts de historia es del 2026-08-21 y solo produjo
+  **10 videos en 8 días** antes de detenerse el 28 de agosto, dos semanas antes de la pausa formal. Es decir: el
+  formato que se apagó nunca llegó a tener una medición propia.
+
+  La barra del ledger sigue siendo la referencia para evaluarlo, ahora sí sobre el formato correcto: **500 vistas
+  a los 7 días** por experimento. Si el pivote no la alcanza con producción sostenida, la conversación pasa a ser
+  cerrar el canal y concentrar todo en Oddly Loop, que es el que hoy produce a diario.
 - **Métricas que la API puede no dar:** impresiones y CTR de Shorts se prueban en cada medición y quedan
   marcadas como no disponibles si fallan. Espectadores recurrentes no se exponen por API.
 - **Umbrales del programa:** confirmar en YouTube Studio para el país del canal.

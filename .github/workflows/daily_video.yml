@@ -7,8 +7,17 @@ name: Video diario automatico (cron)
 # Corre en la nube de GitHub -> no depende de Telegram ni de ninguna sesion abierta.
 
 on:
-  # PAUSADO 2026-09-14 por decisión de Juan (auditoría del cerebro): The Data Lens sin tracción tras 10
-  # semanas. Queda 1 experimento semanal (data_shock.yml, lunes). Reactivar: restaurar el cron "0 */6 * * *".
+  # REACTIVADO 2026-09-29 por decisión de Juan.
+  #
+  # Estuvo pausado desde el 2026-09-14 por "sin tracción tras 10 semanas", pero al revisar
+  # los números esa medición era del formato ANTERIOR: el pivote a Shorts de historia
+  # (2026-08-21) solo alcanzó a producir 10 videos en 8 días antes de detenerse el 28 de
+  # agosto. Nunca tuvo una prueba propia, así que la pausa juzgó al formato viejo.
+  #
+  # Las guardas de arriba (+18 h sin video nuevo, menos de 3 pendientes por aprobar) siguen
+  # siendo el freno: esto no produce "a lo loco" y los videos siguen subiendo PRIVADOS.
+  schedule:
+    - cron: "0 */6 * * *"
   workflow_dispatch: {}
 
 permissions:

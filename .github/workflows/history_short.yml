@@ -6,8 +6,12 @@ name: Short de HISTORIA (narrado + footage de archivo)
 # Sube PRIVADO a The Data Lens (YT_) para aprobar/publicar desde la app. Registra la categoria en R2.
 
 on:
-  # PAUSADO 2026-09-14 por decisión de Juan: The Data Lens sin tracción. El único experimento semanal es
-  # data_shock.yml (lunes). Reactivar: restaurar el cron "0 12 * * *".
+  # REACTIVADO 2026-09-29 por decisión de Juan. Ver la nota de daily_video.yml: el pivote a
+  # historia produjo 10 videos en 8 días (21-28 ago) y se detuvo solo; la pausa del 14 de
+  # septiembre midió el formato anterior, no este. Vuelve el A/B/C de 3 al día, uno por
+  # categoría (guerras / inventos / personajes), que es lo que permite ver cuál jala.
+  schedule:
+    - cron: "0 12 * * *"
   workflow_dispatch:
     inputs:
       topic:
