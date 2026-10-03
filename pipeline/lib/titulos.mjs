@@ -60,7 +60,11 @@ export function esGenerico(titulo) {
  * @returns {{ok:boolean, motivo:string|null, queja:string|null}} `queja` es el texto que se
  *          le devuelve al modelo para que lo reintente sabiendo QUE hizo mal.
  */
-export function revisar(titulo, usados) {
+export function revisar(titulo, usados, opts = {}) {
+  // `prohibirGenerico` se apaga en Oddly a proposito. Ahi la plantilla listicle NO rinde
+  // peor (mediana 53 contra 36 del resto, medido el 2026-10-03) y ademas es el BRAZO DE
+  // CONTROL del experimento de formato: prohibirla dejaria el A/B sin con que comparar.
+  const prohibirGenerico = opts.prohibirGenerico !== false;
   const t = String(titulo ?? "").trim();
   if (!t) return { ok: false, motivo: "vacio", queja: "El titulo vino vacio. Escribe uno." };
   if (esDuplicado(t, usados)) {
@@ -69,7 +73,7 @@ export function revisar(titulo, usados) {
       queja: `El titulo "${t}" YA SE USO en este canal. Escribe uno distinto, sobre el angulo concreto de ESTE video.`,
     };
   }
-  if (esGenerico(t)) {
+  if (prohibirGenerico && esGenerico(t)) {
     return {
       ok: false, motivo: "generico",
       queja: `El titulo "${t}" usa la plantilla "The <superlativo> ... in History", que en este canal rinde 6 veces menos (mediana 2 vistas contra 12) y se repite sola. Escribe un titulo sobre el detalle CONCRETO de esta historia: el objeto, la persona o la decision exacta.`,

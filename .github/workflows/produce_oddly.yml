@@ -91,6 +91,9 @@ jobs:
           [ -n "$LEARN" ] && echo "Aprendizaje: $LEARN" || echo "Sin datos de aprendizaje aun (usa el prompt base)"
       - name: Guion de la compilacion (IA)
         run: |
+          # Titulos ya publicados, para no repetirlos (solo duplicados: la plantilla
+          # listicle NO se prohibe aqui, rinde mejor que el resto y es el control del A/B).
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/titles.json" --file=oddly_titles.json --remote 2>/dev/null || echo '[]' > oddly_titles.json
           if node pipeline/compilation_script.mjs "$NICHE" voicemap.json "$VARIANT" "$KIND"; then
             echo "guion ok"
           else
@@ -162,6 +165,9 @@ jobs:
           # viejos siguen como string y se leen igual (lib/niche_map.mjs acepta las dos formas).
           VID="$VID" NICHE="$NICHE" VARIANT="$VARIANT" node -e 'const fs=require("fs");let m={};try{m=JSON.parse(fs.readFileSync("nm.json","utf8"))}catch(e){};m[process.env.VID]={n:process.env.NICHE||null,v:process.env.VARIANT||null};fs.writeFileSync("nm.json",JSON.stringify(m))'
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/niche_map.json" --file=nm.json --remote --content-type application/json || true
+          # Registrar el titulo publicado para que la proxima corrida no lo repita.
+          node -e 'const fs=require("fs");let u=[];try{u=JSON.parse(fs.readFileSync("oddly_titles.json","utf8"))}catch(e){}if(!Array.isArray(u))u=[];let t="";try{t=JSON.parse(fs.readFileSync("voicemap.json","utf8")).title||""}catch(e){}t=String(t).trim();if(t&&!u.includes(t))u.push(t);fs.writeFileSync("oddly_titles_new.json",JSON.stringify(u.slice(-500)))' || true
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/titles.json" --file=oddly_titles_new.json --remote --content-type application/json || true
           # Publicar: programar a la mejor hora, o dejar privado para revisar.
           PIEZA="compilacion"; [ "$KIND" = "short" ] && PIEZA="Short 📱"
           if [ "$PUBLISH" = "yes" ]; then

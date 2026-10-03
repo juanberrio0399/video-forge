@@ -98,3 +98,33 @@ describe("normalizar", () => {
     for (const x of [null, undefined, 0, {}]) expect(typeof normalizar(x)).toBe("string");
   });
 });
+
+// --- Oddly: SOLO antiduplicados, la plantilla listicle NO se prohibe ---
+describe("revisar con prohibirGenerico:false (Oddly)", () => {
+  // Medido 2026-10-03: en Oddly el listicle rinde MEJOR que el resto (mediana 53 vs 36),
+  // y ademas es el brazo de control del experimento de formato. Prohibirlo seria doble error.
+  const sinGenerico = { prohibirGenerico: false };
+
+  it("deja pasar el listicle, que es el control del A/B", () => {
+    const t = "14 Oddly Satisfying Sounds That Instantly Clear Your Mind";
+    expect(revisar(t, [], sinGenerico).ok).toBe(true);
+  });
+
+  it("deja pasar incluso la plantilla que SI se prohibe en Data Lens", () => {
+    expect(revisar("The Deadliest Siege in Human History", [], sinGenerico).ok).toBe(true);
+    // ...pero en Data Lens (por defecto) se sigue rechazando.
+    expect(revisar("The Deadliest Siege in Human History", []).ok).toBe(false);
+  });
+
+  it("sigue cazando el duplicado real de Oddly", () => {
+    const usados = ["14 Oddly Satisfying Sounds That Instantly Clear Your Mind"];
+    const r = revisar("14 Oddly Satisfying Sounds That Instantly Clear Your Mind #Shorts", usados, sinGenerico);
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toBe("duplicado");
+  });
+
+  it("y el otro duplicado real: 10 Oddly Satisfying Animal Facts", () => {
+    const usados = ["10 Oddly Satisfying Animal Facts That Reset Your Brain"];
+    expect(revisar("10 Oddly Satisfying Animal Facts That Reset Your Brain", usados, sinGenerico).motivo).toBe("duplicado");
+  });
+});
