@@ -87,17 +87,54 @@ export function findOutliers(episodes, opts = {}) {
     .map((e) => ({ video_id: e.video_id, title: e.title || "", format: e.format || null, hook_type: classifyHook(e.title), vpd: e.vpd != null ? e.vpd : null, vs_baseline_pct: e.vs_baseline_pct }))
     .sort((a, b) => (b.vs_baseline_pct || 0) - (a.vs_baseline_pct || 0));
 
-  // Patrón dominante entre los outliers (moda de hook_type y de formato).
-  const mode = (arr) => {
-    const c = {}; for (const x of arr) if (x) c[x] = (c[x] || 0) + 1;
-    const e = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
-    return e ? { value: e[0], count: e[1] } : null;
-  };
-  const hookMode = mode(outliers.map((o) => o.hook_type));
-  const fmtMode = mode(outliers.map((o) => o.format));
-  const suggestion = outliers.length
-    ? `Replicar el patrón de los outliers: hook "${hookMode ? hookMode.value : "?"}"${fmtMode ? ` en formato ${fmtMode.value}` : ""} (${outliers.length} video(s) superan ${Math.round((factor - 1) * 100)}% la mediana).`
-    : "Aún sin outliers claros; seguir midiendo.";
+  // PATRON ENTRE LOS OUTLIERS, CORREGIDO POR TASA BASE.
+  //
+  // Antes esto tomaba la MODA del hook entre los outliers y la proponia como patron a
+  // replicar. Eso es la falacia de la tasa base: si el 91% del canal usa hooks de tipo
+  // "number", el ~91% de los outliers seran "number" aunque ese hook sea neutro o malo.
+  // Peor: la sugerencia hace producir mas de lo mismo, la proporcion sube, y la proxima
+  // corrida lo "confirma". Un bucle que encierra al canal en el formato que ya tiene.
+  // (Visto en Oddly el 2026-10-03: "replicar hook number", con 47 de 49 outliers... sobre
+  // un canal hecho casi entero de listicles.)
+  //
+  // Ahora se compara la proporcion DENTRO de los outliers contra la proporcion en toda la
+  // poblacion madura. Solo es patron lo que esta SOBRE-representado (lift) y con muestra.
+  const cuenta = (arr, f) => { const c = {}; for (const x of arr) { const k = f(x); if (k) c[k] = (c[k] || 0) + 1; } return c; };
+  const conHook = eps.map((e) => ({ ...e, hook_type: classifyHook(e.title) }));
 
-  return { factor, count: outliers.length, outliers, pattern: { hook: hookMode, format: fmtMode }, suggestion };
+  function patron(campo) {
+    const enOut = cuenta(outliers, (o) => o[campo]);
+    const enTodo = cuenta(conHook, (e) => e[campo]);
+    const nOut = outliers.length, nTodo = conHook.length;
+    if (!nOut || !nTodo) return null;
+    const filas = Object.entries(enOut).map(([valor, k]) => {
+      const base = (enTodo[valor] || 0) / nTodo;      // proporcion en el canal
+      const share = k / nOut;                          // proporcion entre los ganadores
+      return { value: valor, count: k, share: +share.toFixed(3), base_rate: +base.toFixed(3), lift: base > 0 ? +(share / base).toFixed(2) : null };
+    }).sort((a, b) => (b.lift || 0) - (a.lift || 0));
+    return filas[0] || null;
+  }
+
+  const hookTop = patron("hook_type");
+  const fmtTop = patron("format");
+
+  // Umbrales: sobre-representado al menos 30% y con al menos 3 ganadores detras.
+  const LIFT_MIN = 1.3, MIN_GANADORES = 3;
+  const real = (p) => !!(p && p.lift != null && p.lift >= LIFT_MIN && p.count >= MIN_GANADORES);
+
+  let suggestion;
+  if (!outliers.length) {
+    suggestion = "Aún sin outliers claros; seguir midiendo.";
+  } else if (real(hookTop) || real(fmtTop)) {
+    const partes = [];
+    if (real(hookTop)) partes.push(`hook "${hookTop.value}" (${Math.round(hookTop.share * 100)}% de los ganadores vs ${Math.round(hookTop.base_rate * 100)}% del canal, ×${hookTop.lift})`);
+    if (real(fmtTop)) partes.push(`formato ${fmtTop.value} (×${fmtTop.lift})`);
+    suggestion = `Replicar lo que está SOBRE-representado entre los ganadores: ${partes.join(" · ")} — ${outliers.length} video(s) superan ${Math.round((factor - 1) * 100)}% la mediana.`;
+  } else {
+    // Honesto: hay ganadores, pero se parecen al resto del canal. No hay nada que replicar.
+    const dom = hookTop ? ` El más común entre ellos ("${hookTop.value}") lo es porque ya es ${Math.round(hookTop.base_rate * 100)}% del canal, no porque funcione (×${hookTop.lift}).` : "";
+    suggestion = `${outliers.length} video(s) superan ${Math.round((factor - 1) * 100)}% la mediana, pero NINGÚN patrón está sobre-representado: lo que ganó se parece al resto.${dom} Hace falta PROBAR algo distinto, no replicar.`;
+  }
+
+  return { factor, count: outliers.length, outliers, pattern: { hook: hookTop, format: fmtTop, lift_min: LIFT_MIN, base_rate_corrected: true }, suggestion };
 }
