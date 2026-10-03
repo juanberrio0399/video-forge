@@ -1,9 +1,10 @@
 {
-  "_nota": "CADENCIA POR DATOS (re-balanceada 2026-08-20 al ranking real por vistas/dia: Satisfying 67 > Narrativas 37 > Ciencia+humor 17 > Naturaleza 14). Se DOBLA el ganador (Satisfying 1->4) y se recorta lo flojo (Naturaleza 2->0, Narrativas 4->3). shorts_per_category = Shorts/dia por categoria; long_per_day = largos/dia. 8 Shorts/dia (dentro de la cuota). Solo afecta la produccion NUEVA: no toca lo ya publicado ni programado. Reevaluar con el reporte y re-balancear cada semana. | 2026-10-03: animales_tiernos lleva una LISTA de variantes en vez de una sola: sus franjas alternan un_hecho y narrado para poder medir el FORMATO con el tema fijo (A/B 'formato_un_hecho_vs_lista'). No cambia el reparto de franjas, solo que formato sale en cada una.",
+  "_nota": "CADENCIA POR DATOS. shorts_per_category = Shorts/dia por categoria; long_per_day = largos/dia. Solo afecta la produccion NUEVA: no toca lo ya publicado ni programado. La reescribe rebalance_oddly.mjs cada semana con el ranking real (mediana de vistas/dia, cohorte 5-30d) y el workflow la sube a R2; este archivo es el seed de arranque y el respaldo. | 2026-10-03: puesto al dia con lo que el rebalance del 2026-09-28 dejo VIVO en R2 (animales_tiernos 5.6/d n48 > satisfying 2.6/d n48 > narrativas 0.5/d n9; ciencia_humor y naturaleza_relax sin muestra). Estaba desfasado desde agosto: sincronizarlo tal como estaba habria borrado al ganador y revivido dos categorias muertas. | animales_tiernos lleva una LISTA de variantes: sus franjas alternan un_hecho y narrado para medir el FORMATO con el tema fijo (A/B 'formato_un_hecho_vs_lista').",
   "shorts_per_category": {
+    "animales_tiernos": 8,
     "satisfying": 4,
-    "narrativas": 3,
-    "ciencia_humor": 1,
+    "narrativas": 0,
+    "ciencia_humor": 0,
     "naturaleza_relax": 0
   },
   "long_per_day": 0,
