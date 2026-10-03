@@ -7,6 +7,7 @@
 // Lee (cwd): history_used.json (temas ya usados, de R2), channel/history_topics.seed.json.
 // Env: GEMINI_API_KEY(,2).
 import fs from "node:fs";
+import { revisar } from "./lib/titulos.mjs";
 import { genText } from "./llm.mjs";  // Gemini -> Cloudflare Workers AI (fallback gratis, sin cuota)
 
 const [outScript = "script.json", outNarration = "narration.txt"] = process.argv.slice(2);
@@ -14,6 +15,9 @@ const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Bo
 const tf = (u, o = {}, ms = 45000) => fetch(u, { ...o, signal: AbortSignal.timeout(ms) });
 
 // Temas ya usados + semilla curada
+let usedTitles = [];
+try { usedTitles = JSON.parse(fs.readFileSync("history_titles.json", "utf8")); } catch {}
+if (!Array.isArray(usedTitles)) usedTitles = [];
 let used = [];
 try { used = JSON.parse(fs.readFileSync("history_used.json", "utf8")); } catch {}
 const usedSet = new Set((Array.isArray(used) ? used : []).map((s) => String(s).toLowerCase().trim()));
@@ -52,6 +56,11 @@ HARD RULES:
 
 Then split the narration into 4-5 visual BEATS. For EACH beat give a CONCRETE search query in English of a REAL, ICONIC, SEARCHABLE subject that surely exists as a historical PHOTO on Wikimedia Commons — use proper nouns, places, people and years (e.g. "Berlin Wall 1989", "Brandenburg Gate November 1989", "Gunter Schabowski press conference", "East Germans crossing Berlin Wall", "Apollo 11 launch 1969", "1929 Wall Street crash crowd"). Each beat's query MUST be visually different from the others (different place/person/moment) so the images never repeat. Avoid abstractions.
 
+TITLE RULE (measured on THIS channel on 2026-10-03, 45 Shorts):
+- Titles shaped "The <Deadliest/Worst/Biggest> ... in (Human) History" got a MEDIAN OF 2 VIEWS (n=33, ten of them zero). Titles naming a CONCRETE thing got a median of 12 and a mean of 82 (n=12). The five best were all concrete: "The Single Signature That Destroyed German Democracy" (406 views), "The Single Key That Doomed The Titanic" (321), "The Lab Accident That Saved Millions of Lives" (105).
+- So: NEVER use that superlative template. Name the specific object, person or decision this story turns on.
+- These titles are ALREADY USED on the channel; writing any of them again is forbidden: ${usedTitles.slice(-60).join(" | ") || "(none yet)"}
+
 Return ONLY JSON:
 {"topic":"...","title":"<=70 char high-CTR English title (no clickbait lies)","hook":"the first line","hook_card":"<=5 words, punchy, for the opening on-screen text","narration":"the full narration text","beats":[{"text":"beat sentence","query":"archive footage search query"}],"hashtags":["#History", "..."],"vibe":"cinematic|tension|epic"}`;
 
@@ -72,6 +81,31 @@ if (!out || !out.narration || !Array.isArray(out.beats) || !out.beats.length) {
     vibe: "cinematic",
   };
 }
+// PUERTA DEL TITULO. El pipeline ya evitaba repetir TEMAS, pero nunca miro los TITULOS:
+// dos temas distintos (Leningrado, Constantinopla) colapsan en "The Deadliest Siege in
+// Human History". Asi se publicaron SIETE videos con ese mismo titulo, varios con cero
+// vistas. Se revisa, se reintenta una vez diciendole al modelo que hizo mal, y si insiste
+// se FALLA: publicar el septimo duplicado es peor que no publicar hoy.
+let chequeo = revisar(out.title, usedTitles);
+if (!chequeo.ok) {
+  console.error(`Titulo rechazado (${chequeo.motivo}): "${out.title}" — reintentando`);
+  const raw2 = await genText(`${PROMPT}
+
+TU INTENTO ANTERIOR FUE RECHAZADO. ${chequeo.queja} Devuelve el MISMO JSON con un titulo nuevo.`, { json: true });
+  let out2 = null;
+  if (raw2) { try { out2 = JSON.parse(raw2); } catch {} }
+  if (out2 && out2.title) {
+    const chequeo2 = revisar(out2.title, usedTitles);
+    if (chequeo2.ok) { out = { ...out, ...out2 }; chequeo = chequeo2; }
+    else chequeo = chequeo2;
+  }
+}
+if (!chequeo.ok) {
+  console.error(`TITULO INACEPTABLE tras reintentar (${chequeo.motivo}): "${out.title}".`);
+  console.error("No se produce: otro duplicado/generico hace mas daño que saltarse un dia.");
+  process.exit(1);
+}
+
 out.topic = out.topic || seedTopic;
 out.direction = DIRECTION || out.direction || "";
 out.vibe = ["cinematic", "tension", "epic"].includes((out.vibe || "").toLowerCase()) ? out.vibe.toLowerCase() : "cinematic";
@@ -80,6 +114,7 @@ if (!Array.isArray(out.hashtags) || !out.hashtags.length) out.hashtags = ["#Hist
 fs.writeFileSync(outScript, JSON.stringify(out, null, 2));
 fs.writeFileSync(outNarration, String(out.narration).replace(/\s+/g, " ").trim());
 fs.writeFileSync("chosen_topic.txt", out.topic);
+fs.writeFileSync("chosen_title.txt", out.title || "");
 fs.writeFileSync("chosen_direction.txt", out.direction);
 console.log(`GUION listo [${out.direction || "sin-categoria"}] — "${out.title}"`);
 console.log(`Hook: ${out.hook}`);
