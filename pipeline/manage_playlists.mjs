@@ -6,6 +6,7 @@
 // La categoria se infiere del titulo (o se respeta el niche_map de Oddly si ya lo tiene).
 // El workflow baja/sube playlists.json (y niche_map.json de Oddly) a R2.
 import fs from "node:fs";
+import { leerEntrada } from "./lib/niche_map.mjs";
 
 const CH = process.argv[2] === "auto2" ? "auto2" : "data-lens";
 const A2 = CH === "auto2";
@@ -100,7 +101,7 @@ async function addToPlaylist(plid, vid) {
 }
 
 const vids = await myVideos();
-const catOf = (v) => (A2 && nicheMap[v.video_id]) ? nicheMap[v.video_id] : nicheOf(v.title);
+const catOf = (v) => (A2 && leerEntrada(nicheMap[v.video_id]).niche) || nicheOf(v.title);
 console.log(`${CH}: ${vids.length} videos en el canal · tope de esta corrida: ${MAX} inserts.`);
 let inserted = 0, skipped = 0;
 for (const v of vids) {

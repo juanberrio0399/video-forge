@@ -157,7 +157,10 @@ jobs:
           VID=$(cat publish/video_id.txt)
           # Mapear video->nicho (para el radar de nichos).
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/niche_map.json" --file=nm.json --remote 2>/dev/null || echo '{}' > nm.json
-          VID="$VID" NICHE="$NICHE" node -e 'const fs=require("fs");let m={};try{m=JSON.parse(fs.readFileSync("nm.json","utf8"))}catch(e){};m[process.env.VID]=process.env.NICHE;fs.writeFileSync("nm.json",JSON.stringify(m))'
+          # Se guarda {n: nicho, v: variante}. Antes era solo el nicho como string: con eso
+          # se puede rankear por categoria pero NO medir una pregunta de FORMATO. Los videos
+          # viejos siguen como string y se leen igual (lib/niche_map.mjs acepta las dos formas).
+          VID="$VID" NICHE="$NICHE" VARIANT="$VARIANT" node -e 'const fs=require("fs");let m={};try{m=JSON.parse(fs.readFileSync("nm.json","utf8"))}catch(e){};m[process.env.VID]={n:process.env.NICHE||null,v:process.env.VARIANT||null};fs.writeFileSync("nm.json",JSON.stringify(m))'
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/niche_map.json" --file=nm.json --remote --content-type application/json || true
           # Publicar: programar a la mejor hora, o dejar privado para revisar.
           PIEZA="compilacion"; [ "$KIND" = "short" ] && PIEZA="Short 📱"

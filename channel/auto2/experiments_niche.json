@@ -1,6 +1,17 @@
 {
-  "_nota": "Registro de EXPERIMENTOS de nicho de Oddly. 'active' = el nicho en prueba (usa 1 slot/dia); si supera la mediana de los establecidos se PROMUEVE (pasa a 'promoted' y queda fijo), si no se DESCARTA (pasa a 'done') y se activa el siguiente de 'queue'. Lo maneja rebalance_oddly.mjs cada semana.",
-  "active": { "key": "animales_tiernos", "label": "Animales tiernos / ASMR", "variant": "puro" },
+  "_nota": "Registro de EXPERIMENTOS de Oddly. 'active' = lo que esta en prueba (usa sus franjas del dia). Si 'variant' es una LISTA, las franjas de ese nicho ALTERNAN entre los brazos: el tema queda fijo y el formato es la unica variable, que es lo que hace medible el A/B (lib/lineup.mjs elegirVariante). Lo mide ab_tests.mjs ('formato_un_hecho_vs_lista') y lo maneja rebalance_oddly.mjs cada semana.",
+  "active": {
+    "key": "animales_tiernos",
+    "label": "Animales tiernos — formato: un hecho vs lista",
+    "variant": [
+      "un_hecho",
+      "narrado"
+    ],
+    "hipotesis": "Un hecho concreto sobre UN sujeto, corto y con metraje real de ese sujeto, rinde mas que una lista de 10-14 hechos genericos.",
+    "de_donde_sale": "Auditoria del canal el 2026-10-03: 41 Shorts maduros medidos a mano dan mediana de 46 vistas. El unico que desperto fue 'Why Baby Otters Hold Hands' con 918 (20x), que es ese formato. Es n=1, o sea una hipotesis, no una conclusion.",
+    "criterio": "ab_tests.mjs: min 5 por brazo (maduros) y lift >= 50% en vs_baseline_pct.",
+    "desde": "2026-10-03"
+  },
   "queue": [],
   "done": [],
   "promoted": []

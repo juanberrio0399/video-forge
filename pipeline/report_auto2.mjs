@@ -10,6 +10,7 @@
 // Uso: node pipeline/report_auto2.mjs   (lee niche_map.json y views_at_age.json si existen)
 import fs from "node:fs";
 import { rankNiches, median } from "./lib/niche_rank.mjs";
+import { leerEntrada } from "./lib/niche_map.mjs";
 
 const { YT2_CLIENT_ID, YT2_CLIENT_SECRET, YT2_REFRESH_TOKEN } = process.env;
 const tf = (u, o = {}, ms = 12000) => fetch(u, { ...o, signal: AbortSignal.timeout(ms) });
@@ -56,14 +57,16 @@ try {
     const j = await (await tf(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status,statistics,contentDetails&id=${ids.slice(i, i + 50).join(",")}`, { headers: H })).json();
     for (const v of j.items || []) {
       if (hidden.has(v.id)) { hiddenSkipped++; continue; }
-      const mapped = nicheMap[v.id];
+      // El mapa trae string (videos viejos) u {n, v} (desde que se registra la variante).
+      const ent = leerEntrada(nicheMap[v.id]);
+      const mapped = ent.niche;
       const nk = mapped || inferNiche(v.snippet.title);
       list.push({
         video_id: v.id, title: v.snippet.title, privacy: v.status.privacyStatus, publish_at: (v.status || {}).publishAt || null,
         views: +((v.statistics || {}).viewCount || 0), likes: +((v.statistics || {}).likeCount || 0), comments: +((v.statistics || {}).commentCount || 0),
         seconds: isoSeconds((v.contentDetails || {}).duration),
         published_at: v.snippet.publishedAt.slice(0, 10), pub_iso: v.snippet.publishedAt,
-        niche: nk, niche_label: NICHE_LABEL[nk] || null, niche_inferred: !mapped, manual: false,
+        niche: nk, niche_label: NICHE_LABEL[nk] || null, niche_inferred: !mapped, variant: ent.variant, manual: false,
       });
     }
   }

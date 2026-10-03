@@ -1,5 +1,5 @@
 {
-  "_nota": "CADENCIA POR DATOS (re-balanceada 2026-08-20 al ranking real por vistas/dia: Satisfying 67 > Narrativas 37 > Ciencia+humor 17 > Naturaleza 14). Se DOBLA el ganador (Satisfying 1->4) y se recorta lo flojo (Naturaleza 2->0, Narrativas 4->3). shorts_per_category = Shorts/dia por categoria; long_per_day = largos/dia. 8 Shorts/dia (dentro de la cuota). Solo afecta la produccion NUEVA: no toca lo ya publicado ni programado. Reevaluar con el reporte y re-balancear cada semana.",
+  "_nota": "CADENCIA POR DATOS (re-balanceada 2026-08-20 al ranking real por vistas/dia: Satisfying 67 > Narrativas 37 > Ciencia+humor 17 > Naturaleza 14). Se DOBLA el ganador (Satisfying 1->4) y se recorta lo flojo (Naturaleza 2->0, Narrativas 4->3). shorts_per_category = Shorts/dia por categoria; long_per_day = largos/dia. 8 Shorts/dia (dentro de la cuota). Solo afecta la produccion NUEVA: no toca lo ya publicado ni programado. Reevaluar con el reporte y re-balancear cada semana. | 2026-10-03: animales_tiernos lleva una LISTA de variantes en vez de una sola: sus franjas alternan un_hecho y narrado para poder medir el FORMATO con el tema fijo (A/B 'formato_un_hecho_vs_lista'). No cambia el reparto de franjas, solo que formato sale en cada una.",
   "shorts_per_category": {
     "satisfying": 4,
     "narrativas": 3,
@@ -7,11 +7,20 @@
     "naturaleza_relax": 0
   },
   "long_per_day": 0,
-  "long_rotation": ["satisfying", "narrativas", "ciencia_humor", "naturaleza_relax"],
+  "long_rotation": [
+    "satisfying",
+    "narrativas",
+    "ciencia_humor",
+    "naturaleza_relax"
+  ],
   "variant": {
     "satisfying": "puro",
     "naturaleza_relax": "puro",
     "narrativas": "narrado",
-    "ciencia_humor": "narrado"
+    "ciencia_humor": "narrado",
+    "animales_tiernos": [
+      "un_hecho",
+      "narrado"
+    ]
   }
 }

@@ -39,6 +39,10 @@ export function buildEpisode(v, medVpd, nowMs = Date.now()) {
     watch_min: Number(v.watch_min) || 0,
     vpd: Math.round(_vpd * 10) / 10,
     vs_baseline_pct: medVpd ? pctVsBaseline(_vpd, medVpd) : null,
+    // Formato con el que se produjo (del niche_map). Es lo que agrupa el A/B de formato.
+    // null en los videos viejos: se produjeron antes de registrarlo, y no se inventa.
+    niche: v.niche || null,
+    variant: v.variant || null,
     // Campos cognitivos (los llenan neuronas futuras — Fase 4/5):
     hook_type: null,
     title_type: null,

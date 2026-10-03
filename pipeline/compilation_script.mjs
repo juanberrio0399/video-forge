@@ -63,6 +63,55 @@ async function gemini(prompt) {
 const IDEA = (process.env.ODDLY_IDEA || "").trim().slice(0, 300);
 const ideaBlock = IDEA ? `ÁNGULO QUE EL CEREBRO QUIERE PROBAR EN ESTA PIEZA (respétalo; no inventes datos falsos): ${IDEA}\n` : "";
 
+// VARIANTE "un_hecho" (EXPERIMENTO de formato, 2026-10-03): UN sujeto, UN hecho, corto.
+// Por que: el canal lleva 518 videos con mediana de 46 vistas haciendo LISTAS de 10-14 hechos
+// genericos. El unico Short que desperto fue "Why Baby Otters Hold Hands" (918 vistas, 20x la
+// mediana): 18,7 segundos, un solo animal, un solo dato, metraje real de ESE animal y un titulo
+// que es una pregunta concreta. Esta variante produce esa forma para poder medirla contra la
+// lista (A/B "formato_un_hecho_vs_lista" en ab_tests.mjs).
+//
+// Las diferencias que se prueban, todas a la vez porque son UNA forma, no cinco ajustes:
+//   - UN sujeto en todo el video (no 14 cosas distintas)
+//   - UN hecho sorprendente y especifico (no "14 triggers que resetean tu cerebro")
+//   - 3-4 clips DEL MISMO sujeto (no un clip por hecho)
+//   - ~15-20 s (no 60-91)
+//   - titulo = pregunta concreta sobre ese sujeto
+if (variant === "un_hecho") {
+  const scr = await gemini(
+    `Eres guionista de un canal faceless en INGLES (audiencia EEUU) tipo "${label}". ${ideaBlock}` +
+    `Escribe un Short de UN SOLO HECHO: elige UN sujeto concreto (un animal, un objeto, un fenomeno) ` +
+    `y UN hecho sorprendente y VERIFICABLE sobre el. Nada de listas, nada de "10 datos". ` +
+    `El video entero muestra ESE sujeto: todas las queries de stock son del mismo sujeto, en planos distintos. ` +
+    `Estructura: beat 1 = la pregunta/gancho en 2 segundos ("Why do X...?"), beats 2-3 = la respuesta ` +
+    `con el dato, beat final = el remate. Entre 3 y 4 beats, frases CORTISIMAS (el video dura 15-20 segundos). ` +
+    `El titulo es una PREGUNTA CONCRETA sobre el sujeto, no una promesa generica. ` +
+    `Inspirate en el pool del nicho si encaja: ${pool}. ` +
+    `Devuelve SOLO JSON: {"subject":"el sujeto en una palabra o dos","title":"pregunta concreta en ingles terminada en #Shorts","beats":[{"text":"1 frase corta en ingles","query":"termino stock en ingles DEL MISMO SUJETO","tipo":"intro|clip|reveal"}]}`
+  );
+  if (!scr || !Array.isArray(scr.beats) || !scr.beats.length) {
+    console.error("Gemini no devolvio guion de un_hecho");
+    process.exit(1);
+  }
+  const beats = scr.beats.slice(0, 4).map((b) => ({
+    text: (b.text || "").trim(),
+    query: (b.query || scr.subject || nicheCfg.queries?.[0] || niche).trim(),
+    tipo: b.tipo || "clip",
+    pause_after: 0.1,
+  }));
+  const voicemap = {
+    lang: "en",
+    title: scr.title || `Why ${scr.subject || "This"}? #Shorts`,
+    niche, variant, kind,
+    subject: scr.subject || null,
+    defaults: { pause_after: 0.1 },
+    transform: { on_screen_insight: true, sound_design: true, narration: true },
+    beats,
+  };
+  fs.writeFileSync(out, JSON.stringify(voicemap, null, 2));
+  console.log(`Guion UN HECHO: "${voicemap.title}" · sujeto "${voicemap.subject}" · ${beats.length} beats -> ${out}`);
+  process.exit(0);
+}
+
 // VARIANTE "puro" (ASMR sin voz): NO hay narración. Solo curamos clips (queries) + título.
 // Es lo más fiel al ASMR real: mandan el SONIDO y el VISUAL. Robusto: si Gemini no está,
 // armamos la lista con el pool del nicho -> la producción NO depende de la IA.

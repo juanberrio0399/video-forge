@@ -47,6 +47,23 @@ const confidenceOf = (n) => (n >= 15 ? "media" : n >= 5 ? "baja" : "muy baja");
 //   scheduled:[{video_id,title,publish_at,niche}], producing:[{slot_utc,niche,run_url,claimed_at}], missing:[keys],
 //   d7Median, channel
 // }
+// Elige la variante de formato de una franja.
+//
+// `variants[nicho]` puede ser un string (la variante fija de siempre) o una LISTA. Con una
+// lista, las franjas de ESE nicho van alternando entre los brazos -> los dos formatos se
+// producen sobre el MISMO tema. Eso es lo que hace que el A/B sirva: si un brazo fuera
+// "animales" y el otro "satisfying", lo medido seria tema Y formato a la vez, y el resultado
+// no diria nada. Alternar dentro del nicho deja el tema fijo y el formato como unica variable.
+export function elegirVariante(variants, nicheKey, turno = 0) {
+  const v = (variants || {})[nicheKey];
+  if (Array.isArray(v)) {
+    const brazos = v.filter(Boolean);
+    if (!brazos.length) return null;
+    return brazos[((turno % brazos.length) + brazos.length) % brazos.length];
+  }
+  return v || null;
+}
+
 export function buildLineup(input = {}) {
   const nowMs = input.nowMs != null ? input.nowMs : Date.now();
   const date = input.date || etDate(nowMs, 1);
@@ -78,6 +95,7 @@ export function buildLineup(input = {}) {
   // Experimento: UNA variable, solo en un nicho; el resto es control (no cambia nada más).
   const exp = input.experiment && input.experiment.id && Array.isArray(input.experiment.arms) && input.experiment.arms.length === 2 ? input.experiment : null;
   let armToggle = 0;
+  const turnoVariante = {};  // franjas ya repartidas por nicho, para alternar los brazos
 
   const scheduled = (input.scheduled || []).map((v) => ({ ...v, t: Date.parse(v.publish_at) })).filter((v) => Number.isFinite(v.t));
   const used = new Set();
@@ -99,6 +117,7 @@ export function buildLineup(input = {}) {
     else if (slot - nowMs < 2.5 * HOUR) status = "sin_tiempo";
     else status = "planeado";
 
+    if (turnoVariante[nicheKey] == null) turnoVariante[nicheKey] = 0;
     let experiment = null;
     if (exp && (!exp.niche || exp.niche === nicheKey)) { experiment = { id: exp.id, variable: exp.variable, arm: exp.arms[armToggle % 2] }; armToggle++; }
     let idea = null;
@@ -120,7 +139,7 @@ export function buildLineup(input = {}) {
     };
     return {
       slot_utc: new Date(slot).toISOString(), slot_et: fmtET(slot),
-      niche: nicheKey, niche_label: label, variant: (input.variants || {})[nicheKey] || null,
+      niche: nicheKey, niche_label: label, variant: elegirVariante(input.variants, nicheKey, turnoVariante[nicheKey]++),
       status,
       video_id: match ? match.video_id : null, title: match ? match.title : null,
       idea: idea ? { id: idea.id, text: idea.text, priority: idea.priority } : null,
