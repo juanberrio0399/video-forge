@@ -39,6 +39,10 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/state.json" --file=oddly_state.json --remote 2>/dev/null || echo '{}' > oddly_state.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/history_map.json" --file=history_map.json --remote 2>/dev/null || echo '[]' > history_map.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/weekly_stats.json" --file=weekly_stats.json --remote 2>/dev/null || echo '{}' > weekly_stats.json
+          # Retencion de Oddly: el Cerebro la usa solo para AVISAR si la cobertura es tan baja
+          # que lo que se lea de ahi no representa al canal (con pocas vistas YouTube no
+          # devuelve curva). Si no esta, el Cerebro sigue igual y se salta el aviso.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/retention.json" --file=retention_auto2.json --remote 2>/dev/null || echo '{}' > retention_auto2.json
 
       - name: Diagnostico (el cerebro)
         run: node pipeline/channel_brain.mjs

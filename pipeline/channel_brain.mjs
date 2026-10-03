@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import { MONET_GOALS } from "./lib/monetization.mjs";
 import { decidirVolumen } from "./lib/volumen_util.mjs";
+import { evaluarMuestra, cobertura, lineaAviso } from "./lib/muestra.mjs";
 
 const rj = (p, d) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return d; } };
 const dl = rj("dl_state.json", {});
@@ -45,10 +46,32 @@ const dlTrend = weekTrend("data_lens");
 const odSubs = +od.subs || 0, odViews = +od.total_views || 0, odVids = +od.videos || 0;
 const odRank = (od.niche_ranking || []).slice().sort((a, b) => (b.avg_vpd || 0) - (a.avg_vpd || 0));
 const odTop = odRank[0] || null;
+// El veredicto de Oddly sale del RENDIMIENTO, no de tener suscriptores.
+//
+// Antes la condicion de "sano" era `(odTop && odTop.avg_vpd >= 20) || odSubs > 0`. Ese
+// `|| odSubs > 0` hacia que cualquier canal con UN suscriptor saliera 🟢 sano para siempre,
+// y dejaba la rama de "estancado" inalcanzable. Por eso Oddly se reportaba sano con 67 subs
+// y 46 vistas por video (2026-10-03).
+//
+// Tambien se exige MUESTRA: el nicho que "gana" no significa nada si se midio con 2 videos.
+const odNicho = odTop ? evaluarMuestra(odTop.n ?? odTop.videos ?? 0, { que: "videos del nicho" }) : evaluarMuestra(0, { que: "videos del nicho" });
+const odVistasPorVideo = odVids ? odViews / odVids : 0;
+const VPV_SANO = 100;   // vistas acumuladas por video que separan "vivo" de "no lo ve nadie"
+
 let odVerdict, odMsg;
-if (odVids < 10) { odVerdict = "🟡 arrancando"; odMsg = `${odVids} videos, faltan datos.`; }
-else if ((odTop && odTop.avg_vpd >= 20) || odSubs > 0) { odVerdict = "🟢 sano"; odMsg = `${odSubs} subs · ${odViews.toLocaleString()} vistas · gana ${odTop ? odTop.label + " (" + odTop.avg_vpd + "/dia)" : "?"}.`; }
-else { odVerdict = "🔴 estancado"; odMsg = `${odVids} videos y nada despega — revisar formato.`; }
+if (odVids < 10) {
+  odVerdict = "🟡 arrancando";
+  odMsg = `${odVids} videos, faltan datos.`;
+} else if (odTop && odTop.avg_vpd >= 20 && odNicho.suficiente) {
+  odVerdict = "🟢 sano";
+  odMsg = `${odSubs} subs · ${odViews.toLocaleString()} vistas · gana ${odTop.label} (${odTop.avg_vpd}/dia, n${odNicho.n}).`;
+} else if (odTop && odTop.avg_vpd >= 20 && !odNicho.suficiente) {
+  odVerdict = "🟡 sin muestra";
+  odMsg = `${odSubs} subs · ${odViews.toLocaleString()} vistas · «${odTop.label}» va ${odTop.avg_vpd}/dia pero ${odNicho.aviso} — todavia no es un ganador.`;
+} else {
+  odVerdict = "🔴 estancado";
+  odMsg = `${odSubs} subs · ${odVids} videos · ${Math.round(odVistasPorVideo)} vistas por video acumuladas — nada despega, revisar FORMATO.`;
+}
 
 // ---------------- THE DATA LENS (canal de HISTORIA) ----------------
 // Mide por CATEGORIA (guerras/inventos/personajes) con stats EN VIVO de los video_id del mapa
@@ -143,6 +166,19 @@ const lines = [
   `   direcciones: ${dirLine}`,
   `   ${monetLine(dlSubs, dlViews, 200000)}`,
 ];
+// Honestidad sobre cuanto se sabe: si la muestra no da, se dice ANTES de que alguien actue
+// sobre un veredicto sacado de cuatro datos.
+const ret = rj("retention_auto2.json", null);
+const avisos = [];
+if (!odNicho.suficiente && odVids >= 10) avisos.push(`ranking de nichos con ${odNicho.n} video(s) medidos`);
+if (ret && Array.isArray(ret.videos)) {
+  const cur = ret.videos.filter((v) => v && (v.curve || v.points || v.early_drop_pct != null)).length;
+  const c = cobertura(cur, ret.videos.length, { que: "curva de retencion" });
+  if (c.aviso) avisos.push(c.aviso);
+}
+const avisoMuestra = lineaAviso(avisos);
+if (avisoMuestra) lines.push("", avisoMuestra);
+
 if (odVol.reestructurar) lines.push("", `⚠️ ACCION: Oddly necesita REESTRUCTURA de formato, no mas volumen. ${odVol.razon}.`);
 if (restructure) lines.push("", "⚠️ ACCION: The Data Lens necesita REESTRUCTURA. Dile a Claude: «reestructura Data Lens con direcciones nuevas».");
 
