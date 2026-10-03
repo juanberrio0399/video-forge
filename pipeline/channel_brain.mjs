@@ -7,6 +7,7 @@
 // Salida: brain.txt (resumen para Telegram) + brain.json (verdictos).
 import fs from "node:fs";
 import { MONET_GOALS } from "./lib/monetization.mjs";
+import { decidirVolumen } from "./lib/volumen_util.mjs";
 
 const rj = (p, d) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return d; } };
 const dl = rj("dl_state.json", {});
@@ -113,6 +114,14 @@ const daysLeft = Math.max(1, Math.ceil((DEADLINE - now) / 86400000));
 const OD_T = Object.fromEntries(MONET_GOALS.auto2.targets.map((t) => [t.key, t.target]));
 const OD_SUBS_T = OD_T.subs || 1000, OD_VIEWS_T = OD_T.shorts_views_90d || 10000000;
 const dlViews = +((dl.channel_stats || {}).total_views ?? (dl.monetization || {}).views) || 0;
+// ¿Mas volumen sirve, o hay que cambiar el formato? Antes esto era una regla fija
+// ("Oddly va atras -> 12/dia"). Medido el 2026-10-03: 518 videos, 67 subs, mediana de
+// 46 vistas por Short. A 12/dia faltaria ~200x para la meta, asi que subir la cadencia
+// solo multiplica videos que nadie ve. La decision ahora sale de la aritmetica.
+const odVol = decidirVolumen({
+  vistasTotales: odViews, videos: odVids, metaVistas: OD_VIEWS_T, diasRestantes: daysLeft,
+});
+
 const monetLine = (subs, views, viewsTarget, subsTarget = 1000) => {
   const subPace = (Math.max(0, subsTarget - subs) / daysLeft).toFixed(1);
   const vPace = Math.ceil(Math.max(0, viewsTarget - views) / daysLeft);
@@ -134,19 +143,26 @@ const lines = [
   `   direcciones: ${dirLine}`,
   `   ${monetLine(dlSubs, dlViews, 200000)}`,
 ];
+if (odVol.reestructurar) lines.push("", `⚠️ ACCION: Oddly necesita REESTRUCTURA de formato, no mas volumen. ${odVol.razon}.`);
 if (restructure) lines.push("", "⚠️ ACCION: The Data Lens necesita REESTRUCTURA. Dile a Claude: «reestructura Data Lens con direcciones nuevas».");
 
 // REGLA DURA: la fecha NO se mueve. Si un canal va atrás, se ESCALA la agresividad (no se alarga el plazo).
 // El ritmo/día necesario ya sube solo cada día que pasa (need / daysLeft con deadline fijo).
-lines.push("", "🎯 Meta fin-2026 FIJA — no se alarga. Si un canal va atrás, se ESCALA (sí o sí): Oddly = más volumen del ganador; Data Lens = reestructurar el formato. El ritmo/día necesario sube solo con cada día que pasa.");
+lines.push("", "🎯 Meta fin-2026 FIJA — no se alarga. Si un canal va atrás se ESCALA, pero el CÓMO sale de los datos: más volumen solo si las vistas POR VIDEO que ya tiene alcanzan la meta; si no alcanzan ni produciendo al máximo, el problema es el formato y se reestructura (vale para los dos canales). El ritmo/día necesario sube solo con cada día que pasa.");
 // Señal para el optimizador: cuánta agresividad de volumen empujar en Oddly (a mayor brecha vs meta, más).
 const odSubsPerDay = +(Math.max(0, OD_SUBS_T - odSubs) / daysLeft).toFixed(2);
 const odViewsPerDay = Math.ceil(Math.max(0, OD_VIEWS_T - odViews) / daysLeft);
 const odGap = odSubs >= OD_SUBS_T && odViews >= OD_VIEWS_T ? 0 : 1;   // aún no elegible -> empujar
+
 const aggressiveness = {
   at: new Date().toISOString(), deadline: "2026-12-31", deadline_fixed: true, days_left: daysLeft,
   oddly: { behind: !!odGap, subs: odSubs, subs_per_day_needed: odSubsPerDay, views_per_day_needed: odViewsPerDay,
-           cadence_total: odGap ? 12 : 8 },   // atrás -> 12/día (más volumen del ganador); elegible -> 8 normal
+           cadence_total: odVol.cadencia,
+           views_per_video: +odVol.vistasPorVideo.toFixed(1),
+           views_per_video_needed: Math.round(odVol.vistasPorVideoNecesarias),
+           volume_works: odVol.volumenSirve,
+           restructure: odVol.reestructurar,
+           note: odVol.razon },
   data_lens: { behind: dlSubs < 1000, note: restructure ? "reestructurar formato (el volumen no arregla 0 vistas)" : "medir" },
 };
 fs.writeFileSync("aggressiveness.json", JSON.stringify(aggressiveness, null, 2));

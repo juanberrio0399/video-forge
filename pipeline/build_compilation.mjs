@@ -231,7 +231,25 @@ async function buildNarrationSound(totalDur, durs) {
 }
 
 // Subtitulo quemado (caja legible abajo).
-function wrap(t, per) { const w = (t || "").split(/\s+/).filter(Boolean); const L = []; let c = ""; for (const x of w) { if ((c + " " + x).trim().length > per && c) { L.push(c); c = x; } else c = (c + " " + x).trim(); } if (c) L.push(c); return L.slice(0, 2).join("\n"); }
+// Parte el texto en lineas de `per` caracteres, hasta `maxLineas` (3). Con 2 se cortaban
+// frases a media palabra en TODOS los verticales: 22 caracteres x 2 lineas = 44, y los
+// hechos pasan de ahi. Visto en el canal el 2026-10-03: "Puppies have soft paws that
+// secrete sweat to" (44 exactos) y "The crisp sound of cured soap bars being" (40), las
+// dos cortadas. Si aun asi no cabe se avisa por consola, en vez de tirar el final en silencio.
+function wrap(t, per, maxLineas = 3) {
+  const w = (t || "").split(/\s+/).filter(Boolean);
+  const L = [];
+  let c = "";
+  for (const x of w) {
+    if ((c + " " + x).trim().length > per && c) { L.push(c); c = x; }
+    else c = (c + " " + x).trim();
+  }
+  if (c) L.push(c);
+  if (L.length > maxLineas) {
+    console.warn(`[subtitulo] no cabe en ${maxLineas} lineas de ${per}: se recorta "${(t || "").slice(0, 60)}"`);
+  }
+  return L.slice(0, maxLineas).join("\n");
+}
 function subFilter(i, text) {
   if (!FONT || !text) return "";
   const tf = path.resolve(`${work}/sub${i}.txt`).replace(/\\/g, "/");
