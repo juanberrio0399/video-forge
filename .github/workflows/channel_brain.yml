@@ -43,6 +43,9 @@ jobs:
           # que lo que se lea de ahi no representa al canal (con pocas vistas YouTube no
           # devuelve curva). Si no esta, el Cerebro sigue igual y se salta el aviso.
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/retention.json" --file=retention_auto2.json --remote 2>/dev/null || echo '{}' > retention_auto2.json
+          # Ledger de decisiones: ahi vive la pausa de Data Lens (type channel_pause). El
+          # Cerebro la respeta para no seguir dando veredictos y acciones de un canal pausado.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/brain/ledger.json" --file=ledger.json --remote 2>/dev/null || echo '[]' > ledger.json
 
       - name: Diagnostico (el cerebro)
         run: node pipeline/channel_brain.mjs

@@ -9,11 +9,19 @@ import fs from "node:fs";
 import { MONET_GOALS } from "./lib/monetization.mjs";
 import { decidirVolumen } from "./lib/volumen_util.mjs";
 import { evaluarMuestra, cobertura, lineaAviso } from "./lib/muestra.mjs";
+import { pausaDe, decideSobre, lineaPausa } from "./lib/enfoque.mjs";
 
 const rj = (p, d) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return d; } };
 const dl = rj("dl_state.json", {});
 const od = rj("oddly_state.json", {});
 const dir = rj("channel/direction.json", null) || rj("direction.json", null);
+
+// ENFOQUE: el Cerebro decide solo sobre Oddly. La pausa de Data Lens ya estaba en el ledger
+// (la escribe brain_live); aqui simplemente se respeta, en vez de seguir emitiendo veredictos
+// y acciones de un canal pausado. Sus metricas se siguen mostrando.
+const ledger = rj("ledger.json", []);
+const dlPausa = pausaDe(ledger, "data-lens");
+const dlDecide = decideSobre(ledger, "data-lens");
 
 const now = Date.now();
 const days = (iso) => (iso ? Math.max(1, (now - Date.parse(iso)) / 86400000) : 1);
@@ -160,11 +168,22 @@ const lines = [
   `   ${trendLine(odTrend)}`,
   `   ${monetLine(odSubs, odViews, OD_VIEWS_T, OD_SUBS_T)}`,
   "",
-  `📊 The Data Lens: ${dlVerdict}`,
-  `   ${dlMsg}`,
-  `   ${trendLine(dlTrend)}`,
-  `   direcciones: ${dirLine}`,
-  `   ${monetLine(dlSubs, dlViews, 200000)}`,
+  // Pausado: se muestran las METRICAS (Juan quiere verlas) pero sin veredicto, sin
+  // direcciones a escalar y sin presion de meta — nada de eso aplica a un canal en pausa.
+  ...(dlDecide
+    ? [
+        `📊 The Data Lens: ${dlVerdict}`,
+        `   ${dlMsg}`,
+        `   ${trendLine(dlTrend)}`,
+        `   direcciones: ${dirLine}`,
+        `   ${monetLine(dlSubs, dlViews, 200000)}`,
+      ]
+    : [
+        `📊 The Data Lens (solo métricas, fuera del foco)`,
+        `   ${dlSubs} subs · ${dlVids} videos · ${dlViews.toLocaleString()} vistas`,
+        `   ${trendLine(dlTrend)}`,
+        `   ${lineaPausa(dlPausa)}`,
+      ]),
 ];
 // Honestidad sobre cuanto se sabe: si la muestra no da, se dice ANTES de que alguien actue
 // sobre un veredicto sacado de cuatro datos.
@@ -180,11 +199,11 @@ const avisoMuestra = lineaAviso(avisos);
 if (avisoMuestra) lines.push("", avisoMuestra);
 
 if (odVol.reestructurar) lines.push("", `⚠️ ACCION: Oddly necesita REESTRUCTURA de formato, no mas volumen. ${odVol.razon}.`);
-if (restructure) lines.push("", "⚠️ ACCION: The Data Lens necesita REESTRUCTURA. Dile a Claude: «reestructura Data Lens con direcciones nuevas».");
+if (restructure && dlDecide) lines.push("", "⚠️ ACCION: The Data Lens necesita REESTRUCTURA. Dile a Claude: «reestructura Data Lens con direcciones nuevas».");
 
 // REGLA DURA: la fecha NO se mueve. Si un canal va atrás, se ESCALA la agresividad (no se alarga el plazo).
 // El ritmo/día necesario ya sube solo cada día que pasa (need / daysLeft con deadline fijo).
-lines.push("", "🎯 Meta fin-2026 FIJA — no se alarga. Si un canal va atrás se ESCALA, pero el CÓMO sale de los datos: más volumen solo si las vistas POR VIDEO que ya tiene alcanzan la meta; si no alcanzan ni produciendo al máximo, el problema es el formato y se reestructura (vale para los dos canales). El ritmo/día necesario sube solo con cada día que pasa.");
+lines.push("", "🎯 Meta fin-2026 FIJA — no se alarga. Si un canal va atrás se ESCALA, pero el CÓMO sale de los datos: más volumen solo si las vistas POR VIDEO que ya tiene alcanzan la meta; si no alcanzan ni produciendo al máximo, el problema es el formato y se reestructura (hoy el foco del Cerebro es Oddly; Data Lens esta en pausa y solo se mide). El ritmo/día necesario sube solo con cada día que pasa.");
 // Señal para el optimizador: cuánta agresividad de volumen empujar en Oddly (a mayor brecha vs meta, más).
 const odSubsPerDay = +(Math.max(0, OD_SUBS_T - odSubs) / daysLeft).toFixed(2);
 const odViewsPerDay = Math.ceil(Math.max(0, OD_VIEWS_T - odViews) / daysLeft);
@@ -199,7 +218,10 @@ const aggressiveness = {
            volume_works: odVol.volumenSirve,
            restructure: odVol.reestructurar,
            note: odVol.razon },
-  data_lens: { behind: dlSubs < 1000, note: restructure ? "reestructurar formato (el volumen no arregla 0 vistas)" : "medir" },
+  data_lens: dlDecide
+    ? { behind: dlSubs < 1000, note: restructure ? "reestructurar formato (el volumen no arregla 0 vistas)" : "medir" }
+    // En pausa: ninguna accion. `paused` es la señal para quien consuma esto.
+    : { paused: true, since: dlPausa && dlPausa.at, review_at: dlPausa && dlPausa.review_at, note: "fuera del foco del Cerebro; solo se miden metricas" },
 };
 fs.writeFileSync("aggressiveness.json", JSON.stringify(aggressiveness, null, 2));
 
