@@ -47,6 +47,16 @@ jobs:
 
       - name: Producir el proximo video (con guardas)
         run: |
+          # GUARDA 0 (INTERRUPTOR): la fabrica de largos esta apagada salvo que channel/largos.json
+          # diga lo contrario. Se apago el 2026-10-03 junto con el arreglo del bug de inactividad:
+          # sin el interruptor, corregir el bug habria reactivado sola la produccion de largos, y eso
+          # es una decision de estrategia, no un efecto secundario de un arreglo.
+          ACTIVO=$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync("channel/largos.json","utf8")).activo===true))}catch(e){process.stdout.write("false")}')
+          if [ "$ACTIVO" != "true" ]; then
+            echo "Fabrica de largos APAGADA (channel/largos.json: activo=false) -> no produzco."
+            exit 0
+          fi
+
           # GUARDA 1 (INACTIVIDAD): solo trabaja si hace +18h que NO hay video (manual o auto) Y hay
           # menos de 3 pendientes por aprobar. Asi: si Juan no produce en 18h, la fabrica saca uno; en
           # 2 dias ya hay un par LISTOS para aprobar; nunca produce 'a lo loco'. Juan sigue aprobando.

@@ -1,0 +1,6 @@
+{
+  "_nota": "INTERRUPTOR de la fabrica de videos LARGOS de The Data Lens (daily_video.yml -> produce_video.yml). Cambiar 'activo' a true y hacer commit para encenderla; no hace falta tocar codigo ni secretos. Si no existe este archivo, se asume APAGADA.",
+  "activo": false,
+  "_por_que_apagada": "La fabrica llevaba sin correr desde el 2026-08-21 por un bug: la guarda de inactividad miraba CUALQUIER video del canal, y los Shorts diarios la mantenian siempre satisfecha. Al arreglar el bug (idle_check solo cuenta largos) la fabrica volveria sola, y eso es una decision de estrategia, no un efecto secundario: hoy el canal tiene 3 suscriptores, ni un largo publicado, y la via a monetizacion son los Shorts. Se deja corregida pero apagada; se enciende cuando se quiera.",
+  "_cuando_encenderla": "Cuando los Shorts despeguen y tenga sentido retener publico con formato largo, o cuando se quiera probar el largo a proposito como experimento."
+}

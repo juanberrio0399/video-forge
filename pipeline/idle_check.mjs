@@ -1,9 +1,14 @@
 // idle_check.mjs — para el video diario del canal principal (The Data Lens). Imprime "IDLE PEND":
-//   IDLE = horas desde el ULTIMO video subido al canal (cualquier privacidad; manual o de la fabrica).
-//   PEND = cuantos videos hay PRIVADOS sin programar (esperando que Juan los apruebe).
+//   IDLE = horas desde el ULTIMO video LARGO subido al canal (cualquier privacidad).
+//   PEND = cuantos videos LARGOS hay PRIVADOS sin programar (esperando que Juan los apruebe).
+//
+// Los Shorts NO cuentan en ninguno de los dos, y ese era el bug: se miraba cualquier video,
+// asi que los Shorts diarios mantenian IDLE por debajo de 18h y la fabrica de largos nunca
+// arrancaba (`produce_video.yml` dejo de correr el 2026-08-21).
 // El cron produce solo si IDLE > 18h Y PEND < tope -> trabaja solo cuando Juan no ha producido en
 // 18h, acumula un par para aprobar, y NO produce 'a lo loco'. Ante error, imprime "999 0" (deja producir).
 import fs from "node:fs";
+import { segundosISO, esLargo, SEGUNDOS_SHORT } from "./lib/duracion.mjs";
 const { YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN } = process.env;
 const tf = (u, o = {}, ms = 12000) => fetch(u, { ...o, signal: AbortSignal.timeout(ms) });
 // Videos OCULTOS (retirados) NO cuentan como "pendientes por aprobar" -> no bloquean la produccion.
@@ -21,8 +26,11 @@ try {
   if (up) { do { const j = await (await tf(`https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId=${up}&pageToken=${page}`, { headers: H })).json(); ids.push(...(j.items || []).map((i) => i.contentDetails.videoId)); page = j.nextPageToken || ""; } while (page && ids.length < 200); }
   const now = Date.now(); let newest = 0, pending = 0;
   for (let i = 0; i < ids.length; i += 50) {
-    const j = await (await tf(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status&id=${ids.slice(i, i + 50).join(",")}`, { headers: H })).json();
+    const j = await (await tf(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status,contentDetails&id=${ids.slice(i, i + 50).join(",")}`, { headers: H })).json();
     for (const v of j.items || []) {
+      // Solo los LARGOS deciden si toca producir: un Short de hace 2h no significa que la
+      // fabrica de largos tenga trabajo hecho.
+      if (!esLargo(segundosISO((v.contentDetails || {}).duration))) continue;
       const t = Date.parse(v.snippet.publishedAt) || 0; if (t > newest) newest = t;
       const st = v.status || {}; if (st.privacyStatus === "private" && !st.publishAt && !hidden.has(v.id)) pending++;
     }

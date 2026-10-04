@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import { rankNiches, median } from "./lib/niche_rank.mjs";
 import { leerEntrada } from "./lib/niche_map.mjs";
+import { segundosISO } from "./lib/duracion.mjs";
 
 const { YT2_CLIENT_ID, YT2_CLIENT_SECRET, YT2_REFRESH_TOKEN } = process.env;
 const tf = (u, o = {}, ms = 12000) => fetch(u, { ...o, signal: AbortSignal.timeout(ms) });
@@ -18,11 +19,7 @@ if (!YT2_REFRESH_TOKEN) { console.error("sin YT2_*"); process.exit(1); }
 const DAY = 86400000;
 
 // ISO 8601 (PT1M5S) -> segundos
-function isoSeconds(d) {
-  const m = String(d || "").match(/P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  if (!m) return 0;
-  return (+m[1] || 0) * 86400 + (+m[2] || 0) * 3600 + (+m[3] || 0) * 60 + (+m[4] || 0);
-}
+
 
 try {
   const tr = await (await tf("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: YT2_CLIENT_ID, client_secret: YT2_CLIENT_SECRET, refresh_token: YT2_REFRESH_TOKEN, grant_type: "refresh_token" }) })).json();
@@ -64,7 +61,7 @@ try {
       list.push({
         video_id: v.id, title: v.snippet.title, privacy: v.status.privacyStatus, publish_at: (v.status || {}).publishAt || null,
         views: +((v.statistics || {}).viewCount || 0), likes: +((v.statistics || {}).likeCount || 0), comments: +((v.statistics || {}).commentCount || 0),
-        seconds: isoSeconds((v.contentDetails || {}).duration),
+        seconds: segundosISO((v.contentDetails || {}).duration),
         published_at: v.snippet.publishedAt.slice(0, 10), pub_iso: v.snippet.publishedAt,
         niche: nk, niche_label: NICHE_LABEL[nk] || null, niche_inferred: !mapped, variant: ent.variant, manual: false,
       });
