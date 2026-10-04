@@ -29,7 +29,16 @@ jobs:
           node-version: "22"
       - name: Construir episodios de ambos canales
         run: |
+          # Data Lens: el cache del bot primero (es el mas fresco si alguien abrio la app),
+          # pero con RESPALDO en channel/state.json, que si lo mantiene channel_report.yml.
+          # El cache no es fiable como fuente: lo escribe el Worker de Telegram solo cuando
+          # alguien abre la app, y siete workflows lo BORRAN para forzar refresco. Sin este
+          # respaldo salian "0 episodios" y todo el analisis del canal se quedaba congelado.
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/inventory_cache.json" --file=inv_dl.json --remote 2>/dev/null || echo '{}' > inv_dl.json
+          if ! node pipeline/nonempty.mjs inv_dl.json longs 2>/dev/null && ! node pipeline/nonempty.mjs inv_dl.json shorts 2>/dev/null; then
+            echo "Cache del bot vacio o ausente -> uso channel/state.json"
+            npx --yes wrangler@4 r2 object get "$BUCKET/channel/state.json" --file=inv_dl.json --remote 2>/dev/null || echo '{}' > inv_dl.json
+          fi
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/state.json" --file=inv_od.json --remote 2>/dev/null || echo '{}' > inv_od.json
           node pipeline/episodes.mjs inv_dl.json episodes.json
           node pipeline/episodes.mjs inv_od.json episodes_auto2.json
