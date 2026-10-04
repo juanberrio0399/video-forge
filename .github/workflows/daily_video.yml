@@ -16,8 +16,10 @@ on:
   #
   # Las guardas de arriba (+18 h sin video nuevo, menos de 3 pendientes por aprobar) siguen
   # siendo el freno: esto no produce "a lo loco" y los videos siguen subiendo PRIVADOS.
-  schedule:
-    - cron: "0 */6 * * *"
+  #
+  # PAUSADO 2026-10-04: Data Lens se re-pivota a clipping (Content Rewards). Ver history_short.yml.
+  # schedule:
+  #   - cron: "0 */6 * * *"
   workflow_dispatch: {}
 
 permissions:

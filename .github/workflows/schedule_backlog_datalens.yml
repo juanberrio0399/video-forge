@@ -6,8 +6,10 @@ name: Programar backlog de Data Lens (privados -> mejor hora)
 # Gemelo de schedule_backlog_oddly.yml. Cierra el hueco: Data Lens no tenia sanador y los privados
 # fallidos quedaban como "por aprobar" para siempre.
 on:
-  schedule:
-    - cron: "23 */6 * * *"   # cada 6h (desfasado del de Oddly): si a un video le fallo la programacion, lo agenda solo
+  # PAUSADO 2026-10-04: Data Lens se re-pivota a clipping (Content Rewards). Si corriera, publicaría
+  # solos los Shorts de historia que siguen PRIVADOS. Se reactiva cuando haya cola de clips.
+  # schedule:
+  #   - cron: "23 */6 * * *"   # cada 6h (desfasado del de Oddly)
   workflow_dispatch: {}
 
 permissions:

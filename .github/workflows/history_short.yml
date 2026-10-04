@@ -10,8 +10,11 @@ on:
   # historia produjo 10 videos en 8 días (21-28 ago) y se detuvo solo; la pausa del 14 de
   # septiembre midió el formato anterior, no este. Vuelve el A/B/C de 3 al día, uno por
   # categoría (guerras / inventos / personajes), que es lo que permite ver cuál jala.
-  schedule:
-    - cron: "0 12 * * *"
+  #
+  # PAUSADO 2026-10-04: Data Lens se re-pivota a clipping (Content Rewards). El cron queda
+  # apagado para no mezclar historia con los clips; se puede correr a mano si hace falta.
+  # schedule:
+  #   - cron: "0 12 * * *"
   workflow_dispatch:
     inputs:
       topic:

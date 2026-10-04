@@ -4,10 +4,10 @@ name: Short DATA SHOCK (visual, The Data Lens) — experimento paralelo
 # sin narración. Corto (~22s) y AGRESIVO (2/día) para forzar tracción. Sube PRIVADO a The Data Lens (YT_).
 # Registra categoría "data_shock" en el mapa -> El Cerebro compara este formato vs el narrado.
 on:
-  schedule:
-    # Data Lens en PAUSA desde 2026-09-14: este es el ÚNICO experimento semanal (lunes 15:00 UTC).
-    # Criterio (ledger del cerebro): si uno supera 500 vistas a los 7 días, se reanuda ese formato.
-    - cron: "0 15 * * 1"
+  # PAUSADO 2026-10-04: Data Lens se re-pivota a clipping (Content Rewards). Ver history_short.yml.
+  # schedule:
+  #   # Experimento semanal (lunes 15:00 UTC). Criterio: >500 vistas a los 7 días reanuda el formato.
+  #   - cron: "0 15 * * 1"
   workflow_dispatch:
     inputs:
       topic:
