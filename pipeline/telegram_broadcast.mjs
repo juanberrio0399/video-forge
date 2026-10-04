@@ -4,6 +4,7 @@
 // Env: TELEGRAM_BOT_TOKEN + DISTRIB_CHANNEL_ID (id o @usuario del canal donde el bot es admin).
 import fs from "node:fs";
 import { pickNew, caption } from "./lib/distribute.mjs";
+import { normalizarInventario } from "./lib/inventario.mjs";
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN, CHAT = process.env.DISTRIB_CHANNEL_ID;
 if (!TOKEN || !CHAT) { console.error("Falta TELEGRAM_BOT_TOKEN o DISTRIB_CHANNEL_ID — nada que hacer."); process.exit(0); }
@@ -12,10 +13,8 @@ const [stateF, ledgerInF, ledgerOutF, channel] = process.argv.slice(2);
 const rj = (p, d) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return d; } };
 
 const state = rj(stateF, {});
-// Normaliza el inventario: Oddly = { list }; Data Lens = { longs, shorts }.
-const list = Array.isArray(state.list) ? state.list
-  : (Array.isArray(state.longs) || Array.isArray(state.shorts)) ? [...(state.shorts || []), ...(state.longs || [])]
-  : [];
+// Normalizacion compartida (lib/inventario.mjs): conoce las tres formas de inventario.
+const list = normalizarInventario(state);
 const done = new Set(rj(ledgerInF, []));
 const nuevos = pickNew(list, done, 4); // máx 4/corrida: cadencia natural, sin ráfaga
 if (!nuevos.length) { console.log("Telegram broadcast: nada nuevo."); process.exit(0); }

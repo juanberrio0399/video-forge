@@ -36,7 +36,12 @@ jobs:
           [ -s led2_new.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/tg_broadcast.json" --file=led2_new.json --remote --content-type application/json || true
       - name: Broadcast — The Data Lens
         run: |
-          npx --yes wrangler@4 r2 object get "$BUCKET/channel/inventory_cache.json" --file=st1.json --remote 2>/dev/null || echo '{}' > st1.json
+          # Inventario de Data Lens por la via unica: cache del bot si trae datos, si no
+          # channel/state.json (la verdad del canal). El cache lo borran siete workflows
+          # para invalidar al bot, asi que NO sirve como fuente por si solo.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/inventory_cache.json" --file=_cache_dl.json --remote 2>/dev/null || echo '{}' > _cache_dl.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/state.json" --file=_state_dl.json --remote 2>/dev/null || echo '{}' > _state_dl.json
+          node pipeline/inventario_dl.mjs _cache_dl.json _state_dl.json st1.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/tg_broadcast.json" --file=led1.json --remote 2>/dev/null || echo '[]' > led1.json
           node pipeline/telegram_broadcast.mjs st1.json led1.json led1_new.json data-lens
           [ -s led1_new.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/tg_broadcast.json" --file=led1_new.json --remote --content-type application/json || true

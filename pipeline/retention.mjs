@@ -4,6 +4,7 @@
 // Uso: node pipeline/retention.mjs <yt1|yt2> <inventarioR2.json> <salida.json>
 import fs from "node:fs";
 import { analyzeRetention } from "./lib/retention_calc.mjs";
+import { normalizarInventario } from "./lib/inventario.mjs";
 
 const CH = process.argv[2];               // yt1 | yt2
 const invFile = process.argv[3];
@@ -29,8 +30,7 @@ const MAX_VIDEOS = 15, MATURE_DAYS = 5, DAY = 86400000;
   let inv = {};
   try { inv = JSON.parse(fs.readFileSync(invFile, "utf8")); } catch {}
   let vids = [];
-  if (Array.isArray(inv.longs) || Array.isArray(inv.shorts)) vids = [...(inv.longs || []), ...(inv.shorts || [])];
-  else if (Array.isArray(inv.list)) vids = inv.list;
+  vids = normalizarInventario(inv);
   const now = Date.now();
   vids = vids
     .filter((v) => v && v.video_id && v.privacy === "public" && v.published_at && (now - Date.parse(v.published_at)) / DAY >= MATURE_DAYS)

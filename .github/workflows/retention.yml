@@ -35,7 +35,12 @@ jobs:
           node-version: "22"
       - name: Analizar retención de ambos canales
         run: |
-          npx --yes wrangler@4 r2 object get "$BUCKET/channel/inventory_cache.json" --file=inv_dl.json --remote 2>/dev/null || echo '{}' > inv_dl.json
+          # Inventario de Data Lens por la via unica: cache del bot si trae datos, si no
+          # channel/state.json (la verdad del canal). El cache lo borran siete workflows
+          # para invalidar al bot, asi que NO sirve como fuente por si solo.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/inventory_cache.json" --file=_cache_dl.json --remote 2>/dev/null || echo '{}' > _cache_dl.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/state.json" --file=_state_dl.json --remote 2>/dev/null || echo '{}' > _state_dl.json
+          node pipeline/inventario_dl.mjs _cache_dl.json _state_dl.json inv_dl.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/state.json" --file=inv_od.json --remote 2>/dev/null || echo '{}' > inv_od.json
           node pipeline/retention.mjs yt1 inv_dl.json retention.json
           node pipeline/retention.mjs yt2 inv_od.json retention_auto2.json

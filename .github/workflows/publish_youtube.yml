@@ -46,7 +46,12 @@ jobs:
       - name: Generar paquete SEO con IA (titulo/descripcion/tags/capitulos/subtitulos + watch-next + CTA)
         run: |
           # Videos ANTERIORES publicos -> para encadenar el "watch next" que ELIGE la IA.
-          npx --yes wrangler@4 r2 object get "$BUCKET/channel/inventory_cache.json" --file=inv.json --remote 2>/dev/null || echo '{}' > inv.json
+          # Inventario de Data Lens por la via unica: cache del bot si trae datos, si no
+          # channel/state.json (la verdad del canal). El cache lo borran siete workflows
+          # para invalidar al bot, asi que NO sirve como fuente por si solo.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/inventory_cache.json" --file=_cache_dl.json --remote 2>/dev/null || echo '{}' > _cache_dl.json
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/state.json" --file=_state_dl.json --remote 2>/dev/null || echo '{}' > _state_dl.json
+          node pipeline/inventario_dl.mjs _cache_dl.json _state_dl.json inv.json
           node -e 'try{const inv=JSON.parse(require("fs").readFileSync("inv.json","utf8"));const p=(inv.longs||[]).filter(v=>v.privacy==="public").slice(0,8).map(v=>({title:v.title,video_id:v.video_id}));require("fs").writeFileSync("prev_videos.json",JSON.stringify(p))}catch(e){require("fs").writeFileSync("prev_videos.json","[]")}'
           # Tono de crecimiento (CTA para suscriptores).
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/growth.json" --file=growth.json --remote 2>/dev/null || cp channel/growth.seed.json growth.json 2>/dev/null || echo '{}' > growth.json
