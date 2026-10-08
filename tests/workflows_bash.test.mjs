@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -50,18 +49,17 @@ describe("el bash dentro de los workflows compila", () => {
         // Las expresiones ${{ }} de Actions no son bash: se sustituyen por un literal
         // para poder validar la ESTRUCTURA (if/fi, for/done, comillas) sin falsos fallos.
         const limpio = b.cuerpo.replace(/\$\{\{[^}]*\}\}/g, "X");
-        const tmp = path.join(os.tmpdir(), `wf-${process.pid}-${b.linea}.sh`);
-        fs.writeFileSync(tmp, limpio);
+        // El script va por stdin: sin archivo temporal en disco (nada que otro
+        // proceso pueda leer o suplantar en el directorio temporal compartido).
         try {
-          execFileSync("bash", ["-n", tmp], { stdio: "pipe" });
+          execFileSync("bash", ["-n"], { input: limpio, stdio: "pipe" });
         } catch (e) {
           const msg = String(e.stderr || e.message).split("\n")[0];
-          fallos.push(`  linea ~${b.linea}: ${msg.replace(/^.*\.sh: /, "")}`);
-        } finally {
-          try { fs.unlinkSync(tmp); } catch {}
+          fallos.push(`  linea ~${b.linea}: ${msg.replace(/^bash: /, "")}`);
         }
       }
       expect(fallos.join("\n"), `bash invalido en ${f}:\n${fallos.join("\n")}`).toBe("");
-    });
+      // Un `bash` por bloque: en Windows y con la suite en paralelo pasa de los 5 s por defecto.
+    }, 30_000);
   }
 });
