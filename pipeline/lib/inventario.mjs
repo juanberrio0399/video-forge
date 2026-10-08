@@ -21,12 +21,16 @@ export function aplanar(v) {
   };
 }
 
+// Solo cuenta lo que de verdad es lista: en channel/state.json `shorts` NO son videos, es un
+// CONTEO ({ total, uploaded, public }) que escribe channel_report.mjs. Expandirlo reventaba.
+const lista = (x) => (Array.isArray(x) ? x : []);
+
 /** Lista de videos lista para buildEpisode, venga el inventario en la forma que venga. */
 export function normalizarInventario(data) {
   const d = data && typeof data === "object" ? data : {};
   let videos = [];
-  if (Array.isArray(d.published)) videos = [...(d.published || []), ...(d.shorts || [])];
-  else if (Array.isArray(d.longs) || Array.isArray(d.shorts)) videos = [...(d.longs || []), ...(d.shorts || [])];
+  if (Array.isArray(d.published)) videos = [...d.published, ...lista(d.shorts)];
+  else if (Array.isArray(d.longs) || Array.isArray(d.shorts)) videos = [...lista(d.longs), ...lista(d.shorts)];
   else if (Array.isArray(d.list)) videos = d.list;
   const vistos = new Set();
   return videos
