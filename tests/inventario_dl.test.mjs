@@ -26,6 +26,13 @@ describe("resolver el inventario de Data Lens", () => {
     expect(r.list[0].views).toBe(406);
   });
 
+  it("la forma REAL de state.json: `shorts` es un conteo, no una lista (rompio episodes el 2026-10-08)", () => {
+    const state = { published: [{ video_id: "a", stats: { views: 406 } }], shorts: { total: 3, uploaded: 2, public: 1 } };
+    const r = resolver({}, state);
+    expect(r.fuente).toBe("channel/state.json");
+    expect(r.list.map((v) => v.video_id)).toEqual(["a"]);
+  });
+
   it("si el cache trae datos, manda el cache (es mas fresco)", () => {
     const r = resolver({ longs: [largo("c")] }, { published: [{ video_id: "s" }] });
     expect(r.fuente).toBe("cache del bot");
