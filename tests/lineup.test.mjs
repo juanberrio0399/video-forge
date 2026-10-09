@@ -42,6 +42,23 @@ describe("buildLineup", () => {
     const hit = l.items.find((i) => i.video_id === "v1");
     expect(hit.status).toBe("programado");
   });
+  it("un video de OTRO nicho no tapa la franja (dejaba al A/B sin producir)", () => {
+    // 18:00Z = 14:00 ET: franjas de animales y satisfying a la misma hora, pero solo hay satisfying.
+    const sch = [
+      { video_id: "s1", title: "S1", publish_at: "2026-09-14T18:00:00Z", niche: "satisfying" },
+      { video_id: "s2", title: "S2", publish_at: "2026-09-14T18:05:00Z", niche: "satisfying" },
+    ];
+    const l = buildLineup({ ...base, scheduled: sch });
+    const en14 = l.items.filter((i) => i.slot_utc === "2026-09-14T18:00:00.000Z");
+    const animal = en14.find((i) => i.niche === "animales_tiernos");
+    expect(animal.video_id).toBe(null);
+    expect(animal.status).not.toBe("programado");
+    expect(en14.find((i) => i.niche === "satisfying").video_id).toMatch(/^s/);
+  });
+  it("un video sin nicho registrado si puede cubrir la franja", () => {
+    const l = buildLineup({ ...base, scheduled: [{ video_id: "x", title: "X", publish_at: "2026-09-14T18:00:00Z" }] });
+    expect(l.items.some((i) => i.video_id === "x")).toBe(true);
+  });
   it("experimento cambia UNA variable y alterna brazos", () => {
     const l = buildLineup({ ...base, experiment: { id: "hook", variable: "hook", arms: ["question", "statement"], niche: "animales_tiernos", hypothesis: "h" } });
     const arms = l.items.filter((i) => i.experiment).map((i) => i.experiment.arm);
