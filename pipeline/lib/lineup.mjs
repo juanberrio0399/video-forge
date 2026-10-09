@@ -107,7 +107,10 @@ export function buildLineup(input = {}) {
     const label = meta.label || nicheKey;
     // Reconciliación: video programado cerca de la franja (mismo nicho primero).
     const near = scheduled.filter((v) => !used.has(v.video_id) && Math.abs(v.t - slot) <= 40 * 60000);
-    const match = near.find((v) => v.niche === nicheKey) || near[0] || null;
+    // Solo cubre la franja un video DEL MISMO nicho (o uno sin nicho registrado). Antes caia a
+    // near[0]: con 2 franjas por hora, un satisfying sobrante "tapaba" la de animales, el plan
+    // la daba por programada y nunca se producia -> el A/B de formato se quedaba sin videos.
+    const match = near.find((v) => v.niche === nicheKey) || near.find((v) => !v.niche) || null;
     if (match) used.add(match.video_id);
     const claim = producing.find((p) => Math.abs(Date.parse(p.slot_utc) - slot) < 60000 && p.niche === nicheKey);
     let status;
