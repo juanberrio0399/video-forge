@@ -55,6 +55,17 @@ describe("buildLineup", () => {
     expect(animal.status).not.toBe("programado");
     expect(en14.find((i) => i.niche === "satisfying").video_id).toMatch(/^s/);
   });
+  it("el brazo un_hecho no recibe ideas de gancho/formato (mezclarian el A/B)", () => {
+    const bank = [
+      { id: "h", kind: "hook", text: 'Replicar patrón ganador: hook "number" en short', state: "BACKLOG", priority: 50 },
+      { id: "t", kind: "idea", text: "Nutrias de la mano", state: "BACKLOG", priority: 10, niche: "animales_tiernos" },
+    ];
+    const l = buildLineup({ ...base, bank, variants: { animales_tiernos: ["un_hecho", "narrado"] } });
+    const uh = l.items.filter((i) => i.variant === "un_hecho");
+    expect(uh.length).toBeGreaterThan(0);
+    expect(uh.every((i) => !i.idea || i.idea.id !== "h")).toBe(true);
+    expect(l.items.some((i) => i.idea && i.idea.id === "h" && i.variant !== "un_hecho")).toBe(true);
+  });
   it("un video sin nicho registrado si puede cubrir la franja", () => {
     const l = buildLineup({ ...base, scheduled: [{ video_id: "x", title: "X", publish_at: "2026-09-14T18:00:00Z" }] });
     expect(l.items.some((i) => i.video_id === "x")).toBe(true);
