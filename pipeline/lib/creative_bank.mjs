@@ -79,8 +79,18 @@ export function nextToTest(items = [], n = 3) {
 export function seedFromOutliers(items, outliers, channel, nowMs = Date.now()) {
   const bank = (items || []).slice();
   if (!outliers || !outliers.count || !outliers.pattern) return bank;
-  const hook = outliers.pattern.hook && outliers.pattern.hook.value;
-  const fmt = outliers.pattern.format && outliers.pattern.format.value;
+  const p = outliers.pattern;
+  // Desde la correccion por tasa base, findOutliers devuelve el hook mas comun AUNQUE no gane
+  // (lift ~1). Sembrarlo igual revivia "replicar hook number" cada semana. Solo cuenta si supera
+  // el umbral; si no, las ideas "outlier" vivas de este canal caducan.
+  const real = (x) => !!(x && x.lift != null && x.lift >= (p.lift_min || 1.3) && (x.count || 0) >= 3);
+  if (p.base_rate_corrected && !real(p.hook)) {
+    return bank.map((i) => (i.channel === channel && i.source === "outlier" && i.state === "BACKLOG"
+      ? { ...i, state: "KILLED", updated_at: new Date(nowMs).toISOString(), evidence: `${i.evidence || ""} · caducada: el patron no supera la tasa base`.trim() }
+      : i));
+  }
+  const hook = p.hook && p.hook.value;
+  const fmt = p.format && p.format.value && (!p.base_rate_corrected || real(p.format)) ? p.format.value : null;
   if (!hook) return bank;
   const text = `Replicar patrón ganador: hook "${hook}"${fmt ? ` en ${fmt}` : ""}`;
   // Idempotente: no duplicar la misma idea (por texto + canal) si sigue viva.

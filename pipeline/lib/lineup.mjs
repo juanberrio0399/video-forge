@@ -85,8 +85,11 @@ export function buildLineup(input = {}) {
     .sort((a, b) => (+b.priority || 0) - (+a.priority || 0));
   const usedIdeas = new Set();
   const leaderKey = Object.entries(input.allocation || {}).sort((a, b) => b[1] - a[1])[0];
-  const fits = (idea, nicheKey, inExperiment) => {
+  const fits = (idea, nicheKey, inExperiment, variant) => {
     if (inExperiment && idea.kind === "hook") return false;
+    // `un_hecho` ES el formato bajo prueba (un sujeto, una pregunta): una idea de gancho, formato
+    // o titulo (p.ej. "hook number", que es el listicle) mezclaria los dos brazos del A/B.
+    if (variant === "un_hecho" && ["hook", "format", "title"].includes(idea.kind)) return false;
     if (idea.niche) return idea.niche === nicheKey;
     if (["hook", "title", "format"].includes(idea.kind)) return true;
     return !!leaderKey && leaderKey[0] === nicheKey;
@@ -123,9 +126,10 @@ export function buildLineup(input = {}) {
     if (turnoVariante[nicheKey] == null) turnoVariante[nicheKey] = 0;
     let experiment = null;
     if (exp && (!exp.niche || exp.niche === nicheKey)) { experiment = { id: exp.id, variable: exp.variable, arm: exp.arms[armToggle % 2] }; armToggle++; }
+    const variant = elegirVariante(input.variants, nicheKey, turnoVariante[nicheKey]++);
     let idea = null;
     if (!match && status !== "vencido") {
-      idea = ideas.find((c) => !usedIdeas.has(c.id || c.text) && fits(c, nicheKey, !!experiment)) || null;
+      idea = ideas.find((c) => !usedIdeas.has(c.id || c.text) && fits(c, nicheKey, !!experiment, variant)) || null;
       if (idea) usedIdeas.add(idea.id || idea.text);
     }
 
@@ -142,7 +146,7 @@ export function buildLineup(input = {}) {
     };
     return {
       slot_utc: new Date(slot).toISOString(), slot_et: fmtET(slot),
-      niche: nicheKey, niche_label: label, variant: elegirVariante(input.variants, nicheKey, turnoVariante[nicheKey]++),
+      niche: nicheKey, niche_label: label, variant,
       status,
       video_id: match ? match.video_id : null, title: match ? match.title : null,
       idea: idea ? { id: idea.id, text: idea.text, priority: idea.priority } : null,
