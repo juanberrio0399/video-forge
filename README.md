@@ -7,6 +7,8 @@ Fábrica de videos de YouTube que se opera sola en la nube: escribe el guion, na
 [![Stack](https://img.shields.io/badge/stack-GitHub%20Actions%20%·%20Cloudflare%20%·%20Gemini-orange?style=flat-square)](https://github.com)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
 
+> Estado actual, qué se hizo y qué falta: **[PLAN.md](PLAN.md)**.
+
 ## Qué es y qué problema resuelve
 
 Publicar en YouTube con cadencia exige un equipo (guion, voz, edición, SEO, agendado) o una
