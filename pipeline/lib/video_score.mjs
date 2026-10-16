@@ -67,6 +67,8 @@ export function scoreVideo(ep = {}, ret = null, opts = {}) {
   return {
     video_id: ep.video_id, title: ep.title || "",
     format: ep.format || null, hook_type: classifyHook(ep.title),
+    // niche y variant viajan hasta el score porque el A/B agrupa por un campo del score.
+    niche: ep.niche || null, variant: ep.variant || null,
     vpd: ep.vpd != null ? ep.vpd : null, vs_baseline_pct: ep.vs_baseline_pct != null ? ep.vs_baseline_pct : null,
     perf_score: perf == null ? null : Math.round(perf * 100) / 100,
     retention_score: retention == null ? null : Math.round(retention * 100) / 100,
