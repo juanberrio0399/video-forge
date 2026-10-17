@@ -37,7 +37,10 @@ jobs:
           node pipeline/inventario_dl.mjs _cache_dl.json _state_dl.json inv_dl.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/state.json" --file=inv_od.json --remote 2>/dev/null || echo '{}' > inv_od.json
           node pipeline/episodes.mjs inv_dl.json episodes.json
-          node pipeline/episodes.mjs inv_od.json episodes_auto2.json
+          # niche_map lleva {nicho, variante} por video: sin el, ningun episodio de Oddly trae
+          # `variant` y el A/B de formato (un_hecho vs narrado) se queda en n0 para siempre.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/niche_map.json" --file=nm_od.json --remote 2>/dev/null || echo '{}' > nm_od.json
+          node pipeline/episodes.mjs inv_od.json episodes_auto2.json nm_od.json
           # GUARDA (auditoría BR-11): fuente vacía NO sobrescribe la memoria buena; se sigue con la anterior.
           if node pipeline/nonempty.mjs episodes.json episodes; then
             npx --yes wrangler@4 r2 object put "$BUCKET/channel/episodes.json" --file=episodes.json --remote --content-type application/json || true
