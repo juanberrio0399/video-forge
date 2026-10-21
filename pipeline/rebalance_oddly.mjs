@@ -18,6 +18,7 @@ import { richReward, proportionalByScore, scoreCandidate } from "./lib/decision.
 import { rankNiches, scaleGate } from "./lib/niche_rank.mjs";
 import { newEntry, shouldRevert, trim } from "./lib/ledger.mjs";
 import { ODDLY_GOAL, pushLeader } from "./lib/oddly_goal.mjs";
+import { aplicarACadencia, aplicarAExperimento } from "./lib/variantes_fijas.mjs";
 
 const rj = (p, d) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return d; } };
 const state = rj("state.json", {});
@@ -134,6 +135,9 @@ const newSpc = { ...alloc };
 if (active) newSpc[active.key] = 1;
 const variant = { ...(cad.variant || {}) };
 if (active && active.variant) variant[active.key] = active.variant;
+// El formato que fijo Juan (channel/auto2/variants.json, viene en el checkout) gana sobre ambos.
+const fijas = rj("channel/auto2/variants.json", {});
+Object.assign(variant, aplicarACadencia({ variant }, fijas).variant);
 const leader = Object.entries(newSpc).sort((a, b) => b[1] - a[1])[0];
 
 const newCad = {
@@ -196,7 +200,7 @@ const cadLine = Object.entries(newSpc).map(([k, v]) => `${k}=${v}`).join(" · ")
 const summary = [`📊 Mediana vistas/día por nicho (cohorte 5-30 días): ${rankLine}`, ...notes, `🎛️ Cadencia ejecutada (${TOTAL}/día): ${cadLine}`].join("\n");
 
 fs.writeFileSync("cadence.new.json", JSON.stringify(newCad, null, 2));
-fs.writeFileSync("exp.new.json", JSON.stringify({ active, queue: exp.queue || [], done, promoted: [...promoted] }, null, 2));
+fs.writeFileSync("exp.new.json", JSON.stringify(aplicarAExperimento({ active, queue: exp.queue || [], done, promoted: [...promoted] }, fijas), null, 2));
 fs.writeFileSync("decision.json", JSON.stringify(decision, null, 2));
 fs.writeFileSync("ledger.new.json", JSON.stringify(ledger, null, 2));
 fs.writeFileSync("summary.txt", summary);
