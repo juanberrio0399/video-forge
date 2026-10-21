@@ -56,11 +56,14 @@ export function decide(measured, opts = {}) {
 // Corre un experimento completo. exp: { id, variable, variants:[A,B], metric, min_per_variant, min_lift }.
 export function runExperiment(videos, exp) {
   const variants = (exp.variants || []).slice(0, 2);
-  const groups = groupByVariant(videos, exp.variable, variants);
+  // `niche` opcional: la misma variante (p.ej. un_hecho) corre en dos nichos y cada A/B
+  // tiene que comparar dentro del suyo; si no, mezcla tema y formato.
+  const pool = exp.niche ? (videos || []).filter((v) => v && v.niche === exp.niche) : videos;
+  const groups = groupByVariant(pool, exp.variable, variants);
   const measured = measure(groups, exp.metric);
   const decision = decide(measured, { minPerVariant: exp.min_per_variant, minLift: exp.min_lift });
   return {
-    id: exp.id, variable: exp.variable, metric: exp.metric, variants,
+    id: exp.id, variable: exp.variable, metric: exp.metric, variants, niche: exp.niche || null,
     measured, ...decision,
   };
 }

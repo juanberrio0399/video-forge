@@ -1,9 +1,18 @@
 name: Sincronizar cadencia de Oddly a R2
 
-# Sube channel/auto2/cadence.seed.json (fuente de verdad en el repo) a R2
-# (channel/auto2/cadence.json), que es lo que lee daily_oddly. Correr tras editar la cadencia.
+# Dos modos:
+#  - variantes (por defecto): baja la cadencia VIVA de R2, le aplica channel/auto2/variants.json
+#    (el formato por nicho que decidio Juan) y la vuelve a subir. NO toca el reparto de cupos.
+#  - seed_completo: sube channel/auto2/cadence.seed.json ENTERO. Pisa el reparto que calculo el
+#    rebalance con datos: poner el seed al dia con lo vivo ANTES de usarlo.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: "variantes (seguro) o seed_completo (pisa el reparto)"
+        type: choice
+        options: [variantes, seed_completo]
+        default: variantes
 
 permissions:
   contents: read
@@ -19,7 +28,20 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v7
-      - name: Subir cadencia a R2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Aplicar variantes fijas a la cadencia viva
+        if: ${{ inputs.modo != 'seed_completo' }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/cadence.json" --file=cad.json --remote
+          HAY_EXP=1; npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/experiments_niche.json" --file=exp.json --remote 2>/dev/null || { HAY_EXP=0; echo '{}' > exp.json; }
+          node pipeline/aplicar_variantes.mjs cad.json exp.json channel/auto2/variants.json
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/cadence.json" --file=cad.json --remote --content-type application/json
+          if [ "$HAY_EXP" = "1" ]; then npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/experiments_niche.json" --file=exp.json --remote --content-type application/json; fi
+      - name: Subir cadencia a R2 (seed completo)
+        if: ${{ inputs.modo == 'seed_completo' }}
         run: |
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/cadence.json" --file=channel/auto2/cadence.seed.json --remote --content-type application/json
           echo "Cadencia sincronizada:"; cat channel/auto2/cadence.seed.json

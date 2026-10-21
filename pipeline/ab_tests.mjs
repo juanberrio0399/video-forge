@@ -19,7 +19,12 @@ const EXPERIMENTS = [
   // vistas; el unico que desperto fue "Why Baby Otters Hold Hands" con 918 (20x), que es
   // justo ese formato. Es n=1, o sea una hipotesis, no una conclusion: por eso se mide.
   // min_lift alto (50%) a proposito: con 46 de mediana, una mejora chica es ruido.
-  { id: "formato_un_hecho_vs_lista", variable: "variant", metric: "vs_baseline_pct", variants: ["un_hecho", "narrado"], min_per_variant: 5, min_lift: 50 },
+  { id: "formato_un_hecho_vs_lista", niche: "animales_tiernos", variable: "variant", metric: "vs_baseline_pct", variants: ["un_hecho", "narrado"], min_per_variant: 5, min_lift: 50 },
+  // 2026-10-20: un_hecho GANO en animales (n6 vs n8, mediana +733 pts) y se escala; la lista queda
+  // como control 1 de cada 4. Se prueba tambien en satisfying contra su formato de siempre (puro,
+  // sin voz). OJO: ahi cambian DOS cosas (formato y voz), asi que un ganador dice "un_hecho
+  // narrado > compilacion muda", no aisla el formato.
+  { id: "formato_un_hecho_vs_puro_satisfying", niche: "satisfying", variable: "variant", metric: "vs_baseline_pct", variants: ["un_hecho", "puro"], min_per_variant: 5, min_lift: 50 },
 ];
 
 const experiments = EXPERIMENTS.map((e) => runExperiment(videos, e));
