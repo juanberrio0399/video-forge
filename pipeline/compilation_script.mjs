@@ -24,13 +24,22 @@ const bloqueNoRepetir = noRepetir.length
   ? `TITLES ALREADY USED on this channel — writing any of them again is forbidden: ${noRepetir.join(" | ")}. `
   : "";
 
-/** Revisa el titulo, reintenta una vez con la queja, y si insiste no produce. */
-async function tituloValido(titulo, rehacer) {
-  let chequeo = revisar(titulo, titulosUsados, { prohibirGenerico: false });
+/** Revisa el titulo, reintenta una vez con la queja, y si insiste no produce.
+ *  `exigirPregunta` es una preferencia, no una puerta: si tras reintentar sigue sin ser pregunta
+ *  pero NO esta repetido, se usa igual (perder un video por la redaccion es peor que el titulo). */
+async function tituloValido(titulo, rehacer, extra = {}) {
+  const opts = { prohibirGenerico: false, ...extra };
+  let chequeo = revisar(titulo, titulosUsados, opts);
   if (chequeo.ok) return titulo;
   console.error(`Titulo rechazado (${chequeo.motivo}): "${titulo}" — reintentando`);
   const nuevo = await rehacer(chequeo.queja);
-  if (nuevo && revisar(nuevo, titulosUsados, { prohibirGenerico: false }).ok) return nuevo;
+  if (nuevo && revisar(nuevo, titulosUsados, opts).ok) return nuevo;
+  const sinPregunta = (t) => t && revisar(t, titulosUsados, { prohibirGenerico: false }).ok;
+  if (extra.exigirPregunta && (sinPregunta(nuevo) || sinPregunta(titulo))) {
+    const usar = sinPregunta(nuevo) ? nuevo : titulo;
+    console.error(`Aviso: el titulo no quedo como pregunta tras reintentar; se usa igual: "${usar}"`);
+    return usar;
+  }
   console.error(`TITULO REPETIDO tras reintentar: "${nuevo || titulo}". No se produce.`);
   process.exit(1);
 }
@@ -166,18 +175,20 @@ if (variant === "puro") {
     `Elige 14 clips de stock MUY satisfying/ASMR (cortes limpios, agua, slime, arena cinética, prensa hidráulica, pintura, resina, etc.). ` +
     `Inspírate en o elige de: ${pool}. Cada "query" = término de búsqueda de stock en INGLES. ` +
     `Para cumplir con políticas de transformación (YPP inauthentic content), incluye para cada beat un breve texto o dato en pantalla relevante ("insight") que aporte valor único. ` +
-    `Devuelve SOLO JSON: {"title":"título en inglés de alto CTR estilo 'Oddly Satisfying' (SIN clickbait falso)","beats":[{"query":"término stock en inglés","insight":"short text/fact on screen","tipo":"clip"}]}`
+    // Titulo como PREGUNTA: el A/B hook_question_vs_statement la dio ganadora (n16 vs n5, 2026-10-16).
+    `El título es una PREGUNTA CONCRETA sobre lo que se ve (p. ej. "Why Does Kinetic Sand Hold Its Shape?", "What Happens When You Cut a Wet Soap Bar?"), sin clickbait falso. ` +
+    `Devuelve SOLO JSON: {"title":"pregunta en inglés sobre lo que se ve${isShort ? ", terminada en #Shorts" : ""}","beats":[{"query":"término stock en inglés","insight":"short text/fact on screen","tipo":"clip"}]}`
   );
   const rawBeats = (scr && Array.isArray(scr.beats) && scr.beats.length) ? scr.beats : (nicheCfg.queries || ["satisfying"]).map((q) => ({ query: q, insight: "Satisfying ASMR visual", tipo: "clip" }));
   // El fallback llevaba un titulo FIJO, asi que a partir del segundo video sin Gemini
   // chocaba consigo mismo siempre. Se diferencia por nicho y dia para que no colisione.
   const sello = new Date().toISOString().slice(0, 10);
   const tituloBase = (scr && scr.title)
-    || (isShort ? `Oddly Satisfying ${niche} (${sello}) #Shorts` : `The Most Oddly Satisfying ${niche} Video (${sello})`);
+    || (isShort ? `Why Is This ${niche} So Oddly Satisfying? (${sello}) #Shorts` : `Why Is This ${niche} So Oddly Satisfying? (${sello})`);
   const title = await tituloValido(tituloBase, async (queja) => {
     const r = await gemini(`Devuelve SOLO {"title":"..."} con un titulo nuevo para un Short ASMR/satisfying. ${queja}`);
     return (r && r.title) || "";
-  });
+  }, { exigirPregunta: true });
   const voicemap = {
     lang: "en", title, niche, variant, kind, defaults: { pause_after: 0 },
     transform: { on_screen_insight: true, sound_design: true, narration: false },
