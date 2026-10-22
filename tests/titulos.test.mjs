@@ -128,3 +128,24 @@ describe("revisar con prohibirGenerico:false (Oddly)", () => {
     expect(revisar("10 Oddly Satisfying Animal Facts That Reset Your Brain", usados, sinGenerico).motivo).toBe("duplicado");
   });
 });
+
+describe("revisar con exigirPregunta (Oddly puro, desde 2026-10-21)", () => {
+  const op = { prohibirGenerico: false, exigirPregunta: true };
+  it("acepta una pregunta concreta", () => {
+    expect(revisar("Why Does Kinetic Sand Hold Its Shape? #Shorts", [], op).ok).toBe(true);
+    expect(revisar("What Happens When You Cut a Wet Soap Bar?", [], op).ok).toBe(true);
+  });
+  it("rechaza la afirmacion y el listicle, con una queja que pide pregunta", () => {
+    const r = revisar("14 Oddly Satisfying ASMR Triggers for Instant Calm #Shorts", [], op);
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toBe("no_pregunta");
+    expect(r.queja).toMatch(/pregunta/i);
+  });
+  it("el duplicado sigue ganando sobre la regla de pregunta", () => {
+    const r = revisar("Why Does Kinetic Sand Hold Its Shape?", ["Why Does Kinetic Sand Hold Its Shape?"], op);
+    expect(r.motivo).toBe("duplicado");
+  });
+  it("sin la opcion, nada cambia para los demas", () => {
+    expect(revisar("14 Oddly Satisfying ASMR Triggers", [], { prohibirGenerico: false }).ok).toBe(true);
+  });
+});

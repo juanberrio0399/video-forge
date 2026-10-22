@@ -20,6 +20,8 @@
 // Dos canales distintos apuntando a lo mismo: concreto y especifico le gana a superlativo
 // generico.
 
+import { classifyHook } from "./hook_calc.mjs";
+
 /** Quita adornos para comparar titulos: hashtags, puntuacion, mayusculas, espacios. */
 export function normalizar(titulo) {
   return String(titulo ?? "")
@@ -77,6 +79,14 @@ export function revisar(titulo, usados, opts = {}) {
     return {
       ok: false, motivo: "generico",
       queja: `El titulo "${t}" usa la plantilla "The <superlativo> ... in History", que en este canal rinde 6 veces menos (mediana 2 vistas contra 12) y se repite sola. Escribe un titulo sobre el detalle CONCRETO de esta historia: el objeto, la persona o la decision exacta.`,
+    };
+  }
+  // `exigirPregunta` (Oddly, desde 2026-10-21): el A/B hook_question_vs_statement dio ganador
+  // a la PREGUNTA (n16 vs n5). Se mide con el mismo clasificador que usa el A/B.
+  if (opts.exigirPregunta && classifyHook(t) !== "question") {
+    return {
+      ok: false, motivo: "no_pregunta",
+      queja: `El titulo "${t}" no es una pregunta. En este canal los titulos con PREGUNTA concreta rinden mas (A/B medido). Escribelo como pregunta sobre lo que se ve ("Why does...?", "How do...?", "What happens when...?"), sin clickbait falso.`,
     };
   }
   return { ok: true, motivo: null, queja: null };
