@@ -6,6 +6,7 @@
 // Env: GEMINI_API_KEY(,2), GH_TOKEN (para `gh`), RADAR_REPO=owner/repo (repo objetivo, ya clonado en cwd).
 import fs from "node:fs";
 import { execSync, execFileSync } from "node:child_process";
+import { esDuplicado, ubicacionValida, necesitaVerificacion, veredicto, promptVerificacion } from "./lib/radar_filtro.mjs";
 
 const REPO = (process.env.RADAR_REPO || process.env.GITHUB_REPOSITORY || "").trim();
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
@@ -31,22 +32,14 @@ const langs = [...new Set(tracked.map((p) => (p.match(/\.([a-zA-Z0-9]+)$/) || []
 const topLangs = Object.entries(langs).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([e, n]) => `.${e}(${n})`).join(" ");
 
 const existing = JSON.parse(shq(`gh issue list -R ${REPO} --state open --limit 200 --json number,title`) || "[]");
-const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
-const words = (s) => new Set(norm(s).split(" ").filter((w) => w.length > 3));
 const existingTitles = existing.map((i) => i.title);
-function isDup(title) {                                        // Jaccard de palabras > 0.55 = duplicado
-  const a = words(title);
-  for (const t of existingTitles) {
-    const b = words(t);
-    if (!a.size || !b.size) continue;
-    let inter = 0; for (const w of a) if (b.has(w)) inter++;
-    const jac = inter / (a.size + b.size - inter);
-    if (jac > 0.55 || norm(t) === norm(title)) return true;
-  }
-  return false;
-}
+// Los CERRADOS tambien cuentan: lo que se cerro por falso o ya hecho no debe volver a proponerse.
+const closed = JSON.parse(shq(`gh issue list -R ${REPO} --state closed --limit 200 --json number,title`) || "[]");
+const closedTitles = closed.map((i) => i.title);
+const isDup = (title) => esDuplicado(title, [...existingTitles, ...closedTitles]);
+const HOY = new Date().toISOString().slice(0, 10);
 
-console.log(`Radar scan de ${REPO} — ${existing.length} issue(s) abiertos, ${tracked.length} archivos, langs: ${topLangs}`);
+console.log(`Radar scan de ${REPO} — ${existing.length} abiertos + ${closed.length} cerrados, ${tracked.length} archivos, langs: ${topLangs}`);
 
 // 2) Prompt para Gemini (con grounding de Google Search para traer fuentes reales con fecha).
 const prompt = `Eres un "Radar de proyecto": analizas un repositorio de GitHub e identificas de forma investigada acciones de ALTO VALOR para (a) MEJORAR lo que ya existe, (b) AGREGAR capacidades, features e INTEGRACIONES NUEVAS que le den un salto (no solo arreglar), y (c) hacerlo CRECER. Prioriza traer COSAS NUEVAS del ecosistema (APIs/herramientas/modelos/técnicas recién salidos) que el proyecto podría integrar YA. Usa Google Search para traer novedades REALES y recientes, y cita SIEMPRE fuentes con fecha.
@@ -54,6 +47,7 @@ const prompt = `Eres un "Radar de proyecto": analizas un repositorio de GitHub e
 ⛔ RESTRICCIÓN INNEGOCIABLE — TODO DEBE SER GRATIS: cada herramienta, API, modelo, servicio, hosting o integración que propongas TIENE que ser 100% gratuito de forma sostenible: open-source, o con free tier permanente que NO exija tarjeta de crédito. PROHIBIDO sugerir: servicios/APIs de pago, planes "premium/pro/paid", suscripciones, créditos que se agotan y hay que comprar, trials que caducan, o cualquier cosa que pida tarjeta. Si la ÚNICA forma de lograr algo es pagando, NO lo propongas (busca la alternativa gratis, o descártalo). En cada hallazgo que integre algo externo, indica explícitamente por qué es gratis (ej. "MIT/Apache", "free tier sin tarjeta", "self-host").
 
 Repositorio: ${REPO}
+Fecha de hoy: ${HOY}. Una fecha igual o anterior a hoy NO es "futura"; una versión ya publicada NO es "dev".
 
 Cubre estas dimensiones (mezcla mejorar + crecer, prioriza señal sobre ruido):
 - ⭐ Oportunidades/novedades para IMPLEMENTAR (funciones, técnicas, herramientas recién salidas del stack que usa).
@@ -70,6 +64,8 @@ REGLAS:
 - ⛔ SOLO GRATIS: descarta cualquier hallazgo cuya solución dependa de algo de pago (ver restricción arriba). Solo herramientas/APIs/servicios gratis sostenibles (open-source o free tier sin tarjeta).
 - Devuelve SOLO un arreglo JSON (sin prosa, sin markdown alrededor). Entre 2 y ${MAX_ISSUES} hallazgos, calidad sobre cantidad.
 - NO repitas temas ya cubiertos por estos issues abiertos: ${existingTitles.map((t) => `"${t}"`).join(", ") || "(ninguno)"}.
+- Tampoco propongas de nuevo lo ya CERRADO (resuelto o descartado por falso): ${closedTitles.slice(0, 120).map((t) => `"${t}"`).join(", ") || "(ninguno)"}.
+- Si afirmas que algo del código está mal o desactualizado, tiene que poder verificarse en el archivo de "location": antes de crear el issue se compara contra el código real y se descarta si no se confirma.
 - Cada afirmación anclada a una URL real con fecha. Nada inventado.
 - "location" debe usar una RUTA que exista en el repo (de la lista de archivos). "line" opcional.
 
@@ -151,6 +147,20 @@ async function ask() {
   return null;
 }
 
+// Una pregunta corta sin Google Search (para el verificador). Devuelve el texto o "".
+async function preguntar(texto) {
+  for (const k of KEYS) for (const m of MODELS) {
+    try {
+      const res = await tf(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${k}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: texto }] }], generationConfig: { temperature: 0 } }) }, 60000);
+      if (!res.ok) continue;
+      const j = await res.json();
+      const t = (j?.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
+      if (t) return t;
+    } catch {}
+  }
+  return "";
+}
+
 const findings = await ask();
 if (!Array.isArray(findings) || !findings.length) { console.error("Gemini no devolvió hallazgos usables."); process.exit(3); }
 
@@ -166,7 +176,14 @@ for (const f of findings) {
   if (created >= MAX_ISSUES) break;
   const title = (f.title || "").toString().trim().slice(0, 120);
   if (!title) continue;
-  if (isDup(title)) { console.log(`  ~ omitido (duplicado): ${title}`); continue; }
+  if (isDup(title)) { console.log(`  ~ omitido (duplicado, abierto o cerrado): ${title}`); continue; }
+  const ruta = ubicacionValida(f.location, tracked);
+  if (!ruta) { console.log(`  ~ omitido (la ruta "${f.location}" no existe en el repo): ${title}`); continue; }
+  if (necesitaVerificacion(f.type) && fs.existsSync(ruta) && fs.statSync(ruta).isFile()) {
+    const v = veredicto(await preguntar(promptVerificacion(f, ruta, read(ruta, 14000), HOY)));
+    if (!v.existe) { console.log(`  ~ descartado al verificar contra ${ruta}: ${title} — ${v.evidencia}`); continue; }
+    f.verificado = v.evidencia;
+  }
   const prio = okPrio.has(f.priority) ? f.priority : "Media";
   const eff = okEff.has(f.effort) ? f.effort : "M";
   const type = okType.has(f.type) ? f.type : "Mejora";
@@ -185,7 +202,10 @@ ${refs}
 
 ## Ubicación en el repo
 \`${loc}\`
-
+${f.verificado ? `
+## Verificado contra el código (${HOY})
+${f.verificado}
+` : ""}
 ## Acción sugerida
 ${(f.action || "").toString().trim()}
 
