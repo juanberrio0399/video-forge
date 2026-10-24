@@ -2,8 +2,11 @@
 // PRIVADO sin programación (reversible, NO borra) y se añade a hidden_videos.json en R2 para que los
 // sanadores de backlog no lo re-agenden. Sirve para "vaciar la cola" y que el cerebro vuelva a
 // publicar desde cero con lo que produzca a partir de ahora.
-// Uso: node pipeline/hide_scheduled.mjs <hidden_r2_key> [--dry-run] [--ids=ID1,ID2]
+// Uso: node pipeline/hide_scheduled.mjs <hidden_r2_key> [--dry-run] [--ids=ID1,ID2] [--solo-ids]
 //   --ids: además oculta estos IDs explícitos (los desprograma si aún tienen fecha y los añade a hidden).
+//   --solo-ids: NO barre la cola programada; solo pasa a PRIVADO los IDs dados, AUNQUE ya sean
+//     públicos (limpieza del canal, 2026-10-24: contenido ajeno o fuera de identidad). Sin este modo,
+//     un ID público solo se anotaba en hidden_videos.json y seguía público.
 // Env: YT_CLIENT_ID/SECRET/REFRESH_TOKEN del canal (Oddly: el workflow mapea YT2_*), CLOUDFLARE_ACCOUNT_ID/API_TOKEN.
 // Escribe hide_result.json (resumen) y hide_text.txt (aviso de Telegram).
 import fs from "node:fs";
@@ -14,6 +17,8 @@ const hiddenKey = process.argv[2];
 const dryRun = process.argv.includes("--dry-run");
 const idsArg = (process.argv.find((a) => a.startsWith("--ids=")) || "").slice(6);
 const explicit = [...new Set(idsArg.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean))];
+const soloIds = process.argv.includes("--solo-ids");
+if (soloIds && !explicit.length) { console.error("--solo-ids necesita --ids"); process.exit(1); }
 const label = process.env.CHANNEL_LABEL || hiddenKey;
 if (!hiddenKey) { console.error("falta hidden_r2_key"); process.exit(1); }
 const tf = (u, o = {}, ms = 20000) => fetch(u, { ...o, signal: AbortSignal.timeout(ms) });
@@ -58,7 +63,7 @@ try {
 // 2) Programados = no públicos con publishAt futuro.
 const now = Date.now(), all = [...ids];
 const st = await statuses(all);
-const sched = all.filter((id) => isScheduled(st.get(id), now)).map((id) => ({ id, ...st.get(id) }))
+const sched = soloIds ? [] : all.filter((id) => isScheduled(st.get(id), now)).map((id) => ({ id, ...st.get(id) }))
   .sort((a, b) => Date.parse(a.publish_at) - Date.parse(b.publish_at));
 console.log(`${label}: inventario ${all.length} · programados ${sched.length}${explicit.length ? ` · IDs explícitos ${explicit.length}` : ""}${dryRun ? " (SIMULACIÓN, no toco nada)" : ""}`);
 sched.forEach((s) => console.log(`  📅 ${s.publish_at} ${s.id} — ${s.title}`));
@@ -69,7 +74,11 @@ const exFound = explicit.filter((id) => exSt.has(id));
 const exMissing = explicit.filter((id) => !exSt.has(id));
 exMissing.forEach((id) => console.log(`  ? ${id}: no está en este canal, lo ignoro`));
 
-const toUnschedule = [...new Set([...sched.map((s) => s.id), ...exFound.filter((id) => isScheduled(exSt.get(id), now))])];
+// En --solo-ids tambien se pasan a privado los que ya son publicos (no solo los programados).
+const aPrivado = (id) => isScheduled(exSt.get(id), now) || (soloIds && exSt.get(id)?.privacy !== "private");
+const toUnschedule = [...new Set([...sched.map((s) => s.id), ...exFound.filter(aPrivado)])];
+if (soloIds) exFound.forEach((id) => console.log(`  ${aPrivado(id) ? "🔒" : "·"} ${id} (${exSt.get(id).privacy}) — ${exSt.get(id).title}`));
+console.log(`a privado: ${toUnschedule.length}${dryRun ? " (SIMULACIÓN, no toco nada)" : ""}`);
 const toHide = [...new Set([...sched.map((s) => s.id), ...exFound])];
 let hidden = [], failed = [];
 
