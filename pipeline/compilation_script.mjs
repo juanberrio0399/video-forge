@@ -131,7 +131,9 @@ if (variant === "un_hecho") {
     `y UN hecho sorprendente y VERIFICABLE sobre el. Nada de listas, nada de "10 datos". ` +
     `El video entero muestra ESE sujeto: todas las queries de stock son del mismo sujeto, en planos distintos. ` +
     `Estructura: beat 1 = la pregunta/gancho en 2 segundos ("Why do X...?"), beats 2-3 = la respuesta ` +
-    `con el dato, beat final = el remate. Entre 3 y 4 beats, frases CORTISIMAS (el video dura 15-20 segundos). ` +
+    `con el dato, beat final = el remate que ENGANCHA CON EL INICIO: termina en una frase que lleva de vuelta a la pregunta del beat 1 ` +
+    `(p. ej. "...and that's why they never let go." -> "Why do sea otters hold hands?"), para que el video haga LOOP y se vuelva a ver sin corte. ` +
+    `Entre 3 y 4 beats, frases CORTISIMAS (el video dura 15-20 segundos). ` +
     `El titulo es una PREGUNTA CONCRETA sobre el sujeto, no una promesa generica. ` +
     `Inspirate en el pool del nicho si encaja: ${pool}. ` +
     `Devuelve SOLO JSON: {"subject":"el sujeto en una palabra o dos","title":"pregunta concreta en ingles terminada en #Shorts","beats":[{"text":"1 frase corta en ingles","query":"termino stock en ingles DEL MISMO SUJETO","tipo":"intro|clip|reveal"}]}`

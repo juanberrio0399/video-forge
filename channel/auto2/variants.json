@@ -1,7 +1,16 @@
 {
-  "_nota": "FORMATO por nicho decidido por Juan. Manda sobre la cadencia de R2 y sobre el experimento activo: rebalance_oddly.mjs lo aplica cada lunes y sync_cadence.yml (modo variantes) lo sube sin tocar el resto de la cadencia. Una LISTA alterna los brazos franja por franja. | 2026-10-20: un_hecho gano el A/B en animales (n6 vs n8, mediana +733 pts sobre la lista) -> se escala con la lista como control 1 de cada 4, y se prueba en satisfying contra puro (A/B formato_un_hecho_vs_puro_satisfying).",
+  "_nota": "FORMATO por nicho decidido por Juan. Manda sobre la cadencia de R2 y sobre el experimento activo: rebalance_oddly.mjs lo aplica cada lunes y sync_cadence.yml (modo variantes) lo sube sin tocar el resto de la cadencia. Una LISTA alterna los brazos franja por franja. | 2026-10-20: un_hecho gano el A/B en animales (n6 vs n8, mediana +733 pts sobre la lista) -> se escala con la lista como control 1 de cada 4, y se prueba en satisfying contra puro (A/B formato_un_hecho_vs_puro_satisfying). | 2026-10-24: tope_diario 6 (antes 12). La politica de YouTube de contenido inautentico/producido en masa se evalua por canal, y 12/dia con plantilla agotaba ademas la cuota de la API. Se reparte en proporcion al reparto del rebalance (aplicarTope).",
+  "tope_diario": 6,
   "variant": {
-    "animales_tiernos": ["un_hecho", "un_hecho", "un_hecho", "narrado"],
-    "satisfying": ["un_hecho", "puro"]
+    "animales_tiernos": [
+      "un_hecho",
+      "un_hecho",
+      "un_hecho",
+      "narrado"
+    ],
+    "satisfying": [
+      "un_hecho",
+      "puro"
+    ]
   }
 }

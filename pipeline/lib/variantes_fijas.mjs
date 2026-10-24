@@ -21,3 +21,28 @@ export function aplicarAExperimento(exp = {}, fijas = {}) {
   if (!a || !a.key || !(a.key in v)) return exp;
   return { ...exp, active: { ...a, variant: v[a.key] } };
 }
+
+/**
+ * Tope diario de Shorts (variants.json -> tope_diario). Reparte el tope en proporcion al reparto
+ * que ya calculo el rebalance (resto mayor), sin dejar en 0 a un nicho que tenia cupos si el tope
+ * alcanza para todos. Sin tope o si ya cabe, devuelve el reparto igual.
+ * Por que: 12 Shorts/dia con plantilla es justo lo que YouTube llama "contenido inautentico /
+ * producido en masa" (se evalua por canal) y ademas agota la cuota diaria de la API (2026-10-24).
+ */
+export function aplicarTope(spc = {}, tope) {
+  const t = Math.floor(+tope);
+  const total = Object.values(spc).reduce((a, b) => a + (+b || 0), 0);
+  if (!t || t < 1 || total <= t) return { ...spc };
+  const activos = Object.entries(spc).filter(([, n]) => +n > 0);
+  const base = t >= activos.length ? 1 : 0;
+  const resto = t - base * activos.length;
+  const cuota = activos.map(([k, n]) => {
+    const exacto = (resto * (+n)) / total;
+    return { k, n: base + Math.floor(exacto), frac: exacto - Math.floor(exacto) };
+  });
+  let falta = t - cuota.reduce((a, c) => a + c.n, 0);
+  for (const c of [...cuota].sort((a, b) => b.frac - a.frac)) { if (falta <= 0) break; c.n++; falta--; }
+  const out = Object.fromEntries(Object.keys(spc).map((k) => [k, 0]));
+  for (const c of cuota) out[c.k] = c.n;
+  return out;
+}

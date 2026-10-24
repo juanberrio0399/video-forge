@@ -1,10 +1,17 @@
 {
-  "_nota": "Config del Oddly Clipper. Fuente = archive.org (descarga en HD, sin bloqueos). 'sources' = URLs archive.org/details/... a procesar directo; si esta vacio y search.enabled=true, busca por 'temas'. La licencia NO descarta nada: solo se muestra como etiqueta.",
+  "_nota": "APAGADO 2026-10-24: subio a Oddly recortes de contenido ajeno porque la licencia no filtraba nada (se pasaron a privado). No reactivar sin un filtro de licencia real. Config del Oddly Clipper. Fuente = archive.org (descarga en HD, sin bloqueos). 'sources' = URLs archive.org/details/... a procesar directo; si esta vacio y search.enabled=true, busca por 'temas'. La licencia NO descarta nada: solo se muestra como etiqueta.",
+  "activo": false,
   "sources": [],
   "search": {
-    "enabled": true,
+    "enabled": false,
     "fuente": "archive",
-    "temas": ["documentary", "history", "true crime", "unsolved mystery", "classic comedy tv show"],
+    "temas": [
+      "documentary",
+      "history",
+      "true crime",
+      "unsolved mystery",
+      "classic comedy tv show"
+    ],
     "por_tema": 8,
     "duracion_min_video": 300
   },
@@ -12,10 +19,21 @@
   "clips_per_video": 2,
   "categoria": "Remix",
   "categoria_key": "remix",
-  "duracion_short": { "min": 15, "max": 55 },
+  "duracion_short": {
+    "min": 15,
+    "max": 55
+  },
   "idioma": "en",
-  "subtitulos": { "estilo": "karaoke", "on": true },
-  "broll": { "on": false },
-  "musica": { "on": false, "volumen": 0.12 },
+  "subtitulos": {
+    "estilo": "karaoke",
+    "on": true
+  },
+  "broll": {
+    "on": false
+  },
+  "musica": {
+    "on": false,
+    "volumen": 0.12
+  },
   "privacidad_subida": "private"
 }
