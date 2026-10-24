@@ -22,6 +22,11 @@ on:
         description: "Opcional: IDs extra a ocultar (coma). Se aplican solo en el canal elegido."
         required: false
         default: ""
+      solo_ids:
+        description: "Solo los IDs dados (no toca la cola programada) y los pasa a PRIVADO aunque sean públicos"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -62,10 +67,11 @@ jobs:
         env:
           IDS: ${{ inputs.video_ids }}
         run: |
+          SOLO=""; [ "${{ inputs.solo_ids }}" = "true" ] && SOLO="--solo-ids"
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            node pipeline/hide_scheduled.mjs "$HKEY" --dry-run "--ids=$IDS"
+            node pipeline/hide_scheduled.mjs "$HKEY" --dry-run "--ids=$IDS" $SOLO
           else
-            node pipeline/hide_scheduled.mjs "$HKEY" "--ids=$IDS"
+            node pipeline/hide_scheduled.mjs "$HKEY" "--ids=$IDS" $SOLO
           fi
       - name: Refrescar la app (romper caché del inventario)
         if: (inputs.channel == 'both' || inputs.channel == matrix.ch) && inputs.dry_run == false
