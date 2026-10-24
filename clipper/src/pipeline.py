@@ -189,6 +189,13 @@ def seleccionar_interactivo(cfg: dict) -> list:
 
 def main():
     cfg = cargar_config()
+    # APAGADO (2026-10-24): este clipper subio a Oddly recortes de contenido ajeno (Garfield, canales
+    # de otros, recopilaciones) porque NO filtraba por licencia. Eso arriesga strikes y el rechazo del
+    # YPP por "contenido reutilizado"; esos videos se pasaron a privado. Para volver a usarlo hace falta
+    # un filtro de licencia real y poner "activo": true en config.json a conciencia.
+    if cfg.get("activo") is not True:
+        print("⛔ Clipper APAGADO (config.json -> activo). No filtra por licencia; ver README.")
+        sys.exit(1)
     print("🖥️  Detectando hardware...")
     hw = detect_hardware.detectar()
     print("   " + hw["nota"])

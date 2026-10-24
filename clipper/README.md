@@ -1,5 +1,7 @@
 # Oddly Clipper — 2º puente de creación (local, gratis)
 
+> ⛔ **APAGADO desde el 2026-10-24.** Subió a Oddly recortes de contenido ajeno (Garfield, canales de otros, recopilaciones) porque la licencia no filtraba nada; esos videos se pasaron a privado. `config.json -> "activo": false` lo frena al arrancar. No reactivar sin un filtro de licencia real.
+
 Toma videos **largos con licencia Creative Commons (CC-BY)** de YouTube, los **edita profesionalmente**
 (reencuadre 9:16, subtítulos animados) usando **solo el contenido del propio video** (nada externo) y los deja **privados en Oddly Loop**
 para que **tú apruebes desde el bot de Telegram** si se publican o no.

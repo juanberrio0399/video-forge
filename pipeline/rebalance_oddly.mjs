@@ -88,6 +88,9 @@ if (reverted) {
 } else if (wantsMore) {
   notes.push(`⏸️ Escalado bloqueado (sigo en ${TOTAL}/día): ${gate.reason}.`);
 }
+// Tope diario fijado por Juan (channel/auto2/variants.json): ningun escalado lo pasa.
+const topeJuan = +(rj("channel/auto2/variants.json", {}).tope_diario || 0);
+if (topeJuan && TOTAL > topeJuan) { notes.push(`🧢 Tope de Juan: ${TOTAL} -> ${topeJuan}/día.`); TOTAL = topeJuan; }
 
 // --- Reparto por score (mediana × confianza) entre nichos con muestra ---
 const expSlots = active ? 1 : 0;

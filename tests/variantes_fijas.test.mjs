@@ -43,3 +43,23 @@ describe("A/B por nicho", () => {
     expect(r.verdict).toBe("WINNER:un_hecho");
   });
 });
+
+import { aplicarTope } from "../pipeline/lib/variantes_fijas.mjs";
+describe("tope diario (variants.json -> tope_diario)", () => {
+  it("el reparto vivo 8+4 baja a 6 en proporcion: 4 animales + 2 satisfying", () => {
+    expect(aplicarTope({ animales_tiernos: 8, satisfying: 4, narrativas: 0 }, 6)).toEqual({ animales_tiernos: 4, satisfying: 2, narrativas: 0 });
+  });
+  it("suma exactamente el tope y no deja en 0 a un nicho que tenia cupos", () => {
+    const r = aplicarTope({ a: 10, b: 1, c: 1 }, 6);
+    expect(Object.values(r).reduce((x, y) => x + y, 0)).toBe(6);
+    expect(r.b).toBeGreaterThan(0);
+    expect(r.c).toBeGreaterThan(0);
+  });
+  it("si ya cabe, o no hay tope, no cambia nada", () => {
+    expect(aplicarTope({ a: 3, b: 2 }, 6)).toEqual({ a: 3, b: 2 });
+    expect(aplicarTope({ a: 8, b: 4 }, undefined)).toEqual({ a: 8, b: 4 });
+  });
+  it("el archivo de Juan trae el tope de 6", () => {
+    expect(fijas.tope_diario).toBe(6);
+  });
+});

@@ -11,6 +11,7 @@ import { buildLineup, pickToProduce, diffLineups, journalAppend, etDate } from "
 import { dueEntries, applyReview, hitRate, trim, newEntry } from "./lib/ledger.mjs";
 import { scaleGate, median } from "./lib/niche_rank.mjs";
 import { ODDLY_GOAL, weeklyHookExperiment, isoWeek, attachHookVideos, hookLift, goalEntryFields } from "./lib/oddly_goal.mjs";
+import { aplicarTope } from "./lib/variantes_fijas.mjs";
 
 const rj = (p, d) => { try { const v = JSON.parse(fs.readFileSync(p, "utf8")); return v == null ? d : v; } catch { return d; } };
 const now = Date.now();
@@ -93,7 +94,9 @@ ledger = trim(ledger);
 const dlPause = ledger.find((e) => e.type === "channel_pause" && e.channel === "data-lens") || null;
 
 // ---------- 2) Plan de hoy (lo que queda) y de mañana ----------
-const allocation = decision.recommended_allocation && Object.keys(decision.recommended_allocation).length ? decision.recommended_allocation : (cadence.shorts_per_category || {});
+// El tope diario que fijo Juan (channel/auto2/variants.json -> tope_diario) manda sobre el reparto.
+const fijasJuan = (() => { try { return JSON.parse(fs.readFileSync("channel/auto2/variants.json", "utf8")); } catch { return {}; } })();
+const allocation = aplicarTope(decision.recommended_allocation && Object.keys(decision.recommended_allocation).length ? decision.recommended_allocation : (cadence.shorts_per_category || {}), fijasJuan.tope_diario);
 const niches = {};
 for (const c of decision.candidates || []) niches[c.key] = { label: c.label, median_vpd: c.median_vpd, n: c.n, rel: c.rel, why: c.why };
 for (const r of rankRows) if (!niches[r.key]) niches[r.key] = { label: r.label, median_vpd: r.median_vpd, n: r.n, rel: r.rel, why: r.sufficient ? `mediana ${r.median_vpd}/día` : "muestra insuficiente" };
