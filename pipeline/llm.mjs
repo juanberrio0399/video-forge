@@ -125,8 +125,10 @@ export async function health() {
 }
 
 // Genera texto probando la cadena de proveedores gratis. Devuelve string o null.
-export async function genText(prompt, { json = true } = {}) {
+// `saltar`: nombres de proveedor a omitir (p. ej. ["Gemini"] si quien llama ya lo agoto).
+export async function genText(prompt, { json = true, saltar = [] } = {}) {
   for (const p of PROVIDERS) {
+    if (saltar.includes(p.name)) continue;
     try { const t = await p.run(prompt, json); if (t) { if (p.name !== "Gemini") console.error(`Texto por ${p.name} (proveedor gratis de respaldo)`); return t; } } catch {}
   }
   console.error("Ningún proveedor de IA respondió (revisa keys/cuotas).");

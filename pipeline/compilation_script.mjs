@@ -7,6 +7,7 @@
 // Env: GEMINI_API_KEY
 import fs from "node:fs";
 import { TEXT_MODELS } from "./_models.mjs";
+import { genText } from "./llm.mjs";
 import { revisar } from "./lib/titulos.mjs";
 
 const [niche = "satisfying", out = "voicemap.json", variant = "narrado", kind = "video"] = process.argv.slice(2);
@@ -68,7 +69,22 @@ const NICHE_STYLE = {
 // Reglas de RETENCIÓN que aplican a todo guion narrado (lo que separa lo pro de lo genérico).
 const EXPERT_RULES = "REGLAS DE RETENCIÓN: (1) el PRIMER beat engancha en los primeros 2 segundos (pattern interrupt / brecha de curiosidad / algo contraintuitivo); NADA de 'in this video'. (2) Frases CORTAS y rítmicas, aptas para voz. (3) A la mitad, un cambio que re-engancha. (4) El ÚLTIMO beat cierra fuerte (giro, remate o CTA de 3 palabras). (5) Cero relleno: si un beat no sube la apuesta, va fuera. (6) EDITA COMO CINE: piensa como EDITOR CINEMATOGRÁFICO — planifica VARIEDAD de planos (general → detalle → macro), RITMO que corta con el sonido, CONTRASTE visual entre beats consecutivos, y un ARCO emocional (calma → clímax → cierre). Elige queries de tomas con MOVIMIENTO y TEXTURA (cámara lenta, macro, dron), nunca estáticas ni genéricas.";
 
-async function gemini(prompt) {
+// Que respuesta cuenta: por defecto un guion con beats. El reintento del titulo pide SOLO
+// {"title":"..."}; antes se le exigian beats tambien, asi que NUNCA pasaba y cada titulo
+// repetido tumbaba el video (2026-10-03 -> 2026-10-30: ~20 de 24 corridas al dia sin video).
+const conBeats = (p) => p && Array.isArray(p.beats) && p.beats.length > 0;
+const conTitulo = (p) => p && typeof p.title === "string" && p.title.trim().length > 0;
+
+async function gemini(prompt, valido = conBeats) {
+  const p = await soloGemini(prompt, valido);
+  if (p) return p;
+  // Gemini sin cuota (429) o caido: la cadena gratis de llm.mjs (Groq, OpenRouter, Cloudflare...).
+  const t = await genText(prompt, { json: true, saltar: ["Gemini"] });
+  let q = null; try { q = t ? JSON.parse(t) : null; } catch { console.error("respaldo: JSON invalido"); }
+  return valido(q) ? q : null;
+}
+
+async function soloGemini(prompt, valido) {
   if (!KEYS.length) return null;
   for (let round = 0; round < 3; round++) {
     for (let k = 0; k < KEYS.length; k++) {           // prueba cada API key (respaldo = doble cuota)
@@ -84,7 +100,8 @@ async function gemini(prompt) {
           const t = (j?.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, "").trim();
           if (!t) continue;
           let p = null; try { p = JSON.parse(t); } catch { console.error(`key${k + 1}/${m}: JSON invalido`); continue; }
-          if (p && Array.isArray(p.beats) && p.beats.length) return p; // solo un guion valido (con beats) cuenta; si no, reintenta
+          if (valido(p)) return p; // solo cuenta una respuesta con lo pedido; si no, sigue probando
+          console.error(`key${k + 1}/${m}: respuesta sin lo pedido`);
         } catch (e) { console.error(`key${k + 1}/${m}: ${e.message}`); }
       }
     }
@@ -151,7 +168,7 @@ if (variant === "un_hecho") {
   }));
   const tituloBruto = limpiar(scr.title, 100) || `Why ${sujeto || "This"}? #Shorts`;
   const titulo = await tituloValido(tituloBruto, async (queja) => {
-    const r = await gemini(`Devuelve SOLO {"title":"..."} con un titulo nuevo. ${queja}`);
+    const r = await gemini(`Devuelve SOLO {"title":"..."} con un titulo nuevo. ${queja}`, conTitulo);
     return limpiar(r && r.title, 100);
   });
   const voicemap = {
@@ -188,7 +205,7 @@ if (variant === "puro") {
   const tituloBase = (scr && scr.title)
     || (isShort ? `Why Is This ${niche} So Oddly Satisfying? (${sello}) #Shorts` : `Why Is This ${niche} So Oddly Satisfying? (${sello})`);
   const title = await tituloValido(tituloBase, async (queja) => {
-    const r = await gemini(`Devuelve SOLO {"title":"..."} con un titulo nuevo para un Short ASMR/satisfying. ${queja}`);
+    const r = await gemini(`Devuelve SOLO {"title":"..."} con un titulo nuevo para un Short ASMR/satisfying. ${queja}`, conTitulo);
     return (r && r.title) || "";
   }, { exigirPregunta: true });
   const voicemap = {
@@ -222,7 +239,7 @@ const scr = await gemini(prompt);
 if (!scr || !Array.isArray(scr.beats) || !scr.beats.length) { console.error("Gemini no devolvio guion de compilacion"); process.exit(1); }
 
 const tituloNarrado = await tituloValido(scr.title || `${label} compilation`, async (queja) => {
-  const r = await gemini(`Devuelve SOLO {"title":"..."} con un titulo nuevo. ${queja}`);
+  const r = await gemini(`Devuelve SOLO {"title":"..."} con un titulo nuevo. ${queja}`, conTitulo);
   return (r && r.title) || "";
 });
 const voicemap = {
