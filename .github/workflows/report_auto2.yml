@@ -10,6 +10,8 @@ on:
 
 permissions:
   contents: read
+  actions: read   # produccion_oddly.mjs: corridas de produce_oddly y sus pasos
+  checks: read    # ... y la advertencia "Oddly sin video" de cada una
 
 env:
   BUCKET: video-forge
@@ -24,6 +26,9 @@ jobs:
       YT2_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
       YT2_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
       YT2_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -35,6 +40,13 @@ jobs:
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/views_at_age.json" --file=views_at_age.json --remote 2>/dev/null || echo '{}' > views_at_age.json
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/hidden_videos.json" --file=hidden_videos.json --remote 2>/dev/null || echo '[]' > hidden_videos.json
           node pipeline/report_auto2.mjs
+          # Cuantas corridas sacaron video (24 h). Si menos de la mitad, avisa una vez al dia.
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/produccion_alerta.txt" --file=produccion_alerta.txt --remote 2>/dev/null || true
+          node pipeline/produccion_oddly.mjs || true
+          if [ -f produccion_alerta_msg.txt ]; then
+            bash pipeline/notify_telegram.sh "$(cat produccion_alerta_msg.txt)" || true
+            npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/produccion_alerta.txt" --file=produccion_alerta.txt --remote --content-type text/plain || true
+          fi
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/state.json" --file=auto2_state.json --remote --content-type application/json
           npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/views_at_age.json" --file=views_at_age.json --remote --content-type application/json || true
           # Mejores horas por datos (si hubo muestra) -> para el agendado.

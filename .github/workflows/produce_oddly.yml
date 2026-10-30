@@ -97,10 +97,18 @@ jobs:
           # Titulos ya publicados, para no repetirlos (solo duplicados: la plantilla
           # listicle NO se prohibe aqui, rinde mejor que el resto y es el control del A/B).
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/titles.json" --file=oddly_titles.json --remote 2>/dev/null || echo '[]' > oddly_titles.json
-          if node pipeline/compilation_script.mjs "$NICHE" voicemap.json "$VARIANT" "$KIND"; then
+          if node pipeline/compilation_script.mjs "$NICHE" voicemap.json "$VARIANT" "$KIND" 2> guion_err.txt; then
+            cat guion_err.txt >&2
             echo "guion ok"
           else
-            bash pipeline/notify_telegram.sh "⏸️ Oddly Loop: pospongo — Gemini sin cuota (429). Reintento en el proximo ciclo." || true
+            cat guion_err.txt >&2
+            # Esta corrida termina en VERDE pero sin video. La advertencia la deja a la vista en
+            # GitHub y el reporte del canal la cuenta (pipeline/produccion_oddly.mjs). Antes el
+            # aviso decia siempre "Gemini sin cuota" aunque el motivo fuera otro.
+            MOTIVO=$(grep -E "TITULO REPETIDO|no devolvio|Ningún proveedor" guion_err.txt | tail -1 | cut -c1-200)
+            MOTIVO=${MOTIVO:-"el guion de la IA no salio (ver log)"}
+            echo "::warning title=Oddly sin video::${MOTIVO}"
+            bash pipeline/notify_telegram.sh "⏸️ Oddly Loop: sin video en esta corrida — ${MOTIVO}. Reintento en el proximo ciclo." || true
             echo "SKIP=1" >> "$GITHUB_ENV"
           fi
 
