@@ -7,7 +7,7 @@ import fs from "node:fs";
 
 const TOKEN = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
 const H = { Authorization: `Bearer ${TOKEN}`, Accept: "application/vnd.github+json", "User-Agent": "radar-purge" };
-const REPOS = ["video-forge", "serverless-rag-assistant", "panel-marketing-cloud", "dataforge-cloud", "validador-cloud", "ugpp-shield-pro", "Hearthwood", "claude-config", "dockerized-data-tool", "aws-labs", "juanberrio0399.github.io"].map((r) => (r.includes("/") ? r : `juanberrio0399/${r}`));
+const REPOS = ["video-forge", "serverless-rag-assistant", "panel-marketing-cloud", "dataforge", "dataforge-cloud", "validador-cloud", "ugpp-shield-pro", "Hearthwood", "claude-config", "dockerized-data-tool", "aws-labs", "juanberrio0399.github.io"].map((r) => (r.includes("/") ? r : `juanberrio0399/${r}`));
 const DRY = process.env.DRY_RUN === "1";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
