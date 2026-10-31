@@ -22,7 +22,12 @@ export const ODDLY_GOAL = {
 export const HOOK_PAIRS = [
   { id: "pregunta-vs-afirmacion", arms: ["question", "statement"], labels: ["pregunta", "afirmación"],
     text: { question: "Gancho en forma de PREGUNTA en el primer segundo", statement: "Gancho en forma de AFIRMACIÓN rotunda en el primer segundo (sin pregunta)" },
-    hypothesis: "Abrir con una pregunta retiene más que abrir con una afirmación" },
+    hypothesis: "Abrir con una pregunta retiene más que abrir con una afirmación",
+    // DECIDIDO: ganó la pregunta (A/B por título, n16 vs n5, 2026-10-16) y desde #196 la
+    // producción exige título en pregunta. Seguir rotándolo daba un brazo "afirmación" que salía
+    // igual al otro (en Oddly 21 videos con pregunta contra 2): una semana de cada cuatro perdida
+    // y un ganador al azar en el ledger. Ya no rota; las semanas desde `desde` no se juzgan.
+    decided: { at: "2026-10-16", winner: "question", desde: "2026-W43" } },
   { id: "dato-vs-sensorial", arms: ["data", "sensory"], labels: ["dato", "sensorial"],
     text: { data: "Abre con un NÚMERO o dato concreto en pantalla en el primer segundo", sensory: "Abre con el sonido o la imagen más impactante, sin texto explicativo en el primer segundo" },
     hypothesis: "Un dato concreto al inicio retiene más que un arranque puramente sensorial" },
@@ -33,6 +38,17 @@ export const HOOK_PAIRS = [
     text: { you: "Habla al espectador en segunda persona (tú) en el primer segundo", observer: "Narra como observador, en tercera persona, en el primer segundo" },
     hypothesis: "Hablarle al espectador retiene más que narrar como observador" },
 ];
+
+// Los que siguen abiertos: solo estos rotan por semana.
+export const ACTIVE_HOOK_PAIRS = HOOK_PAIRS.filter((p) => !p.decided);
+
+// Un experimento semanal de un par ya decidido, corrido cuando la producción ya forzaba al
+// ganador: sus dos brazos recibieron el mismo tratamiento y no hay nada que juzgar.
+export function hookContaminado(entry) {
+  const id = String((entry && entry.subject) || "");
+  const par = HOOK_PAIRS.find((p) => p.decided && id.endsWith(`-${p.id}`));
+  return Boolean(par && entry.week && String(entry.week) >= par.decided.desde);
+}
 
 export function isoWeek(nowMs = Date.now()) {
   const d = new Date(nowMs);
@@ -48,7 +64,7 @@ export function isoWeek(nowMs = Date.now()) {
 export function weeklyHookExperiment(week, leaderKey) {
   if (!leaderKey || !/^\d{4}-W\d{2}$/.test(String(week))) return null;
   const n = Number(String(week).slice(6));
-  const pair = HOOK_PAIRS[n % HOOK_PAIRS.length];
+  const pair = ACTIVE_HOOK_PAIRS[n % ACTIVE_HOOK_PAIRS.length];
   return { id: `hook-${week}-${pair.id}`, variable: "hook", arms: pair.arms.slice(), labels: pair.labels.slice(), arm_text: { ...pair.text }, niche: leaderKey, week, hypothesis: pair.hypothesis };
 }
 
@@ -88,6 +104,7 @@ const median = (xs) => { const s = xs.slice().sort((a, b) => a - b); const m = M
 export function hookLift(entry, viewsAtAge, minN = ODDLY_GOAL.strategy.hook_min_n) {
   const arms = entry && entry.arms;
   if (!Array.isArray(arms) || arms.length !== 2) return null;
+  if (hookContaminado(entry)) return null;   // se revisa como "no puedo juzgar", sin ganador
   const vals = arms.map((a) => ((entry.videos || {})[a] || []).map((id) => viewsAtAge && viewsAtAge[id] && Number(viewsAtAge[id].d7)).filter((x) => Number.isFinite(x)));
   if (vals[0].length < minN || vals[1].length < minN) return null;
   const m = vals.map(median);
