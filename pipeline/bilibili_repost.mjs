@@ -30,7 +30,7 @@ if (!pending.length) { console.log("Bilibili repost: nada pendiente en la cola."
 console.log(`Bilibili repost: ${pending.length} en cola, subo hasta ${MAX_PER_RUN}.`);
 
 const toDo = pending.slice(0, MAX_PER_RUN);
-let done = 0, failed = 0;
+let done = 0, failed = 0, cookieVencida = false;
 
 for (const item of toDo) {
   const key = item.r2_key || `channel/oddly/repost/${item.video_id}.mp4`;
@@ -44,7 +44,7 @@ for (const item of toDo) {
       stdio: "inherit",
       env: { ...process.env, BILI_TITLE: item.title || "Relaxing Space", BILI_DESC: item.desc || "Relaxing space visuals. Follow for more.", BILI_TAG: (item.tags || []).join(",") },
     });
-  } catch { /* el exit!=0 lo evaluamos por result.txt */ }
+  } catch (e) { if (e.status === 2) cookieVencida = true; /* 2 = Bilibili mando al login; lo demas se evalua por result.txt */ }
   const ok = /^OK/.test(rj0("result.txt"));
   if (ok) {
     done++;
@@ -55,9 +55,12 @@ for (const item of toDo) {
   } else {
     failed++;
     log.unshift({ video_id: item.video_id, title: item.title || "Short", at: stamp, ok: false });
-    notify(`⚠️ Bilibili: no pude repostear «${item.title}». Queda en la cola para reintentar. Mira el artefacto de capturas.`);
+    notify(cookieVencida
+      ? `⚠️ Bilibili: la cookie de la sesión se venció (me manda al login). «${item.title}» queda en la cola. Renuévala con: gh secret set BILIBILI_COOKIE --repo juanberrio0399/video-forge`
+      : `⚠️ Bilibili: no pude repostear «${item.title}». Queda en la cola para reintentar. Mira el artefacto de capturas.`);
   }
   try { fs.rmSync("video.mp4", { force: true }); } catch {}
+  if (cookieVencida) break;   // sin sesion fallan todos: no tiene caso probar el resto
 }
 
 // Nueva cola = lo que quedó (sacando lo ya posteado). Posted acotado.
@@ -66,5 +69,14 @@ fs.writeFileSync("bilibili_queue_new.json", JSON.stringify(newQueue));
 fs.writeFileSync("bilibili_posted_new.json", JSON.stringify([...posted].slice(-800)));
 fs.writeFileSync("bilibili_log_new.json", JSON.stringify(log.slice(0, 40))); // últimos 40 para la app
 console.log(`\nBilibili repost: ${done} ok, ${failed} fallidos, ${newQueue.length} quedan en cola.`);
+
+// Si no subio NADA, la corrida sale en ROJO. Antes terminaba en verde con "0 ok, 1 fallidos" y el
+// unico rastro era el Telegram (cookie vencida el 2026-10-30). La cola ya quedo escrita arriba y el
+// paso que la guarda en R2 corre con if: always(), asi que no se pierde nada.
+if (failed && !done) {
+  const motivo = cookieVencida ? "la cookie BILIBILI_COOKIE se vencio (redirige al login)" : `${failed} repost(s) fallaron; ver capturas`;
+  console.log(`::error title=Bilibili sin subir::${motivo}`);
+  process.exit(1);
+}
 
 function rj0(p) { try { return fs.readFileSync(p, "utf8"); } catch { return ""; } }
