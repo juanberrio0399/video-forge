@@ -32,6 +32,9 @@ const out = { at: new Date().toISOString(), n_videos: videos.length, experiments
 fs.writeFileSync(outF || "ab_tests.json", JSON.stringify(out, null, 2));
 
 for (const r of experiments) {
-  const parts = r.variants.map((v) => `${v}: n${r.measured[v] ? r.measured[v].n : 0} μ${r.measured[v] ? r.measured[v].mean : "—"}`).join(" vs ");
+  // Se imprime la MEDIANA, que es con lo que decide lib/ab_test.mjs; la media (μ) va entre
+  // parentesis. Antes solo salia la media y un ganador por mediana parecia un empate (3265.6 vs 3263.3).
+  const fmt = (m) => (m ? `n${m.n} mediana ${m.median ?? "—"} (μ ${m.mean})` : "n0");
+  const parts = r.variants.map((v) => `${v}: ${fmt(r.measured[v])}`).join(" vs ");
   console.log(`AB ${r.id}: ${parts} -> ${r.verdict}${r.lift != null ? ` (lift ${r.lift})` : ""}`);
 }

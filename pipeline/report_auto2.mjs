@@ -30,7 +30,10 @@ try {
   const subs = +((item.statistics || {}).subscriberCount || 0), total_views = +((item.statistics || {}).viewCount || 0);
   const up = item.contentDetails && item.contentDetails.relatedPlaylists && item.contentDetails.relatedPlaylists.uploads;
   let ids = [], page = "";
-  if (up) { do { const j = await (await tf(`https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId=${up}&pageToken=${page}`, { headers: H })).json(); ids.push(...(j.items || []).map((i) => i.contentDetails.videoId)); page = j.nextPageToken || ""; } while (page && ids.length < 200); }
+  // Todos los videos del canal (antes se cortaba en los ultimos 200: con mas de 200 Shorts los
+  // ganadores viejos salian del ranking y del "lo que mas rinde" que imita el cerebro). Cada pagina
+  // es 1 unidad de cuota; el tope de 5000 es solo una red por si la paginacion se enloquece.
+  if (up) { do { const j = await (await tf(`https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId=${up}&pageToken=${page}`, { headers: H })).json(); ids.push(...(j.items || []).map((i) => i.contentDetails.videoId)); page = j.nextPageToken || ""; } while (page && ids.length < 5000); }
   let nicheMap = {};
   try { nicheMap = JSON.parse(fs.readFileSync("niche_map.json", "utf8")); } catch {}
   // Videos OCULTOS (despublicados o sacados de la cola): no existen para la app ni para el cerebro.
