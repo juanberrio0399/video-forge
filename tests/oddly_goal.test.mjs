@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ODDLY_GOAL, HOOK_PAIRS, isoWeek, weeklyHookExperiment, pushLeader, attachHookVideos, hookLift, goalEntryFields } from "../pipeline/lib/oddly_goal.mjs";
+import { ODDLY_GOAL, HOOK_PAIRS, ACTIVE_HOOK_PAIRS, hookContaminado, isoWeek, weeklyHookExperiment, pushLeader, attachHookVideos, hookLift, goalEntryFields } from "../pipeline/lib/oddly_goal.mjs";
 import { newEntry, judge } from "../pipeline/lib/ledger.mjs";
 import { evaluateYpp } from "../pipeline/lib/ypp.mjs";
 import { MONET_GOALS } from "../pipeline/lib/monetization.mjs";
@@ -66,8 +66,27 @@ describe("ganchos semanales", () => {
     expect(a.niche).toBe("animales_tiernos");
     expect(a.arms).toHaveLength(2);
     for (const arm of a.arms) expect(a.arm_text[arm]).toBeTruthy();
-    expect(weeklyHookExperiment("2026-W42", "x").id).toContain(HOOK_PAIRS[42 % HOOK_PAIRS.length].id);
+    expect(weeklyHookExperiment("2026-W42", "x").id).toContain(ACTIVE_HOOK_PAIRS[42 % ACTIVE_HOOK_PAIRS.length].id);
     expect(weeklyHookExperiment("2026-W38", null)).toBe(null);
+  });
+  it("un par ya decidido no vuelve a rotar (pregunta vs afirmación ganó la pregunta)", () => {
+    expect(ACTIVE_HOOK_PAIRS.length).toBe(HOOK_PAIRS.length - 1);
+    for (let w = 1; w <= 52; w++) {
+      const e = weeklyHookExperiment(`2026-W${String(w).padStart(2, "0")}`, "satisfying");
+      expect(e.id).not.toContain("pregunta-vs-afirmacion");
+    }
+  });
+  it("el experimento contaminado (par decidido, desde W43) no da ganador; los de antes sí se juzgan", () => {
+    const arms = ["question", "statement"];
+    const videos = { question: ["a", "b", "c"], statement: ["d", "e", "f"] };
+    const vaa = { a: { d7: 10 }, b: { d7: 10 }, c: { d7: 10 }, d: { d7: 90 }, e: { d7: 90 }, f: { d7: 90 } };
+    const w44 = { subject: "hook-2026-W44-pregunta-vs-afirmacion", week: "2026-W44", arms, videos };
+    const w40 = { subject: "hook-2026-W40-pregunta-vs-afirmacion", week: "2026-W40", arms, videos };
+    expect(hookContaminado(w44)).toBe(true);
+    expect(hookLift(w44, vaa)).toBe(null);
+    expect(hookContaminado(w40)).toBe(false);
+    expect(hookLift(w40, vaa).winner).toBe("statement");
+    expect(hookContaminado({ subject: "hook-2026-W44-dato-vs-sensorial", week: "2026-W44" })).toBe(false);
   });
   it("ata cada video a su brazo por franja y nicho", () => {
     const e = { arms: ["data", "sensory"], videos: { data: [], sensory: [] }, pending: [
