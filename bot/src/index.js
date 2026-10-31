@@ -248,7 +248,7 @@ async function geminiTrends(env) {
   const up = (state.upcoming || []).map((u) => `#${u.n}: ${u.topic}`).join("\n") || "(ninguno)";
   const pub = (state.published || []).map((v) => v.title).join("; ") || "(ninguno)";
   const prompt = `Eres estratega de un canal faceless de datos/dinero en YouTube (ingles, mercado EE.UU.). Ya publicado: ${pub}. Proximos videos planeados:\n${up}\n\nResponde en ESPAÑOL, breve y concreto (sin relleno): por CADA proximo tema, una linea con potencial de vistas ALTO/MEDIO/BAJO segun tendencias e interes actual del publico + un ajuste corto para mejorarlo. Al final, sugiere 1-2 temas calientes que FALTAN y deberiamos agregar.`;
-  for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]) {
+  for (const m of ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3-flash-preview"]) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${env.GEMINI_API_KEY}`, {
         method: "POST", headers: { "content-type": "application/json" },
@@ -274,7 +274,7 @@ async function geminiInsights(env) {
   if (!vids.length) return { error: "Aún no hay videos públicos con métricas para analizar." };
   const lines = vids.map((v) => `- [${v.type}] ${v.t} — ${v.views} vistas, ${v.watch} min vistos`).join("\n");
   const prompt = `Eres estratega de crecimiento de un canal faceless de datos/dinero en YouTube (ingles, EE.UU.). Videos publicados con su rendimiento REAL:\n${lines}\n\nAnaliza y responde en ESPAÑOL, breve y accionable (sin relleno):\n1) Qué temas/formatos rinden MÁS (por vistas y por minutos vistos) y QUÉ tienen en común (tema, ángulo, tipo de título).\n2) Qué NO funciona.\n3) 3-4 IDEAS de próximos videos concretas que REPLIQUEN lo que funciona, con el título tentativo en INGLÉS. Prioriza vistas y retención.`;
-  for (const m of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]) {
+  for (const m of ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3-flash-preview"]) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${env.GEMINI_API_KEY}`, {
         method: "POST", headers: { "content-type": "application/json" },

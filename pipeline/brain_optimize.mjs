@@ -25,7 +25,7 @@ const CHANNELS = [
 // Investigación WEB con Gemini + grounding de Google Search (tendencias REALES y recientes). Gratis.
 const GKEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
 async function webResearch(query) {
-  for (const k of GKEYS) for (const m of ["gemini-flash-latest", "gemini-2.5-flash"]) {
+  for (const k of GKEYS) for (const m of ["gemini-flash-latest", "gemini-flash-lite-latest"]) {
     try {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${k}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: query }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.4 } }), signal: AbortSignal.timeout(45000) });
       if (!res.ok) continue;
