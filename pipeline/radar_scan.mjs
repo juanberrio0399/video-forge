@@ -7,6 +7,12 @@
 import fs from "node:fs";
 import { execSync, execFileSync } from "node:child_process";
 import { esDuplicado, ubicacionValida, necesitaVerificacion, veredicto, promptVerificacion } from "./lib/radar_filtro.mjs";
+import { dependencias, consultas, bloqueFuentes } from "./lib/radar_respaldo.mjs";
+import { genText } from "./llm.mjs";
+
+// Plan B sin Gemini: redacta la cadena gratis de llm.mjs. Sin OpenRouter: sus modelos gratis pueden
+// guardar lo que reciben y el radar lee repos privados.
+const SALTAR = ["Gemini", "OpenRouter"];
 
 const REPO = (process.env.RADAR_REPO || process.env.GITHUB_REPOSITORY || "").trim();
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
@@ -27,7 +33,8 @@ const MANIFESTS = ["package.json", "wrangler.toml", "requirements.txt", "pyproje
 const manifests = [...MANIFESTS, ...tracked.filter((p) => /\.project\.json$/.test(p))]
   .filter(has).map((p) => `### ${p}\n${read(p, 3000)}`).join("\n\n") || "(sin manifiestos detectados)";
 const commits = shq("git log --oneline -20 --no-decorate") || "(sin historial)";
-const langs = [...new Set(tracked.map((p) => (p.match(/\.([a-zA-Z0-9]+)$/) || [])[1]).filter(Boolean))]
+// Se cuentan TODOS los archivos por extension (antes un Set dejaba cada extension en 1).
+const langs = tracked.map((p) => (p.match(/\.([a-zA-Z0-9]+)$/) || [])[1]).filter(Boolean)
   .reduce((m, e) => (m[e] = (m[e] || 0) + 1, m), {});
 const topLangs = Object.entries(langs).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([e, n]) => `.${e}(${n})`).join(" ");
 
@@ -144,6 +151,31 @@ async function ask() {
     }
     if (r < 3) { const ms = 30000 * (r + 1); console.error(`  (ronda ${r + 1} sin resultado; espero ${ms / 1000}s por la cuota y reintento)`); await wait(ms); }
   }
+  return askRespaldo();
+}
+
+// Gemini sin cuota: busca con Tavily desde las dependencias reales y redacta con la cadena gratis.
+// Sin fuentes NO redacta: un radar sin investigar inventaria versiones y CVEs.
+async function askRespaldo() {
+  const KEY = process.env.TAVILY_API_KEY;
+  if (!KEY) { console.error("  Plan B: falta TAVILY_API_KEY; sin busqueda web no hay barrido."); return null; }
+  const archivos = Object.fromEntries(MANIFESTS.filter(has).map((p) => [p, read(p, 20000)]));
+  const LENG = { py: "Python", js: "JavaScript", mjs: "JavaScript", ts: "TypeScript", tsx: "TypeScript", jsx: "JavaScript", lua: "Luau", luau: "Luau", go: "Go", rs: "Rust", java: "Java" };
+  const lenguaje = Object.entries(langs).sort((a, b) => b[1] - a[1]).map(([e]) => LENG[e]).find(Boolean) || "";
+  const qs = consultas(dependencias(archivos), lenguaje, HOY.slice(0, 4));
+  const resultados = [];
+  for (const query of qs) {
+    try {
+      const res = await tf("https://api.tavily.com/search", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ api_key: KEY, query, max_results: 5, search_depth: "basic" }) }, 30000);
+      if (!res.ok) { console.error(`  Tavily "${query}": HTTP ${res.status}`); continue; }
+      resultados.push(...(((await res.json()) || {}).results || []));
+    } catch (e) { console.error(`  Tavily "${query}": ${e.message}`); }
+  }
+  const fuentes = bloqueFuentes(resultados);
+  if (!fuentes) { console.error("  Plan B: Tavily no devolvio fuentes."); return null; }
+  console.log(`  Plan B: ${qs.length} busquedas en Tavily, ${resultados.length} resultados; redacto con la cadena gratis.`);
+  const arr = extractJsonArray(await genText(prompt + fuentes, { json: false, saltar: SALTAR }));
+  if (Array.isArray(arr) && arr.length) { console.log(`  hallazgos con el plan B (Tavily + cadena gratis): ${arr.length}`); return arr; }
   return null;
 }
 
@@ -158,11 +190,12 @@ async function preguntar(texto) {
       if (t) return t;
     } catch {}
   }
-  return "";
+  // Sin Gemini el verificador no se salta: sin respuesta, veredicto() descarta el hallazgo.
+  return (await genText(texto, { json: false, saltar: SALTAR })) || "";
 }
 
 const findings = await ask();
-if (!Array.isArray(findings) || !findings.length) { console.error("Gemini no devolvió hallazgos usables."); process.exit(3); }
+if (!Array.isArray(findings) || !findings.length) { console.error("Ni Gemini ni el plan B (Tavily + cadena gratis) devolvieron hallazgos usables."); process.exit(3); }
 
 // 4) Asegurar la etiqueta `radar`.
 shq(`gh label create radar --color BFD4F2 --description "Radar de proyecto (autom.)" -R ${REPO}`);
