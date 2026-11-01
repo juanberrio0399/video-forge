@@ -67,6 +67,9 @@ jobs:
       SLOT_TARGET: ${{ github.event.inputs.slot || '' }}
       ODDLY_IDEA: ${{ github.event.inputs.idea || '' }}
       KVOICE: af_heart
+      # Tope diario de Shorts (variants.json -> tope_diario): best_slot no llena un dia por encima
+      # de el y la puerta de abajo no produce si la cola ya cubre 2 dias.
+      TOPE_FILE: channel/auto2/variants.json
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -76,7 +79,18 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: PUERTA del tope diario (no producir si la cola ya cubre 2 dias)
+        if: ${{ env.PUBLISH == 'yes' }}
+        run: |
+          OCC=$(node pipeline/scheduled_times.mjs)
+          if [ "$(node pipeline/tope_dia.mjs cola "$OCC")" = "1" ]; then
+            N=$(echo "$OCC" | tr ',' '\n' | grep -c . || true)
+            echo "::notice title=Oddly en tope::${N} Shorts ya programados (tope $(node -p 'require("./channel/auto2/variants.json").tope_diario')/dia x 2 dias). No produzco: la cola drena."
+            echo "SKIP=1" >> "$GITHUB_ENV"
+          fi
+
       - name: Instalar ffmpeg + fuentes + Kokoro
+        if: ${{ env.SKIP != '1' }}
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg fonts-liberation
           pip install --quiet kokoro-onnx soundfile numpy
@@ -84,15 +98,18 @@ jobs:
           curl -fL --retry 3 -o voices-v1.0.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
 
       - name: Formato del Short (fuerza 9:16)
+        if: ${{ env.SKIP != '1' }}
         run: if [ "$KIND" = "short" ]; then echo "FORMAT=9:16" >> "$GITHUB_ENV"; fi
 
       - name: Aprendizaje del canal (titulos ganadores) -> el guion imita lo que rinde
+        if: ${{ env.SKIP != '1' }}
         run: |
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/state.json" --file=auto2_state.json --remote 2>/dev/null || echo '{}' > auto2_state.json
           LEARN=$(node -e 'try{const s=JSON.parse(require("fs").readFileSync("auto2_state.json","utf8"));const t=(s.top||[]).slice(0,5).map(v=>`"${(v.title||"").replace(/ #Shorts$/,"").replace(/[\r\n]+/g," ")}" (${v.vpd||0}/dia${v.niche_label?", "+v.niche_label:""})`).join(" · ");process.stdout.write(t)}catch(e){}')
           echo "ODDLY_LEARN=${LEARN}" >> "$GITHUB_ENV"
           [ -n "$LEARN" ] && echo "Aprendizaje: $LEARN" || echo "Sin datos de aprendizaje aun (usa el prompt base)"
       - name: Guion de la compilacion (IA)
+        if: ${{ env.SKIP != '1' }}
         run: |
           # Titulos ya publicados, para no repetirlos (solo duplicados: la plantilla
           # listicle NO se prohibe aqui, rinde mejor que el resto y es el control del A/B).
@@ -188,6 +205,8 @@ jobs:
             # Franja del PLAN del cerebro: se respeta si sigue a futuro (>=30 min) y no pasa el tope de 2 por hora.
             if [ -n "$SLOT_TARGET" ]; then
               OKPLAN=$(SLOT_TARGET="$SLOT_TARGET" OCC="$OCC" node -e 'const t=Date.parse(process.env.SLOT_TARGET);const occ=(process.env.OCC||"").split(",").map(Date.parse).filter(Number.isFinite);const near=occ.filter(o=>Math.abs(o-t)<1800000).length;process.stdout.write(Number.isFinite(t)&&t-Date.now()>=1800000&&near<2?"1":"0")')
+              # Y que su dia no este ya en el tope (si lo esta, best_slot ya eligio un dia con cupo).
+              [ "$(node pipeline/tope_dia.mjs franja "$SLOT_TARGET" "$OCC")" = "1" ] && OKPLAN=0
               if [ "$OKPLAN" = "1" ]; then SLOT="$SLOT_TARGET"; echo "Franja del plan: $SLOT"; else echo "Franja del plan no disponible ($SLOT_TARGET) -> mejor hora libre $SLOT"; fi
             fi
             node pipeline/youtube_schedule.mjs "$VID" "$SLOT" || true

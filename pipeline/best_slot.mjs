@@ -4,6 +4,7 @@
 // ocupadas (arg CSV), reparte en huecos y topa 2 por hora.
 // Uso: node pipeline/best_slot.mjs [ocupadas_iso_csv]
 import fs from "node:fs";
+import { diaLleno, leerTope } from "./lib/tope_dia.mjs";
 const occupied = (process.argv[2] || "").split(",").filter(Boolean).map((s) => Date.parse(s)).filter((n) => !isNaN(n));
 // Horas por DATOS del propio canal (best_hours.json) si las hay; si no, null -> research.
 let DATA_HOURS = null;
@@ -29,8 +30,12 @@ for (let day = 0; day < 21; day++) {
 slots.sort((a, b) => a - b);
 // Cuantos ya programados caen en la MISMA hora (±30 min) de esta franja.
 const nearCount = (s) => occupied.filter((o) => Math.abs(o - s) < 30 * 60 * 1000).length;
+// Tope diario (solo Oddly: sus workflows ponen TOPE_FILE=channel/auto2/variants.json). Un dia con
+// el tope cubierto no recibe mas: la pieza pasa al siguiente dia con cupo.
+const TOPE = leerTope(process.env.TOPE_FILE);
+const lleno = (s) => diaLleno(s, occupied, TOPE);
 // Pase 1: primera franja futura VACÍA -> reparte uniforme (1 por hora mientras haya huecos).
-for (const s of slots) { if (s < minAhead) continue; if (nearCount(s) === 0) { process.stdout.write(new Date(s).toISOString()); process.exit(0); } }
+for (const s of slots) { if (s < minAhead || lleno(s)) continue; if (nearCount(s) === 0) { process.stdout.write(new Date(s).toISOString()); process.exit(0); } }
 // Pase 2: si TODAS las franjas ya tienen 1, uso la primera con menos de 2 (TOPE = 2 por hora).
-for (const s of slots) { if (s < minAhead) continue; if (nearCount(s) < 2) { process.stdout.write(new Date(s).toISOString()); process.exit(0); } }
+for (const s of slots) { if (s < minAhead || lleno(s)) continue; if (nearCount(s) < 2) { process.stdout.write(new Date(s).toISOString()); process.exit(0); } }
 process.stdout.write(new Date(now + 3 * 3600 * 1000).toISOString());

@@ -12,14 +12,15 @@ describe("variantes fijas por Juan", () => {
     const c = aplicarACadencia(viva, fijas);
     expect(c.shorts_per_category).toEqual(viva.shorts_per_category);
     expect(c.long_per_day).toBe(0);
-    expect(c.variant.satisfying).toEqual(["un_hecho", "puro"]);
+    expect(c.variant.satisfying).toEqual(["un_hecho"]);
   });
 
-  it("animales: 3 de cada 4 franjas un_hecho y 1 de control con la lista", () => {
+  // 2026-11-01: por datos (cohorte 7-40 d) narrado rinde mas que un_hecho en animales -> mitad y mitad.
+  it("animales: alterna narrado y un_hecho, mitad y mitad", () => {
     const c = aplicarACadencia(viva, fijas);
     const ocho = Array.from({ length: 8 }, (_, t) => elegirVariante(c.variant, "animales_tiernos", t));
-    expect(ocho.filter((v) => v === "un_hecho").length).toBe(6);
-    expect(ocho.filter((v) => v === "narrado").length).toBe(2);
+    expect(ocho.filter((v) => v === "un_hecho").length).toBe(4);
+    expect(ocho.filter((v) => v === "narrado").length).toBe(4);
   });
 
   it("el experimento activo de un nicho fijado no puede pisar el formato", () => {
