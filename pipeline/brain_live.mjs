@@ -10,7 +10,7 @@ import fs from "node:fs";
 import { buildLineup, pickToProduce, diffLineups, journalAppend, etDate } from "./lib/lineup.mjs";
 import { dueEntries, applyReview, hitRate, trim, newEntry } from "./lib/ledger.mjs";
 import { scaleGate, median } from "./lib/niche_rank.mjs";
-import { ODDLY_GOAL, weeklyHookExperiment, isoWeek, attachHookVideos, hookLift, goalEntryFields } from "./lib/oddly_goal.mjs";
+import { ODDLY_GOAL, weeklyHookExperiment, isoWeek, attachHookVideos, hookLift, goalEntryFields, hitsSummary, hitoProgress } from "./lib/oddly_goal.mjs";
 import { aplicarTope } from "./lib/variantes_fijas.mjs";
 
 const rj = (p, d) => { try { const v = JSON.parse(fs.readFileSync(p, "utf8")); return v == null ? d : v; } catch { return d; } };
@@ -184,7 +184,7 @@ const out = {
   oddly_goal: (() => {
     const g = ledger.find((e) => e.id === "goal-oddly-hito-intermedio");
     const hooks = ledger.filter((e) => e.type === "hook_experiment").slice(-4).map((e) => ({ id: e.subject, week: e.week, arms: e.arms, labels: e.labels, status: e.status, winner: e.winner || null, review_at: e.review_at, videos: Object.fromEntries(Object.entries(e.videos || {}).map(([k, v]) => [k, v.length])) }));
-    return { tier: ODDLY_GOAL.tier, label: ODDLY_GOAL.label, decided_at: ODDLY_GOAL.decided_at, strategy: ODDLY_GOAL.strategy, review: g ? { status: g.status, baseline: g.baseline, target_pace: g.criterion.value, review_at: g.review_at, verdict_note: g.verdict_note } : null, hook_experiments: hooks };
+    return { tier: ODDLY_GOAL.tier, label: ODDLY_GOAL.label, decided_at: ODDLY_GOAL.decided_at, strategy: ODDLY_GOAL.strategy, hito: hitoProgress(yppOd.shorts_views_per_day_28d), hits: Array.isArray(state.list) && state.list.length ? hitsSummary(state.list, now) : null, review: g ? { status: g.status, baseline: g.baseline, target_pace: g.criterion.value, review_at: g.review_at, verdict_note: g.verdict_note } : null, hook_experiments: hooks };
   })(),
   data_lens: dlPause ? {
     paused: true, since: dlPause.at, review_at: dlPause.review_at, status: dlPause.status, verdict_note: dlPause.verdict_note,
