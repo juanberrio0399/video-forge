@@ -8,6 +8,17 @@ name: Deploy bot (Cloudflare)
 
 on:
   workflow_dispatch:
+  # Se despliega solo cuando cambia el codigo del bot en main (antes era a mano y quedaba
+  # desfasado: los modelos de #207 no llegaron al Worker hasta un deploy local).
+  push:
+    branches: [main]
+    paths:
+      - "bot/**"
+
+# Un deploy a la vez; si llega otro push, el nuevo espera al que esta corriendo.
+concurrency:
+  group: deploy-bot
+  cancel-in-progress: false
 
 permissions:
   contents: read

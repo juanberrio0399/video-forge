@@ -16,6 +16,15 @@ describe("dependencias", () => {
     expect(deps).toEqual(["httpx", "pydantic"]);
   });
 
+  it("requirements con sufijo y en subcarpeta (dataforge)", () => {
+    const deps = dependencias({
+      "CONFIGURACION/requirements-dataforge.txt": "duckdb==1.1\npolars>=1.0\n",
+      "CONFIGURACION/requirements-cloud.txt": "boto3\nduckdb==1.1\n",
+      "docs/notas.txt": "no-es-dependencia==1",
+    });
+    expect(deps).toEqual(["duckdb", "polars", "boto3"]);
+  });
+
   it("package.json roto no tumba nada", () => {
     expect(dependencias({ "package.json": "{no es json" })).toEqual([]);
   });

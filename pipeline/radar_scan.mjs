@@ -30,7 +30,9 @@ const tracked = shq("git ls-files").split("\n").filter(Boolean);
 const has = (p) => tracked.includes(p);
 const readme = ["README.md", "readme.md", "README.MD", "Readme.md"].map((p) => read(p)).find(Boolean) || "(sin README)";
 const MANIFESTS = ["package.json", "wrangler.toml", "requirements.txt", "pyproject.toml", "Cargo.toml", "go.mod", "pom.xml", "composer.json"];
-const manifests = [...MANIFESTS, ...tracked.filter((p) => /\.project\.json$/.test(p))]
+// Los requirements*.txt pueden vivir en subcarpetas y con sufijo (dataforge: CONFIGURACION/requirements-cloud.txt).
+const REQS = tracked.filter((p) => /(^|\/)requirements[^/]*\.txt$/.test(p) && p !== "requirements.txt");
+const manifests = [...MANIFESTS, ...REQS, ...tracked.filter((p) => /\.project\.json$/.test(p))]
   .filter(has).map((p) => `### ${p}\n${read(p, 3000)}`).join("\n\n") || "(sin manifiestos detectados)";
 const commits = shq("git log --oneline -20 --no-decorate") || "(sin historial)";
 // Se cuentan TODOS los archivos por extension (antes un Set dejaba cada extension en 1).
@@ -159,7 +161,7 @@ async function ask() {
 async function askRespaldo() {
   const KEY = process.env.TAVILY_API_KEY;
   if (!KEY) { console.error("  Plan B: falta TAVILY_API_KEY; sin busqueda web no hay barrido."); return null; }
-  const archivos = Object.fromEntries(MANIFESTS.filter(has).map((p) => [p, read(p, 20000)]));
+  const archivos = Object.fromEntries([...MANIFESTS, ...REQS].filter(has).map((p) => [p, read(p, 20000)]));
   const LENG = { py: "Python", js: "JavaScript", mjs: "JavaScript", ts: "TypeScript", tsx: "TypeScript", jsx: "JavaScript", lua: "Luau", luau: "Luau", go: "Go", rs: "Rust", java: "Java" };
   const lenguaje = Object.entries(langs).sort((a, b) => b[1] - a[1]).map(([e]) => LENG[e]).find(Boolean) || "";
   const qs = consultas(dependencias(archivos), lenguaje, HOY.slice(0, 4));

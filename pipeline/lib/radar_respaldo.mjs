@@ -22,7 +22,8 @@ export function dependencias(archivos) {
       out.push(...Object.keys({ ...(j.dependencies || {}), ...(j.devDependencies || {}) }));
     } catch { /* package.json invalido: se ignora */ }
   }
-  for (const f of ["requirements.txt", "pyproject.toml"]) {
+  // requirements.txt, requirements-*.txt (en cualquier carpeta) y pyproject.toml.
+  for (const f of Object.keys(archivos).filter((k) => /(^|\/)(requirements[^/]*\.txt|pyproject\.toml)$/.test(k))) {
     const txt = archivos[f];
     if (!txt) continue;
     for (const linea of txt.split(/\r?\n/)) {
