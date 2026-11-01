@@ -330,6 +330,9 @@ export const APP2_HTML = `<!doctype html>
     var rv=G.review, hx=G.hook_experiments||[];
     var h='<div class="row"><b>Estrategia del hito</b><span class="pill p-plan">Decidida el '+esc(G.decided_at)+'</span></div>';
     h+='<div class="muted" style="margin-top:6px">Mayoría de cupos para el nicho líder y un par de ganchos distinto cada semana, juzgado con las vistas al día 7.</div>';
+    var HT=G.hito, HS=G.hits;
+    if(HT) h+='<div class="req"><div class="row" style="align-items:flex-start"><span style="font-size:13px;font-weight:700">Hito: '+esc(HT.label)+'</span><span class="pill '+(HT.pct>=100?'p-ok':HT.pct>=50?'p-warn':'p-bad')+'">'+num(HT.pct)+'%</span></div><div class="muted num" style="margin-top:3px">Ritmo '+num(HT.pace_per_day)+' de '+num(HT.per_day)+' vistas al día · a este ritmo '+num(HT.projected_90d)+' en 90 días</div></div>';
+    if(HS&&HS.published) h+='<div class="req"><div class="row" style="align-items:flex-start"><span style="font-size:13px;font-weight:700">Hits ('+num(HS.threshold)+'+ vistas, '+num(HS.days)+' días)</span><span class="pill p-plan">'+num(HS.hits)+' de '+num(HS.published)+'</span></div><div class="muted num" style="margin-top:3px">Suman '+num(HS.views_from_hits)+' de '+num(HS.views_total)+' vistas'+(HS.best?' · mejor '+num(HS.best.views)+': '+esc(HS.best.title):'')+'</div></div>';
     if(rv) h+='<div class="req"><div class="row" style="align-items:flex-start"><span style="font-size:13px;font-weight:700">Duplicar el ritmo de Shorts en 28 días</span>'+verdPill(rv.status)+'</div><div class="muted num" style="margin-top:3px">De '+num(rv.baseline)+' a '+num(rv.target_pace)+' vistas al día · se revisa el '+esc(String(rv.review_at).slice(0,10))+'</div></div>';
     hx.slice().reverse().forEach(function(x){
       var v=x.videos||{}, arms=x.arms||[], lb=x.labels||[];

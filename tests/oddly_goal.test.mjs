@@ -115,3 +115,43 @@ describe("ganchos semanales", () => {
     expect(r.a).toEqual({ arm: "data", n: 3, median: 400 });
   });
 });
+
+describe("hito honesto y hits (2026-11-01)", () => {
+  const N = Date.parse("2026-11-01T12:00:00Z");
+  const v = (id, days, views, extra = {}) => ({ video_id: id, title: id, privacy: "public", publish_at: new Date(N - days * 86400000).toISOString(), views, niche: "animales_tiernos", ...extra });
+
+  it("el hito es 300 mil en 90 días = 3.334/día", async () => {
+    const { ODDLY_HITO, hitoProgress } = await import("../pipeline/lib/oddly_goal.mjs");
+    expect(ODDLY_HITO.views_90d).toBe(300000);
+    expect(ODDLY_HITO.per_day).toBe(3334);
+    const p = hitoProgress(1601);
+    expect(p.pct).toBe(48);
+    expect(p.projected_90d).toBe(144090);
+    expect(hitoProgress(null)).toBeNull();
+    expect(hitoProgress(0)).toBeNull();
+  });
+
+  it("cuenta hits de 1.000+ vistas solo entre los públicos de los últimos 28 días", async () => {
+    const { hitsSummary } = await import("../pipeline/lib/oddly_goal.mjs");
+    const list = [
+      v("a", 3, 2162), v("b", 10, 1000), v("c", 5, 999), v("d", 20, 40),
+      v("viejo", 40, 5000),                                   // fuera de la ventana
+      v("privado", 2, 0, { privacy: "private" }),             // programado, aún no sale
+      v("futuro", -1, 0),                                     // publish_at en el futuro
+    ];
+    const h = hitsSummary(list, N);
+    expect(h.published).toBe(4);
+    expect(h.hits).toBe(2);
+    expect(h.rate_pct).toBe(50);
+    expect(h.views_from_hits).toBe(3162);
+    expect(h.views_total).toBe(4201);
+    expect(h.best).toMatchObject({ video_id: "a", views: 2162 });
+    expect(h.top.map((x) => x.video_id)).toEqual(["a", "b"]);
+  });
+
+  it("sin inventario no inventa nada", async () => {
+    const { hitsSummary } = await import("../pipeline/lib/oddly_goal.mjs");
+    const h = hitsSummary(undefined, N);
+    expect(h).toMatchObject({ published: 0, hits: 0, rate_pct: null, best: null });
+  });
+});

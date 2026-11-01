@@ -90,6 +90,25 @@ if (L.oddly_goal && shortsReq && shortsReq.per_day_actual != null) {
     action: "Mayoría de cupos al nicho líder y un par de ganchos distinto cada semana",
   });
 }
+// Hito honesto (300 mil en 90 días) y hits: lo que dice si se va mejor o peor mientras los 3 M quedan lejos.
+const hito = L.oddly_goal && L.oddly_goal.hito;
+const hits = L.oddly_goal && L.oddly_goal.hits;
+if (hito) {
+  insights.push({
+    what: `Hito: ${hito.label} (${hito.pct}% del ritmo)`,
+    why: `Ritmo de 28 días ${hito.pace_per_day.toLocaleString("es")}/día; el hito pide ${hito.per_day.toLocaleString("es")}/día`,
+    impact: `A este ritmo, ${hito.projected_90d.toLocaleString("es")} vistas en 90 días`,
+    action: "Más hits, no más volumen: el tope diario se mantiene",
+  });
+}
+if (hits && hits.published) {
+  insights.push({
+    what: `${hits.hits} hit${hits.hits === 1 ? "" : "s"} de ${hits.published} Shorts en ${hits.days} días (${hits.threshold.toLocaleString("es")}+ vistas)`,
+    why: `Los hits suman ${hits.views_from_hits.toLocaleString("es")} de ${hits.views_total.toLocaleString("es")} vistas de esos Shorts`,
+    impact: hits.best ? `Mejor: ${hits.best.views.toLocaleString("es")} vistas` : null,
+    action: "Replicar el tema y el formato de los hits",
+  });
+}
 const lead = (decision.candidates || []).filter((c) => c.sufficient).sort((a, b) => (b.rel || 0) - (a.rel || 0))[0];
 if (lead && lead.rel != null) insights.push({ what: `${lead.label} rinde ${lead.rel}× la mediana del canal`, why: `Mediana de ${lead.median_vpd} vistas/día en videos de 5 a 30 días`, impact: `Recibe ${lead.slots} de ${decision.total} cupos diarios`, action: "Mantener el reparto; se revisa en el ledger en 7 días", confidence: { value: lead.confidence, basis: `${lead.n} videos comparables` } });
 const judged = (Array.isArray(ledger) ? ledger : []).filter((e) => e.status === "ACERTO" || e.status === "FALLO");

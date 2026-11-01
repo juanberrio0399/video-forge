@@ -18,6 +18,48 @@ export const ODDLY_GOAL = {
   strategy: { leader_share: 0.6, min_rel: 1.2, review_days: 28, pace_multiplier: 2, hook_min_n: 3, hook_min_lift_pct: 15 },
 };
 
+// HITO HONESTO (decisión de Juan, 2026-11-01). Al 1-nov el canal hace unas 1.000-1.600 vistas al
+// día: el 3% de los 3 M en 90 días. Medirse solo contra los 3 M no dice si se va mejor o peor, así
+// que hay un escalón intermedio de 300 mil en 90 días (3.334/día), que coincide con duplicar el ritmo.
+// Y como las vistas de Shorts vienen de unos pocos videos que pegan (la mediana es de decenas, el
+// mejor pasa de 2.000), lo que se sigue a diario son los HITS: Shorts de 28 días con 1.000+ vistas.
+export const ODDLY_HITO = {
+  label: "300 mil vistas en 90 días",
+  views_90d: 300000,
+  per_day: Math.ceil(300000 / 90),
+  decided_at: "2026-11-01",
+  hit_views: 1000,
+  hit_days: 28,
+};
+
+// Hits del canal: Shorts publicados en los últimos `days` días con `threshold` vistas o más.
+// `list` es state.json -> list (inventario de Oddly). Puro.
+export function hitsSummary(list, nowMs = Date.now(), { days = ODDLY_HITO.hit_days, threshold = ODDLY_HITO.hit_views } = {}) {
+  const pubMs = (v) => Date.parse((v && (v.publish_at || v.pub_iso || v.published_at)) || "");
+  const vids = (Array.isArray(list) ? list : []).filter((v) => {
+    if (!v || v.privacy !== "public") return false;
+    const t = pubMs(v);
+    return Number.isFinite(t) && t <= nowMs && nowMs - t < days * DAY;
+  });
+  const hits = vids.filter((v) => (Number(v.views) || 0) >= threshold).sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0));
+  const best = vids.reduce((m, v) => (!m || (Number(v.views) || 0) > (Number(m.views) || 0) ? v : m), null);
+  return {
+    threshold, days, published: vids.length, hits: hits.length,
+    rate_pct: vids.length ? Math.round((hits.length / vids.length) * 1000) / 10 : null,
+    views_from_hits: hits.reduce((a, v) => a + (Number(v.views) || 0), 0),
+    views_total: vids.reduce((a, v) => a + (Number(v.views) || 0), 0),
+    best: best ? { video_id: best.video_id, title: best.title || "", views: Number(best.views) || 0, niche: best.niche || null } : null,
+    top: hits.slice(0, 5).map((v) => ({ video_id: v.video_id, title: v.title || "", views: Number(v.views) || 0, niche: v.niche || null })),
+  };
+}
+
+// Avance contra el hito con el ritmo de 28 días (lo que mide la medición de YPP).
+export function hitoProgress(perDay28d) {
+  const pace = Number(perDay28d);
+  if (!Number.isFinite(pace) || pace <= 0) return null;
+  return { ...ODDLY_HITO, pace_per_day: Math.round(pace), pct: Math.round((pace / ODDLY_HITO.per_day) * 100), projected_90d: Math.round(pace * 90) };
+}
+
 // Pares de ganchos que rotan por semana. Una sola variable: el primer segundo del Short.
 export const HOOK_PAIRS = [
   { id: "pregunta-vs-afirmacion", arms: ["question", "statement"], labels: ["pregunta", "afirmación"],
