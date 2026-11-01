@@ -23,6 +23,8 @@ jobs:
       YT_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
       YT_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
       YT_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+      # Tope diario de Oddly: best_slot no programa un dia por encima de tope_diario.
+      TOPE_FILE: channel/auto2/variants.json
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
     steps:
