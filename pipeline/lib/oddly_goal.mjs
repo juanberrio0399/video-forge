@@ -30,13 +30,40 @@ export const ODDLY_HITO = {
   decided_at: "2026-11-01",
   hit_views: 1000,
   hit_days: 28,
+  // El reparto de los lunes se decide por hits solo con al menos estos hits en el canal;
+  // con menos, la tasa es ruido y se sigue con la mediana.
+  min_hits: 5,
 };
+
+// Un video por id (el inventario llegó a traer repetidos, ver report_auto2).
+function unicos(list) {
+  const vistos = new Set();
+  return (Array.isArray(list) ? list : []).filter((v) => v && v.video_id && !vistos.has(v.video_id) && vistos.add(v.video_id));
+}
+
+// Hits por nicho para el reparto de los lunes: Shorts públicos de 3 a 28 días (ya tuvieron tiempo de
+// pegar), con nicho real (no inferido). rate = hits / n. Puro.
+export function hitsByNiche(list, nowMs = Date.now(), { minAge = 3, maxAge = ODDLY_HITO.hit_days, threshold = ODDLY_HITO.hit_views } = {}) {
+  const rows = {};
+  let n = 0, hits = 0;
+  for (const v of unicos(list)) {
+    if (v.privacy !== "public" || !v.niche || v.niche_inferred) continue;
+    const t = Date.parse(v.publish_at || v.pub_iso || v.published_at || "");
+    const age = (nowMs - t) / DAY;
+    if (!Number.isFinite(age) || age < minAge || age >= maxAge) continue;
+    const r = (rows[v.niche] = rows[v.niche] || { n: 0, hits: 0 });
+    const h = (Number(v.views) || 0) >= threshold;
+    r.n++; n++; if (h) { r.hits++; hits++; }
+  }
+  for (const r of Object.values(rows)) r.rate = r.n ? r.hits / r.n : 0;
+  return { n, hits, rate: n ? hits / n : 0, threshold, rows };
+}
 
 // Hits del canal: Shorts publicados en los últimos `days` días con `threshold` vistas o más.
 // `list` es state.json -> list (inventario de Oddly). Puro.
 export function hitsSummary(list, nowMs = Date.now(), { days = ODDLY_HITO.hit_days, threshold = ODDLY_HITO.hit_views } = {}) {
   const pubMs = (v) => Date.parse((v && (v.publish_at || v.pub_iso || v.published_at)) || "");
-  const vids = (Array.isArray(list) ? list : []).filter((v) => {
+  const vids = unicos(list).filter((v) => {
     if (!v || v.privacy !== "public") return false;
     const t = pubMs(v);
     return Number.isFinite(t) && t <= nowMs && nowMs - t < days * DAY;

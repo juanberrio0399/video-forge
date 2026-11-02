@@ -34,6 +34,9 @@ try {
   // ganadores viejos salian del ranking y del "lo que mas rinde" que imita el cerebro). Cada pagina
   // es 1 unidad de cuota; el tope de 5000 es solo una red por si la paginacion se enloquece.
   if (up) { do { const j = await (await tf(`https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId=${up}&pageToken=${page}`, { headers: H })).json(); ids.push(...(j.items || []).map((i) => i.contentDetails.videoId)); page = j.nextPageToken || ""; } while (page && ids.length < 5000); }
+  // La paginacion de playlistItems devuelve videos repetidos cuando la lista cambia mientras se
+  // lee (pasa con Shorts programados): en 2026-11-01 eran 130 de 730. Repetidos inflaban el ranking.
+  ids = [...new Set(ids)];
   let nicheMap = {};
   try { nicheMap = JSON.parse(fs.readFileSync("niche_map.json", "utf8")); } catch {}
   // Videos OCULTOS (despublicados o sacados de la cola): no existen para la app ni para el cerebro.
