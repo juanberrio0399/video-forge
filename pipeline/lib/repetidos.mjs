@@ -41,3 +41,32 @@ export function conHashtags(nuevo, viejo) {
   const t = tags ? `${base} ${tags}` : base;
   return t.length <= 100 ? t : base.slice(0, 100).trim();
 }
+
+/** ¿Se ve en el canal? Un privado sin fecha de publicación no lo ve nadie: renombrarlo gasta cuota
+ *  (50 unidades) sin arreglar nada. Los programados sí cuentan: van a salir con ese título. */
+export function esVisible(v) {
+  return v.privacy !== "private" || Boolean(v.publishAt);
+}
+
+// Palabras que no distinguen un título de otro ("Why does X...?" vs "How do X...?").
+const VACIAS = new Set(["a", "an", "the", "and", "or", "of", "to", "in", "on", "for", "with", "at", "by",
+  "is", "are", "do", "does", "did", "why", "how", "what", "when", "this", "that", "your", "you", "so", "it", "its", "shorts"]);
+
+function palabras(titulo) {
+  return new Set(normalizar(titulo).split(" ").filter((w) => w && !VACIAS.has(w)));
+}
+
+/** Parecido entre dos títulos (0 a 1): palabras en común sobre palabras en total, sin las vacías.
+ *  "Why Does Kinetic Sand Flow Like a Liquid?" contra la misma con "Under Pressure" da 0.71. */
+export function parecido(a, b) {
+  const A = palabras(a), B = palabras(b);
+  if (!A.size || !B.size) return 0;
+  let comunes = 0;
+  for (const w of A) if (B.has(w)) comunes++;
+  return comunes / (A.size + B.size - comunes);
+}
+
+/** El título de `usados` que se parece demasiado (desde `umbral`), o null. */
+export function muyParecido(titulo, usados, umbral = 0.7) {
+  return (usados || []).find((u) => parecido(titulo, u) >= umbral) || null;
+}
