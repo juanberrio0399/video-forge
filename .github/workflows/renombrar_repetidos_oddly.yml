@@ -1,0 +1,67 @@
+name: Renombrar títulos repetidos (Oddly Loop)
+
+# Renombra los videos de Oddly que comparten título con otro. En cada grupo se queda con su título
+# el de más vistas. Por defecto es un ENSAYO (no cambia nada); marca "aplicar" para hacerlo.
+# Cada cambio queda en R2 (channel/auto2/renombres.json) para poder deshacerlo.
+# Correr a mano (workflow_dispatch). Cuota: 50 unidades por video renombrado.
+
+on:
+  workflow_dispatch:
+    inputs:
+      aplicar:
+        description: "Aplicar los cambios en YouTube (si no, solo ensayo)"
+        type: boolean
+        default: false
+      max:
+        description: "Máximo de videos a renombrar en esta corrida"
+        type: string
+        default: "20"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: renombrar-oddly
+  cancel-in-progress: false
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  renombrar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      YT_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_API_KEY2: ${{ secrets.GEMINI_API_KEY2 }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Historial de renombres (R2)
+        run: npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/renombres.json" --file=renombres.json --remote || echo "[]" > renombres.json
+      - name: Renombrar
+        env:
+          APLICAR: ${{ inputs.aplicar && '1' || '0' }}
+          MAX: ${{ inputs.max }}
+        run: node pipeline/renombrar_repetidos_oddly.mjs
+      - name: Guardar historial y plan en R2
+        if: always()
+        run: |
+          [ -f renombres_plan.json ] && npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/renombres_plan.json" --file=renombres_plan.json --content-type application/json --remote || true
+          if [ "${{ inputs.aplicar }}" = "true" ] && [ -f renombres.json ]; then
+            npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/renombres.json" --file=renombres.json --content-type application/json --remote
+          fi
+      - name: Avisar
+        if: always()
+        run: bash pipeline/notify_telegram.sh "$(printf '✏️ Oddly — títulos repetidos:\n%s' "$(cat renombres_resumen.txt 2>/dev/null || echo 'falló, revisa el log')")"
