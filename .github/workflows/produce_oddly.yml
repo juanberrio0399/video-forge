@@ -70,6 +70,7 @@ jobs:
       # Tope diario de Shorts (variants.json -> tope_diario): best_slot no llena un dia por encima
       # de el y la puerta de abajo no produce si la cola ya cubre 2 dias.
       TOPE_FILE: channel/auto2/variants.json
+      TITULO_UNICO: "1"   # youtube_upload no sube un titulo que el canal ya tiene
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -114,6 +115,9 @@ jobs:
           # Titulos ya publicados, para no repetirlos (solo duplicados: la plantilla
           # listicle NO se prohibe aqui, rinde mejor que el resto y es el control del A/B).
           npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/titles.json" --file=oddly_titles.json --remote 2>/dev/null || echo '[]' > oddly_titles.json
+          # titles.json se queda corto (solo lo escribe este workflow y las corridas paralelas se pisan):
+          # se suman los titulos del inventario real del canal (auto2_state.json, paso de aprendizaje).
+          node -e 'const fs=require("fs");const r=(f,d)=>{try{return JSON.parse(fs.readFileSync(f,"utf8"))}catch(e){return d}};let u=r("oddly_titles.json",[]);if(!Array.isArray(u))u=[];const s=r("auto2_state.json",{});const l=Array.isArray(s.list)?s.list.map(v=>v&&v.title).filter(Boolean):[];const t=[...new Set([...u,...l])];fs.writeFileSync("oddly_titles.json",JSON.stringify(t));console.log(`titulos usados: ${t.length} (${u.length} de titles.json + inventario)`)' || true
           if node pipeline/compilation_script.mjs "$NICHE" voicemap.json "$VARIANT" "$KIND" 2> guion_err.txt; then
             cat guion_err.txt >&2
             echo "guion ok"

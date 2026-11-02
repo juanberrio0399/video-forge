@@ -49,6 +49,20 @@ const snippet = {
   categoryId: process.env.YT_CATEGORY_ID || "27", // 27=Education (Data Lens) · 24=Entertainment (Oddly Loop)
   defaultLanguage: pkg.language || "en",
 };
+// Puerta anti-repetidos (Oddly): si el canal ya tiene un video con este titulo, no se sube.
+// Publicar el mismo titulo dos veces es justo lo que YouTube trata como contenido masivo.
+// Si no se puede leer el canal se sube igual (avisando): un fallo de red no debe tumbar el video.
+if (process.env.TITULO_UNICO === "1") {
+  const { titulosDelCanal, repetido } = await import("./lib/titulo_unico.mjs");
+  let usados = null;
+  try { usados = await titulosDelCanal(token); } catch (e) { console.error(`::warning::No pude leer los titulos del canal (${e.message}); subo sin revisar repetidos.`); }
+  const igual = usados && repetido(snippet.title, usados);
+  if (igual) {
+    console.error(`::error title=Titulo repetido::"${snippet.title}" ya existe en el canal ("${igual}"). No se sube.`);
+    process.exit(3);
+  }
+  if (usados) console.log(`Titulo nuevo: revisado contra ${usados.length} videos del canal.`);
+}
 const status = {
   privacyStatus: "private",          // PRIVADO: Juan lo revisa y lo hace publico cuando quiera
   selfDeclaredMadeForKids: false,
