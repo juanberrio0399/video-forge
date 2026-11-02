@@ -4,7 +4,9 @@
 // nada en YouTube. Con APLICAR=1 los aplica (videos.update, 50 unidades de cuota cada uno).
 //
 // - En cada grupo conserva su título el video con más vistas; los demás reciben uno nuevo de la
-//   IA, revisado con las mismas reglas del guionista (no repetido, en pregunta).
+//   IA, revisado con las mismas reglas del guionista (no repetido, en pregunta) y que no se
+//   parezca demasiado a ningún otro título del canal (parecido >= 0.7).
+// - Los privados sin fecha de publicación no cuentan: no los ve nadie y renombrarlos gasta cuota.
 // - Solo cambia el título: descripción, tags, categoría e idiomas se reenvían tal cual.
 // - MAX limita cuántos renombra por corrida (cuota diaria compartida con las subidas).
 // - Cada cambio queda en HIST (renombres.json, el workflow lo guarda en R2) para poder deshacerlo.
@@ -14,7 +16,7 @@
 import fs from "node:fs";
 import { genText } from "./llm.mjs";
 import { revisar } from "./lib/titulos.mjs";
-import { agruparRepetidos, conHashtags } from "./lib/repetidos.mjs";
+import { agruparRepetidos, conHashtags, esVisible, muyParecido } from "./lib/repetidos.mjs";
 
 const APLICAR = process.env.APLICAR === "1";
 const MAX = Math.max(0, parseInt(process.env.MAX || "20", 10) || 0);
@@ -56,12 +58,13 @@ const videos = [];
 for (let i = 0; i < unicos.length; i += 50) {
   const j = await api(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,status&id=${unicos.slice(i, i + 50).join(",")}`);
   for (const v of j.items || []) {
-    videos.push({ id: v.id, title: v.snippet.title, views: Number(v.statistics?.viewCount || 0), publishedAt: v.status?.publishAt || v.snippet.publishedAt, privacy: v.status?.privacyStatus, snippet: v.snippet });
+    videos.push({ id: v.id, title: v.snippet.title, views: Number(v.statistics?.viewCount || 0), publishedAt: v.snippet.publishedAt, publishAt: v.status?.publishAt || null, privacy: v.status?.privacyStatus, snippet: v.snippet });
   }
 }
-const grupos = agruparRepetidos(videos);
+const visibles = videos.filter(esVisible);
+const grupos = agruparRepetidos(visibles);
 const pendientes = grupos.reduce((n, g) => n + g.renombrar.length, 0);
-console.log(`Canal: ${videos.length} videos. ${grupos.length} títulos repetidos en ${grupos.reduce((n, g) => n + g.renombrar.length + 1, 0)} videos; ${pendientes} por renombrar.`);
+console.log(`Canal: ${videos.length} videos (${videos.length - visibles.length} privados sin programar no cuentan). ${grupos.length} títulos repetidos en ${grupos.reduce((n, g) => n + g.renombrar.length + 1, 0)} videos; ${pendientes} por renombrar.`);
 
 // 2) Título nuevo para cada uno (hasta MAX), sin chocar con ningún título del canal ni con los nuevos.
 const usados = videos.map((v) => v.title);
@@ -90,6 +93,8 @@ async function tituloNuevo(v, grupo) {
     if (!t) { queja = "Reply with valid JSON only."; continue; }
     const nuevo = conHashtags(t, v.title);
     const c = revisar(nuevo, usados, { prohibirGenerico: false, exigirPregunta: true });
+    const parecido = c.ok || c.motivo === "no_pregunta" ? muyParecido(nuevo, usados) : null;
+    if (parecido) { queja = `"${nuevo}" is almost the same as the existing title "${parecido}". Write a clearly different angle about this video.`; continue; }
     if (c.ok) return nuevo;
     if (c.motivo === "no_pregunta") ultimo = nuevo;   // no es pregunta pero sí es nuevo: sirve de respaldo
     queja = c.queja;

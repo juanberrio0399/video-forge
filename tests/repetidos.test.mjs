@@ -42,3 +42,19 @@ describe("hashtags", () => {
     expect(conHashtags(largo, "Old #Shorts #asmr #satisfying").length).toBeLessThanOrEqual(100);
   });
 });
+
+describe("ajuste: visibles y parecidos", () => {
+  it("un privado sin programar no cuenta; un programado sí", async () => {
+    const { esVisible } = await import("../pipeline/lib/repetidos.mjs");
+    expect(esVisible({ privacy: "private", publishAt: null })).toBe(false);
+    expect(esVisible({ privacy: "private", publishAt: "2026-11-05T15:00:00Z" })).toBe(true);
+    expect(esVisible({ privacy: "public" })).toBe(true);
+  });
+  it("frena títulos casi iguales y deja pasar ángulos distintos", async () => {
+    const { muyParecido, parecido } = await import("../pipeline/lib/repetidos.mjs");
+    const usados = ["Why Does Kinetic Sand Flow Like a Liquid? #Shorts"];
+    expect(muyParecido("Why Does Kinetic Sand Flow Like a Liquid Under Pressure? #Shorts", usados)).toBe(usados[0]);
+    expect(muyParecido("Why does kinetic sand behave like a solid and a liquid?", usados)).toBeNull();
+    expect(parecido("Why does it?", "How do you?")).toBe(0);
+  });
+});
