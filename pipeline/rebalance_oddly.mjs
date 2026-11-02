@@ -10,6 +10,9 @@
 //  - Subir el volumen (agresividad) SOLO si la cohorte reciente no rinde peor que la anterior a la misma
 //    edad (vistas al día 7). Sin dato -> no se escala.
 //  - Si el ledger tiene 2 fallos seguidos del escalado, se revierte al volumen base.
+//  - HITS (2026-11-01): con 5+ hits en el canal (Shorts de 3-28 días con 1.000+ vistas), el reparto
+//    y el líder se deciden por la TASA DE HITS del nicho, no por la mediana. Las vistas de Shorts
+//    vienen de pocos videos que pegan; un nicho con buena mediana y cero hits no acerca la meta.
 //
 // Entradas (las baja el workflow): state.json, cadence.json, exp.json, aggressiveness.json,
 //   views_at_age.json, ledger.json. Salidas: cadence.new.json, exp.new.json, decision.json, ledger.new.json, summary.txt
@@ -17,7 +20,7 @@ import fs from "node:fs";
 import { richReward, proportionalByScore, scoreCandidate } from "./lib/decision.mjs";
 import { rankNiches, scaleGate } from "./lib/niche_rank.mjs";
 import { newEntry, shouldRevert, trim } from "./lib/ledger.mjs";
-import { ODDLY_GOAL, pushLeader } from "./lib/oddly_goal.mjs";
+import { ODDLY_GOAL, ODDLY_HITO, pushLeader, hitsByNiche } from "./lib/oddly_goal.mjs";
 import { aplicarACadencia, aplicarAExperimento } from "./lib/variantes_fijas.mjs";
 
 const rj = (p, d) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return d; } };
@@ -43,6 +46,12 @@ const row = {}; for (const r of (rank && rank.rows) || []) row[r.key] = r;
 const med = (k) => (row[k] && row[k].median_vpd) || 0;
 const nOf = (k) => (row[k] && row[k].n) || 0;
 const sufficient = (k) => !!(row[k] && row[k].sufficient);
+// Tasa de hits por nicho. Suavizada ((hits+0.5)/(n+1)) para que un nicho sin hits no quede en 0 exacto.
+const HN = hitsByNiche(state.list, now);
+const hitsMode = HN.hits >= ODDLY_HITO.min_hits;
+const hitsOf = (k) => (HN.rows[k] && HN.rows[k].hits) || 0;
+const hitRate = (k) => { const r = HN.rows[k]; return r ? (r.hits + 0.5) / (r.n + 1) : 0; };
+const pct = (x) => Math.round(x * 1000) / 10;
 
 // --- Experimento de nicho activo: promover / descartar con muestra real ---
 const promoted = new Set(exp.promoted || []);
@@ -98,7 +107,11 @@ const content = Math.max(1, TOTAL - expSlots);
 const established = [...new Set([...BASE, ...promoted])].filter((k) => !active || k !== active.key);
 const withSample = established.filter(sufficient);
 const top = Math.max(1, ...withSample.map(med));
-let survivors = withSample.filter((k) => med(k) >= CUT * top);
+const topRate = Math.max(1e-6, ...withSample.map(hitRate));
+// Sobrevive el nicho que llega al 40% del mejor: en tasa de hits si hay hits suficientes, si no en mediana.
+let survivors = withSample.filter((k) => (hitsMode ? hitRate(k) >= CUT * topRate : med(k) >= CUT * top));
+if (hitsMode) notes.push(`🎯 Reparto por hits: ${HN.hits} de ${HN.n} Shorts de 3-28 días pasan las ${ODDLY_HITO.hit_views.toLocaleString("es")} vistas (${withSample.map((k) => `${(row[k] || {}).label || k} ${hitsOf(k)}/${(HN.rows[k] || {}).n || 0}`).join(", ")}).`);
+else notes.push(`📏 Reparto por mediana: solo ${HN.hits} hits en el canal (hacen falta ${ODDLY_HITO.min_hits}).`);
 let fallback = false;
 if (!survivors.length) {
   // Sin nichos con muestra: no se inventa ganador; se conserva la cadencia vigente.
@@ -115,20 +128,24 @@ if (fallback) {
   survivors.forEach((k) => { alloc[k] = Math.round(content * (+prev[k] || 0) / sum); });
   const k0 = survivors[0]; alloc[k0] = (alloc[k0] || 0) + content - Object.values(alloc).reduce((a, b) => a + b, 0);
 } else {
-  const cand = survivors.map((k) => ({ key: k, reward: richReward({ vpd: med(k) }, { vpd: top }), samples: nOf(k) }));
+  const cand = survivors.map((k) => ({ key: k, reward: hitsMode ? richReward({ vpd: hitRate(k) }, { vpd: topRate }) : richReward({ vpd: med(k) }, { vpd: top }), samples: nOf(k) }));
   alloc = proportionalByScore(cand, content, { minPerArm: content >= survivors.length ? 1 : 0 }).alloc;
 }
 // Estrategia del hito intermedio (decisión de Juan, 2026-09-14): mayoría de cupos al nicho líder, solo si
 // tiene muestra, rinde claramente sobre el canal y el ledger no pidió revertir el reparto.
 let goalPush = null;
 if (!fallback) {
-  const lead = survivors.slice().sort((a, b) => med(b) - med(a))[0];
+  const lead = survivors.slice().sort((a, b) => (hitsMode ? hitRate(b) - hitRate(a) : 0) || med(b) - med(a))[0];
   const revertAlloc = shouldRevert(ledger, "niche_allocation", "auto2");
-  if (lead && row[lead] && row[lead].rel != null && row[lead].rel >= ODDLY_GOAL.strategy.min_rel && !revertAlloc) {
+  // Con hits, el líder debe pegar claramente más que el canal: tasa >= min_rel × la del canal y 2+ hits.
+  const leadClaro = lead && (hitsMode
+    ? hitsOf(lead) >= 2 && hitRate(lead) >= ODDLY_GOAL.strategy.min_rel * HN.rate
+    : row[lead] && row[lead].rel != null && row[lead].rel >= ODDLY_GOAL.strategy.min_rel);
+  if (leadClaro && !revertAlloc) {
     const r = pushLeader(alloc, lead, ODDLY_GOAL.strategy.leader_share, 1);
     alloc = r.alloc;
     goalPush = { niche: lead, share: ODDLY_GOAL.strategy.leader_share, slots: alloc[lead], of: content, moved: r.moved };
-    if (r.moved) notes.push(`🎯 Hito intermedio: ${row[lead].label} pasa a ${alloc[lead]} de ${content} cupos (${row[lead].rel}x el canal).`);
+    if (r.moved) notes.push(`🎯 Hito intermedio: ${(row[lead] || {}).label || lead} pasa a ${alloc[lead]} de ${content} cupos (${hitsMode ? `${pct(hitRate(lead))}% de hits contra ${pct(HN.rate)}% del canal` : `${row[lead].rel}x el canal`}).`);
   } else if (lead && revertAlloc) {
     notes.push("↩️ Hito intermedio: no concentro cupos en el líder porque el reparto falló 2 revisiones seguidas.");
   }
@@ -158,14 +175,17 @@ const candidates = [...new Set([...established, ...(active ? [active.key] : [])]
   const why = !r.n ? "sin videos en la cohorte de 5-30 días"
     : !r.sufficient ? `muestra insuficiente (${r.n} < ${rank.min_n})`
     : active && k === active.key ? "experimento activo"
-    : med(k) < CUT * top ? `cortado: mediana ${med(k)} < ${Math.round(CUT * top)}`
+    : hitsMode && !survivors.includes(k) ? `cortado: ${hitsOf(k)} hits en ${(HN.rows[k] || {}).n || 0} Shorts (${pct(hitRate(k))}% < ${pct(CUT * topRate)}%)`
+    : !hitsMode && med(k) < CUT * top ? `cortado: mediana ${med(k)} < ${Math.round(CUT * top)}`
+    : hitsMode ? `${hitsOf(k)} hits en ${(HN.rows[k] || {}).n || 0} Shorts (${pct(hitRate(k))}%) · mediana ${med(k)}/día`
     : `mediana ${med(k)}/día · ${r.rel != null ? r.rel + "x el canal" : ""}`;
-  return { key: k, label: r.label || k, median_vpd: r.median_vpd ?? null, n: r.n || 0, rel: r.rel ?? null, sufficient: !!r.sufficient, score: sc.score, confidence: sc.confidence, slots: newSpc[k] || 0, why };
+  return { key: k, label: r.label || k, median_vpd: r.median_vpd ?? null, n: r.n || 0, rel: r.rel ?? null, hits: hitsOf(k), hit_rate: pct(hitRate(k)), sufficient: !!r.sufficient, score: sc.score, confidence: sc.confidence, slots: newSpc[k] || 0, why };
 }).sort((a, b) => b.slots - a.slots || (b.median_vpd || 0) - (a.median_vpd || 0));
 
 const week = (() => { const t = new Date(Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate())); const day = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - day + 3); const f = new Date(Date.UTC(t.getUTCFullYear(), 0, 4)); return `${t.getUTCFullYear()}-W${String(1 + Math.round(((t - f) / 86400000 - 3 + ((f.getUTCDay() + 6) % 7)) / 7)).padStart(2, "0")}`; })();
 const decision = {
-  at: new Date(now).toISOString(), week, engine, executed: true, total: TOTAL, base_total: currentTotal,
+  at: new Date(now).toISOString(), week, engine: hitsMode && !fallback ? "tasa de hits 3-28d" : engine, executed: true,
+  hits: { mode: hitsMode, total: HN.hits, of: HN.n, threshold: ODDLY_HITO.hit_views, min_hits: ODDLY_HITO.min_hits }, total: TOTAL, base_total: currentTotal,
   channel_median_vpd: rank ? rank.channel_median_vpd : null, cohort_size: rank ? rank.cohort_size : 0,
   excluded_inferred: rank ? rank.excluded_inferred : 0,
   scale_gate: gate, scale_reverted: reverted, experiment: active,
