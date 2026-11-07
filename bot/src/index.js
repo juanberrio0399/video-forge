@@ -16,6 +16,7 @@ import { APP2_HTML } from "./miniapp_v2.js";
 import { osStateFrom, applyStaleness } from "../../pipeline/lib/os_contract.mjs";
 import { osUnifiedHtml, withOsBar } from "../../shared/os-unified.mjs";
 import { osShellHtml } from "../../shared/os-shell.mjs";
+import { recibirAviso, anotarUso, quizasResumen, volverAlMomento } from "./avisos.js";
 
 export default {
   async fetch(request, env) {
@@ -91,6 +92,9 @@ export default {
       return url.pathname === "/" ? new Response("video-forge-bot OK") : new Response("no encontrado", { status: 404 });
     }
 
+    // Avisos de Actions: se clasifican (al momento o al resumen). Firmados con HMAC del token del bot.
+    if (url.pathname === "/aviso") return recibirAviso(request, env, safeEqual);
+
     // 1) Verificar que el POST viene de Telegram (header secreto).
     const got = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
     if (!env.TELEGRAM_WEBHOOK_SECRET || !safeEqual(got, env.TELEGRAM_WEBHOOK_SECRET)) {
@@ -105,6 +109,8 @@ export default {
     }
 
     try {
+      const de = update.callback_query?.message?.chat?.id ?? update.message?.chat?.id;
+      if (isOwner(de, env)) await anotarUso(env);      // usaste el bot: los avisos recientes te sirvieron
       if (update.callback_query) {
         await handleCallback(update.callback_query, env);
       } else if (update.message) {
@@ -133,6 +139,10 @@ export default {
         } catch (e) { console.error("[reloj]", wf, e && e.message); return { wf, status: 0, error: String(e && e.message).slice(0, 120) }; }
       }));
       try { await env.R2.put("os/clock.json", JSON.stringify({ at: new Date().toISOString(), cron: event.cron || null, jobs: results }), { httpMetadata: { contentType: "application/json" } }); } catch (e) { console.error("[reloj] latido", e && e.message); }
+      // Resumen diario de avisos (7 pm Bogota) y ajuste semanal de que llega al momento.
+      try {
+        await quizasResumen(env, t, (p) => tg(env, "sendMessage", { chat_id: env.OWNER_CHAT_ID, ...p }), "https://video-forge-bot.tienvo.workers.dev/os");
+      } catch (e) { console.error("[reloj] resumen", e && e.message); }
     })());
   },
 };
@@ -1439,6 +1449,10 @@ async function handleCallback(cb, env) {
   if (data.startsWith("v:") && env.VIENTO) {
     await env.VIENTO.fetch(new Request("https://os.internal/api/tg", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ callback_query: { ...cb, data: data.slice(2) } }) }));
     return;
+  }
+  if (data.startsWith("av:on:")) {
+    const cat = await volverAlMomento(env, data.slice(6));
+    return tg(env, "answerCallbackQuery", { callback_query_id: cb.id, text: cat ? "Listo: " + cat.split(":")[0] + " vuelve a avisarte al momento." : "Ese ajuste ya no está." });
   }
   // Cierra el "relojito" del boton de inmediato.
   await tg(env, "answerCallbackQuery", { callback_query_id: cb.id });
