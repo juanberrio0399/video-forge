@@ -27,6 +27,21 @@ binding = "VIENTO"
 service = "tienda"
 entrypoint = "OSGateway"
 
+# Signal Halo (Worker signal-halo-registro): panel de videos y su estado para la pantalla de Inicio.
+[[services]]
+binding = "SIGNAL"
+service = "signal-halo-registro"
+entrypoint = "OSGateway"
+
+# Conexion en vivo de la app (WebSocket con hibernacion: dormido no cuesta). Plan gratis: Durable Object con SQLite.
+[[durable_objects.bindings]]
+name = "VIVO"
+class_name = "Vivo"
+
+[[migrations]]
+tag = "vivo-v1"
+new_sqlite_classes = ["Vivo"]
+
 [[r2_buckets]]
 binding = "R2"
 bucket_name = "video-forge"
