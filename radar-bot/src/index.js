@@ -17,6 +17,7 @@ const REPOS = [
   "juanberrio0399/Hearthwood",
   "juanberrio0399/claude-config",
   "juanberrio0399/panel-marketing-cloud",
+  "juanberrio0399/signal-halo-studio",
 ];
 
 const gh = (env, path, opts = {}) =>
