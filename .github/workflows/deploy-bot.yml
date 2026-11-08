@@ -14,6 +14,9 @@ on:
     branches: [main]
     paths:
       - "bot/**"
+      # Lo que el bot importa desde fuera de su carpeta: un cambio ahi tambien cambia el Worker.
+      - "shared/**"
+      - "pipeline/lib/os_contract.mjs"
 
 # Un deploy a la vez; si llega otro push, el nuevo espera al que esta corriendo.
 concurrency:
