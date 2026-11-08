@@ -118,9 +118,6 @@ jobs:
           # titles.json se queda corto (solo lo escribe este workflow y las corridas paralelas se pisan):
           # se suman los titulos del inventario real del canal (auto2_state.json, paso de aprendizaje).
           node -e 'const fs=require("fs");const r=(f,d)=>{try{return JSON.parse(fs.readFileSync(f,"utf8"))}catch(e){return d}};let u=r("oddly_titles.json",[]);if(!Array.isArray(u))u=[];const s=r("auto2_state.json",{});const l=Array.isArray(s.list)?s.list.map(v=>v&&v.title).filter(Boolean):[];const t=[...new Set([...u,...l])];fs.writeFileSync("oddly_titles.json",JSON.stringify(t));console.log(`titulos usados: ${t.length} (${u.length} de titles.json + inventario)`)' || true
-          # + los titulos REALES del canal (incluye privados y programados, que el inventario no trae): sin esto la
-          # IA repetia titulos y la puerta de youtube_upload los frenaba con el video ya fabricado.
-          node pipeline/titulos_canal_oddly.mjs oddly_titles.json || true
           if node pipeline/compilation_script.mjs "$NICHE" voicemap.json "$VARIANT" "$KIND" 2> guion_err.txt; then
             cat guion_err.txt >&2
             echo "guion ok"
