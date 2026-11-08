@@ -76,7 +76,9 @@ export default {
       const init = { method: request.method, headers: { "content-type": request.headers.get("content-type") || "application/json" } };
       if (request.method !== "GET" && request.method !== "HEAD") init.body = await request.text();
       const r = await svc.fetch(new Request("https://os.internal" + apiMatch[2] + url.search, init));
-      if (init.body !== undefined && r.ok) ctx.waitUntil(notificar(env, "accion"));     // la pantalla de Inicio se entera al instante
+      // La pantalla de Inicio se entera al instante de una accion. Leer el estado NO es accion: Radar lo pide por
+      // POST y avisar en vivo de una lectura haria un bucle (aviso -> la app relee -> otro aviso...).
+      if (init.body !== undefined && r.ok && !/\/api\/(state|os|estado)$/.test(apiMatch[2])) ctx.waitUntil(notificar(env, "accion"));
       return new Response(r.body, { status: r.status, headers: { "content-type": r.headers.get("content-type") || "application/json", "cache-control": "no-store" } });
     }
     if (url.pathname === "/app2") {
