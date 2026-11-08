@@ -301,6 +301,7 @@ export const HOY_JS = `
     principal();
     if (S.hoja === "signal-halo") recargarSH(false).catch(function () {});      // en vivo: refresca la hoja sin cortar el video
     else if (S.hoja === "viento") { if (Date.now() - VI.at > 20000) recargarVI(false).catch(function () {}); else pintarVI(); }
+    else if (S.hoja === "video-forge") { if (Date.now() - VFH.at > 20000) recargarVF(false).catch(function () {}); else pintarVF(); }
     else if (S.hoja === "radar") { if (Date.now() - RA.at > 20000) recargarRA(false).catch(function () {}); else pintarRA(); }
     else if (S.hoja) abrirSistema(S.hoja, true);
   }
@@ -319,6 +320,7 @@ export const HOY_JS = `
     if (id === "signal-halo") return abrirSH(null, solo);
     if (id === "viento") return abrirVI(solo);
     if (id === "radar") return abrirRA(solo);
+    if (id === "video-forge") return abrirVF(solo);
     var s = sistema(id); if (!s) return;
     S.hoja = id;
     var needs = (S.datos.paraTi || []).filter(function (n) { return n.system === id; });
@@ -869,6 +871,110 @@ export const HOY_JS = `
     }
   }
 
+  // ---------- Hoja de Video Forge: monitor de los canales (aqui nada se aprueba; todo corre solo) ----------
+  // Muestra el plan del dia que decide el cerebro, lo que corre ahora, las ultimas tareas (con el error exacto si
+  // alguna fallo), lo que esta aprendiendo y el estado de Data Lens. Solo lectura: abrir videos y ver errores.
+  var VFH = { d: null, cargando: null, at: 0, dia: "today", errores: {}, abiertos: {} };
+  var ESTADO_PIEZA = {
+    publicado: { t: "Publicado", c: "normal" }, programado: { t: "Programado", c: "normal" }, produciendo: { t: "Produciendo", c: "attention" },
+    planeado: { t: "En plan", c: "info" }, vencido: { t: "No salió", c: "critical" }, sin_tiempo: { t: "Sin tiempo", c: "info" },
+  };
+  var ESTADO_TAREA = {
+    COMPLETED: { t: "Terminó bien", c: "normal" }, FAILED: { t: "Falló", c: "critical" }, CANCELLED: { t: "Cancelada", c: "info" },
+    RUNNING: { t: "Corriendo", c: "attention" }, THINKING: { t: "Pensando", c: "attention" }, WAITING: { t: "Esperando", c: "attention" },
+    QUEUED: { t: "En cola", c: "info" }, APPROVAL: { t: "Espera", c: "attention" },
+  };
+  function abrirVF(solo) {
+    S.hoja = "video-forge";
+    if (!solo) {
+      $("hoja").innerHTML = '<div class="agarre"></div><div class="hh"><div class="mk">VF</div><div><div class="n">Video Forge</div><div class="m" id="vf-sub">Cargando…</div></div><button class="x" data-cerrar="1" aria-label="Cerrar">✕</button></div>' +
+        '<div id="vf-cuerpo"><div class="ske"></div><div class="ske"></div><div class="ske"></div></div>';
+      mostrarHoja();
+      if (VFH.d) pintarVF();
+    }
+    return recargarVF(!solo).catch(function () {});
+  }
+  function recargarVF(mostrarError) {
+    if (!VFH.cargando) {
+      VFH.cargando = api("/api/os", undefined, 20000).then(function (d) {
+        VFH.d = d; VFH.at = Date.now(); VFH.cargando = null; pintarVF();
+      }, function (e) {
+        VFH.cargando = null;
+        if (mostrarError && $("vf-cuerpo") && !VFH.d) $("vf-cuerpo").innerHTML = '<div class="aviso">' + esc(e.message) + ' <button data-vf="recargar">Reintentar</button></div>';
+        throw e;
+      });
+    }
+    return VFH.cargando;
+  }
+  function enMin(iso) { var m = Math.round((Date.parse(iso) - Date.now()) / 60000); return !isFinite(m) ? "" : m <= 1 ? "en un momento" : m < 60 ? "en " + m + " min" : "en " + Math.round(m / 60) + " h"; }
+  function pintarVF() {
+    if (S.hoja !== "video-forge" || !$("vf-cuerpo") || !VFH.d) return;
+    var d = VFH.d, p = (d.pulses && d.pulses["video-forge"]) || {}, live = (d.brain && d.brain.live) || {}, s = sistema("video-forge") || {}, h = "";
+    $("vf-sub").textContent = p.headline || s.headline || s.linea || "Canales";
+    if (p.stale) h += '<div class="aviso">Video Forge no reporta hace rato. Lo que ves puede estar viejo.</div>';
+    if (p.sub) h += '<div class="hero" style="padding:12px 13px;margin-bottom:10px"><div class="sub" style="margin:0">' + esc(p.sub) + '</div></div>';
+    var mets = metricas({ metrics: p.metrics || s.metrics || [] });
+    if (mets) h += '<div class="met">' + mets + '</div>';
+
+    var dia = live[VFH.dia] || null, items = (dia && dia.items) || [];
+    var listos = items.filter(function (i) { return i.status === "publicado" || i.status === "programado"; }).length;
+    h += '<div class="sec" style="margin-top:14px">Oddly Loop <span>' + (dia ? listos + " de " + items.length + " listas" : "sin plan") + '</span></div>';
+    h += '<div class="proys"><button class="chip' + (VFH.dia === "today" ? " on" : "") + '" data-vf="dia" data-d="today">Hoy</button><button class="chip' + (VFH.dia === "tomorrow" ? " on" : "") + '" data-vf="dia" data-d="tomorrow">Mañana</button></div>';
+    h += items.length ? '<div class="lista">' + items.map(function (i) {
+      var e = ESTADO_PIEZA[i.status] || { t: i.status || "—", c: "info" };
+      return '<div class="marca"><span class="pt ' + e.c + '"></span><div class="tx"><div class="t">' + esc(i.title || i.niche_label || "Short") + '</div>' +
+        '<div class="d">' + esc(hora(i.slot_utc)) + ' · ' + esc(e.t) + (i.title && i.niche_label ? " · " + esc(i.niche_label) : "") + '</div></div>' +
+        (i.status === "produciendo" ? '<span class="go" aria-label="produciendo">' + PUNTOS + '</span>' : i.video_id ? '<button data-vf="video" data-id="' + esc(i.video_id) + '">Ver</button>' : '') + '</div>';
+    }).join("") + '</div>' : '<div class="lista"><div class="vacio">El cerebro todavía no armó el plan de ' + (VFH.dia === "today" ? "hoy" : "mañana") + '.</div></div>';
+    if (live.next_cycle_at) h += '<div class="d" style="font-size:12px;color:var(--t3);margin:6px 4px 0">El cerebro vuelve a planear ' + esc(enMin(live.next_cycle_at)) + (live.scale_gate ? " · subir volumen: " + esc(live.scale_gate.status || "") : "") + '</div>';
+
+    var tareas = (p.tasks || []).slice(0, 8);
+    if (tareas.length) h += '<div class="sec" style="margin-top:16px">Últimas tareas <span>' + tareas.filter(function (t) { return t.status === "FAILED"; }).length + ' con error</span></div><div class="lista">' + tareas.map(function (t) {
+      var e = ESTADO_TAREA[t.status] || { t: t.status, c: "info" }, corre = e.c === "attention", err = VFH.errores[t.id];
+      return '<div class="marca" style="display:block"><div style="display:flex;align-items:center;gap:10px"><span class="pt ' + e.c + '"></span><div class="tx"><div class="t">' + esc(t.name || "Tarea") + '</div>' +
+        '<div class="d">' + esc(e.t) + (t.result ? " · " + esc(t.result) : "") + ' · ' + esc(hace(t.updated || t.started)) + '</div></div>' +
+        (corre ? '<span class="go">' + PUNTOS + '</span>' : t.status === "FAILED" && /^[0-9]+$/.test(String(t.id)) ? '<button data-vf="error" data-id="' + esc(t.id) + '">' + (err ? "Ocultar" : "Ver error") + '</button>' : '') + '</div>' +
+        (err ? '<div style="margin-top:8px;padding:9px 10px;border-radius:10px;background:var(--s2);font:11.5px/1.45 ui-monospace,Consolas,monospace;color:var(--t2);white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto">' + esc((err.step ? "Paso: " + err.step + String.fromCharCode(10) : "") + (err.detail || "")) + '</div>' +
+          (t.url ? '<button class="btn sec" style="height:38px;margin-top:8px" data-vf="log" data-url="' + esc(t.url) + '">Abrir el log en GitHub</button>' : '') : '') + '</div>';
+    }).join("") + '</div>';
+
+    var ins = (p.insights || []).slice(0, 3);
+    if (ins.length) h += '<div class="sec" style="margin-top:16px">Lo que está aprendiendo</div><div class="lista">' + ins.map(function (x, n) {
+      var ab = !!VFH.abiertos[n];
+      return '<button class="fila" data-vf="ins" data-n="' + n + '" style="display:block"><div class="n" style="font-size:13.5px">' + esc(x.what) + '</div>' +
+        (ab ? '<div class="m" style="display:block;margin-top:4px;white-space:normal">' + esc(x.why || "") + (x.action ? '<br><b style="color:var(--t2)">Qué hace: </b>' + esc(x.action) : "") + '</div>' : '<div class="m">Toca para ver por qué</div>') + '</button>';
+    }).join("") + '</div>';
+
+    var dl = live.data_lens;
+    if (dl) h += '<div class="sec" style="margin-top:16px">The Data Lens</div><div class="lista"><div class="marca"><span class="pt ' + (dl.paused ? "info" : "normal") + '"></span><div class="tx"><div class="t" style="white-space:normal">' + esc(dl.paused ? "En pausa" + (dl.review_at ? " · se revisa " + new Date(dl.review_at).toLocaleDateString("es-CO", { day: "numeric", month: "short" }) : "") : "Activo") + '</div>' +
+      '<div class="d" style="white-space:normal">' + esc(dl.experiment || "") + (dl.criterion ? " · meta: " + esc(dl.criterion) : "") + '</div></div></div></div>';
+
+    var act = (p.activity || []).slice(0, 5);
+    if (act.length) h += '<div class="sec" style="margin-top:16px">Lo último</div><div class="lista">' + act.map(function (e) { return '<div class="ev"><span class="tm">' + esc(hora(e.at)) + '</span><span>' + esc(e.text) + '</span></div>'; }).join("") + '</div>';
+
+    h += '<button class="btn sec" data-panel="video-forge">Abrir Video Forge completo</button>';
+    $("vf-cuerpo").innerHTML = h;
+  }
+  function accionVF(b) {
+    var que = b.getAttribute("data-vf");
+    if (que === "recargar") return correr(b, function () { return recargarVF(true); }, { tope: 21000 });
+    if (que === "dia") { vib(); VFH.dia = b.getAttribute("data-d") === "tomorrow" ? "tomorrow" : "today"; pintarVF(); return; }
+    if (que === "ins") { vib(); var n = b.getAttribute("data-n"); VFH.abiertos[n] = !VFH.abiertos[n]; pintarVF(); return; }
+    if (que === "video") { vib(); abrirLink("https://youtube.com/shorts/" + encodeURIComponent(b.getAttribute("data-id"))); return; }
+    if (que === "log") { vib(); var u = b.getAttribute("data-url"); if (u && u.indexOf("https://github.com/") === 0) abrirLink(u); return; }
+    if (que === "error") {
+      var id = b.getAttribute("data-id");
+      if (VFH.errores[id]) { vib(); VFH.errores[id] = null; pintarVF(); return; }
+      return correr(b, function () {
+        return api("/api/error-detail?run=" + encodeURIComponent(id), undefined, 25000).then(function (r) {
+          if (r.error) throw new Error(r.error);
+          VFH.errores[id] = { detail: r.detail || "Sin detalle.", step: r.step || "" };
+          pintarVF();
+        });
+      }, { tope: 26000 });
+    }
+  }
+
   // ---------- Ir a un panel completo o a un link ----------
   function irPanel(id, ver) {
     var s = sistema(id); if (!s) throw new Error("Ese sistema no está disponible.");
@@ -881,6 +987,7 @@ export const HOY_JS = `
     if (n.system === "signal-halo") { abrirSH(n.ver || null); return Promise.resolve(); }
     if (n.system === "viento") { abrirVI(false); return Promise.resolve(); }
     if (n.system === "radar") { abrirRA(false, n.id); return Promise.resolve(); }
+    if (n.system === "video-forge" && !(n.url && /^https:/.test(n.url))) { abrirVF(false); return Promise.resolve(); }
     if (n.url && /^https:\\/\\//.test(n.url)) { try { tg.openLink(n.url); } catch (e) { window.open(n.url, "_blank"); } return Promise.resolve(); }
     return irPanel(n.system, n.ver);
   }
@@ -892,6 +999,7 @@ export const HOY_JS = `
     if (b.hasAttribute("data-sh")) return accionSH(b);
     if (b.hasAttribute("data-vi")) return accionVI(b);
     if (b.hasAttribute("data-ra")) return accionRA(b);
+    if (b.hasAttribute("data-vf")) return accionVF(b);
     if (b.hasAttribute("data-sis")) { vib(); return abrirSistema(b.getAttribute("data-sis")); }
     if (b.hasAttribute("data-need")) return correr(b, function () { return resolver(b.getAttribute("data-need")); }, { tope: 20000 }).then(function () { refrescar("accion").catch(function () {}); });
     if (b.hasAttribute("data-panel")) return correr(b, function () { return irPanel(b.getAttribute("data-panel")); }, { tope: 20000 });
