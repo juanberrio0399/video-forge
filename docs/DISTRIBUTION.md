@@ -7,7 +7,6 @@ Solo repost de contenido PROPIO + engagement legítimo en nuestros propios video
 ## Estado real (verificado por los secrets configurados)
 | Superficie | Qué hace | Workflow | Estado |
 |---|---|---|---|
-| **Bilibili** | Repostea los Shorts de Oddly | `bilibili_repost.yml` | ✅ **ACTIVA** (`BILIBILI_COOKIE` ok) |
 | **Playlists YouTube** | Agrupa por nicho (sube el watch-time de sesión) | `sync_playlists.yml` | ✅ ACTIVA |
 | **Respuestas a comentarios** | Responde comentarios propios, natural y corto | `comment_reply.yml` | ✅ ACTIVA |
 | **Telegram (canal público)** | Publica cada Short público nuevo (reenviable/compartible) | `telegram_broadcast.yml` | 🟡 código listo — **falta `DISTRIB_CHANNEL_ID`** (crear canal + bot admin) |

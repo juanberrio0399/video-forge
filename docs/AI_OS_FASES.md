@@ -40,7 +40,7 @@ en producción: un PR desplegado o una respuesta verificada. Actualizado: 2026-0
 | 22 | GitHub se salta crons frecuentes (Orchestrator 2 de ~26, cerebro 2 de 8) y atrasa todos 2–5 h | OS | Repo | Corregido: reloj en el Worker de Video Forge cada 30 min |
 | 23 | Data Shock falló con 0 datos del guion (ffmpeg sin nada que unir) | Video Forge | Repo | Corregido: falla claro antes de ensamblar; revisar el guion si se repite |
 | 24 | Falsos verdes: Pinterest sin secrets y respuesta a comentarios salía bien ante errores; watchdog alertaba por un workflow apagado a propósito | Video Forge | Repo | Corregido |
-| 25 | bilibili_upload.yml roto desde el 26/08 (cambió la interfaz) y thumbnail_only.yml sin paquete en R2 | Video Forge | Decisión pendiente | Abierto |
+| 25 | Bilibili retirado por completo el 2026-11-08 (decisión de Juan); queda thumbnail_only.yml sin paquete en R2 | Video Forge | Decisión pendiente | Abierto |
 | 26 | Aviso de Node 20 obsoleto en acciones @v4 (12 workflows de la tienda, 11 de video-forge) | GitHub | Repo | Abierto |
 | 27 | Webhook de Mercado Pago sin verificación de firma x-signature (requiere el secreto de webhook de MP) | Viento | Falta el secreto | Abierto |
 | 16 | hide_video.yml y reset_data_lens.yml arrancan de una lista vacía si no pueden leer la de ocultos | Video Forge | Repo | Abierto |

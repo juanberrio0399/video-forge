@@ -24,7 +24,6 @@ export const APP_HTML = `<!doctype html>
   }
   body[data-ch="auto2"]{--acc:#10b981;--acc2:#2dd4bf;--glow:rgba(16,185,129,.20);--accfg:#04140d}
   body[data-ch="data-lens"]{--acc:#a3e635;--acc2:#4ade80;--glow:rgba(163,230,53,.18);--accfg:#0f1a00}
-  body[data-ch="bilibili"]{--acc:#22a0e0;--acc2:#38bdf8;--glow:rgba(34,160,224,.18);--accfg:#04140d}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   body{margin:0;background:
       radial-gradient(120% 42% at 50% -60px, var(--glow), transparent 62%),
@@ -129,7 +128,6 @@ export const APP_HTML = `<!doctype html>
     <button data-ch="resumen" class="on">🏠 Resumen</button>
     <button data-ch="data-lens">The Data Lens</button>
     <button data-ch="auto2">Auto #2</button>
-    <button data-ch="bilibili">🅱️ Bilibili</button>
   </div>
 </header>
 <div class="wrap">
@@ -159,7 +157,6 @@ export const APP_HTML = `<!doctype html>
     "auto2":'<svg viewBox="0 0 44 44" fill="none"><path d="M22 22 C22 11 10 11 10 22 C10 33 22 33 22 22 C22 11 34 11 34 22 C34 33 22 33 22 22Z" stroke="#04140d" stroke-width="4.5" stroke-linecap="round"/></svg>',
     "data-lens":'<svg viewBox="0 0 44 44" fill="none"><circle cx="22" cy="22" r="15" stroke="#0f1a00" stroke-width="3.5"/><rect x="16" y="21" width="3.4" height="7" rx="1.4" fill="#0f1a00"/><rect x="20.4" y="17" width="3.4" height="11" rx="1.4" fill="#0f1a00"/><rect x="24.8" y="13.5" width="3.4" height="14.5" rx="1.4" fill="#0f1a00"/></svg>',
     "resumen":'<svg viewBox="0 0 44 44" fill="none"><rect x="10" y="20" width="8" height="14" rx="2" fill="#04140d"/><rect x="18" y="13" width="8" height="21" rx="2" fill="#04140d"/><rect x="26" y="16" width="8" height="18" rx="2" fill="#04140d"/></svg>',
-    "bilibili":'<svg viewBox="0 0 44 44" fill="none"><rect x="9" y="14" width="26" height="18" rx="5" stroke="#04140d" stroke-width="3"/><path d="M15 10 L19 14 M29 10 L25 14" stroke="#04140d" stroke-width="3" stroke-linecap="round"/></svg>',
   };
   // Aplica el ACENTO de marca del canal (color + logo). Nativo: la base sigue el tema de Telegram.
   function applyChannelTheme(ch){
@@ -838,22 +835,6 @@ export const APP_HTML = `<!doctype html>
       +(a&&a.at?'<div class="muted" style="font-size:10px;text-align:center">Act. '+esc(String(a.at).slice(0,16).replace("T"," "))+'</div>':'');
   }
   // AGENDA del canal auto: próximos a publicar (programados), en revisión por programar, y estado del automático.
-  function bilibiliCardHtml(){
-    var b=ST.bilibili; if(!b) return '';
-    var pend=(b.pending||[]), log=(b.log||[]);
-    var h='<div class="card" style="border:1px solid #fb7299">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center">'
-        +'<div style="font-weight:800;font-size:14px">🅱️ Bilibili · '+esc(b.channel||"Oddly")+'</div>'
-        +'<a href="https://member.bilibili.com/platform/upload/manuscript/" target="_blank" style="font-size:11px;color:#fb7299;text-decoration:none">abrir ›</a>'
-      +'</div>'
-      +'<div class="muted" style="font-size:12px;margin:4px 0 8px">Reposteo automático (al mediodía). <b>'+num(b.posted_total||0)+'</b> publicados · <b>'+pend.length+'</b> en cola.</div>';
-    if(pend.length){ h+='<div style="font-size:12px;margin-bottom:2px">🕒 <b>En cola:</b></div>'
-      +pend.slice(0,4).map(function(v){ return '<div style="font-size:12px;border-top:1px solid rgba(255,255,255,.06);padding:4px 0">• '+esc((v.title||'').slice(0,44))+'</div>'; }).join(''); }
-    if(log.length){ h+='<div style="font-size:12px;margin:8px 0 2px">📜 <b>Últimos reposteados:</b></div>'
-      +log.slice(0,5).map(function(v){ return '<div style="font-size:12px;border-top:1px solid rgba(255,255,255,.06);padding:4px 0">'+(v.ok?'✅':'⚠️')+' '+esc((v.title||'').slice(0,42))+'</div>'; }).join(''); }
-    if(!pend.length && !log.length) h+='<div class="muted" style="font-size:12px">Aún sin reposts. Cuando se produzca un Short, se repostea solo al mediodía.</div>';
-    return h+'</div>';
-  }
   function auto2AgendaHtml(){
     var list=(ST.auto2&&ST.auto2.list)||[];
     var now=new Date();
@@ -1144,19 +1125,6 @@ export const APP_HTML = `<!doctype html>
       el("s-inicio").innerHTML=resumenHtml();
       var _hint='<div class="card muted" style="font-size:13px">👆 Elige <b>Oddly Loop</b> o <b>The Data Lens</b> arriba para ver el detalle de esta sección.</div>';
       el("s-producir").innerHTML=_hint; el("s-agenda").innerHTML=_hint; el("s-analitica").innerHTML=_hint; el("s-mas").innerHTML=_hint;
-      return;
-    }
-
-    // BILIBILI (distribución multiplataforma) — SEPARADO de los canales de YouTube, para no interferir.
-    if(curChannel==="bilibili"){
-      el("chTitle").textContent="Bilibili";
-      el("hd").textContent="Distribución multiplataforma · act. "+(ST.updated_at?String(ST.updated_at).slice(5,16).replace("T"," "):"—");
-      el("globalStatus").innerHTML=wb;
-      var _bcard = bilibiliCardHtml() || '<div class="card muted" style="font-size:13px">Aún sin datos de Bilibili. Cuando se produzca un Short, se repostea solo al mediodía y aparecerá aquí.</div>';
-      el("s-inicio").innerHTML='<h2>🅱️ Bilibili</h2><div class="card muted" style="font-size:12px">Reposteo automático de los Shorts de Oddly a Bilibili (canal <b>Oddly_Loop</b>). Independiente de YouTube — se maneja solo.</div>'+_bcard;
-      var _bh='<div class="card muted" style="font-size:13px">Bilibili se reposta solo al mediodía. El detalle está en <b>Inicio</b>.</div>';
-      el("s-producir").innerHTML=_bh; el("s-agenda").innerHTML=_bh; el("s-analitica").innerHTML=_bh;
-      el("s-mas").innerHTML='<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:4px">🔑 Cookie de Bilibili</div><div class="muted" style="font-size:12px">El watchdog revisa a diario que la sesión siga viva. Si avisa que <b>venció</b>, saca una cookie nueva del navegador (SESSDATA, bili_jct, DedeUserID, DedeUserID__ckMd5) y actualiza el secret <b>BILIBILI_COOKIE</b> en GitHub.</div></div>';
       return;
     }
 
