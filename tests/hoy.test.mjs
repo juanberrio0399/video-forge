@@ -120,6 +120,17 @@ describe("cliente de la pantalla", () => {
     const usos = HOY_JS.match(/data-vi="(pedido|pausar|tk|conectar|generar|recargar)"/g) || [];
     expect(usos.length).toBeGreaterThanOrEqual(6);
   });
+  it("Radar tiene su hoja: merge solo tras ver el PR y con confirmacion; plan vigilado que no se engaña con lo viejo", () => {
+    for (const x of ["function abrirRA(", "function pintarRA(", "function vigilarRA(", "/v/radar/api/state", "/v/radar/api/action", "function respuestaRA("]) expect(HOY_JS).toContain(x);
+    expect(HOY_JS).toContain('botones: RA.revisados[k] ? ["verpr", "merge"] : ["verpr"]');   // Merge aparece solo tras abrir el PR
+    expect(HOY_JS).toContain("if (RA.at < w.desde) return;");                                 // no da resultado con datos de antes
+    expect(HOY_JS).toContain("Date.now() - w.desde > 900000");                                // la vigilancia siempre termina
+    expect(HOY_JS).toContain('if (n.system === "radar") { abrirRA(false, n.id)');
+  });
+  it("leer el estado de un panel no dispara el aviso en vivo (si no, la app entra en bucle)", () => {
+    const bot = fs.readFileSync(path.join(__dirname, "../bot/src/index.js"), "utf8");
+    expect(bot).toContain('!/\\/api\\/(state|os|estado)$/.test(apiMatch[2])');
+  });
   it("el html trae el build sin dejar inyectar nada", () => {
     const h = hoyHtml({ build: "abc1234</script><x>" });
     expect(h).toContain("Build abc1234scriptx");

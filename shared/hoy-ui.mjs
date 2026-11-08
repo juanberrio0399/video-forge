@@ -195,7 +195,7 @@ export const HOY_JS = `
     }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
         if (r.status === 403) throw new Error("Sesión vencida: cierra y abre la app desde el botón del bot.");
-        if (!r.ok) throw new Error(typeof j.error === "string" ? j.error : ("Error " + r.status));
+        if (!r.ok) throw new Error(typeof j.error === "string" ? j.error : typeof j.msg === "string" ? j.msg : ("Error " + r.status));
         return j;
       });
     }), tope);
@@ -301,6 +301,7 @@ export const HOY_JS = `
     principal();
     if (S.hoja === "signal-halo") recargarSH(false).catch(function () {});      // en vivo: refresca la hoja sin cortar el video
     else if (S.hoja === "viento") { if (Date.now() - VI.at > 20000) recargarVI(false).catch(function () {}); else pintarVI(); }
+    else if (S.hoja === "radar") { if (Date.now() - RA.at > 20000) recargarRA(false).catch(function () {}); else pintarRA(); }
     else if (S.hoja) abrirSistema(S.hoja, true);
   }
 
@@ -317,6 +318,7 @@ export const HOY_JS = `
   function abrirSistema(id, solo) {
     if (id === "signal-halo") return abrirSH(null, solo);
     if (id === "viento") return abrirVI(solo);
+    if (id === "radar") return abrirRA(solo);
     var s = sistema(id); if (!s) return;
     S.hoja = id;
     var needs = (S.datos.paraTi || []).filter(function (n) { return n.system === id; });
@@ -699,6 +701,174 @@ export const HOY_JS = `
     }
   }
 
+  // ---------- Hoja de Radar: lo que el radar encontro en cada repo y que hacer con cada cosa ----------
+  // Mismo flujo que el panel completo: Preparar plan -> Ver PR -> Merge. El Merge solo aparece despues de abrir
+  // el PR (no se mergea sin ver) y pide confirmacion; el Worker de Radar ademas se niega si el CI no esta verde.
+  // Preparar plan queda vigilado: la hoja dice que corre y avisa al terminar (plan listo, PR, fallo o descarte).
+  var RA = { d: null, cargando: null, at: 0, repo: null, vigilando: {}, reloj: null, foco: null, todos: false, revisados: {} };
+  var RA_REV = "radar:rev";
+  try { RA.revisados = JSON.parse(localStorage.getItem(RA_REV) || "{}") || {}; } catch (e) { RA.revisados = {}; }
+  function guardarRevisados() { try { localStorage.setItem(RA_REV, JSON.stringify(RA.revisados)); } catch (e) {} }
+  function abrirRA(solo, foco) {
+    S.hoja = "radar"; if (foco) RA.foco = foco;
+    if (!solo) {
+      $("hoja").innerHTML = '<div class="agarre"></div><div class="hh"><div class="mk">RA</div><div><div class="n">Radar</div><div class="m" id="ra-sub">Cargando…</div></div><button class="x" data-cerrar="1" aria-label="Cerrar">✕</button></div>' +
+        '<div id="ra-cuerpo"><div class="ske"></div><div class="ske"></div><div class="ske"></div></div>';
+      mostrarHoja();
+      if (RA.d) pintarRA();
+    }
+    return recargarRA(!solo).catch(function () {});
+  }
+  function recargarRA(mostrarError) {
+    if (!RA.cargando) {
+      var inicio = Date.now();                       // la foto es de cuando se pidio, no de cuando llego
+      RA.cargando = api("/v/radar/api/state", {}, 25000).then(function (d) {
+        if (d && d.error) throw new Error(d.error);
+        RA.d = d; RA.at = inicio; RA.cargando = null; pintarRA(); vigilarRA();
+      }).then(null, function (e) {
+        RA.cargando = null;
+        if (mostrarError && $("ra-cuerpo") && !RA.d) $("ra-cuerpo").innerHTML = '<div class="aviso">' + esc(e.message) + ' <button data-ra="recargar">Reintentar</button></div>';
+        throw e;
+      });
+    }
+    return RA.cargando;
+  }
+  function raRepos() { return (RA.d && RA.d.repos) || []; }
+  function raIssue(repo, n) {
+    var r = raRepos().filter(function (x) { return x.repo === repo; })[0];
+    return r ? (r.issues || []).filter(function (x) { return x.number === n; })[0] || null : null;
+  }
+  var PRIO = { alta: "Prioridad alta", media: "Prioridad media", baja: "Prioridad baja" };
+  // Que paso con el issue y que botones tiene. Orden: lo que corre, lo que esta listo, lo que fallo, lo nuevo.
+  function etapa(repo, is) {
+    var k = repo + "#" + is.number, pr = is.pr;
+    if (RA.vigilando[k]) return { t: "Preparando el plan…", c: "attention", corre: true };
+    if (pr && (pr.draft || pr.ciRed || pr.incomplete)) return { t: pr.incomplete ? "PR incompleto: no se mergea" : "PR sin validar: no se mergea", c: "critical", botones: ["verpr", "run"] };
+    if (pr) return { t: "PR #" + pr.number + " listo para revisar", c: "normal", botones: RA.revisados[k] ? ["verpr", "merge"] : ["verpr"] };
+    if (is.err) return { t: "El motor falló", c: "critical", botones: ["run", "ver"] };
+    if (is.invalid) return { t: "El cambio no pasó la validación", c: "critical", botones: ["ver", "run"] };
+    if (is.rejected) return { t: "La revisión lo descartó", c: "info", botones: ["ver", "close"] };
+    if (is.planned && is.manual) return { t: "Necesita tu configuración", c: "attention", botones: ["ver", "close"] };
+    if (is.planned) return { t: "Plan listo para decidir", c: "attention", botones: ["ver", "close"] };
+    return { t: "Nuevo", c: "info", botones: ["run", "close"] };
+  }
+  var BOTON = {
+    run: function (r, is) { return '<button class="si" data-ra="run" data-r="' + esc(r) + '" data-n="' + is.number + '">' + (is.err || is.invalid || (is.pr && (is.pr.draft || is.pr.ciRed || is.pr.incomplete)) ? "Reintentar" : "Preparar plan") + '</button>'; },
+    verpr: function (r, is) { return '<button data-ra="verpr" data-r="' + esc(r) + '" data-n="' + is.number + '">Ver PR</button>'; },
+    merge: function (r, is) { return '<button class="si" data-ra="merge" data-r="' + esc(r) + '" data-n="' + is.number + '">Merge</button>'; },
+    ver: function (r, is) { return '<button data-ra="ver" data-r="' + esc(r) + '" data-n="' + is.number + '">' + (is.planned ? (is.manual ? "Ver pasos" : "Ver plan") : is.rejected ? "Ver motivo" : "Ver detalle") + '</button>'; },
+    close: function (r, is) { return '<button class="no" data-ra="close" data-r="' + esc(r) + '" data-n="' + is.number + '">Cerrar</button>'; },
+  };
+  function pintarRA() {
+    if (S.hoja !== "radar" || !$("ra-cuerpo") || !RA.d) return;
+    var s = sistema("radar") || {}, repos = raRepos(), h = "";
+    if (RA.foco) {                                   // vino desde "Para ti": abre en el repo de ese aviso
+      var f = RA.foco; RA.foco = null;
+      repos.forEach(function (r) { if (f.indexOf("-" + r.short + "-") >= 0) RA.repo = r.repo; });
+    }
+    if (RA.repo && !repos.some(function (r) { return r.repo === RA.repo; })) RA.repo = null;
+    var total = 0; repos.forEach(function (r) { total += (r.issues || []).length; });
+    $("ra-sub").textContent = s.headline || (total ? total + " cosas por revisar" : "Sin pendientes");
+    var mets = metricas(s);
+    if (mets) h += '<div class="met">' + mets + '</div>';
+    var caidos = repos.filter(function (r) { return r.error; }).map(function (r) { return r.short; });
+    if (caidos.length) h += '<div class="aviso">GitHub no respondió para ' + esc(caidos.join(", ")) + '. Lo de esos repos puede faltar.</div>';
+    var conAlgo = repos.filter(function (r) { return (r.issues || []).length; });
+    if (conAlgo.length > 1) h += '<div class="proys">' + '<button class="chip' + (!RA.repo ? " on" : "") + '" data-ra="repo" data-i="">Todos <b>' + total + '</b></button>' + conAlgo.map(function (r) {
+      return '<button class="chip' + (RA.repo === r.repo ? " on" : "") + '" data-ra="repo" data-i="' + esc(r.repo) + '">' + esc(r.short) + ' <b>' + r.issues.length + '</b></button>';
+    }).join("") + '</div>';
+    var items = [];
+    repos.forEach(function (r) { if (!RA.repo || RA.repo === r.repo) (r.issues || []).forEach(function (is) { items.push({ r: r, is: is, e: etapa(r.repo, is) }); }); });
+    var PESO = { attention: 0, normal: 0, critical: 1, info: 2 };
+    items.sort(function (a, b) { return (a.e.corre ? -1 : 0) - (b.e.corre ? -1 : 0) || PESO[a.e.c] - PESO[b.e.c] || ["alta", "media", "baja", ""].indexOf(a.is.prio || "") - ["alta", "media", "baja", ""].indexOf(b.is.prio || ""); });
+    var MAX = 12, visibles = RA.todos ? items : items.slice(0, MAX);
+    h += '<div class="sec" style="margin-top:14px">' + (RA.repo ? esc(RA.repo.split("/").pop()) : "Por revisar") + ' <span>' + (items.length ? items.length : "nada") + '</span></div>';
+    h += items.length ? '<div class="lista">' + visibles.map(function (x) {
+      var k = x.r.repo + "#" + x.is.number;
+      return '<div class="marca" style="display:block"><div class="d" style="display:flex;align-items:center;gap:6px"><span class="pt ' + x.e.c + '"></span>' + esc(x.e.t) + '</div>' +
+        '<div class="t" style="white-space:normal;margin-top:3px">' + esc(x.is.title) + '</div>' +
+        '<div class="d">' + esc(x.r.short) + ' · #' + x.is.number + (x.is.prio ? " · " + esc(PRIO[x.is.prio] || x.is.prio) : "") + '</div>' +
+        (x.e.corre ? '<div class="acc" style="grid-template-columns:1fr;margin-top:8px"><button disabled>' + PUNTOS + '</button></div>'
+          : '<div class="acc" style="margin-top:8px;grid-template-columns:repeat(' + x.e.botones.length + ',1fr)">' + x.e.botones.map(function (b) { return BOTON[b](x.r.repo, x.is); }).join("") + '</div>') +
+        (x.is.pr && !RA.revisados[k] && !x.e.corre && x.e.c === "normal" ? '<div class="d" style="margin-top:6px">Abre el PR para revisarlo; luego aparece Merge.</div>' : '') + '</div>';
+    }).join("") + '</div>' : '<div class="lista"><div class="vacio">Nada por revisar. El radar barre cada semana y lo nuevo aparece aquí.</div></div>';
+    if (!RA.todos && items.length > MAX) h += '<button class="btn sec" data-ra="todos">Ver las ' + items.length + '</button>';
+    h += '<button class="btn sec" data-panel="radar">Abrir Radar completo</button>';
+    $("ra-cuerpo").innerHTML = h;
+  }
+  // Tras "Preparar plan": consulta cada 15 s hasta que el issue cambie (plan, PR, fallo, descarte o cerrado). Tope 15 min.
+  function firmaPR(pr) { return pr ? pr.number + ":" + !!pr.draft + !!pr.ciRed + !!pr.incomplete : ""; }
+  function vigilarRA() {
+    var claves = Object.keys(RA.vigilando); if (!claves.length || !RA.d) return;
+    claves.forEach(function (k) {
+      var w = RA.vigilando[k], is = raIssue(w.repo, w.n), msj = null, mal = false;
+      if (Date.now() - w.desde > 900000) { delete RA.vigilando[k]; vib("error"); toast("#" + w.n + " lleva 15 min preparándose. Revísalo en Radar completo.", true); return; }
+      if (RA.at < w.desde) return;                   // datos de antes de lanzar: todavia no dicen nada
+      if (is && is.pr && firmaPR(is.pr) === w.antes) {     // el PR viejo no es el resultado
+        var copia = {}; for (var c in is) copia[c] = is[c]; copia.pr = null; is = copia;
+      }
+      if (!is) msj = "#" + w.n + " ya no está abierto.";
+      else if (is.pr && (is.pr.draft || is.pr.ciRed || is.pr.incomplete)) { msj = "#" + w.n + ": el PR quedó sin validar. No lo mergees."; mal = true; }
+      else if (is.pr) msj = "#" + w.n + ": PR listo. Ábrelo con Ver PR y luego Merge.";
+      else if (is.err) { msj = "El motor falló en #" + w.n + ". Toca Reintentar."; mal = true; }
+      else if (is.invalid) { msj = "#" + w.n + ": el cambio no pasó la validación."; mal = true; }
+      else if (is.rejected) msj = "#" + w.n + ": la revisión lo descartó. Toca Ver motivo.";
+      else if (is.planned) msj = is.manual ? "#" + w.n + ": el plan dice que necesita tu configuración." : "Plan listo para #" + w.n + ". Toca Ver plan.";
+      if (msj) { delete RA.vigilando[k]; vib(mal ? "error" : "success"); toast(msj, mal); }
+    });
+    pintarRA();
+    if (!Object.keys(RA.vigilando).length) return;
+    clearTimeout(RA.reloj);
+    RA.reloj = setTimeout(function () { recargarRA(false).catch(function () { vigilarRA(); }); }, 15000);
+  }
+  // El Worker de Radar responde con un mensaje; los que empiezan con estos simbolos son un "no".
+  function respuestaRA(r) {
+    var m = String((r && (r.msg || r.error)) || "Sin respuesta de Radar.");
+    var limpio = m.replace(/^[^A-Za-z0-9¿¡ÁÉÍÓÚáéíóúÑñ#]+/, "").trim() || m;
+    if (/^(❌|🚫|⛔|⚠️|⏳|🔎)/.test(m) || /^(Petición|Acción) /.test(m)) throw new Error(limpio);
+    return limpio;
+  }
+  function accionRA(b) {
+    var que = b.getAttribute("data-ra"), repo = b.getAttribute("data-r"), n = Number(b.getAttribute("data-n")), is = repo ? raIssue(repo, n) : null;
+    if (que === "recargar") return correr(b, function () { return recargarRA(true); }, { tope: 26000 });
+    if (que === "repo") { vib(); RA.repo = b.getAttribute("data-i") || null; RA.todos = false; pintarRA(); return; }
+    if (que === "todos") { vib(); RA.todos = true; pintarRA(); return; }
+    if (!is) { toast("Eso ya cambió. Actualizo la lista.", true); recargarRA(false).catch(function () {}); return; }
+    var k = repo + "#" + n;
+    if (que === "ver") { vib(); abrirLink(is.url); return; }
+    if (que === "verpr" && is.pr) { vib(); RA.revisados[k] = true; guardarRevisados(); abrirLink(is.pr.url); pintarRA(); return; }
+    if (que === "run") return correr(b, function () {
+      return api("/v/radar/api/action", { action: "run", repo: repo, number: n }, 25000).then(function (r) {
+        respuestaRA(r);
+        RA.vigilando[k] = { repo: repo, n: n, desde: Date.now(), antes: firmaPR(is.pr) };
+        is.err = is.invalid = is.rejected = is.planned = false;      // Radar quita esas marcas al lanzar
+        pintarRA(); vigilarRA();
+      });
+    }, { exito: "Preparando el plan · tarda 1-2 min, te aviso aquí", tope: 30000 });
+    if (que === "merge" && is.pr) {
+      return confirmar("¿Mergear el PR #" + is.pr.number + " de " + repo.split("/").pop() + "? Ya lo revisaste.").then(function (si) {
+        if (!si) return;
+        return correr(b, function () {
+          return api("/v/radar/api/action", { action: "merge", repo: repo, number: n }, 30000).then(function (r) {
+            var m = respuestaRA(r);
+            return recargarRA(false).catch(function () {}).then(function () { return m; });
+          });
+        }, { tope: 35000 }).then(function (m) { if (m) toast(m); });
+      });
+    }
+    if (que === "close") {
+      return confirmar("¿Cerrar el #" + n + " de " + repo.split("/").pop() + "? Sale del radar.").then(function (si) {
+        if (!si) return;
+        return correr(b, function () {
+          return api("/v/radar/api/action", { action: "close", repo: repo, number: n }, 25000).then(function (r) {
+            var m = respuestaRA(r);
+            return recargarRA(false).catch(function () {}).then(function () { return m; });
+          });
+        }, { tope: 30000 }).then(function (m) { if (m) toast(m); });
+      });
+    }
+  }
+
   // ---------- Ir a un panel completo o a un link ----------
   function irPanel(id, ver) {
     var s = sistema(id); if (!s) throw new Error("Ese sistema no está disponible.");
@@ -710,6 +880,7 @@ export const HOY_JS = `
     if (!n) throw new Error("Eso ya se resolvió. Actualizo la pantalla.");
     if (n.system === "signal-halo") { abrirSH(n.ver || null); return Promise.resolve(); }
     if (n.system === "viento") { abrirVI(false); return Promise.resolve(); }
+    if (n.system === "radar") { abrirRA(false, n.id); return Promise.resolve(); }
     if (n.url && /^https:\\/\\//.test(n.url)) { try { tg.openLink(n.url); } catch (e) { window.open(n.url, "_blank"); } return Promise.resolve(); }
     return irPanel(n.system, n.ver);
   }
@@ -720,6 +891,7 @@ export const HOY_JS = `
     if (b.hasAttribute("data-cerrar")) { vib(); return cerrarHoja(); }
     if (b.hasAttribute("data-sh")) return accionSH(b);
     if (b.hasAttribute("data-vi")) return accionVI(b);
+    if (b.hasAttribute("data-ra")) return accionRA(b);
     if (b.hasAttribute("data-sis")) { vib(); return abrirSistema(b.getAttribute("data-sis")); }
     if (b.hasAttribute("data-need")) return correr(b, function () { return resolver(b.getAttribute("data-need")); }, { tope: 20000 }).then(function () { refrescar("accion").catch(function () {}); });
     if (b.hasAttribute("data-panel")) return correr(b, function () { return irPanel(b.getAttribute("data-panel")); }, { tope: 20000 });
