@@ -14,6 +14,9 @@ on:
     branches: [main]
     paths:
       - "bot/**"
+      # Lo que el bot importa desde fuera de su carpeta: un cambio ahi tambien cambia el Worker.
+      - "shared/**"
+      - "pipeline/lib/os_contract.mjs"
 
 # Un deploy a la vez; si llega otro push, el nuevo espera al que esta corriendo.
 concurrency:
@@ -80,7 +83,7 @@ jobs:
           echo "$RESP" | grep -q '"ok":true' || { echo "setWebhook fallo"; exit 1; }
           # Boton de menu del bot -> abre la Mini App (interfaz tipo app).
           MB=$(curl -s "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/setChatMenuButton" \
-            --data-urlencode 'menu_button={"type":"web_app","text":"Cerebro","web_app":{"url":"'"$URL"'/os?v='"${GITHUB_SHA::7}"'"}}')
+            --data-urlencode 'menu_button={"type":"web_app","text":"Inicio","web_app":{"url":"'"$URL"'/hoy?v='"${GITHUB_SHA::7}"'"}}')
           echo "MenuButton: $MB"
           # Identidad del bot "Video Forge": descripcion corta (perfil), descripcion (chat vacio) y comandos.
           TB="https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}"
