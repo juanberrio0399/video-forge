@@ -578,24 +578,6 @@ async function handleApi(request, env, url) {
         if (kept.length !== pend.length) { try { await env.R2.put("channel/auto2/pending_sched.json", JSON.stringify(kept), { httpMetadata: { contentType: "application/json" } }); } catch {} }
       }
     }
-    // BILIBILI (repost multiplataforma, Fase 2): cola pendiente + log de reposteados, para verlo en la app.
-    try {
-      const [bqR, blogR, postedR] = await Promise.all([
-        r2json(env, "channel/oddly/bilibili_queue.json"),
-        r2json(env, "channel/oddly/bilibili_log.json"),
-        r2json(env, "channel/oddly/bilibili_posted.json"),
-      ]);
-      const bq = bqR || [], blog = blogR || [], posted = postedR || [];
-      const postedSet = new Set(Array.isArray(posted) ? posted : []);
-      const pending = (Array.isArray(bq) ? bq : []).filter((q) => q && q.video_id && !postedSet.has(q.video_id));
-      state.bilibili = {
-        channel: "Oddly_Loop",
-        posted_total: Array.isArray(posted) ? posted.length : 0,
-        pending: pending.map((q) => ({ title: q.title || "Short", at: q.at || null })).slice(0, 10),
-        log: (Array.isArray(blog) ? blog : []).slice(0, 12),
-      };
-    } catch { state.bilibili = null; }
-
     // PENDIENTES POR APROBAR (para la ventana Resumen): privados sin programar de cada canal.
     // Data Lens usa su inventario (hidden ya filtrado); Oddly usa su list. Los "🕒 Programando…"
     // (pending_sched) NO cuentan como por-revisar: ya están en marcha.

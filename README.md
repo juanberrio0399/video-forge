@@ -155,7 +155,6 @@ En **GitHub → Settings → Secrets and variables → Actions** (solo nombres; 
 | `GH_TOKEN` | PAT fine-grained (Actions: read/write) para que un workflow encadene al siguiente y el Worker dispare la fábrica. |
 | `TELEGRAM_BOT_TOKEN`, `OWNER_CHAT_ID` | Avisos al chat. |
 | `CEREBRAS_API_KEY`, `GROQ_API_KEY`, `SAMBANOVA_API_KEY`, `OPENROUTER_API_KEY` | Opcionales. `pipeline/llm.mjs` los usa como relevo cuando Gemini se queda sin cuota; los que no tengan llave se saltan solos. |
-| `BILIBILI_COOKIE` | Repost de Shorts (opcional). |
 
 En el Worker, con `wrangler secret put`: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`,
 `OWNER_CHAT_ID`, `GH_TOKEN`. Los bindings (R2, AI, servicios) están en `bot/wrangler.toml`.

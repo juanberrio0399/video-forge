@@ -37,14 +37,14 @@ describe("al momento o al resumen", () => {
   });
   it("una falla diaria (cada 24 h) no interrumpe todos los dias y cuenta su racha", () => {
     const e = {};
-    const a = { wf: "Repostear a Bilibili (Oddly) — Fase 2", texto: "❌ Bilibili fallo" };
+    const a = { wf: "Sincronizar playlists (Oddly)", texto: "❌ Playlists fallo" };
     for (let dia = 0; dia < 4; dia++) {
       const t = t0 + dia * 24 * 3600e3;
       const d = clasificar(a, e, t);
       expect(d.modo).toBe(dia === 0 ? "ahora" : "resumen");
       registrar(e, a, d, new Date(t).toISOString());
     }
-    expect(e.cat["Repostear a Bilibili:falla"].racha).toBe(4);
+    expect(e.cat["Sincronizar playlists:falla"].racha).toBe(4);
   });
   it("lo aprendido manda sobre la regla", () => {
     const e = { cat: { "Producir compilacion:listo": { modo: "ahora" }, "Producir compilacion:falla": { modo: "resumen" } } };
