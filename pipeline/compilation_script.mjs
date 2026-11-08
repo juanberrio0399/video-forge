@@ -20,9 +20,21 @@ const [niche = "satisfying", out = "voicemap.json", variant = "narrado", kind = 
 let titulosUsados = [];
 try { titulosUsados = JSON.parse(fs.readFileSync("oddly_titles.json", "utf8")); } catch {}
 if (!Array.isArray(titulosUsados)) titulosUsados = [];
+// + los titulos REALES del canal (incluye privados y programados, que titles.json y el inventario no traen).
+// Sin esto la IA repetia titulos y la puerta de youtube_upload los frenaba con el video ya fabricado
+// (18 de 100 producciones del 25-oct al 8-nov). Si YouTube no responde, sigue con la lista de R2.
+if (process.env.YT_REFRESH_TOKEN) {
+  try {
+    const { titulosDelCanal, unirTitulos, tokenYouTube } = await import("./lib/titulo_unico.mjs");
+    const delCanal = await titulosDelCanal(await tokenYouTube());
+    titulosUsados = unirTitulos(titulosUsados, delCanal);
+    console.error(`titulos usados: ${titulosUsados.length} (${delCanal.length} leidos del canal, incluidos privados y programados)`);
+  } catch (e) { console.error(`Aviso: no pude leer los titulos del canal (${e.message}); uso la lista de R2.`); }
+}
 const noRepetir = titulosUsados.slice(-60);
 const bloqueNoRepetir = noRepetir.length
-  ? `TITLES ALREADY USED on this channel — writing any of them again is forbidden: ${noRepetir.join(" | ")}. `
+  ? `TITLES ALREADY USED on this channel (most recent last) — writing any of them again is forbidden, and so is a reworded version of the same idea: ${noRepetir.join(" | ")}. ` +
+    "Pick a DIFFERENT subject (another animal, object or phenomenon) from the most recent ones, not just a new wording. "
   : "";
 
 /** Revisa el titulo, reintenta una vez con la queja, y si insiste no produce.
