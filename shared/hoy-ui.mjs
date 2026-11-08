@@ -106,6 +106,12 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .marca .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .marca button{font-weight:600;font-size:12.5px;padding:7px 10px;border-radius:9px;background:var(--s3);white-space:nowrap}
 .cod{font:700 20px ui-monospace,Consolas,monospace;letter-spacing:.1em;margin:4px 0}
+.proys{display:flex;gap:6px;overflow-x:auto;margin:0 0 10px;padding-bottom:2px;scrollbar-width:none}
+.proys::-webkit-scrollbar{display:none}
+.chip{flex:none;max-width:70vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--s2);color:var(--t2);font-size:12.5px;font-weight:600}
+.chip b{color:var(--t3);font-weight:600;margin-left:3px}
+.chip.on{background:var(--t1);color:var(--inv);border-color:var(--t1)}.chip.on b{color:var(--inv);opacity:.6}
+.vp{font-size:11.5px;color:var(--t3);font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 `;
 
 export const HOY_JS = `
@@ -340,9 +346,18 @@ export const HOY_JS = `
 
   // ---------- Hoja de Signal Halo: ver, bajar, copiar titulo y marcar sin salir de Inicio ----------
   // El reproductor solo se cambia si cambia el video: una actualizacion en vivo no corta lo que estas viendo.
-  var SH = { d: null, i: 0, titulos: {}, enlaces: {}, ver: null, cargando: null };
+  var SH = { d: null, i: 0, titulos: {}, enlaces: {}, ver: null, cargando: null, proyecto: null };
   var NOMBRE = { usado: "USADO", no_se_usara: "NO SE USARÁ" };
-  function porUsar() { return ((SH.d && SH.d.videos) || []).filter(function (v) { return !v.borrado && v.estado === "listo"; }); }
+  function todosPorUsar() {
+    return ((SH.d && SH.d.videos) || []).filter(function (v) { return !v.borrado && v.estado === "listo"; })
+      .sort(function (a, b) { return a.proyecto === b.proyecto ? ((a.archivo || "") < (b.archivo || "") ? -1 : 1) : (a.proyecto < b.proyecto ? 1 : -1); });
+  }
+  function porUsar() { return todosPorUsar().filter(function (v) { return !SH.proyecto || v.proyecto === SH.proyecto; }); }
+  function proyectos() {
+    var c = {}, orden = [];
+    todosPorUsar().forEach(function (v) { if (!c[v.proyecto]) { c[v.proyecto] = 0; orden.push(v.proyecto); } c[v.proyecto]++; });
+    return orden.map(function (k) { return { nombre: k, n: c[k] }; });
+  }
   function gbs(b) { return (Math.round((Number(b) || 0) / 107374182.4) / 10).toFixed(1) + " GB"; }
   function mbs(b) { return Math.round((Number(b) || 0) / 1048576) + " MB"; }
   function reloj(s) { s = Math.round(s || 0); var x = s % 60; return Math.floor(s / 60) + ":" + (x < 10 ? "0" : "") + x; }
@@ -381,6 +396,7 @@ export const HOY_JS = `
   }
   function pintarSH() {
     if (S.hoja !== "signal-halo" || !$("sh-cuerpo") || !SH.d) return;
+    if (SH.proyecto && !todosPorUsar().some(function (v) { return v.proyecto === SH.proyecto; })) SH.proyecto = null;
     var d = SH.d, lista = porUsar();
     if (SH.i >= lista.length) SH.i = Math.max(0, lista.length - 1);
     var v = lista[SH.i];
@@ -391,6 +407,7 @@ export const HOY_JS = `
     var mismo = reproductor && v && reproductor.getAttribute("data-id") === v.id;
     if (!mismo) {
       cuerpo.innerHTML = '<div class="barra"><i style="width:' + Math.min(100, d.limite ? d.uso / d.limite * 100 : 0).toFixed(1) + '%"></i></div>' +
+        '<div class="proys" id="sh-proys"></div>' +
         (v ? '<div class="reproductor' + (v.formato === "vertical" ? " vert" : "") + '" id="sh-rep" data-id="' + esc(v.id) + '"><div class="msj" id="sh-msj">Preparando el video…</div></div>' : '') +
         '<div id="sh-info"></div><div id="sh-otros"></div>';
       if (v) cargarVideo(v);
@@ -398,11 +415,15 @@ export const HOY_JS = `
       var barra = cuerpo.querySelector(".barra i");
       if (barra) barra.style.width = Math.min(100, d.limite ? d.uso / d.limite * 100 : 0).toFixed(1) + "%";
     }
+    var ps = proyectos();
+    if ($("sh-proys")) $("sh-proys").innerHTML = ps.length > 1 ? '<button class="chip' + (!SH.proyecto ? " on" : "") + '" data-sh="proy" data-p="">Todos <b>' + todosPorUsar().length + '</b></button>' + ps.map(function (x, i) {
+      return '<button class="chip' + (SH.proyecto === x.nombre ? " on" : "") + '" data-sh="proy" data-p="' + (i + 1) + '">' + esc(x.nombre) + ' <b>' + x.n + '</b></button>';
+    }).join("") : "";
     var info = "";
     if (v) {
       var elegido = SH.titulos[v.id] || v.titulo;
       var opciones = [v.titulo].concat(v.opciones || []).filter(function (x, i, a) { return x && a.indexOf(x) === i; });
-      info += '<div class="vt">' + esc(elegido) + '</div><div class="vm">' + esc(v.proyecto) + ' · ' + reloj(v.duracion) + ' · ' + (v.formato === "horizontal" ? "Horizontal" : "Vertical") + ' · ' + mbs(v.bytes) + '</div>';
+      info += '<div class="vp">' + esc(v.proyecto) + '</div><div class="vt">' + esc(elegido) + '</div><div class="vm">' + esc(v.archivo || "") + ' · ' + reloj(v.duracion) + ' · ' + (v.formato === "horizontal" ? "Horizontal" : "Vertical") + ' · ' + mbs(v.bytes) + '</div>';
       if (opciones.length > 1) info += '<div class="alts">' + opciones.map(function (o, i) { return '<button class="alt" data-sh="titulo" data-n="' + i + '"><span>' + esc(o) + '</span><em>' + (o === elegido ? "✓ usando" : "Usar") + '</em></button>'; }).join("") + '</div>';
       info += '<div class="acc"><button data-sh="bajar">⬇ Descargar</button><button data-sh="copiar">⧉ Copiar título</button>' +
         '<button class="si" data-sh="marcar" data-e="usado">✓ USADO</button><button class="no" data-sh="marcar" data-e="no_se_usara">✕ NO SE USARÁ</button></div>';
@@ -466,6 +487,10 @@ export const HOY_JS = `
   }
   function accionSH(b) {
     var que = b.getAttribute("data-sh"), lista = porUsar(), v = lista[SH.i];
+    if (que === "proy") {
+      vib(); var k = Number(b.getAttribute("data-p") || 0), ps = proyectos();
+      SH.proyecto = k > 0 && ps[k - 1] ? ps[k - 1].nombre : null; SH.i = 0; pintarSH(); return;
+    }
     if (que === "ant" || que === "sig") { vib(); SH.i = Math.max(0, Math.min(lista.length - 1, SH.i + (que === "sig" ? 1 : -1))); pintarSH(); return; }
     if (que === "titulo" && v) {
       vib();
