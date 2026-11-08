@@ -26,15 +26,16 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     // Mini App (interfaz "tipo app pro" dentro de Telegram).
-    if (url.pathname === "/os") {
-      // AI OS: app común (Pulse · Trabajo · Decisiones) de Video Forge. El panel detallado sigue en /app2.
+    if (url.pathname === "/os" || ((url.pathname === "/app2" || url.pathname === "/app") && url.searchParams.get("from") !== "os")) {
+      // Botones viejos (mensajes anteriores, BotFather, menus guardados): todos abren la pantalla de Inicio.
+      return new Response(hoyHtml({ build: env.APP_BUILD || "dev" }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
+    }
+    if (url.pathname === "/cerebro") {
+      // El cerebro de siempre (Cerebro · Decisiones · Sistemas · Actividad), ahora fuera de la entrada principal.
       return new Response(osUnifiedHtml({ build: env.APP_BUILD }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
     }
     // Entradas viejas (/app2, /app) desde botones ya enviados, BotFather o un menú de chat: abren el AI OS.
     // El panel detallado se abre desde el OS con ?from=os (y así vuelve al OS con el botón atrás).
-    if ((url.pathname === "/app2" || url.pathname === "/app") && url.searchParams.get("from") !== "os") {
-      return new Response(osUnifiedHtml({ build: env.APP_BUILD }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
-    }
     // AI OS en un solo bot: paneles completos de los tres sistemas, con barra "‹ Cerebro / dónde estás".
     // Pantalla unica (Inicio): lo que te pide algo, una linea por sistema y lo ultimo. En vivo por /vivo.
     if (request.method === "GET" && url.pathname === "/hoy") {
@@ -1353,7 +1354,7 @@ async function handleMessage(message, env) {
       return tg(env, "sendMessage", {
         chat_id: chatId,
         text: isRadar ? "📡 Radar: tus repos, mejoras y PRs listos para revisar." : "🧠 El cerebro: qué decidió, por qué y qué te espera.",
-        reply_markup: { inline_keyboard: [[{ text: isRadar ? "📡 Abrir Radar" : "🧠 Abrir el cerebro", web_app: { url: "https://video-forge-bot.tienvo.workers.dev" + (isRadar ? "/p/radar?from=os" : "/os") } }]] },
+        reply_markup: { inline_keyboard: [[{ text: isRadar ? "📡 Abrir Radar" : "🏠 Abrir Inicio", web_app: { url: "https://video-forge-bot.tienvo.workers.dev" + (isRadar ? "/p/radar?from=hoy" : "/hoy") } }]] },
       });
     }
   }
@@ -1637,8 +1638,8 @@ async function handleCallback(cb, env) {
 const KB = {
   home: {
     inline_keyboard: [
-      [{ text: "🧠 Abrir el cerebro", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/os" } }],
-      [{ text: "🎬 Canales", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/p/video-forge?from=os" } }, { text: "🛍️ Tienda", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/p/viento?from=os" } }, { text: "📡 Repos", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/p/radar?from=os" } }],
+      [{ text: "🏠 Abrir Inicio", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/hoy" } }],
+      [{ text: "🎬 Canales", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/p/video-forge?from=hoy" } }, { text: "🛍️ Tienda", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/p/viento?from=hoy" } }, { text: "📡 Repos", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/p/radar?from=hoy" } }],
       [{ text: "🎬 Video", callback_data: "menu:video" }, { text: "📊 Canal", callback_data: "menu:canal" }],
       [{ text: "🖼️ Foto", callback_data: "menu:foto" }, { text: "🎤 Voces", callback_data: "menu:voces" }],
       [{ text: "🍳 Recetas", callback_data: "menu:recetas" }, { text: "❓ Ayuda", callback_data: "menu:ayuda" }],
@@ -1690,7 +1691,7 @@ async function sendMenu(env, chatId) {
   // Boton de menu de Telegram que abre la Mini App (interfaz tipo app).
   await tg(env, "setChatMenuButton", {
     chat_id: chatId,
-    menu_button: { type: "web_app", text: "Cerebro", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/os?v=" + encodeURIComponent(String(env.APP_BUILD || "dev")) } },
+    menu_button: { type: "web_app", text: "Inicio", web_app: { url: "https://video-forge-bot.tienvo.workers.dev/hoy?v=" + encodeURIComponent(String(env.APP_BUILD || "dev")) } },
   });
   await tg(env, "setMyCommands", {
     commands: [

@@ -82,6 +82,30 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .inicio{display:none;width:100%;margin-top:14px;padding:11px 12px;border-radius:12px;border:1px dashed var(--line);font-size:12.5px;color:var(--t2);text-align:left}
 .inicio.on{display:block}
 .pie{margin-top:16px;text-align:center;font-size:11px;color:var(--t3)}
+.reproductor{position:relative;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:16/9;margin-bottom:10px}
+.reproductor.vert{aspect-ratio:9/16;max-height:52vh;margin-left:auto;margin-right:auto}
+.reproductor video{width:100%;height:100%;display:block;background:#000;object-fit:contain}
+.reproductor .msj{position:absolute;inset:0;display:grid;place-items:center;color:var(--t2);font-size:13px;text-align:center;padding:16px}
+.vt{font-weight:650;font-size:15.5px;line-height:1.3}
+.vm{font-size:12px;color:var(--t3);margin-top:3px}
+.alts{display:flex;flex-direction:column;gap:5px;margin-top:10px}
+.alt{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;font-size:12.5px;color:var(--t2);padding:9px 11px;border-radius:10px;background:var(--s2)}
+.alt em{font-style:normal;font-weight:600;color:var(--t1);white-space:nowrap}
+.acc{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.acc button{height:44px;border-radius:12px;background:var(--s2);font-weight:600;font-size:13.5px;display:flex;align-items:center;justify-content:center;gap:6px}
+.acc .si{background:var(--t1);color:var(--inv)}
+.acc .no{background:transparent;border:1px solid var(--line);color:var(--t2)}
+.nav{display:flex;align-items:center;gap:8px;margin-top:12px}
+.nav button{height:38px;padding:0 12px;border-radius:10px;background:var(--s2);font-size:13px;font-weight:600}
+.nav button:disabled{opacity:.35}
+.nav span{flex:1;text-align:center;font-size:12px;color:var(--t3)}
+.barra{height:5px;border-radius:9px;background:var(--s3);overflow:hidden;margin:2px 0 12px}
+.barra i{display:block;height:100%;background:var(--t2)}
+.marca{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);font-size:13px}
+.marca:last-child{border-bottom:0}.marca .tx{flex:1;min-width:0}.marca .d{font-size:11.5px;color:var(--t3)}
+.marca .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.marca button{font-weight:600;font-size:12.5px;padding:7px 10px;border-radius:9px;background:var(--s3);white-space:nowrap}
+.cod{font:700 20px ui-monospace,Consolas,monospace;letter-spacing:.1em;margin:4px 0}
 `;
 
 export const HOY_JS = `
@@ -161,7 +185,7 @@ export const HOY_JS = `
     var op = { headers: { "X-Init-Data": tg ? tg.initData : "" }, cache: "no-store" };
     if (datos !== undefined) { op.method = "POST"; op.headers["content-type"] = "application/json"; op.body = JSON.stringify(datos); }
     return conTope(fetch(ruta, op).catch(function () {
-      throw new Error(navigator.onLine === false ? "Sin internet. Reintento solo cuando vuelva." : "No pude conectar con el bot. Reintento solo.");
+      throw new Error(navigator.onLine === false ? "Sin internet. Revisa la conexión y vuelve a intentar." : "No pude conectar con el bot. Revisa la conexión y vuelve a intentar.");
     }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
         if (r.status === 403) throw new Error("Sesión vencida: cierra y abre la app desde el botón del bot.");
@@ -269,7 +293,8 @@ export const HOY_JS = `
     var act = d.actividad || [];
     $("actividad").innerHTML = act.length ? act.map(function (e) { return '<div class="ev"><span class="tm">' + esc(hora(e.at)) + '</span><span><b>' + esc(e.name) + '</b> · ' + esc(e.text) + '</span></div>'; }).join("") : '<div class="vacio">Sin movimientos recientes.</div>';
     principal();
-    if (S.hoja) abrirSistema(S.hoja, true);
+    if (S.hoja === "signal-halo") recargarSH(false).catch(function () {});      // en vivo: refresca la hoja sin cortar el video
+    else if (S.hoja) abrirSistema(S.hoja, true);
   }
 
   // ---------- Boton principal: la accion mas importante del momento ----------
@@ -283,6 +308,7 @@ export const HOY_JS = `
   // ---------- Hoja de un sistema (todo detalle se abre aqui; "atras" la cierra) ----------
   function sistema(id) { return ((S.datos && S.datos.sistemas) || []).filter(function (s) { return s.id === id; })[0]; }
   function abrirSistema(id, solo) {
+    if (id === "signal-halo") return abrirSH(null, solo);
     var s = sistema(id); if (!s) return;
     S.hoja = id;
     var needs = (S.datos.paraTi || []).filter(function (n) { return n.system === id; });
@@ -312,6 +338,161 @@ export const HOY_JS = `
   }
   function fmt(v) { var n = Number(v); if (!isFinite(n)) return "—"; return n >= 1e4 ? Math.round(n / 1e3) + "k" : n >= 1e3 ? (n / 1e3).toFixed(1).replace(/\\.0$/, "") + "k" : String(Math.round(n * 10) / 10); }
 
+  // ---------- Hoja de Signal Halo: ver, bajar, copiar titulo y marcar sin salir de Inicio ----------
+  // El reproductor solo se cambia si cambia el video: una actualizacion en vivo no corta lo que estas viendo.
+  var SH = { d: null, i: 0, titulos: {}, enlaces: {}, ver: null, cargando: null };
+  var NOMBRE = { usado: "USADO", no_se_usara: "NO SE USARÁ" };
+  function porUsar() { return ((SH.d && SH.d.videos) || []).filter(function (v) { return !v.borrado && v.estado === "listo"; }); }
+  function gbs(b) { return (Math.round((Number(b) || 0) / 107374182.4) / 10).toFixed(1) + " GB"; }
+  function mbs(b) { return Math.round((Number(b) || 0) / 1048576) + " MB"; }
+  function reloj(s) { s = Math.round(s || 0); var x = s % 60; return Math.floor(s / 60) + ":" + (x < 10 ? "0" : "") + x; }
+  function abrirSH(ver, solo) {
+    S.hoja = "signal-halo"; SH.ver = ver || SH.ver;
+    if (!solo) {
+      $("hoja").innerHTML = '<div class="agarre"></div><div class="hh"><div class="mk">SH</div><div><div class="n">Signal Halo</div><div class="m" id="sh-sub">Cargando…</div></div><button class="x" data-cerrar="1" aria-label="Cerrar">✕</button></div>' +
+        '<div id="sh-cuerpo"><div class="ske"></div><div class="ske"></div></div>';
+      $("velo").className = "velo on"; $("hoja").className = "hoja on"; $("hoja").scrollTop = 0;
+      try { tg.BackButton.show(); } catch (e) {}
+      principal();
+    }
+    return recargarSH(!solo).catch(function () {});     // si falla, la hoja muestra el error y un Reintentar
+  }
+  // Devuelve una promesa que FALLA si no se pudo cargar (los botones muestran el error); el refresco en vivo la ignora.
+  function recargarSH(mostrarError) {
+    if (!SH.cargando) {
+      SH.cargando = api("/v/signal-halo/api/estado").then(function (d) {
+        SH.d = d; SH.cargando = null; pintarSH();
+      }, function (e) {
+        SH.cargando = null;
+        if (mostrarError && $("sh-cuerpo") && !SH.d) $("sh-cuerpo").innerHTML = '<div class="aviso">' + esc(e.message) + ' <button data-sh="recargar">Reintentar</button></div>';
+        throw e;
+      });
+    }
+    return SH.cargando;
+  }
+  function enlace(id, bajar) {
+    var k = id + (bajar ? ":dl" : ""), c = SH.enlaces[k];
+    if (c && c.vence > Date.now()) return Promise.resolve(c.url);
+    return api("/v/signal-halo/api/enlace?id=" + encodeURIComponent(id) + (bajar ? "&dl=1" : "")).then(function (r) {
+      if (!r.url) throw new Error("No pude preparar el video.");
+      SH.enlaces[k] = { url: r.url, vence: Date.now() + 5 * 3600000 };     // el link firmado dura 6 h
+      return r.url;
+    });
+  }
+  function pintarSH() {
+    if (S.hoja !== "signal-halo" || !$("sh-cuerpo") || !SH.d) return;
+    var d = SH.d, lista = porUsar();
+    if (SH.i >= lista.length) SH.i = Math.max(0, lista.length - 1);
+    var v = lista[SH.i];
+    $("sh-sub").textContent = (lista.length ? lista.length + " por usar" : "Nada por usar") + " · " + gbs(d.uso) + " de " + gbs(d.limite);
+    var pend = (d.pcs || []).filter(function (p) { return p.estado === "pendiente"; });
+    var marcados = (d.videos || []).filter(function (x) { return !x.borrado && (x.estado === "usado" || x.estado === "no_se_usara"); });
+    var cuerpo = $("sh-cuerpo"), reproductor = $("sh-rep");
+    var mismo = reproductor && v && reproductor.getAttribute("data-id") === v.id;
+    if (!mismo) {
+      cuerpo.innerHTML = '<div class="barra"><i style="width:' + Math.min(100, d.limite ? d.uso / d.limite * 100 : 0).toFixed(1) + '%"></i></div>' +
+        (v ? '<div class="reproductor' + (v.formato === "vertical" ? " vert" : "") + '" id="sh-rep" data-id="' + esc(v.id) + '"><div class="msj" id="sh-msj">Preparando el video…</div></div>' : '') +
+        '<div id="sh-info"></div><div id="sh-otros"></div>';
+      if (v) cargarVideo(v);
+    } else {
+      var barra = cuerpo.querySelector(".barra i");
+      if (barra) barra.style.width = Math.min(100, d.limite ? d.uso / d.limite * 100 : 0).toFixed(1) + "%";
+    }
+    var info = "";
+    if (v) {
+      var elegido = SH.titulos[v.id] || v.titulo;
+      var opciones = [v.titulo].concat(v.opciones || []).filter(function (x, i, a) { return x && a.indexOf(x) === i; });
+      info += '<div class="vt">' + esc(elegido) + '</div><div class="vm">' + esc(v.proyecto) + ' · ' + reloj(v.duracion) + ' · ' + (v.formato === "horizontal" ? "Horizontal" : "Vertical") + ' · ' + mbs(v.bytes) + '</div>';
+      if (opciones.length > 1) info += '<div class="alts">' + opciones.map(function (o, i) { return '<button class="alt" data-sh="titulo" data-n="' + i + '"><span>' + esc(o) + '</span><em>' + (o === elegido ? "✓ usando" : "Usar") + '</em></button>'; }).join("") + '</div>';
+      info += '<div class="acc"><button data-sh="bajar">⬇ Descargar</button><button data-sh="copiar">⧉ Copiar título</button>' +
+        '<button class="si" data-sh="marcar" data-e="usado">✓ USADO</button><button class="no" data-sh="marcar" data-e="no_se_usara">✕ NO SE USARÁ</button></div>';
+      if (lista.length > 1) info += '<div class="nav"><button data-sh="ant"' + (SH.i === 0 ? " disabled" : "") + '>‹ Anterior</button><span>' + (SH.i + 1) + ' de ' + lista.length + '</span><button data-sh="sig"' + (SH.i >= lista.length - 1 ? " disabled" : "") + '>Siguiente ›</button></div>';
+    } else {
+      info += '<div class="lista"><div class="vacio">No hay videos por usar. Los que apruebes en Studio llegan aquí solos.</div></div>';
+    }
+    $("sh-info").innerHTML = info;
+    var otros = "";
+    if (pend.length) otros += '<div class="sec" id="sh-pcs" style="margin-top:16px">PC que piden acceso</div><div class="lista">' + pend.map(function (p) {
+      var c = String(p.codigo || "");
+      return '<div class="marca" style="display:block"><div class="t">' + esc(p.nombre) + (p.usuario ? " · " + esc(p.usuario) : "") + '</div><div class="d">Confirma que Studio muestre este código:</div><div class="cod">' + esc(c.slice(0, 3) + " " + c.slice(3)) + '</div>' +
+        '<div class="acc" style="margin-top:6px"><button class="no" data-sh="pc" data-x="revocar" data-id="' + esc(p.id) + '">Rechazar</button><button class="si" data-sh="pc" data-x="autorizar" data-id="' + esc(p.id) + '">Autorizar</button></div></div>';
+    }).join("") + '</div>';
+    if (marcados.length) otros += '<div class="sec" style="margin-top:16px">Marcados <span>se borran de la nube a las 24 h</span></div><div class="lista">' + marcados.map(function (x) {
+      return '<div class="marca"><div class="tx"><div class="t">' + esc(x.titulo) + '</div><div class="d">' + esc(NOMBRE[x.estado]) + ' · ' + esc(faltan(x.borrar_en)) + '</div></div><button data-sh="deshacer" data-id="' + esc(x.id) + '">Deshacer</button></div>';
+    }).join("") + '</div>';
+    otros += '<button class="btn sec" data-panel="signal-halo">Historial y PC autorizados</button>';
+    $("sh-otros").innerHTML = otros;
+    if (SH.ver === "pcs" && $("sh-pcs")) { $("sh-pcs").scrollIntoView({ block: "start" }); SH.ver = null; }
+  }
+  function cargarVideo(v) {
+    enlace(v.id, false).then(function (url) {
+      var r = $("sh-rep"); if (!r || r.getAttribute("data-id") !== v.id) return;
+      r.innerHTML = '<video controls playsinline preload="metadata"></video>';
+      var vid = r.querySelector("video");
+      vid.addEventListener("error", function () {
+        SH.enlaces[v.id] = null;
+        r.innerHTML = '<div class="msj">No pude reproducir el video.<br><button class="go" data-sh="reintentar-video" style="margin-top:8px">Reintentar</button></div>';
+      });
+      vid.src = url;
+    }, function (e) {
+      var r = $("sh-rep"); if (!r || r.getAttribute("data-id") !== v.id) return;
+      r.innerHTML = '<div class="msj">' + esc(e.message) + '<br><button class="go" data-sh="reintentar-video" style="margin-top:8px">Reintentar</button></div>';
+    });
+  }
+  function faltan(iso) { var h = Math.round((new Date(iso) - Date.now()) / 3600000); return isNaN(h) ? "" : h <= 1 ? "se borra en menos de 1 h" : "se borra en " + h + " h"; }
+  function copiarTexto(texto) {
+    return new Promise(function (ok, mal) {
+      function clasico() {
+        var a = document.createElement("textarea"); a.value = texto; a.setAttribute("readonly", ""); a.style.position = "fixed"; a.style.opacity = "0";
+        document.body.appendChild(a); a.select(); var bien = false;
+        try { bien = document.execCommand("copy"); } catch (e) { bien = false; }
+        a.remove();
+        if (bien) ok(); else mal(new Error("No pude copiar. Mantén presionado el título para copiarlo."));
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(texto).then(ok, clasico); else clasico();
+    });
+  }
+  function bajar(v) {
+    return enlace(v.id, true).then(function (url) {
+      var nombre = String(SH.titulos[v.id] || v.titulo || "video").replace(/[/:*?"<>|]/g, "").trim().slice(0, 80) + ".mp4";
+      return new Promise(function (ok) {
+        if (tg && tg.downloadFile && tg.isVersionAtLeast && tg.isVersionAtLeast("8.0")) {
+          try { tg.downloadFile({ url: url, file_name: nombre }, function (acepto) { ok(acepto ? "Descargando al celular" : "Descarga cancelada"); }); return; } catch (e) {}
+        }
+        try { tg.openLink(url); } catch (e) { window.open(url, "_blank"); }
+        ok("Abrí el video para descargarlo");
+      });
+    });
+  }
+  function accionSH(b) {
+    var que = b.getAttribute("data-sh"), lista = porUsar(), v = lista[SH.i];
+    if (que === "ant" || que === "sig") { vib(); SH.i = Math.max(0, Math.min(lista.length - 1, SH.i + (que === "sig" ? 1 : -1))); pintarSH(); return; }
+    if (que === "titulo" && v) {
+      vib();
+      var ops = [v.titulo].concat(v.opciones || []).filter(function (x, i, a) { return x && a.indexOf(x) === i; });
+      SH.titulos[v.id] = ops[Number(b.getAttribute("data-n"))] || v.titulo; pintarSH(); return;
+    }
+    if (que === "reintentar-video" && v) { vib(); SH.enlaces[v.id] = null; var r = $("sh-rep"); if (r) r.removeAttribute("data-id"); pintarSH(); return; }
+    if (que === "recargar") return correr(b, function () { return recargarSH(true); });
+    if (que === "copiar" && v) return correr(b, function () { return copiarTexto(SH.titulos[v.id] || v.titulo); }, { exito: "Título copiado" });
+    if (que === "bajar" && v) return correr(b, function () { return bajar(v).then(function (m) { toast(m); }); });
+    if (que === "marcar" && v) {
+      var estado = b.getAttribute("data-e");
+      return correr(b, function () {
+        return api("/v/signal-halo/api/marcar", { id: v.id, estado: estado }).then(function () { return recargarSH(false); });
+      }, { exito: "Marcado " + NOMBRE[estado] + " · se borra de la nube en 24 h" });
+    }
+    if (que === "deshacer") return correr(b, function () {
+      return api("/v/signal-halo/api/marcar", { id: b.getAttribute("data-id"), estado: "listo" }).then(function () { return recargarSH(false); });
+    }, { exito: "Desmarcado: vuelve a Por usar" });
+    if (que === "pc") {
+      var x = b.getAttribute("data-x");
+      return correr(b, function () {
+        return api("/v/signal-halo/api/pc", { id: b.getAttribute("data-id"), accion: x }).then(function () { return recargarSH(false); });
+      }, { exito: x === "autorizar" ? "PC autorizado: ya puede subir videos" : "Acceso rechazado" });
+    }
+  }
+
   // ---------- Ir a un panel completo o a un link ----------
   function irPanel(id, ver) {
     var s = sistema(id); if (!s) throw new Error("Ese sistema no está disponible.");
@@ -321,6 +502,7 @@ export const HOY_JS = `
   function resolver(needId) {
     var n = ((S.datos && S.datos.paraTi) || []).filter(function (x) { return x.id === needId; })[0];
     if (!n) throw new Error("Eso ya se resolvió. Actualizo la pantalla.");
+    if (n.system === "signal-halo") { abrirSH(n.ver || null); return Promise.resolve(); }
     if (n.url && /^https:\\/\\//.test(n.url)) { try { tg.openLink(n.url); } catch (e) { window.open(n.url, "_blank"); } return Promise.resolve(); }
     return irPanel(n.system, n.ver);
   }
@@ -329,6 +511,7 @@ export const HOY_JS = `
   document.addEventListener("click", function (ev) {
     var b = ev.target.closest("button"); if (!b) { if (ev.target.id === "velo") cerrarHoja(); return; }
     if (b.hasAttribute("data-cerrar")) { vib(); return cerrarHoja(); }
+    if (b.hasAttribute("data-sh")) return accionSH(b);
     if (b.hasAttribute("data-sis")) { vib(); return abrirSistema(b.getAttribute("data-sis")); }
     if (b.hasAttribute("data-need")) return correr(b, function () { return resolver(b.getAttribute("data-need")); }, { tope: 20000 }).then(function () { refrescar("accion").catch(function () {}); });
     if (b.hasAttribute("data-panel")) return correr(b, function () { return irPanel(b.getAttribute("data-panel")); }, { tope: 20000 });
