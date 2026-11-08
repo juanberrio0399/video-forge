@@ -9,6 +9,7 @@ import { execSync, execFileSync } from "node:child_process";
 import { esDuplicado, ubicacionValida, necesitaVerificacion, veredicto, promptVerificacion } from "./lib/radar_filtro.mjs";
 import { dependencias, consultas, bloqueFuentes } from "./lib/radar_respaldo.mjs";
 import { genText } from "./llm.mjs";
+import { cupo, cerradosQueCuentan, POR_SEMANA, TECHO } from "./lib/radar_backlog.mjs";
 
 // Plan B sin Gemini: redacta la cadena gratis de llm.mjs. Sin OpenRouter: sus modelos gratis pueden
 // guardar lo que reciben y el radar lee repos privados.
@@ -16,7 +17,7 @@ const SALTAR = ["Gemini", "OpenRouter"];
 
 const REPO = (process.env.RADAR_REPO || process.env.GITHUB_REPOSITORY || "").trim();
 const KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY2].filter(Boolean);
-const MAX_ISSUES = Number(process.env.RADAR_MAX || 4);       // tope de issues nuevos por corrida
+const MAX_SEMANA = Number(process.env.RADAR_MAX || POR_SEMANA);   // tope de issues nuevos por corrida (ver lib/radar_backlog.mjs)
 if (!REPO) { console.error("Falta RADAR_REPO (owner/repo)."); process.exit(2); }
 if (!KEYS.length) { console.error("Falta GEMINI_API_KEY."); process.exit(2); }
 
@@ -40,11 +41,15 @@ const langs = tracked.map((p) => (p.match(/\.([a-zA-Z0-9]+)$/) || [])[1]).filter
   .reduce((m, e) => (m[e] = (m[e] || 0) + 1, m), {});
 const topLangs = Object.entries(langs).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([e, n]) => `.${e}(${n})`).join(" ");
 
-const existing = JSON.parse(shq(`gh issue list -R ${REPO} --state open --limit 200 --json number,title`) || "[]");
+const existing = JSON.parse(shq(`gh issue list -R ${REPO} --state open --limit 200 --json number,title,labels`) || "[]");
 const existingTitles = existing.map((i) => i.title);
 // Los CERRADOS tambien cuentan: lo que se cerro por falso o ya hecho no debe volver a proponerse.
-const closed = JSON.parse(shq(`gh issue list -R ${REPO} --state closed --limit 200 --json number,title`) || "[]");
-const closedTitles = closed.map((i) => i.title);
+const closed = JSON.parse(shq(`gh issue list -R ${REPO} --state closed --limit 200 --json number,title,labels`) || "[]");
+const closedTitles = cerradosQueCuentan(closed);     // los que vencieron solos pueden volver si siguen siendo relevantes
+// No acumular: maximo MAX_SEMANA por corrida y nunca mas de TECHO ideas `radar` abiertas en el repo.
+const abiertasRadar = existing.filter((i) => (i.labels || []).some((l) => l.name === "radar")).length;
+const MAX_ISSUES = cupo(abiertasRadar, MAX_SEMANA);
+if (!MAX_ISSUES) { console.log(`Radar scan de ${REPO}: ya hay ${abiertasRadar} ideas abiertas (techo ${TECHO}); esta semana no agrego más.`); process.exit(0); }
 const isDup = (title) => esDuplicado(title, [...existingTitles, ...closedTitles]);
 const HOY = new Date().toISOString().slice(0, 10);
 
@@ -71,7 +76,7 @@ Cubre estas dimensiones (mezcla mejorar + crecer, prioriza señal sobre ruido):
 
 REGLAS:
 - ⛔ SOLO GRATIS: descarta cualquier hallazgo cuya solución dependa de algo de pago (ver restricción arriba). Solo herramientas/APIs/servicios gratis sostenibles (open-source o free tier sin tarjeta).
-- Devuelve SOLO un arreglo JSON (sin prosa, sin markdown alrededor). Entre 2 y ${MAX_ISSUES} hallazgos, calidad sobre cantidad.
+- Devuelve SOLO un arreglo JSON (sin prosa, sin markdown alrededor). Entre 1 y ${MAX_ISSUES} hallazgos, calidad sobre cantidad.
 - NO repitas temas ya cubiertos por estos issues abiertos: ${existingTitles.map((t) => `"${t}"`).join(", ") || "(ninguno)"}.
 - Tampoco propongas de nuevo lo ya CERRADO (resuelto o descartado por falso): ${closedTitles.slice(0, 120).map((t) => `"${t}"`).join(", ") || "(ninguno)"}.
 - Si afirmas que algo del código está mal o desactualizado, tiene que poder verificarse en el archivo de "location": antes de crear el issue se compara contra el código real y se descarta si no se confirma.
