@@ -2123,8 +2123,12 @@ async function tgDownloadFile(env, fileId) {
 // el, 2026-07-24). El registro `voice/registry.json` lista las voces disponibles.
 
 function slugifyVoice(s) {
-  return String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24) || "voz";
+  // Corta antes de procesar y quita los "_" de los bordes sin regex (CodeQL: evita lentitud con muchos "_").
+  let x = String(s).slice(0, 200).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_");
+  let i = 0, j = x.length;
+  while (i < j && x[i] === "_") i++;
+  while (j > i && x[j - 1] === "_") j--;
+  return x.slice(i, j).slice(0, 24) || "voz";
 }
 
 async function handleVoiceRegister(message, env, chatId) {

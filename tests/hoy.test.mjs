@@ -93,10 +93,11 @@ describe("cliente de la pantalla", () => {
     expect(HOY_JS.includes("`")).toBe(false);
     expect(HOY_JS.includes("${")).toBe(false);
     expect(HOY_CSS.includes("${")).toBe(false);
-    const f = path.join(os.tmpdir(), "hoy_cliente_" + process.pid + ".js");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hoy-"));      // carpeta unica: nadie puede adelantarse al archivo
+    const f = path.join(dir, "cliente.js");
     fs.writeFileSync(f, HOY_JS);
     expect(() => execFileSync(process.execPath, ["--check", f])).not.toThrow();
-    fs.unlinkSync(f);
+    fs.rmSync(dir, { recursive: true, force: true });
   });
   it("todo boton pasa por correr(): puntitos, tope y vuelve a su estado", () => {
     expect(HOY_JS).toContain("function correr(btn, fn, opciones)");
