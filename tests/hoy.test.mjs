@@ -127,6 +127,11 @@ describe("cliente de la pantalla", () => {
     expect(HOY_JS).toContain("Date.now() - w.desde > 900000");                                // la vigilancia siempre termina
     expect(HOY_JS).toContain('if (n.system === "radar") { abrirRA(false, n.id)');
   });
+  it("Video Forge tiene su hoja de solo lectura: plan del dia, tareas con su error y Data Lens", () => {
+    for (const x of ["function abrirVF(", "function pintarVF(", '"/api/os"', "/api/error-detail?run=", "data_lens"]) expect(HOY_JS).toContain(x);
+    const bloque = HOY_JS.slice(HOY_JS.indexOf("function accionVF("), HOY_JS.indexOf("// ---------- Ir a un panel completo"));
+    expect(bloque).not.toMatch(/\/api\/(approve|schedule|dispatch|oddly-publish|thumb-approve|upload)/);     // aqui nada se aprueba
+  });
   it("leer el estado de un panel no dispara el aviso en vivo (si no, la app entra en bucle)", () => {
     const bot = fs.readFileSync(path.join(__dirname, "../bot/src/index.js"), "utf8");
     expect(bot).toContain('!/\\/api\\/(state|os|estado)$/.test(apiMatch[2])');
