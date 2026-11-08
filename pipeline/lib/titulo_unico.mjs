@@ -34,3 +34,16 @@ export function repetido(titulo, usados) {
   if (!t) return null;
   return (usados || []).find((u) => normalizar(u) === t) || null;
 }
+
+/** Une sin repetir (comparando normalizado) los títulos que ya había con los del canal (que llegan del más
+ *  nuevo al más viejo). Los del canal quedan al FINAL, del más viejo al más nuevo: el guionista muestra a la
+ *  IA los últimos 60, así ve los más recientes. */
+export function unirTitulos(previos, delCanalNuevoPrimero) {
+  const vistos = new Set(), out = [];
+  const meter = (t) => { const k = normalizar(t); if (!k || vistos.has(k)) return; vistos.add(k); out.push(t); };
+  const canal = [...(delCanalNuevoPrimero || [])].reverse();
+  const enCanal = new Set(canal.map(normalizar));
+  for (const t of previos || []) if (!enCanal.has(normalizar(t))) meter(t);
+  for (const t of canal) meter(t);
+  return out;
+}

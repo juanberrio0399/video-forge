@@ -22,7 +22,8 @@ try { titulosUsados = JSON.parse(fs.readFileSync("oddly_titles.json", "utf8")); 
 if (!Array.isArray(titulosUsados)) titulosUsados = [];
 const noRepetir = titulosUsados.slice(-60);
 const bloqueNoRepetir = noRepetir.length
-  ? `TITLES ALREADY USED on this channel — writing any of them again is forbidden: ${noRepetir.join(" | ")}. `
+  ? `TITLES ALREADY USED on this channel (most recent last) — writing any of them again is forbidden, and so is a reworded version of the same idea: ${noRepetir.join(" | ")}. ` +
+    "Pick a DIFFERENT subject (another animal, object or phenomenon) from the most recent ones, not just a new wording. "
   : "";
 
 /** Revisa el titulo, reintenta una vez con la queja, y si insiste no produce.
