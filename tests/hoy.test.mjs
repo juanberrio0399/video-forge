@@ -112,6 +112,14 @@ describe("cliente de la pantalla", () => {
     const usos = HOY_JS.match(/data-sh="(marcar|deshacer|pc|bajar|copiar|recargar)"/g) || [];
     expect(usos.length).toBeGreaterThanOrEqual(6);
   });
+  it("Viento tiene su hoja: despachos con confirmacion, pausar, cuentas y contenido vigilado", () => {
+    for (const x of ["function abrirVI(", "function pintarVI(", "function vigilarContenido(", "/v/viento/api/state", "/v/viento/api/app/pedido", "/v/viento/api/app/pausar", "/v/viento/api/app/tiktok-refresh", "/v/viento/api/app/dispatch", "tg.showConfirm"]) expect(HOY_JS).toContain(x);
+    expect(HOY_JS).toContain('if (n.system === "viento") { abrirVI(false)');
+    expect(HOY_JS).toContain("if (!si) return;");                       // aprobar/rechazar solo tras confirmar
+    expect(HOY_JS).toContain("Date.now() - w.desde > 1800000");          // la vigilancia siempre termina
+    const usos = HOY_JS.match(/data-vi="(pedido|pausar|tk|conectar|generar|recargar)"/g) || [];
+    expect(usos.length).toBeGreaterThanOrEqual(6);
+  });
   it("el html trae el build sin dejar inyectar nada", () => {
     const h = hoyHtml({ build: "abc1234</script><x>" });
     expect(h).toContain("Build abc1234scriptx");

@@ -187,7 +187,7 @@ export const HOY_JS = `
   }
 
   // ---------- Red ----------
-  function api(ruta, datos) {
+  function api(ruta, datos, tope) {
     var op = { headers: { "X-Init-Data": tg ? tg.initData : "" }, cache: "no-store" };
     if (datos !== undefined) { op.method = "POST"; op.headers["content-type"] = "application/json"; op.body = JSON.stringify(datos); }
     return conTope(fetch(ruta, op).catch(function () {
@@ -195,10 +195,10 @@ export const HOY_JS = `
     }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
         if (r.status === 403) throw new Error("Sesión vencida: cierra y abre la app desde el botón del bot.");
-        if (!r.ok) throw new Error(j.error || ("Error " + r.status));
+        if (!r.ok) throw new Error(typeof j.error === "string" ? j.error : ("Error " + r.status));
         return j;
       });
-    }));
+    }), tope);
   }
   function refrescar(motivo) {
     if (S.refrescando) return S.refrescando;
@@ -300,6 +300,7 @@ export const HOY_JS = `
     $("actividad").innerHTML = act.length ? act.map(function (e) { return '<div class="ev"><span class="tm">' + esc(hora(e.at)) + '</span><span><b>' + esc(e.name) + '</b> · ' + esc(e.text) + '</span></div>'; }).join("") : '<div class="vacio">Sin movimientos recientes.</div>';
     principal();
     if (S.hoja === "signal-halo") recargarSH(false).catch(function () {});      // en vivo: refresca la hoja sin cortar el video
+    else if (S.hoja === "viento") { if (Date.now() - VI.at > 20000) recargarVI(false).catch(function () {}); else pintarVI(); }
     else if (S.hoja) abrirSistema(S.hoja, true);
   }
 
@@ -315,12 +316,11 @@ export const HOY_JS = `
   function sistema(id) { return ((S.datos && S.datos.sistemas) || []).filter(function (s) { return s.id === id; })[0]; }
   function abrirSistema(id, solo) {
     if (id === "signal-halo") return abrirSH(null, solo);
+    if (id === "viento") return abrirVI(solo);
     var s = sistema(id); if (!s) return;
     S.hoja = id;
     var needs = (S.datos.paraTi || []).filter(function (n) { return n.system === id; });
-    var mets = (s.metrics || []).slice(0, 4).map(function (m) {
-      return '<div><b>' + esc(m.value == null ? "—" : fmt(m.value) + (m.unit ? " " + m.unit : "")) + '</b><span>' + esc(m.label) + (m.timeframe ? " · " + esc(m.timeframe) : "") + '</span>' + (m.context ? '<small>' + esc(m.context) + '</small>' : '') + '</div>';
-    }).join("");
+    var mets = metricas(s);
     var act = (S.datos.actividad || []).filter(function (e) { return e.system === id; });
     var h = '<div class="agarre"></div><div class="hh"><div class="mk">' + esc(s.sigla) + '</div><div><div class="n">' + esc(s.name) + '</div><div class="m">' + esc(s.headline || s.linea) + '</div></div><button class="x" data-cerrar="1" aria-label="Cerrar">✕</button></div>';
     if (s.stale) h += '<div class="aviso">Este sistema no reporta hace rato. Lo que ves puede estar viejo.</div>';
@@ -335,6 +335,17 @@ export const HOY_JS = `
       try { tg.BackButton.show(); } catch (e) {}
       principal();
     }
+  }
+  function metricas(s) {
+    return (s.metrics || []).slice(0, 4).map(function (m) {
+      var valor = m.value == null ? "—" : m.unit === "COP" ? COP(m.value) : fmt(m.value) + (m.unit ? " " + m.unit : "");
+      return '<div><b>' + esc(valor) + '</b><span>' + esc(m.label) + (m.timeframe ? " · " + esc(m.timeframe) : "") + '</span>' + (m.context ? '<small>' + esc(m.context) + '</small>' : '') + '</div>';
+    }).join("");
+  }
+  function mostrarHoja() {
+    $("velo").className = "velo on"; $("hoja").className = "hoja on"; $("hoja").scrollTop = 0;
+    try { tg.BackButton.show(); } catch (e) {}
+    principal();
   }
   function cerrarHoja() {
     if (!S.hoja) return;
@@ -518,6 +529,176 @@ export const HOY_JS = `
     }
   }
 
+  // ---------- Hoja de Viento: despachos, pauta, cuentas, contenido y productos sin salir de Inicio ----------
+  // Lo que se decide (aprobar, rechazar) pide confirmacion antes; pausar y actualizar no, porque no gastan.
+  // "Generar contenido" queda vigilado: la hoja muestra que corre y avisa al final si salio bien o fallo.
+  var VI = { d: null, cargando: null, at: 0, abierto: {}, vigilando: null, reloj: null, dropi: null };
+  var CONTENIDO = { workflow: "pipeline_contenido.yml", inputs: { perfil: "juanberrioficial" } };
+  function COP(n) { return "$" + Math.round(Number(n) || 0).toLocaleString("es-CO"); }
+  function hace(iso) { var t = Date.parse(iso); return isFinite(t) ? haceCuanto(t) : ""; }
+  function abrirLink(u) { try { tg.openLink(u); } catch (e) { window.open(u, "_blank"); } }
+  function confirmar(texto) {
+    return new Promise(function (ok) {
+      try { if (tg && tg.showConfirm && tg.isVersionAtLeast && tg.isVersionAtLeast("6.2")) { tg.showConfirm(texto, function (si) { ok(!!si); }); return; } } catch (e) {}
+      ok(window.confirm(texto));
+    });
+  }
+  function abrirVI(solo) {
+    S.hoja = "viento";
+    if (!solo) {
+      $("hoja").innerHTML = '<div class="agarre"></div><div class="hh"><div class="mk">VI</div><div><div class="n">Viento</div><div class="m" id="vi-sub">Cargando…</div></div><button class="x" data-cerrar="1" aria-label="Cerrar">✕</button></div>' +
+        '<div id="vi-cuerpo"><div class="ske"></div><div class="ske"></div><div class="ske"></div></div>';
+      mostrarHoja();
+      if (VI.d) pintarVI();                        // lo ultimo que se vio, al instante; luego se refresca
+    }
+    return recargarVI(!solo).catch(function () {});
+  }
+  function recargarVI(mostrarError) {
+    if (!VI.cargando) {
+      VI.cargando = api("/v/viento/api/state", undefined, 25000).then(function (d) {
+        VI.d = d; VI.at = Date.now(); VI.cargando = null; pintarVI(); vigilarContenido();
+      }, function (e) {
+        VI.cargando = null;
+        if (mostrarError && $("vi-cuerpo") && !VI.d) $("vi-cuerpo").innerHTML = '<div class="aviso">' + esc(e.message) + ' <button data-vi="recargar">Reintentar</button></div>';
+        throw e;
+      });
+    }
+    return VI.cargando;
+  }
+  function veredicto(t) {
+    var u = String(t || "").toUpperCase(), i = u.indexOf("🚦");
+    if (i < 0) return "";
+    var v = u.slice(i, i + 200);
+    return v.indexOf("NO-GO") >= 0 || v.indexOf("NO GO") >= 0 ? "NO-GO" : v.indexOf("DEPENDE") >= 0 ? "DEPENDE" : v.indexOf("GO") >= 0 ? "GO" : "";
+  }
+  function corriendo(r) { return r && r.status !== "completed"; }
+  function estadoContenido(r0) {
+    if (VI.vigilando && !(r0 && String(r0.id) !== String(VI.vigilando.previo))) return { t: "Arrancando la generación…", c: "attention", ocupado: true, det: "Pedido a GitHub " + hace(new Date(VI.vigilando.desde).toISOString()) };
+    if (!r0) return { t: "Sin corridas todavía", c: "info" };
+    if (corriendo(r0)) return { t: "Generando contenido ahora", c: "attention", ocupado: true, det: "Empezó " + hace(r0.created_at) };
+    return r0.conclusion === "success" ? { t: "La última terminó bien", c: "normal" } : { t: "La última falló", c: "critical" };
+  }
+  function pintarVI() {
+    if (S.hoja !== "viento" || !$("vi-cuerpo") || !VI.d) return;
+    var d = VI.d, s = sistema("viento") || {}, h = "";
+    $("vi-sub").textContent = s.headline || s.linea || "Tienda";
+    if (VI.dropi) h += '<div class="aviso">Despacho aprobado. Ahora crea la orden en Dropi. <button data-vi="dropi">Abrir Dropi</button></div>';
+    var mets = metricas(s);
+    if (mets) h += '<div class="met">' + mets + '</div>';
+
+    var pend = (d.pedidos || []).filter(function (p) { return p.estado === "pagado"; });
+    h += '<div class="sec" style="margin-top:14px">Despachos por aprobar <span>' + (pend.length ? pend.length : "ninguno") + '</span></div>';
+    h += pend.length ? '<div class="lista">' + pend.map(function (p) {
+      return '<div class="marca" style="display:block"><div class="t">' + esc(p.titulo || "Pedido") + (p.test ? ' <span class="nuevo">PRUEBA</span>' : '') + '</div>' +
+        '<div class="d">' + esc(COP(p.precio)) + ' · pagado ' + esc(hace(p.pagado || p.creado)) + '</div>' +
+        '<div class="acc" style="margin-top:8px"><button class="no" data-vi="pedido" data-x="rechazar" data-k="' + esc(p.key) + '">Rechazar</button><button class="si" data-vi="pedido" data-x="aprobar" data-k="' + esc(p.key) + '">Aprobar despacho</button></div></div>';
+    }).join("") + '</div>' : '<div class="lista"><div class="vacio">Nada por aprobar. Cuando entre un pago aparece aquí.</div></div>';
+
+    var pa = d.pautas || {}, cs = pa.lista || [];
+    var activas = cs.filter(function (c) { return c.activa; }).length;
+    h += '<div class="sec" style="margin-top:14px">Pauta <span>' + (pa.error ? "Meta no respondió" : activas + (activas === 1 ? " activa" : " activas")) + '</span></div>';
+    if (pa.error) h += '<div class="lista"><div class="vacio">Meta no respondió. Vuelve a intentar en un rato.</div></div>';
+    else h += cs.length ? '<div class="lista">' + cs.map(function (c) {
+      return '<div class="marca"><span class="pt ' + (c.activa ? "normal" : "info") + '"></span><div class="tx"><div class="t">' + esc(c.nombre) + '</div>' +
+        '<div class="d">' + (c.tipo === "venta" ? "Venta" : "Crecimiento") + ' · ' + (c.activa ? "activa" : c.estado === "PAUSED" || c.estado === "CAMPAIGN_PAUSED" ? "pausada" : "inactiva") + '</div></div>' +
+        (c.activa ? '<button data-vi="pausar" data-id="' + esc(c.id) + '">Pausar</button>' : '') + '</div>';
+    }).join("") + '</div>' : '<div class="lista"><div class="vacio">Sin campañas creadas.</div></div>';
+
+    var pf = (d.crecimiento && d.crecimiento.perfiles) || [];
+    if (pf.length) h += '<div class="sec" style="margin-top:14px">Cuentas TikTok</div><div class="lista">' + pf.map(function (p) {
+      var det = !p.conectado ? "sin conectar" : p.seguidores == null ? "conectada, sin medición todavía" : fmt(p.seguidores) + " seguidores · " + fmt(p.likes) + " likes · " + fmt(p.nvid) + " videos";
+      return '<div class="marca"><span class="pt ' + (p.conectado ? "normal" : "info") + '"></span><div class="tx"><div class="t">@' + esc(p.handle) + '</div><div class="d">' + esc(det) + '</div></div>' +
+        (p.conectado ? '' : '<button data-vi="conectar" data-h="' + esc(p.handle) + '">Conectar</button>') + '</div>';
+    }).join("") + '</div><button class="btn sec" data-vi="tk">Actualizar métricas</button>';
+
+    var r0 = (d.runs || [])[0], ec = estadoContenido(r0);
+    h += '<div class="sec" style="margin-top:16px">Contenido</div><div class="lista"><div class="marca"><span class="pt ' + ec.c + '"></span><div class="tx"><div class="t">' + esc(ec.t) + '</div>' +
+      '<div class="d">' + esc(ec.det || (r0 ? hace(r0.created_at) : "Video y textos para @juanberrioficial")) + '</div></div>' +
+      (ec.ocupado ? '<button disabled>' + PUNTOS + '</button>' : '<button data-vi="generar">Generar</button>') + '</div></div>';
+
+    var pr = d.productos_pipeline || [];
+    if (pr.length) h += '<div class="sec" style="margin-top:14px">Productos evaluados <span>' + pr.length + '</span></div><div class="lista">' + pr.slice(0, 8).map(function (p) {
+      var v = veredicto(p.eval_ia), ab = !!VI.abierto[p.id];
+      return '<button class="fila" data-vi="prod" data-id="' + esc(p.id) + '"><div style="flex:1;min-width:0"><div class="n">' + esc(p.nombre) + '</div>' +
+        '<div class="m">' + esc(v ? "Veredicto " + v : p.eval_error ? "Sin evaluar" : "Evaluado") + (p.creado ? " · " + esc(hace(p.creado)) : "") + '</div></div><div class="r">' + (ab ? "Ocultar" : "Ver") + '</div></button>' +
+        (ab ? '<div class="vacio" style="white-space:pre-wrap;color:var(--t2);border-bottom:1px solid var(--line)">' + esc(p.eval_ia || p.eval_error || "Sin texto") + '</div>' : '');
+    }).join("") + '</div>';
+
+    h += '<button class="btn sec" data-panel="viento">Abrir Viento completo</button>';
+    $("vi-cuerpo").innerHTML = h;
+  }
+  // Tras "Generar": consulta cada 15 s hasta ver la corrida nueva terminada; avisa el resultado. Tope 30 min.
+  function vigilarContenido() {
+    var w = VI.vigilando; if (!w || !VI.d) return;
+    var r0 = (VI.d.runs || [])[0], nueva = r0 && String(r0.id) !== String(w.previo);
+    if (nueva && !corriendo(r0)) {
+      VI.vigilando = null; pintarVI();
+      if (r0.conclusion === "success") { vib("success"); toast("Contenido generado"); } else { vib("error"); toast("La generación de contenido falló. Revísala en Viento completo.", true); }
+      return;
+    }
+    if (!nueva && Date.now() - w.desde > 360000) { VI.vigilando = null; pintarVI(); toast("No vi arrancar la generación. Revísala en Viento completo.", true); return; }
+    if (Date.now() - w.desde > 1800000) { VI.vigilando = null; pintarVI(); toast("La generación sigue corriendo hace 30 min. Revísala en Viento completo.", true); return; }
+    clearTimeout(VI.reloj);
+    VI.reloj = setTimeout(function () { recargarVI(false).catch(function () { vigilarContenido(); }); }, 15000);
+  }
+  function accionVI(b) {
+    var que = b.getAttribute("data-vi");
+    if (que === "recargar") return correr(b, function () { return recargarVI(true); }, { tope: 26000 });
+    if (que === "prod") { vib(); var pid = b.getAttribute("data-id"); VI.abierto[pid] = !VI.abierto[pid]; pintarVI(); return; }
+    if (que === "dropi") { vib(); var u = VI.dropi; VI.dropi = null; pintarVI(); if (u) abrirLink(u); return; }
+    if (que === "pedido") {
+      var x = b.getAttribute("data-x"), k = b.getAttribute("data-k");
+      var p = ((VI.d && VI.d.pedidos) || []).filter(function (q) { return q.key === k; })[0];
+      var nombre = p ? (p.titulo || "el pedido") + " (" + COP(p.precio) + ")" : "el pedido";
+      return confirmar(x === "aprobar" ? "¿Aprobar el despacho de " + nombre + "?" : "¿Rechazar " + nombre + "? No se puede deshacer.").then(function (si) {
+        if (!si) return;
+        return correr(b, function () {
+          return api("/v/viento/api/app/pedido", { key: k, accion: x }, 25000).then(function (r) {
+            if (r.estado === "aprobado" && r.dropi) VI.dropi = r.dropi;
+            return recargarVI(false).catch(function () {}).then(function () { return r; });
+          }, function (e) {
+            recargarVI(false).catch(function () {});      // si ya se decidio en otro lado, la lista se pone al dia
+            throw e;
+          });
+        }, { tope: 30000 }).then(function (r) {
+          if (!r) return;
+          toast(r.estado === "aprobado" ? (r.prueba ? "Aprobado · es una prueba, no despacha" : "Despacho aprobado") : "Pedido rechazado");
+        });
+      });
+    }
+    if (que === "pausar") {
+      var cid = b.getAttribute("data-id");
+      return correr(b, function () {
+        return api("/v/viento/api/app/pausar", { id: cid }, 25000).then(function (r) {
+          if (!r.ok) throw new Error("Meta no dejó pausarla: " + (r.error && (r.error.message || r.error) || "sin respuesta"));
+          return recargarVI(false).catch(function () {});
+        });
+      }, { exito: "Campaña pausada · el gasto se detuvo", tope: 30000 });
+    }
+    if (que === "tk") return correr(b, function () {
+      return api("/v/viento/api/app/tiktok-refresh", {}, 40000).then(function () { return recargarVI(false); });
+    }, { exito: "Métricas al día", tope: 45000 });
+    if (que === "conectar") {
+      var hd = b.getAttribute("data-h");
+      return correr(b, function () {
+        return api("/v/viento/api/app/tiktok-connect-url", { perfil: hd }).then(function (r) {
+          if (!r.url) throw new Error("No pude preparar la conexión.");
+          abrirLink(r.url);
+        });
+      });
+    }
+    if (que === "generar") {
+      var previo = ((VI.d && VI.d.runs) || [])[0];
+      return correr(b, function () {
+        return api("/v/viento/api/app/dispatch", CONTENIDO).then(function (r) {
+          if (!r.ok) throw new Error("GitHub no aceptó la orden. Vuelve a intentar.");
+          VI.vigilando = { desde: Date.now(), previo: previo ? previo.id : null };
+          pintarVI(); vigilarContenido();
+        });
+      }, { exito: "Generando contenido · tarda 1-2 min, te aviso aquí" });
+    }
+  }
+
   // ---------- Ir a un panel completo o a un link ----------
   function irPanel(id, ver) {
     var s = sistema(id); if (!s) throw new Error("Ese sistema no está disponible.");
@@ -528,6 +709,7 @@ export const HOY_JS = `
     var n = ((S.datos && S.datos.paraTi) || []).filter(function (x) { return x.id === needId; })[0];
     if (!n) throw new Error("Eso ya se resolvió. Actualizo la pantalla.");
     if (n.system === "signal-halo") { abrirSH(n.ver || null); return Promise.resolve(); }
+    if (n.system === "viento") { abrirVI(false); return Promise.resolve(); }
     if (n.url && /^https:\\/\\//.test(n.url)) { try { tg.openLink(n.url); } catch (e) { window.open(n.url, "_blank"); } return Promise.resolve(); }
     return irPanel(n.system, n.ver);
   }
@@ -537,6 +719,7 @@ export const HOY_JS = `
     var b = ev.target.closest("button"); if (!b) { if (ev.target.id === "velo") cerrarHoja(); return; }
     if (b.hasAttribute("data-cerrar")) { vib(); return cerrarHoja(); }
     if (b.hasAttribute("data-sh")) return accionSH(b);
+    if (b.hasAttribute("data-vi")) return accionVI(b);
     if (b.hasAttribute("data-sis")) { vib(); return abrirSistema(b.getAttribute("data-sis")); }
     if (b.hasAttribute("data-need")) return correr(b, function () { return resolver(b.getAttribute("data-need")); }, { tope: 20000 }).then(function () { refrescar("accion").catch(function () {}); });
     if (b.hasAttribute("data-panel")) return correr(b, function () { return irPanel(b.getAttribute("data-panel")); }, { tope: 20000 });
