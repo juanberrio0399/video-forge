@@ -105,6 +105,13 @@ describe("cliente de la pantalla", () => {
     expect(HOY_JS).toContain("btn.innerHTML = original");
     expect(HOY_JS).toContain("Tardó demasiado");
   });
+  it("Signal Halo tiene su hoja: ver, bajar, copiar y marcar con correr(), sin cortar el video en vivo", () => {
+    for (const x of ["function abrirSH(", "function pintarSH(", "function bajar(", "/v/signal-halo/api/marcar", "/v/signal-halo/api/enlace", "/v/signal-halo/api/pc", "tg.downloadFile"]) expect(HOY_JS).toContain(x);
+    expect(HOY_JS).toContain('reproductor.getAttribute("data-id") === v.id');
+    expect(HOY_JS).toContain('recargarSH(false).catch(function () {})');
+    const usos = HOY_JS.match(/data-sh="(marcar|deshacer|pc|bajar|copiar|recargar)"/g) || [];
+    expect(usos.length).toBeGreaterThanOrEqual(6);
+  });
   it("el html trae el build sin dejar inyectar nada", () => {
     const h = hoyHtml({ build: "abc1234</script><x>" });
     expect(h).toContain("Build abc1234scriptx");
@@ -115,7 +122,7 @@ describe("cliente de la pantalla", () => {
     const h = withOsBar("<html><body>x</body></html>", "Signal Halo · Videos", { href: "/hoy", texto: "Inicio", color: "#EDEDEF" });
     expect(h).toContain('href="/hoy"');
     expect(h).toContain("&#8249; Inicio");
-    expect(withOsBar("<body>x</body>", "y")).toContain('href="/os"');
-    expect(withOsBar("<body>x</body>", "y", { href: "javascript:alert(1)", texto: "<b>", color: "red;x" })).toContain('href="/os"');
+    expect(withOsBar("<body>x</body>", "y")).toContain('href="/cerebro"');
+    expect(withOsBar("<body>x</body>", "y", { href: "javascript:alert(1)", texto: "<b>", color: "red;x" })).toContain('href="/cerebro"');
   });
 });

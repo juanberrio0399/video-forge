@@ -24,7 +24,7 @@ describe("AI OS en un solo bot", () => {
   it("la barra de los paneles dice dónde estás y vuelve al cerebro, sin inyección", () => {
     const out = withOsBar('<html><body class="x"><main>panel</main></body></html>', 'Radar · Panel <b>');
     expect(out).toContain('<body class="x"><div id="os-bar"');
-    expect(out).toContain('href="/os"');
+    expect(out).toContain('href="/cerebro"');
     expect(out).toContain("Radar · Panel &lt;b&gt;");
     expect(out.indexOf("os-bar")).toBeLessThan(out.indexOf("<main>"));
   });
