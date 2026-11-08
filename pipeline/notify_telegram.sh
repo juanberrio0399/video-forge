@@ -61,6 +61,22 @@ send_request() {
   return 1
 }
 
+# AVISOS CON CRITERIO: dentro de Actions, el bot decide si esto llega ya o va al resumen diario (7 pm).
+# Llega ya: lo que trae botones o archivo, y la primera falla del dia de cada flujo. Lo demas, al resumen.
+# Firmado con HMAC del token del bot (no viaja ningun secreto). Si el bot no responde, se manda igual: nunca se pierde.
+# NOTIFY_NOW=1 lo manda siempre al momento.
+if [ -n "${GITHUB_WORKFLOW:-}" ] && [ -z "${NOTIFY_NOW:-}" ] && command -v jq >/dev/null && command -v openssl >/dev/null; then
+  HAS_BTN=false; [ -n "$MARKUP" ] && HAS_BTN=true
+  HAS_FILE=false; [ -n "$FILE" ] && [ -f "$FILE" ] && HAS_FILE=true
+  BODY=$(jq -cn --arg wf "$GITHUB_WORKFLOW" --arg run "${GITHUB_RUN_ID:-}" --arg ev "${GITHUB_EVENT_NAME:-}" --arg tx "$MSG"     --argjson b "$HAS_BTN" --argjson f "$HAS_FILE" '{wf:$wf, run:$run, evento:$ev, texto:$tx, botones:$b, archivo:$f}')
+  FIRMA=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$TELEGRAM_BOT_TOKEN" -r | cut -d' ' -f1)
+  MODO=$(curl -s --max-time 10 -X POST -H "content-type: application/json" -H "X-Aviso-Firma: $FIRMA"     --data-binary "$BODY" "${AVISOS_URL:-https://video-forge-bot.tienvo.workers.dev/aviso}" | jq -r '.modo // empty' 2>/dev/null)
+  if [ "$MODO" = "resumen" ]; then
+    echo "notify_telegram: va al resumen diario."
+    exit 0
+  fi
+fi
+
 SENT=0
 
 if [ -n "$FILE" ] && [ -f "$FILE" ]; then
