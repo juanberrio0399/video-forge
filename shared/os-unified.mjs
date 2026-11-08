@@ -328,9 +328,9 @@ export function osUnifiedHtml(opts = {}) {
 }
 
 // Barra superior que se inyecta en los paneles completos: dice dónde estás y vuelve al cerebro.
-export function withOsBar(html, label) {
+export function withOsBar(html, label, volver = { href: "/os", texto: "Cerebro", color: "#A594FF" }) {
   const bar = '<div id="os-bar" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0A0D12;color:#E7ECF3;font:600 14px -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;border-bottom:1px solid #232C38;position:relative;z-index:9999">' +
-    '<a href="/os" style="color:#A594FF;text-decoration:none;white-space:nowrap">&#8249; Cerebro</a><span style="color:#687588">/</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
+    '<a href="' + (volver.href === "/hoy" ? "/hoy" : "/os") + '" style="color:' + (/^#[0-9A-Fa-f]{6}$/.test(volver.color || "") ? volver.color : "#A594FF") + ';text-decoration:none;white-space:nowrap">&#8249; ' + (volver.texto === "Inicio" ? "Inicio" : "Cerebro") + '</a><span style="color:#687588">/</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
     String(label).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])) + '</span></div>';
   // Sin expresiones regulares sobre HTML externo (CodeQL: evita ReDoS con muchos "<body").
   const src = String(html);

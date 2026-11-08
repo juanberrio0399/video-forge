@@ -17,9 +17,13 @@ import { osStateFrom, applyStaleness } from "../../pipeline/lib/os_contract.mjs"
 import { osUnifiedHtml, withOsBar } from "../../shared/os-unified.mjs";
 import { osShellHtml } from "../../shared/os-shell.mjs";
 import { recibirAviso, anotarUso, quizasResumen, volverAlMomento } from "./avisos.js";
+import { hoyHtml } from "../../shared/hoy-ui.mjs";
+import { componerHoy, pulsoSignalHalo } from "../../shared/hoy.mjs";
+import { notificar, socketVivo } from "./vivo.js";
+export { Vivo } from "./vivo.js";
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     // Mini App (interfaz "tipo app pro" dentro de Telegram).
     if (url.pathname === "/os") {
@@ -32,31 +36,46 @@ export default {
       return new Response(osUnifiedHtml({ build: env.APP_BUILD }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
     }
     // AI OS en un solo bot: paneles completos de los tres sistemas, con barra "‹ Cerebro / dónde estás".
-    const panelMatch = request.method === "GET" && url.pathname.match(/^\/p\/(video-forge|radar|viento)$/);
+    // Pantalla unica (Inicio): lo que te pide algo, una linea por sistema y lo ultimo. En vivo por /vivo.
+    if (request.method === "GET" && url.pathname === "/hoy") {
+      return new Response(hoyHtml({ build: env.APP_BUILD || "dev" }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
+    }
+    // Conexion en vivo de la app. Un WebSocket no lleva cabeceras propias: el initData viaja en la URL y se valida igual.
+    if (request.method === "GET" && url.pathname === "/vivo") {
+      if (!env.VIVO) return new Response("vivo no conectado", { status: 503 });
+      const user = await validateInitData(url.searchParams.get("init") || "", env);
+      if (!user) return new Response("no autorizado", { status: 403 });
+      return socketVivo(env, request);
+    }
+    const panelMatch = request.method === "GET" && url.pathname.match(/^\/p\/(video-forge|radar|viento|signal-halo)$/);
     if (panelMatch) {
       const id = panelMatch[1];
-      const labels = { "video-forge": "Video Forge · Panel de canales", radar: "Radar · Panel de repos", viento: "Viento · Panel de la tienda" };
+      const labels = { "video-forge": "Video Forge · Panel de canales", radar: "Radar · Panel de repos", viento: "Viento · Panel de la tienda", "signal-halo": "Signal Halo · Videos" };
+      const desdeHoy = url.searchParams.get("from") === "hoy";
       let html;
       if (id === "video-forge") html = APP2_HTML.replace("__BUILD__", String(env.APP_BUILD || "dev"));
       else {
-        const svc = id === "radar" ? env.RADAR : env.VIENTO;
+        const svc = id === "radar" ? env.RADAR : id === "viento" ? env.VIENTO : env.SIGNAL;
         if (!svc) return new Response("Panel no conectado", { status: 503 });
-        const r = await svc.fetch(new Request("https://os.internal/app?from=os"));
+        const ver = url.searchParams.get("ver"), v = url.searchParams.get("v");
+        const extra = (ver && /^[a-z0-9-]{1,20}$/.test(ver) ? "&ver=" + ver : "") + (v && /^[A-Za-z0-9_-]{6,20}$/.test(v) ? "&v=" + v : "");
+        const r = await svc.fetch(new Request("https://os.internal/app?from=os" + extra));
         html = await r.text();
       }
-      return new Response(withOsBar(html, labels[id]), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
+      return new Response(withOsBar(html, labels[id], desdeHoy ? { href: "/hoy", texto: "Inicio", color: "#EDEDEF" } : undefined), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate", "pragma": "no-cache" } });
     }
     // API de los paneles de Radar y Viento: el bot único valida la sesión y reenvía por el canal interno.
-    const apiMatch = url.pathname.match(/^\/v\/(radar|viento)(\/api\/[a-z0-9\/_-]+)$/);
+    const apiMatch = url.pathname.match(/^\/v\/(radar|viento|signal-halo)(\/api\/[a-z0-9\/_-]+)$/);
     if (apiMatch) {
       const jsonH = { "content-type": "application/json", "cache-control": "no-store" };
       const user = await validateInitData(request.headers.get("X-Init-Data") || "", env);
       if (!user) return new Response(JSON.stringify({ error: "no autorizado" }), { status: 403, headers: jsonH });
-      const svc = apiMatch[1] === "radar" ? env.RADAR : env.VIENTO;
+      const svc = apiMatch[1] === "radar" ? env.RADAR : apiMatch[1] === "viento" ? env.VIENTO : env.SIGNAL;
       if (!svc) return new Response(JSON.stringify({ error: "panel no conectado" }), { status: 503, headers: jsonH });
       const init = { method: request.method, headers: { "content-type": request.headers.get("content-type") || "application/json" } };
       if (request.method !== "GET" && request.method !== "HEAD") init.body = await request.text();
       const r = await svc.fetch(new Request("https://os.internal" + apiMatch[2] + url.search, init));
+      if (init.body !== undefined && r.ok) ctx.waitUntil(notificar(env, "accion"));     // la pantalla de Inicio se entera al instante
       return new Response(r.body, { status: r.status, headers: { "content-type": r.headers.get("content-type") || "application/json", "cache-control": "no-store" } });
     }
     if (url.pathname === "/app2") {
@@ -93,7 +112,11 @@ export default {
     }
 
     // Avisos de Actions: se clasifican (al momento o al resumen). Firmados con HMAC del token del bot.
-    if (url.pathname === "/aviso") return recibirAviso(request, env, safeEqual);
+    if (url.pathname === "/aviso") {
+      const r = await recibirAviso(request, env, safeEqual);
+      if (r.status === 200) ctx.waitUntil(notificar(env, "aviso"));
+      return r;
+    }
 
     // 1) Verificar que el POST viene de Telegram (header secreto).
     const got = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
@@ -116,6 +139,7 @@ export default {
       } else if (update.message) {
         await handleMessage(update.message, env);
       }
+      if (isOwner(de, env)) ctx.waitUntil(notificar(env, "bot"));
     } catch (err) {
       // Nunca reventamos el webhook (Telegram reintentaria); logueamos y seguimos.
       console.error("handler error", err);
@@ -141,8 +165,12 @@ export default {
       try { await env.R2.put("os/clock.json", JSON.stringify({ at: new Date().toISOString(), cron: event.cron || null, jobs: results }), { httpMetadata: { contentType: "application/json" } }); } catch (e) { console.error("[reloj] latido", e && e.message); }
       // Resumen diario de avisos (7 pm Bogota) y ajuste semanal de que llega al momento.
       try {
-        await quizasResumen(env, t, (p) => tg(env, "sendMessage", { chat_id: env.OWNER_CHAT_ID, ...p }), "https://video-forge-bot.tienvo.workers.dev/os");
+        await quizasResumen(env, t, (p) => tg(env, "sendMessage", { chat_id: env.OWNER_CHAT_ID, ...p }), "https://video-forge-bot.tienvo.workers.dev/hoy");
       } catch (e) { console.error("[reloj] resumen", e && e.message); }
+      // Signal Halo: borra de su nube lo marcado hace 24 h.
+      if (env.SIGNAL) { try { await env.SIGNAL.fetch(new Request("https://os.internal/api/tick")); } catch (e) { console.error("[reloj] signal-halo", e && e.message); } }
+      // Los pulses que escribe Actions no avisan solos: el reloj le dice a la app abierta que mire de nuevo.
+      await notificar(env, "reloj");
     })());
   },
 };
@@ -817,6 +845,22 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/insights") {
     return json(await geminiInsights(env));
+  }
+
+  if (url.pathname === "/api/hoy") {
+    // Pantalla unica: Video Forge, Viento y Radar desde sus pulses en R2; Signal Halo en vivo por su canal interno.
+    const now = Date.now();
+    const leerSH = async () => {
+      if (!env.SIGNAL) return null;
+      try {
+        const r = await env.SIGNAL.fetch(new Request("https://os.internal/api/estado"));
+        return r.ok ? pulsoSignalHalo(await r.json(), now) : null;
+      } catch (e) { console.error("[hoy] signal-halo", e && e.message); return null; }
+    };
+    const [vf, viento, radar, sh] = await Promise.all([
+      r2json(env, "os/pulse/video-forge.json"), r2json(env, "os/pulse/viento.json"), r2json(env, "os/pulse/radar.json"), leerSH(),
+    ]);
+    return json({ ...componerHoy({ "video-forge": vf, viento, radar, "signal-halo": sh }, now), build: String(env.APP_BUILD || "dev") });
   }
 
   if (url.pathname === "/api/os") {
@@ -2079,8 +2123,12 @@ async function tgDownloadFile(env, fileId) {
 // el, 2026-07-24). El registro `voice/registry.json` lista las voces disponibles.
 
 function slugifyVoice(s) {
-  return String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24) || "voz";
+  // Corta antes de procesar y quita los "_" de los bordes sin regex (CodeQL: evita lentitud con muchos "_").
+  let x = String(s).slice(0, 200).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_");
+  let i = 0, j = x.length;
+  while (i < j && x[i] === "_") i++;
+  while (j > i && x[j - 1] === "_") j--;
+  return x.slice(i, j).slice(0, 24) || "voz";
 }
 
 async function handleVoiceRegister(message, env, chatId) {
@@ -2153,6 +2201,8 @@ export class OSBot extends WorkerEntrypoint {
       if (body && body.reply_markup) body.reply_markup = prefix(body.reply_markup);
       init = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) };
     }
-    return fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${m[1]}`, init);
+    const r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${m[1]}`, init);
+    this.ctx.waitUntil(notificar(env, "osbot"));       // un aviso de la tienda o de Signal Halo: la app abierta se refresca
+    return r;
   }
 }
