@@ -42,10 +42,12 @@ Así va el ciclo de Oddly Loop, el que corre sin mí:
 
 El horario completo, dónde mirar cuando algo falla y la lista de secretos están en [docs/OPERACION.md](docs/OPERACION.md). Por qué está armado así (Actions como granja de render, repo público, Kokoro, cadena de proveedores de texto, puerta legal antes de publicar) está en [docs/DECISIONES.md](docs/DECISIONES.md).
 
+Historias de usuario, flujos y datos: [docs/PRODUCTO.md](docs/PRODUCTO.md).
+
 ## Con qué se conecta
 
-- **Bot único de Telegram** (`bot/`, Worker `video-forge-bot`): un solo bot para todo. Los demás Workers se enchufan por service binding (`OSGateway`): Radar (`radar-bot`), Viento de mi repo privado `panel-marketing-cloud` (Worker `tienda`, en pausa) y Signal Halo de mi repo privado `signal-halo-studio` (Worker `signal-halo-registro`), una app de Windows que edita videos y deja los finales en su propio bucket de R2.
-- **Radar** (`radar-bot/` + `radar_scan.yml`, `radar_implement.yml`, `radar_groom.yml`): cada lunes revisa mis repos (la lista está en `radar_scan.yml`: públicos como [serverless-rag-assistant](https://github.com/juanberrio0399/serverless-rag-assistant), [dockerized-data-tool](https://github.com/juanberrio0399/dockerized-data-tool) y [juanberrio0399.github.io](https://github.com/juanberrio0399/juanberrio0399.github.io), y varios privados), abre issues con la etiqueta `radar` y desde la Mini App le puedo pedir que implemente uno como PR. Siempre lo reviso antes de mergear.
+- **Bot único de Telegram** (`bot/`, Worker `video-forge-bot`): un solo bot para todo. Los demás Workers se enchufan por service binding (`OSGateway`): Radar (`radar-bot`) y dos sistemas privados míos: una tienda (en pausa) y una app de Windows que edita videos y deja los finales en su propio bucket de R2.
+- **Radar** (`radar-bot/` + `radar_scan.yml`, `radar_implement.yml`, `radar_groom.yml`): cada lunes revisa mis repos (la lista está en `radar_scan.yml`: públicos como [serverless-rag-assistant](https://github.com/juanberrio0399/serverless-rag-assistant), [dockerized-data-tool](https://github.com/juanberrio0399/dockerized-data-tool) y [juanberrio0399.github.io](https://github.com/juanberrio0399/juanberrio0399.github.io), y varios privados), abre issues con la etiqueta `radar` y desde la Mini App le puedo pedir al motor un plan verificable para cualquiera de ellos. Los PR automáticos están pausados desde el 2026-09-14, porque 10 de 10 fallaron una revisión a fondo; todo lo reviso antes de mergear.
 - **Cloudflare**: Workers, el bucket R2 `video-forge`, Workers AI como respaldo de texto y un Durable Object para que la Mini App se actualice en vivo.
 - **APIs externas**: YouTube Data API (un OAuth por canal), Gemini y otras IAs gratis, Pexels, Pixabay, NASA, Wikimedia, Archive y Freesound.
 
@@ -103,6 +105,7 @@ Hacen falta los secretos de [docs/OPERACION.md](docs/OPERACION.md#secretos-y-var
 |---|---|
 | [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md) | Componentes, el slot de producción, el estado en R2 y la auto-recuperación. |
 | [docs/FLUJOS.md](docs/FLUJOS.md) | Los flujos con diagramas: producción de cada canal, agendado, estado, sonido. |
+| [docs/PRODUCTO.md](docs/PRODUCTO.md) | Historias de usuario por actor, flujos, datos y conexiones. |
 | [docs/OPERACION.md](docs/OPERACION.md) | Horario completo, dónde mirar cuando algo falla, secretos. |
 | [docs/DECISIONES.md](docs/DECISIONES.md) | Decisiones de diseño y lo que el proyecto no hace a propósito. |
 | [docs/AUDITORIA_CEREBRO.md](docs/AUDITORIA_CEREBRO.md) | Qué medía mal el cerebro, qué se corrigió y cómo se juzga a sí mismo. |

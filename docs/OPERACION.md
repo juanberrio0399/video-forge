@@ -50,6 +50,8 @@ En **GitHub → Settings → Secrets and variables → Actions** (solo nombres; 
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Desplegar los Workers, leer/escribir R2 y usar Workers AI como respaldo de texto. |
 | `GH_TOKEN` | PAT fine-grained para que un workflow encadene al siguiente, el Worker dispare la fábrica y el radar trabaje en los otros repos. |
 | `TELEGRAM_BOT_TOKEN`, `OWNER_CHAT_ID` | Avisos al chat. |
+| `DISTRIB_CHANNEL_ID` | Opcional: canal público de Telegram donde `telegram_broadcast.yml` publica los Shorts nuevos; sin él no hace nada. |
+| `PINTEREST_ACCESS_TOKEN`, `PINTEREST_BOARD_ID` | Opcionales: reparto a Pinterest (`pinterest.yml`); sin ellos no hace nada. |
 | `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY`, `SAMBANOVA_API_KEY` | Opcionales. `pipeline/llm.mjs` los usa como relevo cuando Gemini se queda sin cuota; los que no tengan llave se saltan solos. |
 
 En el Worker, con `wrangler secret put`: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`,
