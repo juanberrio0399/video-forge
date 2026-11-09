@@ -1,284 +1,131 @@
-# video-forge
+<p align="center"><img src="docs/banner.svg" alt="video-forge — a YouTube Shorts factory that runs itself in the cloud" width="100%"></p>
+<p align="center"><b>English</b> · <a href="README.es.md">Español</a></p>
+<p><b>What it does:</b> it writes, narrates, edits, license-checks, uploads and schedules YouTube Shorts for two separate channels, then measures how they did and decides what to make next. It also hosts my single Telegram bot and Radar, the bot that proposes improvements to my other repos.</p>
+<p><b>How it works:</b> GitHub Actions does the compute (script with free LLMs, Kokoro voice, licensed clips, FFmpeg), a Cloudflare Worker plus R2 hold the controls and the memory, and Telegram is the interface. No PC, no server, $0 a month.</p>
+<p><a href="https://github.com/juanberrio0399/video-forge/actions/workflows/tests.yml"><img src="https://img.shields.io/github/actions/workflow/status/juanberrio0399/video-forge/tests.yml?branch=main&label=tests&style=flat-square" alt="tests"></a> <a href="https://github.com/juanberrio0399/video-forge/actions/workflows/codeql.yml"><img src="https://img.shields.io/github/actions/workflow/status/juanberrio0399/video-forge/codeql.yml?branch=main&label=CodeQL&style=flat-square" alt="CodeQL"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square" alt="License: Apache 2.0"></a> · <a href="https://www.youtube.com/@oddlyloophq">Oddly Loop</a> · <a href="https://www.youtube.com/@TheDataLensHQ">The Data Lens</a></p>
 
-Fábrica de videos de YouTube que se opera sola en la nube: escribe el guion, narra, renderiza, sube y programa, para dos canales independientes.
+## Why it exists
 
-[![CI status](https://img.shields.io/github/actions/workflow/status/juanberrio0399/video-forge/tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/juanberrio0399/video-forge/actions/workflows/tests.yml)
-[![100% Cloud](https://img.shields.io/badge/infra-100%25%20cloud-blue?style=flat-square)](https://github.com)
-[![Stack](https://img.shields.io/badge/stack-GitHub%20Actions%20%·%20Cloudflare%20%·%20Gemini-orange?style=flat-square)](https://github.com)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
+Posting on YouTube on a steady schedule takes a team (script, voice, editing, SEO, scheduling) or a monthly subscription to rendering tools. I wanted to see how far free infrastructure could go, so this repo does that work with GitHub Actions minutes, Cloudflare's free tier and free AI APIs.
 
-> Estado actual, qué se hizo y qué falta: **[PLAN.md](PLAN.md)**.
+It doesn't just produce. Every piece is logged as a decision with a metric, a deadline and a success criterion, and a loop that runs every 2 hours checks it against that criterion later. The goal is to find a format the algorithm actually distributes, not to pump out volume.
 
-## Qué es y qué problema resuelve
+It feeds two real channels, kept fully separate (state, credentials, reports and scheduling never mix):
 
-Publicar en YouTube con cadencia exige un equipo (guion, voz, edición, SEO, agendado) o una
-suscripción mensual a herramientas de render. Este repo hace ese trabajo con infraestructura que
-no cuesta nada: **GitHub Actions es el CPU, un Cloudflare Worker + R2 son el mando y la memoria, y
-Telegram es la interfaz**. Nada se renderiza en un PC y no hay servidor que mantener.
+- **[Oddly Loop](https://www.youtube.com/@oddlyloophq)** (`@oddlyloophq`): ASMR, satisfying and animal compilations from licensed sources. Fully automatic, and it's the current focus.
+- **[The Data Lens](https://www.youtube.com/@TheDataLensHQ)** (`@TheDataLensHQ`): data and history, faceless, in English. Production has been off since 2026-10-04; it's only being measured now.
 
-El sistema no solo produce: **mide lo que publica y decide qué producir después**. Cada pieza queda
-registrada como una decisión con su métrica y su criterio de éxito, y un ciclo que corre cada 2 horas
-la juzga después contra ese criterio.
-
-Alimenta dos canales reales:
-
-- **[The Data Lens](https://www.youtube.com/@TheDataLensHQ)** (`@TheDataLensHQ`) — datos y dinero,
-  faceless, en inglés, mercado EE.UU. Producción guiada: el video queda privado y se aprueba a mano.
-- **[Oddly Loop](https://www.youtube.com/@oddlyloophq)** (`@oddlyloophq`) — ASMR, satisfying y
-  compilaciones con fuentes licenciadas. Full-auto: produce, verifica licencias y se programa solo.
-
-Los dos canales están **separados de punta a punta**: estado, credenciales, reportes y agendado. Nunca
-comparten datos.
-
-## Cómo funciona
+## How it works
 
 ```mermaid
-flowchart TD
-  subgraph mando["Mando y memoria (Cloudflare)"]
-    worker["Worker bot/src/index.js<br/>API /api/* · Mini App /os y /app2<br/>cron cada 30 min"]
-    r2[("R2 video-forge<br/>channel/ · channel/auto2/<br/>estado, planes, ledger")]
-  end
-
-  tg["Telegram · Juan"] <--> worker
-  worker <--> r2
-
-  subgraph gha["GitHub Actions (el cómputo)"]
-    brain["brain_live.yml · cada 2h<br/>juzga decisiones vencidas y arma el plan"]
-    cad["daily_oddly.yml · 12:30 UTC<br/>cadencia por categoría"]
-    prod["produce_oddly.yml<br/>guion → voz Kokoro → clips → ensamblar"]
-    gate{"compliance_check.mjs<br/>¿fuentes licenciadas?"}
-    up["youtube_upload.mjs<br/>sube PRIVADO a YT2"]
-    sch["best_slot.mjs + youtube_schedule.mjs<br/>mejor hora libre"]
-    shock["data_shock.yml · lunes 15:00 UTC<br/>experimento de The Data Lens"]
-    rev["Queda privado<br/>Juan aprueba en la app"]
-  end
-
-  worker -- "workflow_dispatch (GH_TOKEN)" --> gha
-  brain --> prod
-  cad --> prod
-  prod --> gate
-  gate -- "no" --> stop["no publica y avisa"]
-  gate -- "sí" --> up
-  up --> sch
-  shock --> rev
-  rev --> pubdl["publish_youtube.yml → schedule_youtube.yml"]
-
-  sch --> yt["YouTube"]
-  pubdl --> yt
-  yt --> rep["report_auto2.yml · cada 2h<br/>channel_report.yml · cada 6h<br/>weekly_stats · retention · hooks"]
-  rep --> r2
-  r2 --> brain
+flowchart LR
+  TG["Telegram<br/>single bot + Mini App"] <--> WK["Worker video-forge-bot<br/>API, Mini App, 30-min cron"]
+  WK <--> R2[("R2 video-forge<br/>state, plans, ledger")]
+  WK -- "workflow_dispatch" --> BR["brain_live.yml<br/>every 2 h"]
+  BR --> PR["produce_oddly.yml<br/>script, Kokoro voice,<br/>clips, FFmpeg"]
+  PR --> CC{"compliance_check<br/>licensed sources?"}
+  CC -- "no" --> STOP["don't publish,<br/>send an alert"]
+  CC -- "yes" --> UP["youtube_upload<br/>private + best slot"]
+  UP --> YT["YouTube"]
+  YT --> MS["report_auto2 + daily<br/>measurement chain"]
+  MS --> R2
+  R2 --> BR
 ```
 
-Paso a paso, el ciclo de Oddly Loop (el que corre sin intervención):
+Here's the Oddly Loop cycle, the one that runs without me:
 
-1. **Decidir.** `brain_live.yml` corre cada 2 horas. Lee de R2 lo que el sistema ya sabe, revisa las
-   decisiones cuyo plazo venció contra su propio criterio (`pipeline/lib/ledger.mjs`), y arma el plan
-   de hoy y mañana con `pipeline/lib/lineup.mjs`. Cada pieza del plan lleva decisión, razón, evidencia,
-   métrica, plazo y criterio. Produce con horas de anticipación, máximo 3 piezas por ciclo.
-2. **Producir.** `produce_oddly.yml` escribe el guion (`compilation_script.mjs`, con Gemini y las
-   reglas de retención del nicho), genera la voz con Kokoro si la variante es narrada, baja la
-   biblioteca de sonido ASMR desde R2 y ensambla con `build_compilation.mjs`: clips de Pexels/Pixabay,
-   mezcla de sonido por nicho, grade cinematográfico y subtítulos.
-3. **Verificar licencias.** `compliance_check.mjs` es una puerta dura: si un clip no viene de la lista
-   blanca de `channel/auto2/sources.seed.json` o la pieza no es transformadora, no se publica y avisa.
-4. **Subir y programar.** `youtube_upload.mjs` sube **privado** con las credenciales `YT2_*` y declara
-   `containsSyntheticMedia: true`. `best_slot.mjs` elige la siguiente franja libre a partir de
-   `best_hours.json` (las horas que más rinden según los datos del propio canal), con tope de 2 por hora.
-5. **Medir.** `report_auto2.yml` (cada 2h) y la cadena diaria de análisis (`weekly_stats` → `channel_brain`
-   → `episodes` → `hypotheses` → `retention` → `monetization_report` → `hooks` → `alerts`) escriben las
-   métricas en R2. Ese estado es lo que lee el cerebro en el paso 1 y lo que muestra la Mini App.
+1. **Decide.** `brain_live.yml` runs every 2 hours. It reads what the system already knows from R2, checks decisions whose deadline passed against their own criterion (`pipeline/lib/ledger.mjs`), and builds today's and tomorrow's plan with `pipeline/lib/lineup.mjs`. If the numbers say volume won't reach the goal, it asks for a different format, not more videos.
+2. **Produce.** `produce_oddly.yml` writes the script (`compilation_script.mjs`, through `pipeline/llm.mjs`: Gemini first, then Groq, OpenRouter, Workers AI, Cerebras and SambaNova as fallbacks), generates the voice with Kokoro when the variant is narrated, pulls the ASMR sound library from R2 and assembles with `build_compilation.mjs`: Pexels/Pixabay clips, per-niche sound mix, a LUT grade and captions.
+3. **Check licenses.** `compliance_check.mjs` is a hard gate. If a clip isn't on the allowlist in `channel/auto2/sources.seed.json`, nothing gets published and I get an alert.
+4. **Upload and schedule.** `youtube_upload.mjs` uploads **private** with the `YT2_*` credentials and declares `containsSyntheticMedia: true`. `best_slot.mjs` picks the next free slot from `best_hours.json` (the hours that perform best on the channel's own data), max 2 per hour.
+5. **Measure.** `report_auto2.yml` (every 2 h) and the daily chain (`weekly_stats` → `channel_brain` → `episodes` → `hypotheses` → `retention` → `monetization_report` → `hooks` → `alerts`) write metrics to R2. That's what the brain reads in step 1 and what the Mini App shows.
 
-The Data Lens sigue el mismo esqueleto pero **con aprobación humana**: el video queda privado, Juan lo
-aprueba desde la app y ahí sí corren `publish_youtube.yml` (SEO + miniatura) y `schedule_youtube.yml`.
+The full schedule, where to look when something breaks and the list of secrets are in [docs/OPERACION.md](docs/OPERACION.md). Why it's built this way (Actions as a render farm, public repo, Kokoro, a chain of LLM providers, a legal gate before publishing) is in [docs/DECISIONES.md](docs/DECISIONES.md). Both are in Spanish.
 
-## Estructura del repo
+## What it connects to
 
-| Carpeta / archivo | Qué vive ahí |
-|---|---|
-| `pipeline/*.mjs`, `*.py` | Los ~130 scripts de la fábrica: guion, voz, ensamblaje, YouTube, reportes, cerebro, radar. Cada uno abre con un comentario de qué hace y cuándo corre. |
-| `pipeline/lib/` | Lógica **pura** (sin red ni disco): ranking de nichos, scoring, ledger, lineup, ypp, alertas. Es lo que cubren los tests. |
-| `.github/workflows/` | Los 85 workflows. Un workflow por paso; se encadenan con `workflow_dispatch` usando el PAT. |
-| `bot/` | Cloudflare Worker: API `/api/*`, Mini App de Telegram (`/app`, `/app2`, `/os`) y el cron de 30 min que compensa los crons que GitHub se salta. |
-| `radar-bot/` | Worker aparte: Mini App del radar de mejoras (ejecutar → revisar → merge de PRs). |
-| `shared/` | Componentes de UI compartidos entre los bots del AI OS (shell, tokens, vista unificada). |
-| `channel/` | Semillas del estado de The Data Lens (`*.seed.json`, `direction.json`). El estado vivo está en R2. |
-| `channel/auto2/` | Semillas de Oddly Loop: cadencia, lista blanca de fuentes, nichos, branding. |
-| `tests/` | 30 suites de vitest sobre `pipeline/lib/` y el contrato del OS. |
-| `clipper/` | Puente **local** (no nube): recorta videos CC-BY de YouTube para Oddly Loop. Se corre a mano en el PC. |
-| `skills/` | Notas de oficio por área (guion, voz, SEO, shorts, monetización) que alimentan los prompts. |
-| `projects/`, `index.html`, `meta.json`, `hyperframes.json` | Composición HyperFrames del canal principal (HTML → MP4). |
-| `assets/luts/` | LUT de grade cinematográfico que aplica el ensamblador. |
-| `docs/` | Un documento por tema (ver la tabla al final). |
+- **Single Telegram bot** (`bot/`, Worker `video-forge-bot`): one bot for everything. Other Workers plug into it through service bindings (`OSGateway`): Radar (`radar-bot`), Viento from my private `panel-marketing-cloud` repo (Worker `tienda`, paused) and Signal Halo from my private `signal-halo-studio` repo (Worker `signal-halo-registro`), a Windows app that edits videos and drops the finals in its own R2 bucket.
+- **Radar** (`radar-bot/` + `radar_scan.yml`, `radar_implement.yml`, `radar_groom.yml`): every Monday it scans my repos (the list lives in `radar_scan.yml`: public ones like [serverless-rag-assistant](https://github.com/juanberrio0399/serverless-rag-assistant), [dockerized-data-tool](https://github.com/juanberrio0399/dockerized-data-tool) and [juanberrio0399.github.io](https://github.com/juanberrio0399/juanberrio0399.github.io), plus private ones), opens issues labeled `radar`, and from the Mini App I can have it implement one as a PR. I always review before merging.
+- **Cloudflare**: Workers, the `video-forge` R2 bucket, Workers AI as a text fallback, and a Durable Object for live updates in the Mini App.
+- **External APIs**: YouTube Data API (one OAuth per channel), Gemini and other free LLMs, Pexels, Pixabay, NASA, Wikimedia, Archive and Freesound.
 
-## Cómo correrlo
+## Running it
 
-Los tests y los chequeos de sintaxis corren en cualquier máquina con Node 22:
+Tests and syntax checks run on any machine with Node 22:
 
 ```bash
-npm install          # instala vitest (única dependencia de desarrollo)
-npm test             # las 30 suites de pipeline/lib (tests.yml corre esto en cada PR)
-npx vitest run tests/ledger.test.mjs   # una sola suite
-node --check pipeline/brain_live.mjs   # lo que valida build-check.yml
+npm install                             # installs vitest, the only dev dependency
+npm test                                # 53 vitest suites (tests.yml runs this on every PR)
+npx vitest run tests/ledger.test.mjs    # a single suite
+node --check pipeline/brain_live.mjs    # what build-check.yml validates
 ```
 
-La composición del canal principal usa el CLI de HyperFrames, con la versión clavada en `package.json`
-para que el video vuelva a renderizar igual meses después:
+The main channel's composition uses the HyperFrames CLI, pinned to a fixed version in `package.json` so a video renders the same months later:
 
 ```bash
-npm run check        # lint + runtime + layout de la composición
-npm run dev          # servidor de preview (queda corriendo)
-npm run render       # renderiza a MP4
+npm run check        # lint + runtime + layout of the composition
+npm run dev          # preview server (keeps running)
+npm run render       # renders to MP4
 ```
 
-La fábrica en sí **no se corre en local**: se dispara por workflow.
+The factory itself doesn't run locally; it's triggered by workflow:
 
 ```bash
-gh workflow run brain_live.yml                      # un ciclo del cerebro
+gh workflow run brain_live.yml                                   # one brain cycle
 gh workflow run produce_oddly.yml -f niche=satisfying -f kind=short
-gh workflow run deploy-bot.yml                      # despliega el Worker (wrangler corre en Actions)
-gh run watch                                        # seguir la corrida
+gh workflow run deploy-bot.yml                                   # deploy the Worker (wrangler runs in Actions)
+gh run watch                                                     # follow the run
 ```
 
-### Secretos y variables
+You'll need the secrets listed in [docs/OPERACION.md](docs/OPERACION.md#secretos-y-variables) and the bot setup in [bot/README.md](bot/README.md).
 
-En **GitHub → Settings → Secrets and variables → Actions** (solo nombres; los valores nunca van al repo):
+## Layout
 
-| Secreto | Para qué |
+| Folder / file | What's inside |
 |---|---|
-| `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN` | OAuth de The Data Lens. |
-| `YT2_CLIENT_ID`, `YT2_CLIENT_SECRET`, `YT2_REFRESH_TOKEN` | OAuth de Oddly Loop (ver `docs/SEGUNDO_CANAL_OAUTH.md`). |
-| `GEMINI_API_KEY`, `GEMINI_API_KEY2` | Guion, SEO y análisis. Dos llaves para repartir la cuota gratis. |
-| `PEXELS_API_KEY`, `PIXABAY_API_KEY` | Footage con licencia. |
-| `FREESOUND_API_KEY` | Biblioteca de sonido CC0. |
-| `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Desplegar el Worker y leer/escribir R2. |
-| `GH_TOKEN` | PAT fine-grained (Actions: read/write) para que un workflow encadene al siguiente y el Worker dispare la fábrica. |
-| `TELEGRAM_BOT_TOKEN`, `OWNER_CHAT_ID` | Avisos al chat. |
-| `CEREBRAS_API_KEY`, `GROQ_API_KEY`, `SAMBANOVA_API_KEY`, `OPENROUTER_API_KEY` | Opcionales. `pipeline/llm.mjs` los usa como relevo cuando Gemini se queda sin cuota; los que no tengan llave se saltan solos. |
+| `pipeline/*.mjs`, `*.py` | ~130 factory scripts: script, voice, assembly, YouTube, reports, brain, radar. Each one opens with a comment on what it does and when it runs. |
+| `pipeline/lib/` | **Pure** logic (no network, no disk): niche ranking, scoring, ledger, lineup, YPP math, alerts. That's what the tests cover. |
+| `.github/workflows/` | 84 workflows, one per step; they chain through `workflow_dispatch` using the PAT. |
+| `bot/` | Cloudflare Worker: `/api/*`, the Telegram Mini App (`/os`, `/cerebro`) and the 30-minute cron that makes up for skipped GitHub crons. |
+| `radar-bot/` | Separate Worker: Radar's Mini App (run → review → merge PRs). |
+| `shared/` | UI pieces shared by the bots (shell, tokens, the unified "today" view). |
+| `channel/`, `channel/auto2/` | Seeds for The Data Lens and Oddly Loop (cadence, source allowlist, niches, branding). Live state lives in R2. |
+| `tests/` | vitest suites over `pipeline/lib/`, the OS contract and the workflows' bash. |
+| `clipper/` | Local (not cloud) clipper for CC-BY videos. **Off since 2026-10-24**: its license filter let third-party footage through. |
+| `skills/` | Craft notes per area (script, voice, SEO, Shorts, monetization) that feed the prompts. |
+| `projects/`, `index.html`, `meta.json`, `hyperframes.json` | HyperFrames composition for the main channel (HTML → MP4). |
+| `assets/luts/` | The LUT the assembler uses for the grade. |
+| `docs/` | One document per topic (table below). |
 
-En el Worker, con `wrangler secret put`: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`,
-`OWNER_CHAT_ID`, `GH_TOKEN`. Los bindings (R2, AI, servicios) están en `bot/wrangler.toml`.
-Los pasos completos de alta del bot están en [`bot/README.md`](bot/README.md).
+## Docs
 
-## Decisiones y límites
-
-- **GitHub Actions como granja de render, no un servidor.** Un runner gratis no aguanta un video de
-  10 minutos de una sentada, así que `render_phased.yml` parte la narración en fases de ~2 minutos,
-  las renderiza en paralelo, cada una pasa su propia puerta de calidad y al final se unen. Alquilar
-  una GPU sería más simple y costaría dinero todos los meses; esto no cuesta nada.
-- **El repo es público a propósito.** En privado, los 2.000 minutos mensuales de Actions se agotaban y
-  todos los workflows fallaban. Público, los minutos son ilimitados. La contrapartida es que **nada
-  sensible puede vivir en el repo**: la voz de referencia está en R2 privado y `.gitignore` bloquea
-  `assets/voice/*.mp3`.
-- **Kokoro para la voz, no edge-tts.** Kokoro es Apache-2.0 y corre en CPU dentro del runner. edge-tts
-  es zona gris para uso comercial y depende de un servicio que puede cerrar; Coqui/XTTS tienen licencia
-  no comercial.
-- **Cadena de proveedores de texto, no uno solo.** `pipeline/llm.mjs` prueba en orden Gemini →
-  Cerebras → Groq → Workers AI → SambaNova → OpenRouter → GitHub Models y usa el primero que responda.
-  Todos tienen capa gratis; quedarse con uno significa parar la fábrica el día que se agota su cuota.
-- **R2 como memoria, no una base de datos.** El estado son archivos JSON por canal. Sin servidor de
-  base de datos que mantener y el Worker lee directo. El costo: no hay consultas — quien necesite
-  cruzar datos los cruza en el script.
-- **Una puerta legal antes de publicar, no después.** `compliance_check.mjs` bloquea la publicación si
-  un clip no está en la lista blanca de fuentes. Es más lento que publicar y arreglar después, pero un
-  strike de copyright cuesta el canal.
-- **Toda subida declara `containsSyntheticMedia: true`.** La voz es sintética; ocultarlo pone en riesgo
-  la monetización.
-- **Lo que el proyecto deliberadamente NO hace:** no compra vistas ni suscriptores, no comenta ni manda
-  DM en canales ajenos, no re-sube material de terceros sin licencia ni transformación, y no publica en
-  TikTok automáticamente (su Content Posting API exige una app aprobada). Tampoco corre rutinas en la
-  nube de ningún asistente: todo el agendado vive en crons de GitHub Actions.
-
-## Operación
-
-### Lo que corre solo
-
-| Cuándo | Workflow | Qué hace |
-|---|---|---|
-| Cada 30 min | cron del Worker (`bot/wrangler.toml`) | Dispara el Orchestrator y, en horas pares, el cerebro. GitHub se salta crons frecuentes; este reloj lo compensa. |
-| Cada 2 h | `brain_live.yml`, `report_auto2.yml` | Decide y produce Oddly Loop; refresca sus métricas. |
-| Cada 6 h | `channel_report.yml`, `comment_reply.yml`, `telegram_broadcast.yml`, `schedule_backlog_*.yml` | Estado de The Data Lens, respuestas a comentarios, difusión y re-agendado de lo que falló. |
-| Diario | `weekly_stats` (12:45) → `channel_brain` (13:00) → `episodes` (14:00) → `hypotheses` (14:30) → `retention` (15:00) → `monetization_report` (15:30) → `hooks` (16:00) → `alerts` (16:30) UTC | La cadena de medición. Cada paso corre después del que le da insumos. |
-| Diario 11:00 UTC | `watchdog.yml` | Verifica R2, los tokens de los dos canales y que los crons de producción sigan vivos. Solo avisa si algo falla. |
-| Diario 12:30 UTC | `daily_oddly.yml` | Cadencia por categoría de Oddly Loop. |
-| Lunes | `radar_scan` (13:00), `niche_radar` (11:00), `oddly_niche_review` (14:00), `data_shock` (15:00), `codeql` (06:00) | Radar de mejoras, revisión de nichos, el experimento semanal de The Data Lens y el barrido de seguridad. |
-| Domingo | `growth_radar` (13:00), `experiment_report` (17:00), `cross_validate` (18:00) | Investigación externa, reporte de experimentos y cruce de lo que dice la investigación contra los datos propios. |
-
-### Dónde mirar cuando algo falla
-
-1. **Telegram** es la primera señal: el watchdog y las alertas avisan ahí, en silencio entre 11pm y
-   5am Bogotá (`pipeline/notify_telegram.sh`).
-2. **Actions** guarda el log completo de cada paso: `gh run list --workflow=<archivo>.yml` y
-   `gh run view <id> --log-failed`.
-3. **La Mini App** (`/app2`) muestra qué está corriendo, la bitácora del cerebro y el ledger de
-   decisiones con sus aciertos y fallos.
-4. **R2** tiene el estado crudo: `channel/tools_health.json` dice qué herramienta está caída y
-   `channel/error_log.json` guarda causa y arreglo de los fallos anteriores (`error_learn.mjs`).
-
-Fallos conocidos y su manejo están en [`docs/CONFIABILIDAD_24_7.md`](docs/CONFIABILIDAD_24_7.md): el
-sistema reanuda renders caídos, salta un tema que falla 3 veces y corta el circuito antes de entrar en
-bucle.
-
-## Estado actual y siguientes pasos
-
-**Funcionando hoy**
-
-- Oddly Loop produce, verifica licencias, sube y se programa sin intervención, guiado por `brain_live`.
-- Puerta de compliance, agendado por datos propios, biblioteca de sonido CC0 y grade por nicho.
-- Auto-recuperación: watchdog, reintentos entre workflows, cortacircuitos y re-agendado del backlog.
-- 30 suites de tests sobre la lógica de decisión, más CodeQL y Dependabot en cada PR.
-- El AI OS (Pulse · Trabajo · Decisiones) unifica en Telegram este repo con Radar y Viento.
-
-**A medias**
-
-- **The Data Lens está pausado desde el 2026-09-14**: diez semanas sin tracción. `daily_video.yml` y
-  `history_short.yml` quedaron en disparo manual y solo sigue `data_shock.yml` los lunes. Se revisa a
-  los 21 días; si un experimento pasa 500 vistas a los 7 días se reanuda ese formato (registrado en el
-  ledger como `channel_pause`).
-- La meta de monetización de Oddly Loop por Shorts es **improbable al ritmo actual**: el requisito son
-  ~111 mil vistas/día y el canal va por ~15.500 a la semana. El detalle está en
-  [`docs/AUDITORIA_CEREBRO.md`](docs/AUDITORIA_CEREBRO.md).
-- Fases 4 y 5 del AI OS (Radar y Viento completos dentro del OS), en
-  [`docs/AI_OS_FASES.md`](docs/AI_OS_FASES.md).
-- Distribución multiplataforma: Telegram y Pinterest están en código pero sin credenciales
-  ([`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md)).
-
-**Ideas con issue abierto** (las levanta `radar_scan.yml` los lunes)
-
-- [#121](https://github.com/juanberrio0399/video-forge/issues/121) — migrar la autenticación de
-  Google/YouTube a OIDC y dejar de rotar refresh tokens.
-- [#122](https://github.com/juanberrio0399/video-forge/issues/122) — orquestar el estado con Cloudflare
-  Workflows en vez de encadenar workflows con el PAT.
-- [#133](https://github.com/juanberrio0399/video-forge/issues/133) — firmar los videos con Content
-  Credentials (C2PA).
-- [#123](https://github.com/juanberrio0399/video-forge/issues/123) — panel público del estado de la
-  fábrica.
-
-## Documentación
-
-| Doc | Qué contiene |
+| Doc | What's in it |
 |---|---|
-| [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md) | Componentes, el slot de producción, el estado en R2 y la auto-recuperación. |
-| [docs/FLUJOS.md](docs/FLUJOS.md) | Los flujos con diagramas: producción de cada canal, agendado, estado, sonido. |
-| [docs/AUDITORIA_CEREBRO.md](docs/AUDITORIA_CEREBRO.md) | Qué medía mal el cerebro, qué se corrigió y cómo se juzga a sí mismo. |
-| [docs/CANAL_AUTOMATICO.md](docs/CANAL_AUTOMATICO.md) | Diseño de Oddly Loop: nichos, fuentes legales, fases. |
-| [docs/EXPERTO_POR_CATEGORIA.md](docs/EXPERTO_POR_CATEGORIA.md) | Cómo se trabaja una categoría nueva y las reglas de retención. |
-| [docs/BRANDING.md](docs/BRANDING.md) | Tipografía, paletas e identidad de canales, bots y Mini Apps. |
-| [docs/CONFIABILIDAD_24_7.md](docs/CONFIABILIDAD_24_7.md) | Mapa de fallos y cómo se cierran. |
-| [docs/CAPACIDAD_Y_EXPERIMENTOS.md](docs/CAPACIDAD_Y_EXPERIMENTOS.md) | Cuánto puede publicar la fábrica y la rampa de duración. |
-| [docs/CRECIMIENTO.md](docs/CRECIMIENTO.md) | Palancas de suscriptores: encadenar videos, CTA, tono. |
-| [docs/GROWTH_ROADMAP.md](docs/GROWTH_ROADMAP.md) | Sistema de crecimiento por fases (score, A/B, alertas, cruce). |
-| [docs/AI_OS_FASES.md](docs/AI_OS_FASES.md) | Fases del AI OS y lo que queda abierto. |
-| [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) | Reparto de Shorts a otras superficies y qué está bloqueado. |
-| [docs/DIFUSION.md](docs/DIFUSION.md) | Material de lanzamiento del repo, listo para publicar a mano. |
-| [docs/SEGUNDO_CANAL_OAUTH.md](docs/SEGUNDO_CANAL_OAUTH.md) | Crear el 2º canal y sacar sus credenciales `YT2_*`. |
-| [docs/miniapp-historias-video-forge.md](docs/miniapp-historias-video-forge.md) | Historias de usuario de la Mini App, mapeadas al código. |
-| [docs/miniapp-historias-radar-bot.md](docs/miniapp-historias-radar-bot.md) | Lo mismo para el radar-bot. |
+| [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md) | Components, the production slot, state in R2 and self-healing. |
+| [docs/FLUJOS.md](docs/FLUJOS.md) | Flows with diagrams: production per channel, scheduling, state, sound. |
+| [docs/OPERACION.md](docs/OPERACION.md) | Full schedule, where to look when things fail, secrets. |
+| [docs/DECISIONES.md](docs/DECISIONES.md) | Design decisions and what the project deliberately doesn't do. |
+| [docs/AUDITORIA_CEREBRO.md](docs/AUDITORIA_CEREBRO.md) | What the brain measured wrong, what got fixed and how it judges itself. |
+| [docs/CANAL_AUTOMATICO.md](docs/CANAL_AUTOMATICO.md) | Oddly Loop's design: niches, legal sources, phases. |
+| [docs/EXPERTO_POR_CATEGORIA.md](docs/EXPERTO_POR_CATEGORIA.md) | How a new category gets worked, and the retention rules. |
+| [docs/BRANDING.md](docs/BRANDING.md) | Typography, palettes and identity for channels, bots and Mini Apps. |
+| [docs/CONFIABILIDAD_24_7.md](docs/CONFIABILIDAD_24_7.md) | Failure map and how each one is closed. |
+| [docs/CAPACIDAD_Y_EXPERIMENTOS.md](docs/CAPACIDAD_Y_EXPERIMENTOS.md) | How much the factory can publish and the duration ramp. |
+| [docs/CRECIMIENTO.md](docs/CRECIMIENTO.md) | Subscriber levers: chaining videos, CTA, tone. |
+| [docs/GROWTH_ROADMAP.md](docs/GROWTH_ROADMAP.md) | Phased growth system (score, A/B, alerts, cross-checks). |
+| [docs/AI_OS_FASES.md](docs/AI_OS_FASES.md) | Phases of the Telegram "OS" and what's still open. |
+| [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) | Sending Shorts to other surfaces and what's blocked. |
+| [docs/DIFUSION.md](docs/DIFUSION.md) | Launch copy for the repo, ready to post by hand. |
+| [docs/SEGUNDO_CANAL_OAUTH.md](docs/SEGUNDO_CANAL_OAUTH.md) | Creating the second channel and getting its `YT2_*` credentials. |
+| [docs/miniapp-historias-video-forge.md](docs/miniapp-historias-video-forge.md) | Mini App user stories, mapped to the code. |
+| [docs/miniapp-historias-radar-bot.md](docs/miniapp-historias-radar-bot.md) | Same, for radar-bot. |
 
-## Licencia
+Most docs are in Spanish.
 
-Apache-2.0 — © 2025 Juan Berrio. Ver [LICENSE](LICENSE) y [NOTICE](NOTICE).
+## Status
 
-Topics del repo: `youtube-automation`, `faceless-youtube`, `serverless`, `github-actions`,
-`cloudflare-workers`, `text-to-speech`, `generative-ai`, `gemini`, `content-automation`,
-`video-generation`, `ffmpeg`, `telegram-bot`, `automation`, `r2`.
+Oddly Loop is live and fully automatic; The Data Lens only gets measured. The open question is the format A/B test (`un_hecho` vs. list): the median Short sat around 46 views in early October, so the lever is format, not volume. What's done, what's next and the known gotchas are in [PLAN.md](PLAN.md) (Spanish).
+
+## License and author
+
+Built by **Juan Berrio**. Apache-2.0, © 2025 Juan Berrio. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
