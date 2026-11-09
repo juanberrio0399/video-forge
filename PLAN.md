@@ -1,6 +1,6 @@
 # Plan — video-forge
 
-Actualizado: 2026-10-11 · Estado: **activo** (Oddly Loop) · **en pausa** (The Data Lens, solo métricas)
+Actualizado: 2026-11-09 · Estado: **activo** (Oddly Loop) · **en pausa** (The Data Lens, solo métricas)
 
 El cómo está en el [README](README.md) y en [`docs/`](docs/). Este archivo dice dónde está el proyecto y qué sigue.
 
@@ -32,7 +32,7 @@ La fuente de verdad del estado es **R2**, no el repo: `channel/auto2/state.json`
 - **GitHub Actions**: el repo es público, los minutos no cuestan.
 - **Cloudflare** (plan gratis): Worker del bot + R2. La cuenta tiene un tope de 5 cron triggers (hoy se usan 3).
 - **YouTube Data API**: OAuth por canal (`YT_*` Data Lens, `YT2_*` Oddly). El refresh token no caduca porque la app está "In production".
-- **IA gratis**: Gemini (`GEMINI_API_KEY`, `GEMINI_API_KEY2`), con Groq, Cerebras, OpenRouter, SambaNova y GitHub Models como respaldo; Kokoro para la voz.
+- **IA gratis**: Gemini (`GEMINI_API_KEY`, `GEMINI_API_KEY2`), con Groq, OpenRouter, Workers AI, Cerebras y SambaNova como respaldo (GitHub Models se quitó); Kokoro para la voz.
 - **Fuentes de clips**: Pexels, Pixabay, NASA, Wikimedia, Archive, Freesound.
 - **Telegram**: `TELEGRAM_BOT_TOKEN`, `OWNER_CHAT_ID`.
 - **`GH_TOKEN`** (PAT): encadena workflows por `workflow_dispatch`.
@@ -63,18 +63,21 @@ La fuente de verdad del estado es **R2**, no el repo: `channel/auto2/state.json`
 | 2026-10-04 | Data Lens fuera del foco: producción apagada, cerebro solo para Oddly | #167, #168 |
 | 2026-10-08 | `episodes.yml` volvió a correr (llevaba 2 días caído) + test que valida el bash de los workflows | #172, #174 |
 | 2026-10-09/10 | El plan ya no tapa franjas de animales con satisfying; `un_hecho` sin ideas de lista | #175, #176 |
+| 2026-10-22 | #151 (`uploadLimitExceeded`) cerrado: no se repitió en más de 100 corridas a 12 Shorts/día | — |
+| 2026-10-24 | `clipper/` apagado: su filtro de licencia dejaba pasar material ajeno | — |
+| 2026-11-09 | README bilingüe; docs de decisiones, operación y producto (historias, flujos, datos) | #234 |
 
 ## Qué falta
 
 **Ahora**
-1. **Veredicto del A/B de formato.** Se espera entre el 14 y el 17 de octubre, cuando haya 5 videos maduros por brazo. Si gana `un_hecho`, se escala; si no, el problema está más arriba que el formato.
-2. **#151:** Oddly choca con el límite diario de subidas de YouTube (`uploadLimitExceeded`) y pierde piezas.
+1. **Veredicto del A/B de formato.** Se esperaba entre el 14 y el 17 de octubre, cuando hubiera 5 videos maduros por brazo. Si gana `un_hecho`, se escala; si no, el problema está más arriba que el formato.
 
 **Después**
-3. #153: avisos de Node 20 deprecado (actions `download-artifact@v4`, `setup-python@v5`).
-4. #152: CLI de HyperFrames 41 versiones atrás.
-5. #143: un render que cae por timeout no se reanuda solo.
-6. Issues del radar sin priorizar: #144 (Kokoro sin PyTorch), #145 (`@google/genai`), #146 (cuota concurrente), #122, #123, #132, #133, #134, #45.
+2. #152: CLI de HyperFrames 41 versiones atrás.
+3. #144: Kokoro solo con ONNX, sin PyTorch.
+4. Ideas del radar abiertas: #187 (OIDC para Cloudflare), #181 (FFmpeg.wasm), #179 (modelo de video abierto), #180 (descubribilidad), #190 (NOTICE y atribución).
+
+Ya cerrados desde la versión anterior de este plan: #151, #153, #143, #145, #146, #122, #123, #132, #133, #134 y #45.
 
 **Depende de Juan**
 - Decidir qué pasa con The Data Lens tras el clipping: reactivar, dejar solo métricas o cerrar.
