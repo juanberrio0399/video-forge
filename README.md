@@ -129,6 +129,10 @@ Most docs are in Spanish.
 
 Oddly Loop is live and fully automatic; The Data Lens only gets measured. The open question is the format A/B test (`un_hecho` vs. list): the median Short sat around 46 views in early October, so the lever is format, not volume. What's done, what's next and the known gotchas are in [PLAN.md](PLAN.md) (Spanish).
 
+## Maintenance
+
+Dependencies are kept current by Dependabot, which I set up in [`.github/dependabot.yml`](.github/dependabot.yml). Every PR it opens is assigned to me with the `mantenimiento-automatico` label, it only gets merged if the tests pass, and I review major version bumps by hand.
+
 ## License and author
 
 Built by **Juan Berrio**. Apache-2.0, © 2025 Juan Berrio. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

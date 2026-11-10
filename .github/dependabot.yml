@@ -9,6 +9,10 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "deps"
+    assignees:
+      - "juanberrio0399"
+    labels:
+      - "mantenimiento-automatico"
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
@@ -16,6 +20,10 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "deps"
+    assignees:
+      - "juanberrio0399"
+    labels:
+      - "mantenimiento-automatico"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -23,6 +31,10 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "ci"
+    assignees:
+      - "juanberrio0399"
+    labels:
+      - "mantenimiento-automatico"
   - package-ecosystem: "pip"
     directory: "/clipper"
     schedule:
@@ -30,3 +42,7 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "deps"
+    assignees:
+      - "juanberrio0399"
+    labels:
+      - "mantenimiento-automatico"
