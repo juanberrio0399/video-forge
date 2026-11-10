@@ -131,6 +131,9 @@ jobs:
           mv radar_changed.txt /tmp/radar_changed.txt
           rm -f radar_*.json radar_*.txt
           if [ "$COMPLETE" = "1" ]; then CLOSE="Closes #${ISSUE}"; NOTE=""; else CLOSE="Ref #${ISSUE}"; NOTE=" (⚠️ INCOMPLETO — revisar; NO cierra el issue)"; fi
+          # Autoría única: quita cualquier línea de co-autor o firma de herramienta que traiga el motor.
+          COMMIT=$(printf '%s\n' "$COMMIT" | grep -viE '^[[:space:]]*co-authored-by:|generated with' || true)
+          sed -i -E '/^[[:space:]]*co-authored-by:/Id; /generated with/Id' /tmp/radar_body.md
           git config user.name "Juan Berrio"
           git config user.email "juandyb99@gmail.com"
           git checkout -b "$BR"
