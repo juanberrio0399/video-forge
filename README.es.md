@@ -127,6 +127,10 @@ Hacen falta los secretos de [docs/OPERACION.md](docs/OPERACION.md#secretos-y-var
 
 Oddly Loop está en producción y va solo; The Data Lens solo se mide. Lo que está en juego es el A/B de formato (`un_hecho` contra lista): la mediana por Short estaba en ~46 vistas a comienzos de octubre, así que la palanca es el formato, no el volumen. Qué se hizo, qué sigue y las trampas conocidas están en [PLAN.md](PLAN.md).
 
+## Mantenimiento
+
+Las dependencias las mantiene al día Dependabot, que configuré yo en [`.github/dependabot.yml`](.github/dependabot.yml). Cada PR que abre me lo asigna a mí con la etiqueta `mantenimiento-automatico`, solo entra si pasan las pruebas y los cambios de versión mayor los reviso a mano.
+
 ## Licencia y autor
 
 Lo hice yo, **Juan Berrio**. Apache-2.0, © 2025 Juan Berrio. Ver [LICENSE](LICENSE) y [NOTICE](NOTICE).

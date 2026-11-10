@@ -31,3 +31,5 @@ clipper/downloads/
 clipper/**/__pycache__/
 clipper/assets/*.mp3
 !clipper/.env.example
+.claude
+CLAUDE.md
