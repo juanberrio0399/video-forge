@@ -17,6 +17,8 @@ It feeds two real channels, kept fully separate (state, credentials, reports and
 
 ## How it works
 
+<p align="center"><img src="docs/flow.svg" alt="Animated overview of the flow" width="100%"></p>
+
 ```mermaid
 flowchart LR
   TG["Telegram<br/>single bot + Mini App"] <--> WK["Worker video-forge-bot<br/>API, Mini App, 30-min cron"]
