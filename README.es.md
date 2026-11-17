@@ -135,4 +135,4 @@ Las dependencias las mantiene al día Dependabot, que configuré yo en [`.github
 
 ## Licencia y autor
 
-Lo hice yo, **Juan Berrio**. Apache-2.0, © 2025 Juan Berrio. Ver [LICENSE](LICENSE) y [NOTICE](NOTICE).
+<img src="docs/wolf.webp" width="28" height="28" alt="" align="absmiddle"> Lo hice yo, **Juan Berrio**. Apache-2.0, © 2025 Juan Berrio. Ver [LICENSE](LICENSE) y [NOTICE](NOTICE).
