@@ -17,6 +17,8 @@ Alimenta dos canales reales, separados de punta a punta (estado, credenciales, r
 
 ## Cómo funciona
 
+<p align="center"><img src="docs/flow.es.svg" alt="Vista animada del flujo" width="100%"></p>
+
 ```mermaid
 flowchart LR
   TG["Telegram<br/>bot único + Mini App"] <--> WK["Worker video-forge-bot<br/>API, Mini App, cron de 30 min"]
