@@ -137,4 +137,4 @@ Dependencies are kept current by Dependabot, which I set up in [`.github/dependa
 
 ## License and author
 
-Built by **Juan Berrio**. Apache-2.0, © 2025 Juan Berrio. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+<img src="docs/wolf.webp" width="28" height="28" alt="" align="absmiddle"> Built by **Juan Berrio**. Apache-2.0, © 2025 Juan Berrio. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
