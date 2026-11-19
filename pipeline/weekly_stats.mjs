@@ -90,7 +90,9 @@ function mondayUTC(dstr) {
   const kept = minNew ? prev.filter((w) => w.week < minNew) : prev;
   const weeks = [...kept, ...fresh].slice(-120); // desde el día 1 (tope ~2 años)
 
-  all.channels[CH] = { name, subs, total_views, lag_days: 3, has_subs: cols.sg != null, has_engagement: cols.likes != null, weeks };
+  // Dia a dia de los ultimos 15 dias de este canal (Analytics va ~3 dias atras): vistas y suscriptores netos de cada dia.
+  const days = rows.slice(-15).map((row) => ({ d: row[0], views: g(row, cols.views), subs_net: cols.sg != null ? g(row, cols.sg) - g(row, cols.sl) : null }));
+  all.channels[CH] = { name, subs, total_views, lag_days: 3, has_subs: cols.sg != null, has_engagement: cols.likes != null, weeks, days };
   all.updated = new Date().toISOString();
   fs.writeFileSync(FILE, JSON.stringify(all));
   console.log(CH, "OK — semanas:", weeks.length, "| última:", JSON.stringify(fresh[fresh.length - 1] || null));

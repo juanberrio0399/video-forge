@@ -294,6 +294,7 @@ export const APP2_HTML = `<!doctype html>
     return '<div class="req"><div class="row"><span style="font-size:13.5px;font-weight:700">'+esc(r.label)+'</span>'+feasPill(r.status)+'</div>'+
       (r.cur==null?'<div class="muted" style="margin-top:4px">La API de YouTube no entregó este dato. No se sustituye por totales.</div>':
       '<div class="row" style="margin-top:4px"><span class="num" style="font-weight:800">'+num(r.cur)+' <span class="muted">/ '+num(r.target)+'</span></span><span class="muted num">'+(r.pct!=null?r.pct+" %":"")+'</span></div><div class="bar"><i style="width:'+Math.max(1,Math.min(100,r.pct||0))+'%"></i></div>'+
+      (r.target!=null&&r.cur<r.target?'<div class="muted num" style="margin-top:4px">Faltan <b>'+num(r.target-r.cur)+'</b></div>':'')+
       (hasPace?'<div class="pace"><div><div class="k">Ritmo real'+(r.pace_source==="28d"?' (28 días)':'')+'</div><div class="v num">'+num(r.per_day_actual)+'/día</div></div><div><div class="k">Necesario</div><div class="v num">'+num(r.per_day_needed)+'/día</div></div></div>':''))+
       (r.window?'<div class="muted" style="margin-top:5px">Ventana móvil de '+r.window+' días</div>':'')+'</div>';
   }
@@ -318,6 +319,18 @@ export const APP2_HTML = `<!doctype html>
     return '<h2>Reparto que se ejecuta <span class="cnt">'+esc(d.total||"")+'/día</span></h2><div class="card"><table><tr><th>Nicho</th><th class="num" style="text-align:right">Cupos</th><th>Por qué</th></tr>'+
       d.candidates.map(function(c){return '<tr><td><b>'+esc(c.label)+'</b></td><td class="num" style="text-align:right"><b>'+c.slots+'</b></td><td class="muted">'+esc(c.why)+'</td></tr>';}).join("")+'</table>'+
       '<div class="muted" style="margin-top:10px">Subir volumen: '+(g.status==="permitido"?'<span class="pill p-ok">permitido</span>':g.status==="bloqueado"?'<span class="pill p-bad">bloqueado</span>':'<span class="pill p-warn">sin dato</span>')+' '+esc(g.reason||"")+'</div></div>';
+  }
+  // Dia a dia del canal (solo este canal, sin sumar con el otro): barras de vistas y la lista con suscriptores y vistas de cada dia.
+  function dailyCard(ch){
+    var k=ch==="auto2"?"oddly":"data_lens";
+    var w=ST.weekly&&ST.weekly.channels&&ST.weekly.channels[k]; var d=(w&&w.days)||[];
+    if(!d.length) return '<h2>Día a día</h2><div class="card muted">Se llena con la medición diaria (12:45 UTC).</div>';
+    var max=Math.max.apply(null,d.map(function(x){return x.views||0;}).concat([1])), W=300, H=70, p=W/d.length;
+    var bars=d.map(function(x,i){ var bh=Math.max(1.5,(x.views||0)/max*(H-2)); return '<rect x="'+(i*p+1).toFixed(1)+'" y="'+(H-bh).toFixed(1)+'" width="'+Math.max(1,p-2).toFixed(1)+'" height="'+bh.toFixed(1)+'" rx="2" style="fill:var(--acc)"></rect>'; }).join("");
+    function fecha(s){ return new Date(s+"T12:00:00").toLocaleDateString("es-CO",{day:"numeric",month:"short"}); }
+    var rows=d.slice().reverse().map(function(x){ var s=x.subs_net; return '<div class="row" style="padding:4px 0"><span class="muted num">'+esc(fecha(x.d))+'</span><span class="num">'+(s==null?'—':(s>0?'+':'')+num(s))+' subs · '+num(x.views)+' vistas</span></div>'; }).join("");
+    return '<h2>Día a día · últimos '+d.length+' días</h2><div class="card"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:74px">'+bars+'</svg>'+
+      '<div class="muted" style="margin:4px 0 8px">Vistas por día en YouTube · Analytics va unos '+((w&&w.lag_days)||3)+' días atrás</div>'+rows+'</div>';
   }
   function qualityCard(ch){
     var m=BR&&BR.monetization&&BR.monetization.channels&&BR.monetization.channels[ch]; var q=m&&m.data_quality; if(!q) return "";
@@ -350,8 +363,8 @@ export const APP2_HTML = `<!doctype html>
     if(y.goal_tier==="expanded") out+=goalPlanCard()+tierCard(y.tiers&&y.tiers.expanded,"Meta del año · Nivel intermedio")+tierCard(y.tiers&&y.tiers.full,"Largo plazo · Monetización completa");
     else out+=tierCard(y.tiers&&y.tiers.expanded,"Nivel intermedio")+tierCard(y.tiers&&y.tiers.full,"Monetización completa");
     if(curCh==="auto2") out+=allocCard()+ledgerCard();
-    out+=qualityCard(curCh);
-    out+='<div class="muted" style="margin:10px 2px">Umbrales públicos del programa. Confírmalos en YouTube Studio para tu país.</div>';
+    out+=dailyCard(curCh)+qualityCard(curCh);
+    out+='<div class="muted" style="margin:10px 2px">Umbrales públicos del programa. Confírmalos en YouTube Studio para tu país. Este canal publica solo en YouTube: TikTok, Instagram y Facebook no están conectados.</div>';
     return out;
   }
 
