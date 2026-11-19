@@ -55,7 +55,7 @@ describe("pantalla de Inicio", () => {
   it("los cuatro sistemas, en orden fijo, con su linea", () => {
     expect(hoy.sistemas.map((s) => s.sigla)).toEqual(["VF", "SH", "VI", "RA"]);
     expect(hoy.sistemas[0]).toMatchObject({ status: "normal", linea: "Produciendo 2 piezas para mañana", der: "412k" });
-    expect(hoy.sistemas[1]).toMatchObject({ der: "0.2 GB", derSub: "de 6" });
+    expect(hoy.sistemas[1]).toMatchObject({ sigla: "SH", status: "normal", stale: false, der: "", linea: "Proyecto aparte · abrir su panel", panel: "/p/signal-halo" });
   });
   it("lo que falta sale como sin señal y lo dice arriba", () => {
     expect(hoy.sistemas[2]).toMatchObject({ status: "degraded", stale: true, linea: "Sin señal" });
@@ -63,14 +63,13 @@ describe("pantalla de Inicio", () => {
     expect(hoy.status).toBe("degraded");
   });
   it("para ti: lo urgente primero, con su accion", () => {
-    expect(hoy.paraTi.map((n) => n.title)).toEqual(["PC-OFICINA pide subir videos", "Merge PR #1 · a"]);
-    expect(hoy.paraTi[1]).toMatchObject({ accion: "Revisar", url: "https://github.com/x/a/pull/1", system: "radar" });
-    expect(hoy.paraTi[0].ver).toBe("pcs");
-    expect(hoy.frase).toBe("2 cosas para ti.");
+    expect(hoy.paraTi.map((n) => n.title)).toEqual(["Merge PR #1 · a"], "Signal Halo es aparte: sus avisos no entran aqui");
+    expect(hoy.paraTi[0]).toMatchObject({ accion: "Revisar", url: "https://github.com/x/a/pull/1", system: "radar" });
+    expect(hoy.frase).toBe("1 cosa para ti.");
   });
   it("cifras y ultimas horas salen de los datos", () => {
-    expect(hoy.cifras.map((c) => c.valor)).toEqual(["412k", "0.2 GB", "7"]);
-    expect(hoy.actividad[0]).toMatchObject({ name: "Signal Halo" });
+    expect(hoy.cifras.map((c) => c.valor)).toEqual(["412k", "7"], "sin cifras de Signal Halo");
+    expect(hoy.actividad.every((a) => a.name !== "Signal Halo")).toBe(true);
     expect(hoy.actividad.length).toBeLessThanOrEqual(6);
   });
   it("un pulse viejo no se muestra como sano", () => {

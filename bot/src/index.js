@@ -18,7 +18,7 @@ import { osUnifiedHtml, withOsBar } from "../../shared/os-unified.mjs";
 import { osShellHtml } from "../../shared/os-shell.mjs";
 import { recibirAviso, anotarUso, quizasResumen, volverAlMomento } from "./avisos.js";
 import { hoyHtml } from "../../shared/hoy-ui.mjs";
-import { componerHoy, pulsoSignalHalo } from "../../shared/hoy.mjs";
+import { componerHoy } from "../../shared/hoy.mjs";
 import { notificar, socketVivo } from "./vivo.js";
 export { Vivo } from "./vivo.js";
 
@@ -833,19 +833,13 @@ async function handleApi(request, env, url) {
   }
 
   if (url.pathname === "/api/hoy") {
-    // Pantalla unica: Video Forge, Viento y Radar desde sus pulses en R2; Signal Halo en vivo por su canal interno.
+    // Pantalla unica: Video Forge, Viento y Radar desde sus pulses en R2. Signal Halo es un proyecto aparte:
+    // en Hoy solo aparece la puerta a su panel, sin mezclar sus cifras ni avisos.
     const now = Date.now();
-    const leerSH = async () => {
-      if (!env.SIGNAL) return null;
-      try {
-        const r = await env.SIGNAL.fetch(new Request("https://os.internal/api/estado"));
-        return r.ok ? pulsoSignalHalo(await r.json(), now) : null;
-      } catch (e) { console.error("[hoy] signal-halo", e && e.message); return null; }
-    };
-    const [vf, viento, radar, sh] = await Promise.all([
-      r2json(env, "os/pulse/video-forge.json"), r2json(env, "os/pulse/viento.json"), r2json(env, "os/pulse/radar.json"), leerSH(),
+    const [vf, viento, radar] = await Promise.all([
+      r2json(env, "os/pulse/video-forge.json"), r2json(env, "os/pulse/viento.json"), r2json(env, "os/pulse/radar.json"),
     ]);
-    return json({ ...componerHoy({ "video-forge": vf, viento, radar, "signal-halo": sh }, now), build: String(env.APP_BUILD || "dev") });
+    return json({ ...componerHoy({ "video-forge": vf, viento, radar }, now), build: String(env.APP_BUILD || "dev") });
   }
 
   if (url.pathname === "/api/os") {
