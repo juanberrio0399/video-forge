@@ -6,7 +6,9 @@ import { applyStaleness } from "../pipeline/lib/os_contract.mjs";
 
 export const HOY_SISTEMAS = [
   { id: "video-forge", name: "Video Forge", sigla: "VF", panel: "/p/video-forge" },
-  { id: "signal-halo", name: "Signal Halo", sigla: "SH", panel: "/p/signal-halo" },
+  // Signal Halo es otro proyecto (Juan: "todo es diferente, no unificar"): en Hoy solo queda la puerta a su panel.
+  // Sus cifras, avisos y actividad no se mezclan aqui con los de Video Forge; se ven dentro de su propio panel.
+  { id: "signal-halo", name: "Signal Halo", sigla: "SH", panel: "/p/signal-halo", soloAcceso: true },
   { id: "viento", name: "Viento", sigla: "VI", panel: "/p/viento" },
   { id: "radar", name: "Radar", sigla: "RA", panel: "/p/radar" },
 ];
@@ -65,6 +67,7 @@ function lineaDe(id, p) {
 // pulses = { "video-forge": p, "signal-halo": p, viento: p, radar: p } (cualquiera puede faltar).
 export function componerHoy(pulses, nowMs = Date.now()) {
   const sistemas = HOY_SISTEMAS.map((s) => {
+    if (s.soloAcceso) return { ...s, status: "normal", stale: false, linea: "Proyecto aparte · abrir su panel", der: "", derSub: "", pulse: null };
     let p = pulses[s.id] || null;
     if (p && p.at && s.id !== "signal-halo") p = applyStaleness(p, nowMs);
     const status = !p ? "degraded" : p.stale ? "degraded" : p.status || "normal";
