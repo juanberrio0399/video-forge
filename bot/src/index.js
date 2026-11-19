@@ -51,7 +51,7 @@ export default {
     const panelMatch = request.method === "GET" && url.pathname.match(/^\/p\/(video-forge|radar|viento|signal-halo)$/);
     if (panelMatch) {
       const id = panelMatch[1];
-      const labels = { "video-forge": "Video Forge · Panel de canales", radar: "Radar · Panel de repos", viento: "Viento · Panel de la tienda", "signal-halo": "Signal Halo · Videos" };
+      const labels = { "video-forge": "Video Forge · Panel de canales", radar: "Radar · Panel de repos", viento: "Viento · Panel de la tienda", "signal-halo": "Signal Halo · Redes" };
       const desdeHoy = url.searchParams.get("from") === "hoy";
       let html;
       if (id === "video-forge") html = APP2_HTML.replace("__BUILD__", String(env.APP_BUILD || "dev"));
