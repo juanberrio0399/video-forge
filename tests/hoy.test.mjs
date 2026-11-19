@@ -26,11 +26,19 @@ describe("Signal Halo como sistema", () => {
   it("convierte su estado en un pulse con lo que espera de ti", () => {
     const p = pulsoSignalHalo(sh, AHORA);
     expect(p.status).toBe("attention");
-    expect(p.headline).toBe("1 por usar");
-    expect(p.needs.map((n) => n.title)).toEqual(["1 video por usar", "PC-OFICINA pide subir videos"]);
-    expect(p.needs[1].why).toBe("Código 918 211");
+    expect(p.headline).toBe("Sin cifras de redes todavía");
+    expect(p.needs.map((n) => n.title)).toEqual(["PC-OFICINA pide subir videos"], "los videos se publican solos: ya no hay por usar");
+    expect(p.needs[0].why).toBe("Código 918 211");
     expect(p.metrics[0]).toMatchObject({ value: 0.2, unit: "GB" });
     expect(p.activity.some((a) => a.text.includes("Viejo"))).toBe(false);
+  });
+  it("con las cifras de las redes, la linea dice cuanto subieron y la cifra son los seguidores", () => {
+    const redes = { leido: AHORA, redes: { youtube: { seguidores: 10, vistas: 900, nuevos: 2 }, instagram: { seguidores: 83, vistas: null, nuevos: 83 }, tiktok: { seguidores: 0, vistas: 0, nuevos: null } } };
+    const p = pulsoSignalHalo({ ...sh, pcs: [], redes }, AHORA);
+    expect(p.headline).toBe("+85 seguidores desde ayer");
+    expect(p.metrics[0]).toMatchObject({ key: "seguidores", value: 93, context: "en 3 redes" });
+    expect(p.status).toBe("normal");
+    expect(pulsoSignalHalo({ ...sh, pcs: [], redes: { redes: { youtube: { seguidores: 5, nuevos: -1 } } } }, AHORA).headline).toBe("-1 seguidores desde ayer");
   });
   it("sin datos no inventa nada", () => {
     expect(pulsoSignalHalo(null)).toBeNull();
@@ -55,10 +63,10 @@ describe("pantalla de Inicio", () => {
     expect(hoy.status).toBe("degraded");
   });
   it("para ti: lo urgente primero, con su accion", () => {
-    expect(hoy.paraTi.map((n) => n.title)).toEqual(["PC-OFICINA pide subir videos", "1 video por usar", "Merge PR #1 · a"]);
-    expect(hoy.paraTi[2]).toMatchObject({ accion: "Revisar", url: "https://github.com/x/a/pull/1", system: "radar" });
+    expect(hoy.paraTi.map((n) => n.title)).toEqual(["PC-OFICINA pide subir videos", "Merge PR #1 · a"]);
+    expect(hoy.paraTi[1]).toMatchObject({ accion: "Revisar", url: "https://github.com/x/a/pull/1", system: "radar" });
     expect(hoy.paraTi[0].ver).toBe("pcs");
-    expect(hoy.frase).toBe("3 cosas para ti.");
+    expect(hoy.frase).toBe("2 cosas para ti.");
   });
   it("cifras y ultimas horas salen de los datos", () => {
     expect(hoy.cifras.map((c) => c.valor)).toEqual(["412k", "0.2 GB", "7"]);
@@ -143,7 +151,7 @@ describe("cliente de la pantalla", () => {
     expect(h).not.toContain("</script><x>");
   });
   it("los paneles abiertos desde Inicio vuelven a Inicio", () => {
-    const h = withOsBar("<html><body>x</body></html>", "Signal Halo · Videos", { href: "/hoy", texto: "Inicio", color: "#EDEDEF" });
+    const h = withOsBar("<html><body>x</body></html>", "Signal Halo · Redes", { href: "/hoy", texto: "Inicio", color: "#EDEDEF" });
     expect(h).toContain('href="/hoy"');
     expect(h).toContain("&#8249; Inicio");
     expect(withOsBar("<body>x</body>", "y")).toContain('href="/cerebro"');

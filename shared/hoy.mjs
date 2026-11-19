@@ -23,23 +23,31 @@ export function numero(v) {
   return String(Math.round(n * 10) / 10);
 }
 
-// Signal Halo publica su estado crudo (/api/pulso); aqui se vuelve un pulse con la misma forma que los demas.
+// Signal Halo publica su estado crudo (/api/estado); aqui se vuelve un pulse con la misma forma que los demas.
+// Los videos se publican solos (cola automatica), asi que ya no hay "videos por usar": la linea es como van las redes.
 export function pulsoSignalHalo(d, nowMs = Date.now()) {
   if (!d || !Array.isArray(d.videos)) return null;
   const vivos = d.videos.filter((v) => !v.borrado);
-  const porUsar = vivos.filter((v) => v.estado === "listo");
   const pcs = (d.pcs || []).filter((p) => p.estado === "pendiente");
   const gb = (b) => Math.round((Number(b) || 0) / 1073741824 * 10) / 10;
+  const redes = Object.values((d.redes && d.redes.redes) || {}).filter((r) => r && r.seguidores != null);
+  const seguidores = redes.reduce((t, r) => t + (Number(r.seguidores) || 0), 0);
+  const conCambio = redes.filter((r) => r.nuevos != null);
+  const nuevos = conCambio.reduce((t, r) => t + (Number(r.nuevos) || 0), 0);
   const needs = [];
-  if (porUsar.length) needs.push({ id: "sh-por-usar", system: "signal-halo", title: porUsar.length === 1 ? "1 video por usar" : `${porUsar.length} videos por usar`, why: corto(porUsar[0].titulo, 60), severity: "warn", actions: [{ id: "abrir", label: "Ver", kind: "open" }], created_at: porUsar[porUsar.length - 1].subido });
   for (const p of pcs) needs.push({ id: `sh-pc-${p.id}`, system: "signal-halo", title: `${p.nombre} pide subir videos`, why: `Código ${String(p.codigo || "").slice(0, 3)} ${String(p.codigo || "").slice(3)}`, severity: "warn", actions: [{ id: "abrir", label: "Revisar", kind: "open" }], created_at: p.creado, ver: "pcs" });
   const lleno = d.limite ? d.uso / d.limite : 0;
   return {
     system: "signal-halo", name: "Signal Halo", at: new Date(nowMs).toISOString(),
     status: lleno >= 0.9 ? "critical" : needs.length ? "attention" : "normal",
-    headline: porUsar.length ? (porUsar.length === 1 ? "1 por usar" : `${porUsar.length} por usar`) : "Nada por usar",
+    headline: !redes.length ? "Sin cifras de redes todavía"
+      : conCambio.length ? (nuevos > 0 ? `+${nuevos} seguidores desde ayer` : nuevos < 0 ? `${nuevos} seguidores desde ayer` : "Seguidores igual que ayer")
+      : `${redes.length} redes conectadas`,
     needs,
-    metrics: [{ key: "nube", label: "en la nube", value: gb(d.uso), unit: "GB", context: `de ${gb(d.limite)}` }],
+    metrics: [
+      ...(redes.length ? [{ key: "seguidores", label: "seguidores", value: seguidores, unit: "", context: `en ${redes.length} redes` }] : []),
+      { key: "nube", label: "en la nube", value: gb(d.uso), unit: "GB", context: `de ${gb(d.limite)}` },
+    ],
     activity: vivos.slice(0, 6).map((v) => ({ at: v.subido, text: `subió “${corto(v.titulo, 46)}”` })),
   };
 }
