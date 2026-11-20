@@ -317,7 +317,7 @@ export const HOY_JS = `
   // ---------- Hoja de un sistema (todo detalle se abre aqui; "atras" la cierra) ----------
   function sistema(id) { return ((S.datos && S.datos.sistemas) || []).filter(function (s) { return s.id === id; })[0]; }
   function abrirSistema(id, solo) {
-    if (id === "signal-halo") return abrirSH(null, solo);
+    if (id === "signal-halo") return irPanel("signal-halo");          // proyecto aparte: abre su panel completo (Redes), no la hoja vieja de videos
     if (id === "viento") return abrirVI(solo);
     if (id === "radar") return abrirRA(solo);
     if (id === "video-forge") return abrirVF(solo);
