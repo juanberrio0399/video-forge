@@ -1,0 +1,64 @@
+name: Tendencias de otros paises -> Oddly Loop (camino seguro)
+
+# Juan, 26-nov: videos que no necesitan idioma (un perrito bailando, un atardecer) en tendencia en otros paises.
+# Se toma SOLO EL TEMA de lo mas visto de Rusia, Japon, Corea, Brasil, India... (categorias mascotas y viajes):
+# el video sale de Pexels/Pixabay (licencia libre) con clip_pexels.yml / clip_pixabay.yml, nunca de YouTube.
+# Categoria "tendencia_global" en niche_map: asi se mide aparte. No repite un tema en 5 dias.
+
+on:
+  schedule:
+    - cron: "0 15 * * *"   # 15:00 UTC diario (10:00 Bogota)
+  workflow_dispatch:
+    inputs:
+      cuantos:
+        description: "cuantos temas hoy"
+        default: "2"
+
+permissions:
+  contents: read
+
+env:
+  BUCKET: video-forge
+
+jobs:
+  temas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.OWNER_CHAT_ID }}
+      YT_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+      CUANTOS: ${{ github.event.inputs.cuantos || '2' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Temas en tendencia (sin repetir los de los ultimos dias)
+        run: |
+          npx --yes wrangler@4 r2 object get "$BUCKET/channel/auto2/trend_topics_used.json" --file=usados.json --remote 2>/dev/null || echo '{}' > usados.json
+          node pipeline/trend_topics.mjs usados.json "$CUANTOS" > temas.json
+          cat temas.json
+      - name: Clip de cada tema (Pexels y Pixabay alternados) -> AUTO-PROGRAMADO
+        run: |
+          N=$(node -e 'console.log(JSON.parse(require("fs").readFileSync("temas.json","utf8")).length)')
+          if [ "$N" -eq 0 ]; then echo "Hoy no hay tema nuevo en tendencia."; exit 0; fi
+          LISTA=""
+          for i in $(seq 0 $((N - 1))); do
+            Q=$(node -e "console.log(JSON.parse(require('fs').readFileSync('temas.json','utf8'))[$i].query)")
+            TEMA=$(node -e "console.log(JSON.parse(require('fs').readFileSync('temas.json','utf8'))[$i].tema)")
+            WF=$([ $((i % 2)) -eq 0 ] && echo clip_pexels.yml || echo clip_pixabay.yml)
+            echo "▶ $TEMA -> \"$Q\" ($WF)"
+            if gh workflow run "$WF" -f topic="$Q" -f niche="tendencia_global" -f publish=yes -R "$GITHUB_REPOSITORY"; then
+              LISTA="$LISTA $TEMA,"
+              TEMA="$TEMA" node -e 'const fs=require("fs");const u=JSON.parse(fs.readFileSync("usados.json","utf8")||"{}");u[process.env.TEMA]=new Date().toISOString().slice(0,10);fs.writeFileSync("usados.json",JSON.stringify(u))'
+            fi
+            sleep 30
+          done
+          npx --yes wrangler@4 r2 object put "$BUCKET/channel/auto2/trend_topics_used.json" --file=usados.json --remote --content-type application/json || true
+          bash pipeline/notify_telegram.sh "🌍 Oddly Loop — tendencias de otros países:${LISTA%,} (Pexels/Pixabay, licencia libre)" || true
