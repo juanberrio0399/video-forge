@@ -34,6 +34,7 @@ jobs:
       YT_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
       YT_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
       CUANTOS: ${{ github.event.inputs.cuantos || '2' }}
+      HAY_PIXABAY: ${{ secrets.PIXABAY_API_KEY != '' && '1' || '' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -52,7 +53,8 @@ jobs:
           for i in $(seq 0 $((N - 1))); do
             Q=$(node -e "console.log(JSON.parse(require('fs').readFileSync('temas.json','utf8'))[$i].query)")
             TEMA=$(node -e "console.log(JSON.parse(require('fs').readFileSync('temas.json','utf8'))[$i].tema)")
-            WF=$([ $((i % 2)) -eq 0 ] && echo clip_pexels.yml || echo clip_pixabay.yml)
+            # Pixabay solo si hay PIXABAY_API_KEY (27-nov: falta); si no, todo por Pexels
+            WF=$([ $((i % 2)) -eq 1 ] && [ -n "$HAY_PIXABAY" ] && echo clip_pixabay.yml || echo clip_pexels.yml)
             echo "▶ $TEMA -> \"$Q\" ($WF)"
             if gh workflow run "$WF" -f topic="$Q" -f niche="tendencia_global" -f publish=yes -R "$GITHUB_REPOSITORY"; then
               LISTA="$LISTA $TEMA,"
